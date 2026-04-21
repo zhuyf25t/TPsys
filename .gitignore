@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+backend/target/
+backend/project/target/
+backend/project/.boot/
+backend/project/project/
+
+# Local runtime data
+backend/data/
+logs/
+.tmp/
+/pics/
+/queue/
+now.md
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+*.out.log
+*.err.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary screenshots / local captures
+tmp*.png
+tmp_*.png
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/

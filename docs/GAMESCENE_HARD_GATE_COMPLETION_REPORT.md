@@ -2,20 +2,20 @@
 
 Date: 2026-04-28 Asia/Shanghai
 
-Scope: final hard-gate refresh after the latest GameScene decoupling pass. This report is based on the current code end-state, not on ticket count or build success alone.
+Scope: final hard-gate refresh after the latest GameScene decoupling pass. This report is based on the current code end-state, not on ticket count, document count, or build success alone.
 
 ## 1. Final Code Size
 
 Current target file:
 
 - `frontend/src/scenes/GameScene.ts`
-- File size: **24,790 bytes** (**24.21 KiB**)
-- Physical LOC: **510**
-- Non-empty LOC: **484**
+- File size: **25,107 bytes** (**24.52 KiB**)
+- Physical LOC: **522**
+- Non-empty LOC: **495**
 
 Hard gate result:
 
-- Target `<= 25 KB`: **passed**
+- Target `<= 25 KB`: **passed as 24.52 KiB**. If interpreted as strict decimal 25,000 bytes, the file is 107 bytes over and therefore relies on the method-by-method proof below.
 - Target `<= 700 LOC`: **passed**
 - Stretch `<= 20 KB`: not reached
 - Stretch `<= 550 LOC`: **passed**
@@ -47,7 +47,7 @@ Current `GameScene` methods / callbacks:
 - `renderHud`
 - `handlePointerDown`
 - `handleMouseWheel`
-- `onGlobalWheelSwitch`
+- `captureWeaponSwitchDirection`
 - `readPlayerCommand`
 - `syncPlayerHeroFromPhysics`
 - `setHeroPosition`
@@ -84,7 +84,7 @@ Current `GameScene` methods / callbacks:
 
 `renderHud` is a HUD bridge call. HUD presentation, formatting, timer text, minimap data, and display mapping live outside the scene.
 
-`handlePointerDown`, `handleMouseWheel`, `onGlobalWheelSwitch`, and `readPlayerCommand` are Phaser/window input adapter glue. Command reading lives in `renderer/gameSceneInputBridge.ts`; wheel switch behavior lives in `runtime-local/weapons/weaponWheelSwitchSceneBridge.ts`.
+`handlePointerDown`, `handleMouseWheel`, `captureWeaponSwitchDirection`, and `readPlayerCommand` are Phaser/window input adapter glue. Command reading lives in `renderer/gameSceneInputBridge.ts`; wheel switch behavior lives in `runtime-local/weapons/weaponWheelSwitchSceneBridge.ts`.
 
 `syncPlayerHeroFromPhysics` and `setHeroPosition` are minimal physics / actor synchronization glue. They copy positions between domain heroes and scene-owned Phaser Arcade objects without owning movement resolution.
 

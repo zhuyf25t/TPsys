@@ -392,9 +392,29 @@
 - Phaser `setTint` 会继续叠加到 SVG 基础色上，最终角色辨识度仍需要人工 headful 视觉审美验收。
 - 当前只有 body variants，武器 overlay 和动作帧仍是程序化/静态组合，未达到最终商业动画资产级别。
 
+### BattlePage weapon overlay 可读性第二轮
+
+已完成本轮第二十刀：
+
+- `HeroView` 新增 renderer-only weapon overlay primitives，每个 hero 固定 3 个轻量 Phaser GameObject。
+- Pistol、RocketLauncher、Gatling、Shotgun 现在有不同手持轮廓：短手枪、粗长橙色火箭筒、双管加特林热芯、宽短霰弹双管。
+- overlay 随 hero display facing 同步位置与旋转，并在死亡/隐藏分支同步隐藏。
+- 本轮只改 `frontend/src/features/battle/renderer/entities/worldViewFactory.ts` 的视觉层，没有改 hitbox、projectile spawn、伤害、射程、后坐力、冷却、弹药、同步、AI、后端或 `GameScene.ts`。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 仍未做人工 headful 视觉审美验收；headless smoke 只能确认加载、同步、基础性能和无 warning。
+- overlay 仍是程序化 primitive，不是最终武器 sprite sheet；后续如果要更接近商业美术，需要武器 SVG/PNG overlay 或序列帧。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产与 hero variants 已接入并通过 headless smoke，下一步进入 pickup/weapon overlay 与障碍可读性第二轮打磨。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay 已接入并通过 headless smoke，下一步进入 pickup 与障碍可读性第二轮打磨。
 
 扩展性基础第一轮已经覆盖：
 
@@ -405,15 +425,15 @@
 
 下一阶段候选：
 
-- BattlePage pickup/weapon overlay 与障碍可读性第二轮：补 pickup icon 细节、武器 overlay 差异、障碍封闭轮廓和弹道遮挡层级。
+- BattlePage pickup 与障碍可读性第二轮：补 pickup icon 细节、障碍封闭轮廓、遮挡层级和弹道/技能层级。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage pickup/weapon overlay 与障碍可读性第二轮。
+1. BattlePage pickup 与障碍可读性第二轮。
    预计：0.5-1.5 天。
-   目标：继续提升 pickup、武器 overlay、障碍封闭轮廓、弹道/技能层级，不改变 gameplay 语义。
+   目标：继续提升 pickup、障碍封闭轮廓、遮挡层级、弹道/技能层级，不改变 gameplay 语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

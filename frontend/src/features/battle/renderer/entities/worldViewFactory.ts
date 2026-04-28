@@ -15,6 +15,12 @@ import {
   type HeroWeaponOverlayView
 } from "./heroWeaponOverlayView";
 import {
+  createLocalHeroMotionStreakView,
+  hideLocalHeroMotionStreaks,
+  syncLocalHeroMotionStreaks,
+  type LocalHeroMotionStreakView
+} from "./localHeroMotionStreakView";
+import {
   createItemPickupView,
   createWeaponPickupView,
   setPickupViewVisible,
@@ -54,13 +60,6 @@ export interface HeroView {
   actionBackground: Phaser.GameObjects.Rectangle;
   actionFill: Phaser.GameObjects.Rectangle;
   marker: Phaser.GameObjects.Arc | null;
-}
-
-interface LocalHeroMotionStreakView {
-  streaks: Phaser.GameObjects.Rectangle[];
-  lastPosition: Vec2 | null;
-  lastAngle: number;
-  intensity: number;
 }
 
 export interface WorldViewState {
@@ -109,7 +108,6 @@ export interface WorldViewSyncContext {
 const EMPTY_REMOTE_AUTH_HERO_IDS: ReadonlySet<string> = new Set<string>();
 const HERO_READABILITY_MIN_RADIUS = 18;
 const HERO_READABILITY_MARKER_DEPTH = 32;
-const HERO_LOCAL_MOTION_STREAK_DEPTH = 31;
 const HERO_READABILITY_SHADOW_DEPTH = 33;
 const HERO_READABILITY_BODY_DEPTH = 34;
 const HERO_READABILITY_SILHOUETTE_DEPTH = 35;
@@ -127,11 +125,6 @@ const HERO_HEALTH_BACKGROUND_NORMAL_ALPHA = 0.95;
 const HERO_SLOWED_STATUS_TINT = 0x9bf8ff;
 const HERO_SLOWED_STATUS_FILL_ALPHA = 0.055;
 const HERO_SLOWED_STATUS_STROKE_ALPHA = 0.58;
-const LOCAL_HERO_MOTION_STREAK_COUNT = 3;
-const LOCAL_HERO_MOTION_MIN_SPEED = 70;
-const LOCAL_HERO_MOTION_MAX_SPEED = 470;
-const LOCAL_HERO_MOTION_DECAY = 0.34;
-const LOCAL_HERO_MOTION_TINT = 0x8fe8ff;
 
 interface WeaponCueReadabilityStyle {
   lengthRadiusScale: number;
@@ -498,97 +491,6 @@ export function syncHeroViews({
         targetFacing: hero.facing
       });
     }
-  });
-}
-
-function createLocalHeroMotionStreakView(scene: Phaser.Scene, position: Vec2): LocalHeroMotionStreakView {
-  const streaks = Array.from({ length: LOCAL_HERO_MOTION_STREAK_COUNT }, (_unused, index) =>
-    scene.add
-      .rectangle(position.x, position.y, 18 + index * 8, 3, LOCAL_HERO_MOTION_TINT, 0)
-      .setOrigin(1, 0.5)
-      .setDepth(HERO_LOCAL_MOTION_STREAK_DEPTH)
-      .setVisible(false)
-  );
-
-  return {
-    streaks,
-    lastPosition: null,
-    lastAngle: 0,
-    intensity: 0
-  };
-}
-
-function syncLocalHeroMotionStreaks(
-  view: LocalHeroMotionStreakView | null,
-  displayPosition: Vec2,
-  deltaMs: number
-): void {
-  if (!view || !isFiniteVec2(displayPosition)) {
-    return;
-  }
-
-  const lastPosition = view.lastPosition;
-  view.lastPosition = { x: displayPosition.x, y: displayPosition.y };
-
-  if (!lastPosition || !isFiniteVec2(lastPosition)) {
-    hideLocalHeroMotionStreaks(view, false);
-    return;
-  }
-
-  const dx = displayPosition.x - lastPosition.x;
-  const dy = displayPosition.y - lastPosition.y;
-  const frameDistance = Math.hypot(dx, dy);
-  const safeDeltaMs = Number.isFinite(deltaMs) ? Math.max(1, deltaMs) : 16.67;
-  const speed = frameDistance * 1000 / safeDeltaMs;
-  const speedIntensity = Phaser.Math.Clamp(
-    (speed - LOCAL_HERO_MOTION_MIN_SPEED) / (LOCAL_HERO_MOTION_MAX_SPEED - LOCAL_HERO_MOTION_MIN_SPEED),
-    0,
-    1
-  );
-
-  if (speedIntensity > 0 && frameDistance > 0.05) {
-    view.intensity = speedIntensity;
-    view.lastAngle = Math.atan2(dy, dx);
-  } else {
-    view.intensity *= LOCAL_HERO_MOTION_DECAY;
-  }
-
-  if (view.intensity <= 0.04) {
-    hideLocalHeroMotionStreaks(view, false);
-    return;
-  }
-
-  const angle = view.lastAngle;
-  const directionX = Math.cos(angle);
-  const directionY = Math.sin(angle);
-  view.streaks.forEach((streak, index) => {
-    const falloff = 1 - index * 0.22;
-    const offset = 14 + index * 11 + view.intensity * 10;
-    const sideOffset = (index - 1) * 4;
-    const alpha = 0.16 * view.intensity * falloff;
-    streak.setVisible(true);
-    streak.setPosition(
-      displayPosition.x - directionX * offset - directionY * sideOffset,
-      displayPosition.y - directionY * offset + directionX * sideOffset
-    );
-    streak.setRotation(angle);
-    streak.setDisplaySize(20 + index * 9 + view.intensity * 14, 2 + view.intensity * 2);
-    streak.setFillStyle(LOCAL_HERO_MOTION_TINT, alpha);
-  });
-}
-
-function hideLocalHeroMotionStreaks(view: LocalHeroMotionStreakView | null, resetPosition: boolean): void {
-  if (!view) {
-    return;
-  }
-
-  view.intensity = 0;
-  if (resetPosition) {
-    view.lastPosition = null;
-  }
-  view.streaks.forEach((streak) => {
-    streak.setVisible(false);
-    streak.setFillStyle(LOCAL_HERO_MOTION_TINT, 0);
   });
 }
 

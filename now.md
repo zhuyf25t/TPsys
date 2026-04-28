@@ -495,9 +495,30 @@
 - 本轮是表现层搬移，headless smoke 能证明加载、同局、HUD 和基础 VFX 指标稳定，但还不是 headful 像素级审美验收。
 - `arenaBuilder.ts` 中 pickup pads 和 decorative occludables 仍在 builder 内，下一刀适合继续拆到 decoration/pickup-pad presenter。
 
+### BattlePage arena decoration/pickup pad presenter 抽离
+
+已完成本轮第二十五刀：
+
+- 新增 `frontend/src/features/battle/renderer/arena/arenaDecorationPresenter.ts`。
+- 从 `arenaBuilder.ts` 抽出 `createPickupPads(scene)` 和 `createArenaDecorations(scene, occludables)`。
+- decorative occludables 注册语义保留：pylon 仍以 `baseAlpha = 0.96` 注册，machinery 仍以 `baseAlpha = 0.92` 注册，并继续用 `getBounds()` 写入 `OccludableView[]`。
+- `arenaBuilder.ts` 现在约 `117` LOC，只保留 arena construction host、presentation/decorations 调用、border wall、inner structures、static obstacle physics、`obstacleBounds` 和 occludable 注册。
+- 本轮没有改 `createBorderWalls`、`createInnerStructures`、`createStaticObstacle`、physics bodies、`obstacleBounds`、`INNER_OBSTACLES`、`WORLD_SIZE`、pickup spawn points、map catalog、backend、`GameScene.ts`、hitbox 或 collision。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD obstacle count 仍为 `170`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- `arenaBuilder.ts` 已经收敛到很小，后续 BattlePage 渲染边界的主要大文件变成 `worldViewFactory.ts`、`battleFeedbackSceneBridge.ts`、`sceneVfxController.ts`。
+- decorative presenter 仍是程序化美术，真实审美还需要后续 headful 人工验收和资产替换。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter 已接入并通过 headless smoke。下一步继续拆 `arenaBuilder.ts` 中剩余的 pickup pads / decorative occludables，完成后再进入主界面第二轮或 bot 扩展第二轮。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC；下一步转向 `worldViewFactory.ts` 的 projectile / slow-field / interpolation 边界拆分，继续降低渲染主工厂膨胀。
 
 扩展性基础第一轮已经覆盖：
 
@@ -508,15 +529,15 @@
 
 下一阶段候选：
 
-- BattlePage arena decorations/pickup pads 边界整理：继续把 pickup pads、decorations 和 occludable decorative layer 从 `arenaBuilder.ts` 拆成 presenter/helper，避免 arena builder 继续膨胀。
+- BattlePage world view factory 边界整理：优先把 projectile view、slow-field view、projectile interpolation 从 `worldViewFactory.ts` 拆成 focused helper，避免主工厂继续承载过多渲染链。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage arena decorations/pickup pads 边界整理。
-   预计：1-3 小时。
-   目标：继续拆清 pickup pads、decorations、decorative occludables 的表现层边界，不改变 gameplay 语义。
+1. BattlePage world view factory projectile/slow-field 边界整理。
+   预计：2-5 小时。
+   目标：把 projectile view、slow-field view、projectile interpolation 从 `worldViewFactory.ts` 拆成 focused presenter/helper，不改变弹道、伤害、射程、命中或同步语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

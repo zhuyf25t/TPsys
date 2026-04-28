@@ -165,9 +165,27 @@
 
 - Postgres 正常路径已由 service + `result_id` upsert 覆盖，但数据库层还没有 `lower(battle_id), lower(handle)` 唯一约束；极端并发首写和 battleId 大小写异常仍应通过后续小迁移封死。
 
+### Postgres battle result 逻辑唯一约束
+
+已完成本轮第九刀：
+
+- `PostgresBattleResultRepository` 初始化时会锁定 `battle_results`，按 `lower(trim(battle_id)), lower(trim(handle))` 逻辑键清理历史重复行。
+- 清理策略保留 `finished_at DESC, result_id ASC` 排序下的一条记录，删除同逻辑键其余记录。
+- 初始化随后创建唯一 expression index：`battle_results_logical_key_unique_idx`。
+- 原有 `result_id` 主键和 `ON CONFLICT (result_id) DO UPDATE` 保持不变；新增唯一索引只是额外封死大小写/空白归一后的逻辑重复。
+
+验证：
+
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 极端并发下，如果两个不同 `result_id` 但同一逻辑键的首写同时发生，数据库会拒绝其中一个重复写入；当前服务层还没有把这个 unique violation 转成优雅幂等返回。正常重复 projection/backfill/multi-tab 路径已由服务层查询和 `result_id` upsert 覆盖。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第九刀。
+当前主线：数据闭环加固第十刀。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 
@@ -176,15 +194,11 @@
 
 ## 下一步计划
 
-1. Postgres result 逻辑唯一约束评估与最小迁移。
-   预计：1-2 小时。
-   目标：为 `lower(battle_id), lower(handle)` 加数据库级唯一约束或等价防护，封死极端并发首写和大小写异常导致的重复 result 风险。
-
-2. 历史数据清理脚本评估。
+1. 历史数据清理脚本评估。
    预计：1-2 小时。
    目标：在服务层已隐藏脏数据的前提下，评估是否需要提供只读报告脚本或 dry-run 清理脚本；默认不直接改 `backend/data`。
 
-3. Authoritative battle 规则小收口。
+2. Authoritative battle 规则小收口。
    预计：0.5-1 天。
    目标：检查一命模式、时间清零、武器拾取保留当前枪、滚轮切枪、火箭 AoE、加特林热量和后坐力是否在权威链路中完全一致。
 

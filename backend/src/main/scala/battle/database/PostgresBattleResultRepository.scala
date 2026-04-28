@@ -1,6 +1,6 @@
 package slaydemo.backend.battle.database
 
-import java.sql.{PreparedStatement, ResultSet, Types}
+import java.sql.{Connection, PreparedStatement, ResultSet, Types}
 
 import slaydemo.backend.battle.objects.BattleResultRecord
 import slaydemo.backend.shared.database.{PostgresConfig, PostgresSupport}
@@ -188,6 +188,8 @@ final class PostgresBattleResultRepository(config: PostgresConfig) extends Battl
           |END $$""".stripMargin
       )(_.executeUpdate())
 
+      enforceLogicalResultUniqueness(connection)
+
       PostgresSupport.withStatement(
         connection,
         "CREATE INDEX IF NOT EXISTS battle_results_finished_at_idx ON battle_results (finished_at DESC)"
@@ -202,6 +204,50 @@ final class PostgresBattleResultRepository(config: PostgresConfig) extends Battl
         connection,
         "CREATE INDEX IF NOT EXISTS battle_results_battle_id_finished_at_idx ON battle_results (lower(battle_id), finished_at DESC)"
       )(_.executeUpdate())
+    }
+  }
+
+  private def enforceLogicalResultUniqueness(connection: Connection): Unit = {
+    val previousAutoCommit = connection.getAutoCommit
+    connection.setAutoCommit(false)
+
+    try {
+      PostgresSupport.withStatement(
+        connection,
+        "LOCK TABLE battle_results IN SHARE ROW EXCLUSIVE MODE"
+      )(_.executeUpdate())
+
+      PostgresSupport.withStatement(
+        connection,
+        """DELETE FROM battle_results victim
+          |USING (
+          |  SELECT result_id
+          |  FROM (
+          |    SELECT
+          |      result_id,
+          |      row_number() OVER (
+          |        PARTITION BY lower(trim(battle_id)), lower(trim(handle))
+          |        ORDER BY finished_at DESC, result_id ASC
+          |      ) AS duplicate_rank
+          |    FROM battle_results
+          |  ) ranked
+          |  WHERE duplicate_rank > 1
+          |) duplicate
+          |WHERE victim.result_id = duplicate.result_id""".stripMargin
+      )(_.executeUpdate())
+
+      PostgresSupport.withStatement(
+        connection,
+        "CREATE UNIQUE INDEX IF NOT EXISTS battle_results_logical_key_unique_idx ON battle_results (lower(trim(battle_id)), lower(trim(handle)))"
+      )(_.executeUpdate())
+
+      connection.commit()
+    } catch {
+      case error: Throwable =>
+        connection.rollback()
+        throw error
+    } finally {
+      connection.setAutoCommit(previousAutoCommit)
     }
   }
 

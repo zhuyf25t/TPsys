@@ -87,9 +87,23 @@
 - `npm run backend:compile` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### Authoritative projection Visitor-like 容错
+
+已完成本轮第四刀：
+
+- `AuthoritativeBattleFinishProjector` 现在只给 playable human 生成正式 result。
+- replay owner 选择顺序改为：可玩真人胜者、排名最高的可玩真人、server summary。
+- 如果历史或异常状态中混入 Visitor-like 玩家，不会再因为第一个 Visitor-like result/replay 被拒绝而阻断同局真实账号的结算写入。
+- `playersLine` 仍保留原始参赛文本，避免历史战局摘要丢信息。
+- 文档已补充到 `docs/BACKEND_VISITOR_HANDLE_GUARDRAILS.md`。
+
+验证：
+
+- `npm run backend:compile` 通过。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第四刀。
+当前主线：数据闭环加固第五刀。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 

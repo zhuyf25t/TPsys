@@ -21,6 +21,7 @@ import slaydemo.backend.battle.objects.{
 import slaydemo.backend.replay.api.ReplaySubmissionRequest
 import slaydemo.backend.replay.services.ReplayService
 import slaydemo.backend.shared.objects.{BattleId, ReplayId, UserId}
+import slaydemo.backend.shared.rules.HandleRules
 
 final class AuthoritativeBattleFinishProjector(
   battleResultService: BattleResultService,
@@ -141,10 +142,12 @@ final class AuthoritativeBattleFinishProjector(
       .filter(_.nonEmpty)
       .mkString(" | ")
     val rankedPlayers = rankPlayers(state.players)
+    val rankedPlayableHumans = rankedPlayers.filter(isPlayableHumanPlayer)
     val playerCount = rankedPlayers.length
     val owner = winner
+      .filter(isPlayableHumanPlayer)
       .map(player => winnerSummary(player, state.battleId.value.trim, playerCount))
-      .orElse(rankedPlayers.find(player => !player.isBot).map(player => playerSummary(player, state.battleId.value.trim, rankedPlayers)))
+      .orElse(rankedPlayableHumans.headOption.map(player => playerSummary(player, state.battleId.value.trim, rankedPlayers)))
       .getOrElse(serverSummary(state.battleId.value.trim))
 
     FinishSummary(
@@ -162,7 +165,7 @@ final class AuthoritativeBattleFinishProjector(
     summary: FinishSummary
   ): Seq[BattleResultSubmissionRequest] = {
     val rankedPlayers = rankPlayers(state.players)
-    val humanPlayers = rankedPlayers.filterNot(_.isBot)
+    val humanPlayers = rankedPlayers.filter(isPlayableHumanPlayer)
     val owners =
       if (humanPlayers.nonEmpty) humanPlayers.map(player => playerSummary(player, battleId, rankedPlayers))
       else Seq(serverSummary(battleId))
@@ -452,6 +455,9 @@ final class AuthoritativeBattleFinishProjector(
     val handle = player.handle.trim
     if (handle.nonEmpty) handle else player.playerId.value
   }
+
+  private def isPlayableHumanPlayer(player: BattlePlayerState): Boolean =
+    !player.isBot && HandleRules.isPlayableIdentityHandle(safeHandle(player))
 
   private def safeDisplayName(player: BattlePlayerState): String = {
     val displayName = player.displayName.trim

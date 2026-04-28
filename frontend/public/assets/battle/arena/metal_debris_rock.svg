@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="debrisBase" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#485158"/>
+      <stop offset="0.55" stop-color="#273038"/>
+      <stop offset="1" stop-color="#111820"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="34" cy="42" rx="22" ry="13" fill="#020405" opacity="0.4"/>
+  <path d="M14 34 24 18l19 2 8 16-12 12-17-2z" fill="url(#debrisBase)" stroke="#05080a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M24 18 31 34l20 2M31 34 22 46M31 34l8 14" stroke="#65777f" stroke-width="1.5" opacity="0.55"/>
+  <path d="M18 34h13M36 25h8" stroke="#74e2ff" stroke-width="1.7" stroke-linecap="round" opacity="0.42"/>
+  <path d="M22 41h9M39 40h6" stroke="#d59e3f" stroke-width="1.7" stroke-linecap="round" opacity="0.48"/>
+  <circle cx="25" cy="26" r="1.6" fill="#b9c7ca" opacity="0.5"/>
+  <circle cx="42" cy="33" r="1.5" fill="#b9c7ca" opacity="0.45"/>
+</svg>

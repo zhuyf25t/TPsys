@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="heroMask" cx="50%" cy="40%" r="55%">
+      <stop offset="0" stop-color="#f2fbff"/>
+      <stop offset="0.72" stop-color="#cfe5ec"/>
+      <stop offset="1" stop-color="#8297a1"/>
+    </radialGradient>
+    <linearGradient id="heroCloak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#172633"/>
+      <stop offset="0.6" stop-color="#0b121b"/>
+      <stop offset="1" stop-color="#05080d"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="42" rx="19" ry="14" fill="#02050a" opacity="0.55"/>
+  <path d="M18 24c-2-8-1-14 4-18 3 7 7 10 10 10s7-3 10-10c5 4 6 10 4 18 6 4 9 10 9 18 0 11-10 18-23 18S9 53 9 42c0-8 3-14 9-18z" fill="#06101a" stroke="#020407" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M15 42c0-11 8-20 17-20s17 9 17 20c0 9-7 14-17 14s-17-5-17-14z" fill="url(#heroCloak)" stroke="#142738" stroke-width="2"/>
+  <ellipse cx="32" cy="28" rx="15" ry="13" fill="url(#heroMask)" stroke="#071018" stroke-width="2.5"/>
+  <path d="M22 33c4 4 16 4 20 0" fill="none" stroke="#6edfff" stroke-width="1.6" stroke-linecap="round" opacity="0.55"/>
+  <path d="M18 45c4 5 9 8 14 8s10-3 14-8" fill="none" stroke="#69dfff" stroke-width="2" stroke-linecap="round" opacity="0.36"/>
+  <path d="M14 39c6 3 30 3 36 0" fill="none" stroke="#d69f42" stroke-width="2" stroke-linecap="round" opacity="0.38"/>
+  <circle cx="24" cy="29" r="2" fill="#0a141c"/>
+  <circle cx="40" cy="29" r="2" fill="#0a141c"/>
+</svg>

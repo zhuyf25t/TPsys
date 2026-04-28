@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="launcherMetal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd2a8"/>
+      <stop offset="0.42" stop-color="#a9542a"/>
+      <stop offset="1" stop-color="#261b17"/>
+    </linearGradient>
+  </defs>
+  <circle cx="48" cy="48" r="36" fill="#23140d" stroke="#ff9b55" stroke-width="3" opacity="0.95"/>
+  <path d="M18 39h47l13 9-13 9H18z" fill="url(#launcherMetal)" stroke="#090504" stroke-width="4" stroke-linejoin="round"/>
+  <rect x="29" y="56" width="17" height="22" rx="4" fill="#2a2522" stroke="#090706" stroke-width="3"/>
+  <path d="M30 31h31M30 65h31" stroke="#ffcc86" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+  <path d="M60 41 73 48 60 55" fill="#ffd7ad" opacity="0.9"/>
+  <path d="M22 48h35" stroke="#ffefc8" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+</svg>

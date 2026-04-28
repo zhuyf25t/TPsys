@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="shotgunMetal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff1d1"/>
+      <stop offset="0.5" stop-color="#8a6140"/>
+      <stop offset="1" stop-color="#202126"/>
+    </linearGradient>
+  </defs>
+  <circle cx="48" cy="48" r="36" fill="#201812" stroke="#ffefb7" stroke-width="3" opacity="0.94"/>
+  <path d="M18 43h50c5 0 9 3 11 7-2 4-6 7-11 7H18z" fill="url(#shotgunMetal)" stroke="#080604" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M24 36h38M24 64h38" stroke="#3a271c" stroke-width="5" stroke-linecap="round"/>
+  <path d="M24 36h38M24 64h38" stroke="#ffeec1" stroke-width="2" stroke-linecap="round"/>
+  <rect x="35" y="55" width="18" height="22" rx="5" fill="#2a2420" stroke="#0a0705" stroke-width="3"/>
+  <path d="M68 45h9M68 55h9" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/>
+  <path d="M27 50h33" stroke="#fff1ca" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+</svg>

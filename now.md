@@ -347,9 +347,32 @@
 - 脚本是轻量静态解析，不是完整 TS/Scala AST parser；当前 catalog 写法受控时足够有效。
 - 长期最稳方案仍是共享 JSON/生成器或正式 schema/codegen。
 
+### BattlePage SVG 美术资产第一轮
+
+已完成本轮第十八刀：
+
+- 新增 `frontend/public/assets/battle/**` SVG 战斗资产第一批。
+- Arena 资产覆盖金属地板、虚空外场、面板 tile、trim tile、封闭 crate、墙段、金属碎石。
+- Actor 资产新增原创圆润暗色骑士俯视剪影，暂由多个 hero texture key 复用，并继续依赖现有 tint 区分身份。
+- Projectile 和 pickup 资产覆盖 energy bullet、rocket shell、手枪、加特林、霰弹枪、火箭炮图标。
+- `frontend/src/game/constants.ts` 只替换 `ASSET_PATHS` 路径，不改 battle runtime、hitbox、地图、武器、技能、后端或 `GameScene.ts`。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- 静态 asset path 审计通过：`ASSET_PATHS` 中 28 个 `/assets/...` 路径都能落到 `frontend/public/assets`。
+- SVG 静态扫描未发现 `<text>` 或字体类元素。
+
+残留风险：
+
+- 还没有做真实浏览器 BattlePage 视觉 smoke；当前确认的是构建和路径有效。
+- 多个 hero 暂时共用一个 body SVG，身份差异主要靠 tint 和现有 UI/HUD；后续应补 hero variant 或 overlay。
+- SVG 第一轮仍是轻量 repo-native 资产，不等于最终商业级序列帧和完整素材包。
+
 ## 当前正在做
 
-当前主线：扩展性基础第一轮和主界面视觉第一轮已完成，准备转入 BattlePage 美术资产第一轮。
+当前主线：BattlePage SVG 美术资产第一轮已接入，下一步进入 BattlePage 视觉 smoke 与第二轮可读性打磨。
 
 扩展性基础第一轮已经覆盖：
 
@@ -360,15 +383,15 @@
 
 下一阶段候选：
 
-- BattlePage 美术资产第一轮：统一自然 + 金属战争 + 空洞骑士剪影的战斗视觉。
+- BattlePage 视觉 smoke 与第二轮打磨：确认 SVG 在真实 battle 中的清晰度、角色差异、pickup 可读性、障碍轮廓和弹道遮挡。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage 美术资产第一轮。
-   预计：2-4 天。
-   目标：建立“自然 + 金属战争 + 空洞骑士剪影”的统一战斗视觉语言，同时保持命中判定可读、弹道可读、技能范围可读。
+1. BattlePage 视觉 smoke 与第二轮打磨。
+   预计：0.5-1.5 天。
+   目标：在真实 battle 画面中检查 SVG asset 清晰度，补角色差异、pickup 可读性、障碍封闭轮廓、弹道/技能层级，不改变 gameplay 语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

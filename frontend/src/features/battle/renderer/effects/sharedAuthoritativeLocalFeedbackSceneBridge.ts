@@ -315,7 +315,7 @@ function getPrimaryFeedbackIntervalMs(weaponKind: WeaponKind): number {
 
 function resolveMuzzleForwardDistance(player: Hero, weaponKind: WeaponKind): number {
   // Mirrors authoritative projectile birth: hero radius + projectile radius + 4px clearance.
-  return player.radius + WEAPON_DEFINITIONS[weaponKind].radius + AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE;
+  return player.radius + WEAPON_DEFINITIONS[weaponKind].projectileRadius + AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE;
 }
 
 function canPresentPrimaryFeedback(weapon: WeaponState): boolean {

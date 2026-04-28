@@ -135,7 +135,7 @@ export function resolveWeaponAction(context: WeaponActionContext): WeaponActionP
   const projectiles = projectileSpawn.projectiles;
   const nextProjectileSequence = projectileSpawn.nextProjectileSequence;
   const muzzleVfx = createMuzzleVfx(muzzle, runtimeProfile.muzzleVfx);
-  const recoilStrength = runtimeProfile.recoilStrength;
+  const recoilStrength = context.weaponDefinition.recoilStrength;
 
   if (context.weapon.ammoInMagazine === 0 && (context.weapon.reserveAmmo ?? 0) > 0 && ammoMode === "magazine") {
     const reloadResult = requestWeaponReload({

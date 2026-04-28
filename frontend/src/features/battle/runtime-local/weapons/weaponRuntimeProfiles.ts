@@ -23,7 +23,6 @@ export type WeaponProjectileSpawnPlan =
 export interface WeaponRuntimeProfile {
   triggerMode: WeaponTriggerMode;
   ammoMode: WeaponAmmoMode;
-  recoilStrength: number;
   muzzleVfx: WeaponMuzzleVfxProfile;
   projectileSpawnPlan: WeaponProjectileSpawnPlan;
 }
@@ -32,7 +31,6 @@ export const WEAPON_RUNTIME_PROFILES: Readonly<Record<WeaponKind, Readonly<Weapo
   Pistol: {
     triggerMode: "pressed",
     ammoMode: "magazine",
-    recoilStrength: 20,
     muzzleVfx: {
       color: 0xfff0c6,
       radius: 10,
@@ -43,7 +41,6 @@ export const WEAPON_RUNTIME_PROFILES: Readonly<Record<WeaponKind, Readonly<Weapo
   RocketLauncher: {
     triggerMode: "pressed",
     ammoMode: "magazine",
-    recoilStrength: 120,
     muzzleVfx: {
       color: 0xffb36f,
       radius: 18,
@@ -58,7 +55,6 @@ export const WEAPON_RUNTIME_PROFILES: Readonly<Record<WeaponKind, Readonly<Weapo
   Gatling: {
     triggerMode: "held",
     ammoMode: "heat",
-    recoilStrength: 8,
     muzzleVfx: {
       color: 0xffd86d,
       radius: 10,
@@ -69,7 +65,6 @@ export const WEAPON_RUNTIME_PROFILES: Readonly<Record<WeaponKind, Readonly<Weapo
   Shotgun: {
     triggerMode: "pressed",
     ammoMode: "magazine",
-    recoilStrength: 80,
     muzzleVfx: {
       color: 0xffefb7,
       radius: 20,

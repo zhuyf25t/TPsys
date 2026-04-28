@@ -25,14 +25,14 @@ export function createProjectileSpawn(input: ProjectileFactoryInput): Projectile
       y: input.player.position.y + direction.y * offset
     },
     velocity: {
-      x: direction.x * input.definition.speed,
-      y: direction.y * input.definition.speed
+      x: direction.x * input.definition.projectileSpeedPerSecond,
+      y: direction.y * input.definition.projectileSpeedPerSecond
     },
     facing: input.angle,
-    radius: input.definition.radius,
-    damage: input.definition.damage,
-    ttlMs: input.definition.lifetimeMs,
-    maxLifetimeMs: input.definition.lifetimeMs,
+    radius: input.definition.projectileRadius,
+    damage: input.definition.projectileDamage,
+    ttlMs: input.definition.projectileLifetimeMs,
+    maxLifetimeMs: input.definition.projectileLifetimeMs,
     splashRadius: input.definition.splashRadius,
     alive: true,
     hitTargets: []

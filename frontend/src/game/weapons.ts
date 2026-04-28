@@ -10,7 +10,7 @@ export function createWeaponState(weaponKind: WeaponKind): WeaponState {
     weaponKind,
     ammoInMagazine: definition.usesHeat ? 0 : definition.magazineSize,
     magazineSize: definition.magazineSize,
-    reserveAmmo: definition.reserveAmmo,
+    reserveAmmo: definition.usesHeat ? null : definition.reserveAmmo,
     cooldownRemaining: 0,
     reloadRemaining: 0,
     heat: 0,

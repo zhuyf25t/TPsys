@@ -242,6 +242,26 @@
 - 前后端地图 catalog 仍是双语言双文件维护，只是字段形状和后端内部重复硬编码已经收敛；后续若要完全单源，需要引入共享 JSON/生成器或契约校验脚本。
 - 地图视觉层、碰撞层、边界生成策略、tile/asset layer 还没有声明式化。
 
+### 武器 definition schema 同名第一轮
+
+已完成本轮第十三刀：
+
+- 前端 `WeaponDefinition` 字段改为与后端 `BattleContentCatalog.WeaponDefinition` 同名：`projectileSpeedPerSecond`、`projectileDamage`、`projectileLifetimeMs`、`projectileRadius`。
+- `recoilStrength` 从前端 runtime profile 移入前端 weapon content definition，和后端同一语义位置对齐。
+- `WeaponDefinition.reserveAmmo` 改成 `number`，Gatling 使用 `0`，与后端 schema 对齐。
+- 运行时 `WeaponState.reserveAmmo` 语义保持不变：heat weapon 创建时仍转成 `null`，所以 HUD、reload、heat 逻辑仍按原方式工作。
+- projectile factory、枪口出生距离、后坐力读取点已更新到新字段名。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 前后端 weapon catalog 仍是双源维护；本轮先消除字段名不一致和 recoil 双源，后续可加契约 diff/audit 脚本或共享 JSON 生成。
+- 本轮未改后端 weapon 数值，也未做真实多人局浏览器 smoke。
+
 ## 当前正在做
 
 当前主线：扩展性第二轮。
@@ -249,7 +269,7 @@
 目标不是做大迁移，而是先把可扩展内容的声明式边界收紧：
 
 - 地图：已完成后端默认 map catalog 和前后端 pickup id 字段同名第一轮。
-- 武器：下一步优先对齐前后端 weapon definition 字段名，例如 `speed` vs `projectileSpeedPerSecond`、`damage` vs `projectileDamage`、`radius` vs `projectileRadius`，并处理 `recoilStrength` 双源问题。
+- 武器：已完成字段同名和 recoil 单源第一轮；下一步考虑契约 diff/audit，而不是继续手工比对。
 - 技能：后续对齐 `activationKind/effectType/activeMs` 等前后端语义，避免技能继续靠 hardcoded 分支散落。
 - Bot：在地图、武器、技能 profile 更稳定之后，再定义社区 bot manifest/discovery/test harness。
 

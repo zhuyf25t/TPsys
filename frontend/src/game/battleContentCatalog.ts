@@ -13,21 +13,22 @@ export interface WeaponDefinition {
   projectileKind: ProjectileKind;
   cooldownMs: number;
   reloadMs: number;
-  speed: number;
-  damage: number;
-  lifetimeMs: number;
-  radius: number;
+  projectileSpeedPerSecond: number;
+  projectileDamage: number;
+  projectileLifetimeMs: number;
+  projectileRadius: number;
   splashRadius: number;
   pellets: number;
   spreadRadians: number;
   magazineSize: number;
-  reserveAmmo: number | null;
+  reserveAmmo: number;
   pickupAmmo: number;
   usesHeat: boolean;
   maxHeat: number;
   heatPerShot: number;
   coolRatePerSecond: number;
   overheatLockMs: number;
+  recoilStrength: number;
 }
 
 export interface SkillDefinition {
@@ -50,10 +51,10 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponKind, Readonly<WeaponDefi
     projectileKind: "pistol-bullet",
     cooldownMs: 260,
     reloadMs: 1000,
-    speed: 920,
-    damage: 12,
-    lifetimeMs: 900,
-    radius: 8,
+    projectileSpeedPerSecond: 920,
+    projectileDamage: 12,
+    projectileLifetimeMs: 900,
+    projectileRadius: 8,
     splashRadius: 0,
     pellets: 1,
     spreadRadians: 0,
@@ -64,17 +65,18 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponKind, Readonly<WeaponDefi
     maxHeat: 0,
     heatPerShot: 0,
     coolRatePerSecond: 0,
-    overheatLockMs: 0
+    overheatLockMs: 0,
+    recoilStrength: 20
   },
   RocketLauncher: {
     displayName: "火箭炮",
     projectileKind: "rocket",
     cooldownMs: 160,
     reloadMs: 2500,
-    speed: 340,
-    damage: 60,
-    lifetimeMs: 2200,
-    radius: 14,
+    projectileSpeedPerSecond: 340,
+    projectileDamage: 60,
+    projectileLifetimeMs: 2200,
+    projectileRadius: 14,
     splashRadius: 132,
     pellets: 1,
     spreadRadians: 0,
@@ -85,38 +87,40 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponKind, Readonly<WeaponDefi
     maxHeat: 0,
     heatPerShot: 0,
     coolRatePerSecond: 0,
-    overheatLockMs: 0
+    overheatLockMs: 0,
+    recoilStrength: 120
   },
   Gatling: {
     displayName: "加特林",
     projectileKind: "gatling-bullet",
     cooldownMs: 72,
     reloadMs: 0,
-    speed: 980,
-    damage: 5,
-    lifetimeMs: 620,
-    radius: 7,
+    projectileSpeedPerSecond: 980,
+    projectileDamage: 5,
+    projectileLifetimeMs: 620,
+    projectileRadius: 7,
     splashRadius: 0,
     pellets: 1,
     spreadRadians: 0.06,
     magazineSize: 0,
-    reserveAmmo: null,
+    reserveAmmo: 0,
     pickupAmmo: 0,
     usesHeat: true,
     maxHeat: 100,
     heatPerShot: 8,
     coolRatePerSecond: 32,
-    overheatLockMs: 1400
+    overheatLockMs: 1400,
+    recoilStrength: 8
   },
   Shotgun: {
     displayName: "霰弹枪",
     projectileKind: "shotgun-pellet",
     cooldownMs: 760,
     reloadMs: 1200,
-    speed: 720,
-    damage: 8,
-    lifetimeMs: 330,
-    radius: 7,
+    projectileSpeedPerSecond: 720,
+    projectileDamage: 8,
+    projectileLifetimeMs: 330,
+    projectileRadius: 7,
     splashRadius: 0,
     pellets: 5,
     spreadRadians: 0.42,
@@ -127,7 +131,8 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponKind, Readonly<WeaponDefi
     maxHeat: 0,
     heatPerShot: 0,
     coolRatePerSecond: 0,
-    overheatLockMs: 0
+    overheatLockMs: 0,
+    recoilStrength: 80
   }
 };
 

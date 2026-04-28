@@ -3,9 +3,9 @@ package slaydemo.backend.battle.services
 import slaydemo.backend.battle.api.BattleResultSubmissionRequest
 import slaydemo.backend.battle.database.BattleResultRepository
 import slaydemo.backend.battle.objects.BattleResultRecord
-import slaydemo.backend.battle.rules.BattleRules
 import slaydemo.backend.mails.objects.MailRecord
 import slaydemo.backend.mails.services.MailService
+import slaydemo.backend.shared.rules.HandleRules
 
 final class DefaultBattleResultService(
   repository: BattleResultRepository,
@@ -53,17 +53,20 @@ final class DefaultBattleResultService(
 
   override def list(handle: Option[String], battleId: Option[String], limit: Int): Seq[BattleResultRecord] = {
     val bounded = limit.max(1).min(200)
+    val expandedLimit = (bounded * 4).min(1000)
     val records = (handle.map(_.trim).filter(_.nonEmpty), battleId.map(_.trim).filter(_.nonEmpty)) match {
+      case (Some(resolvedHandle), _) if !isPlayableHandle(resolvedHandle) =>
+        Seq.empty
       case (Some(resolvedHandle), Some(resolvedBattleId)) =>
-        repository.listByHandleAndBattleId(resolvedHandle, resolvedBattleId, bounded)
+        repository.listByHandleAndBattleId(resolvedHandle, resolvedBattleId, expandedLimit)
       case (Some(resolvedHandle), None) =>
-        repository.listByHandle(resolvedHandle, bounded)
+        repository.listByHandle(resolvedHandle, expandedLimit)
       case (None, Some(resolvedBattleId)) =>
-        repository.listByBattleId(resolvedBattleId, bounded)
+        repository.listByBattleId(resolvedBattleId, expandedLimit)
       case (None, None) =>
-        repository.list(bounded)
+        repository.list(expandedLimit)
     }
-    records.filterNot(record => isVisitorHandle(record.handle.value))
+    records.filter(record => isPlayableHandle(record.handle.value)).take(bounded)
   }
 
   private def createBattleResultMails(record: BattleResultRecord): Unit = {
@@ -95,5 +98,8 @@ final class DefaultBattleResultService(
     Option(value).map(_.trim).getOrElse("")
 
   private def isVisitorHandle(value: String): Boolean =
-    BattleRules.isVisitorHandle(value)
+    HandleRules.isVisitorLikeHandle(value)
+
+  private def isPlayableHandle(value: String): Boolean =
+    HandleRules.isPlayableIdentityHandle(value)
 }

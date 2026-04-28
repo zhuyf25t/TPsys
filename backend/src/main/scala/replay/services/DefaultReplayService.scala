@@ -4,12 +4,12 @@ import java.nio.charset.StandardCharsets
 import java.util.Base64
 import scala.util.Try
 
-import slaydemo.backend.battle.rules.BattleRules
 import slaydemo.backend.replay.api.{ReplayCatalogView, ReplayCommentSubmissionRequest, ReplayCommentView, ReplayDetailView, ReplaySubmissionRequest}
 import slaydemo.backend.replay.database.ReplayRepository
 import slaydemo.backend.replay.objects.{ReplayCommentRecord, ReplayRecord}
 import slaydemo.backend.replay.support.ReplayJsonSupport
 import slaydemo.backend.shared.objects.{BattleId, ReplayId, UserId}
+import slaydemo.backend.shared.rules.HandleRules
 
 final class DefaultReplayService(repository: ReplayRepository) extends ReplayService {
   override def record(request: ReplaySubmissionRequest): Either[String, ReplayRecord] = {
@@ -66,7 +66,8 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
 
   override def list(limit: Int): Seq[ReplayCatalogView] = {
     val bounded = limit.max(1).min(50)
-    repository.list(bounded).flatMap(record => hydrateCatalogView(record).toSeq)
+    val expandedLimit = (bounded * 4).min(200)
+    repository.list(expandedLimit).flatMap(record => hydrateCatalogView(record).toSeq).take(bounded)
   }
 
   override def load(replayId: ReplayId): Option[ReplayDetailView] = {
@@ -74,7 +75,14 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
   }
 
   override def listComments(replayId: ReplayId, limit: Int): Seq[ReplayCommentView] = {
-    repository.listComments(replayId, limit.max(1).min(100)).map(toCommentView)
+    if (load(replayId).isEmpty) {
+      Seq.empty
+    } else {
+      repository
+        .listComments(replayId, limit.max(1).min(100))
+        .filter(record => isPlayableHandle(record.authorHandle.value))
+        .map(toCommentView)
+    }
   }
 
   override def addComment(request: ReplayCommentSubmissionRequest): Either[String, ReplayCommentView] = {
@@ -84,7 +92,7 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
 
     if (replayId.isEmpty) {
       Left("invalid_replay_id")
-    } else if (repository.findById(ReplayId(replayId)).isEmpty) {
+    } else if (load(ReplayId(replayId)).isEmpty) {
       Left("replay_not_found")
     } else if (authorHandle.isEmpty) {
       Left("invalid_author_handle")
@@ -267,5 +275,8 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
   }
 
   private def isVisitorHandle(value: String): Boolean =
-    BattleRules.isVisitorHandle(value)
+    HandleRules.isVisitorLikeHandle(value)
+
+  private def isPlayableHandle(value: String): Boolean =
+    HandleRules.isPlayableIdentityHandle(value)
 }

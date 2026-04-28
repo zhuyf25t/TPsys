@@ -130,25 +130,40 @@
 - `npm run build` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### 后端 result/replay 历史 Visitor-like 读取侧防护
+
+已完成本轮第七刀：
+
+- `DefaultBattleResultService.list` 现在对 visitor-like 查询 handle 直接返回空，并在 repository 读取后过滤历史 visitor-like result owner。
+- result 列表会有限 over-fetch 后再过滤，避免少量历史脏记录占住榜单/档案读取窗口。
+- `DefaultReplayService.list/load` 现在隐藏 visitor-like replay owner；comment 读取要求 replay 本身仍可见，并过滤 visitor-like comment author。
+- `addComment` 不再允许给隐藏 replay 写评论。
+- 后端当前没有独立 rating/profile 读服务；后端 rating/profile 由 result 读取和 replay hydration 派生，所以本轮防护覆盖了后端派生入口。
+- 目前没有直接删除 `backend/data`，历史脏记录仍保留在文件中，但正式读取侧不会返回。
+
+验证：
+
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第七刀。
+当前主线：数据闭环加固第八刀。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 
-- 审计并处理 `backend/data` 与前端 localStorage 中历史 Visitor result/mail/replay/account 脏数据。
-- 确认 replay/result/mail/rating 在服务重启、重复 projection、多标签页面下不会重复刷榜、重复刷信或写错账号。
-- 优先做服务层过滤和幂等证明；只有必要时才做一次性数据清理脚本。
+- 确认 replay/result/mail/rating 在服务重启、重复 projection、同账号多标签页下不会重复刷榜、重复刷信或写错账号。
+- 优先做服务层幂等证明和最小修复；只有必要时才做一次性数据清理脚本。
 
 ## 下一步计划
 
-1. 历史 Visitor 脏数据清理与服务层防护。
-   预计：1-3 小时。
-   目标：让历史 `backend/data` 与前端 localStorage 中的 Visitor result/mail/replay 不再污染当前榜单、档案、站内信和回放列表；如果清理文件风险可控，再做可审计的清理脚本或迁移。
-
-2. Result/replay/rating/mail 幂等审计。
+1. Result/replay/rating/mail 幂等审计。
    预计：2-4 小时。
    目标：证明或修复重复投影、后端重启、同局多账号结算、同账号多标签页造成的重复写入问题。
+
+2. 历史数据清理脚本评估。
+   预计：1-2 小时。
+   目标：在服务层已隐藏脏数据的前提下，评估是否需要提供只读报告脚本或 dry-run 清理脚本；默认不直接改 `backend/data`。
 
 3. Authoritative battle 规则小收口。
    预计：0.5-1 天。

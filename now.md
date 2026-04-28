@@ -34,7 +34,9 @@
 - Bot SDK 最小接口已落地，记录见 `docs/BOT_SDK_FOUNDATION.md`；外部策略现在可以通过类型化 command strategy 接入，不需要直接修改 runtime/controller 主逻辑。
 - 前端地图配置化第一刀已完成，记录见 `docs/BATTLE_MAP_CONFIG_FOUNDATION.md`；默认地图数据集中到 `battleMapCatalog.ts`，旧 public API 保持可用。
 - 前端本地武器扩展接口第一刀已完成，记录见 `docs/BATTLE_WEAPON_EXTENSION_FOUNDATION.md`；Pistol/Rocket/Gatling/Shotgun 的触发模式、弹药模式、弹丸生成、VFX、后坐力已集中到 runtime profile。
+- 前端技能扩展接口第一刀已完成，记录见 `docs/BATTLE_SKILL_EXTENSION_FOUNDATION.md`；Blink/Dash/Freeze 的 activation 分类、command field、prepared-target range/indicator/feedback 半径已集中到 runtime profile。
 - 当前 GitHub main 已保存：
+  - `495483c Add frontend skill runtime profiles`
   - `34335aa Extract local weapon runtime profiles`
   - `6018d76 Extract frontend battle map catalog`
   - `45fd758 Add local bot strategy SDK boundary`
@@ -55,21 +57,21 @@
 
 刚完成的单一任务：
 
-- 前端本地武器扩展接口第一刀。
-- 新增 `frontend/src/features/battle/runtime-local/weapons/weaponRuntimeProfiles.ts`，集中 trigger mode、ammo mode、recoil、muzzle VFX、projectile spawn plan。
-- `weaponActionController.ts` 不再用主流程硬分支生成 Shotgun/Gatling/Rocket/Pistol 的弹丸、VFX 和后坐力。
-- `weaponController.ts` 改用 profile + definition `usesHeat` 判定 held/pressed 与 magazine/heat。
-- 文档 `docs/BATTLE_WEAPON_EXTENSION_FOUNDATION.md` 明确这只是前端本地 runtime profile，不等于后端 authoritative weapon plugin。
+- 前端技能扩展接口第一刀。
+- 新增 `frontend/src/features/battle/runtime-local/skills/skillRuntimeProfiles.ts`，集中 `instant` / `prepared-target` 分类、command field、target range、indicator 半径、prepare/release feedback 半径。
+- `playerMotionAbilityHandler.ts` 使用 profile 元数据读取 Dash/Blink/Freeze command，但具体执行逻辑保留，避免手感漂移。
+- shared target validity、local feedback、world indicator 改为读取 profile 的分类与半径。
+- 文档 `docs/BATTLE_SKILL_EXTENSION_FOUNDATION.md` 明确这不是后端 authoritative skill plugin，也没有抽走具体执行逻辑。
 
 结果：
 
 - `npm run build` 通过。
-- projectile sequence、spread/randomFn、muzzle position、recoil 数值保持原语义。
+- Blink/Freeze 仍是 toggle-to-prepare，Dash 仍是 instant cast；同帧 Blink then Freeze 的应用顺序和 feedback 优先级保持原语义。
 
 下一票：
 
-- 技能扩展接口第一刀。
-- 目标是先把 Blink/Dash/Freeze 的配置、target validity、输入切换/释放分类从多处硬分支中收敛一层；不改后端，不改技能玩法。
+- 数据闭环加固第一刀。
+- 目标是优先处理 result/replay/rating/profile/mails 的幂等与 Visitor/脏数据边界，不动聊天系统，不做大范围数据模型迁移。
 
 ## 下一步计划
 
@@ -99,12 +101,13 @@
    目的：把地图尺寸、出生点、障碍物、pickup 点、视觉主题从硬编码结构变成可替换配置。第一版只支持内置配置，不急着做外部编辑器。
 
 6. 技能/武器扩展接口第一刀。
-   状态：武器第一刀已完成；技能第一刀为下一票。
-   实际结果：前端本地武器 runtime profile 已落地；后端 authoritative weapon plugin 仍待后续独立对齐。
+   状态：前端本地武器第一刀和技能第一刀均已完成。
+   实际结果：weapon runtime profile 与 skill runtime profile 已落地；后端 authoritative weapon/skill plugin 仍待后续独立对齐。
    预计：0.5-1 天。
    目的：新增技能或武器时不需要修改 `GameScene.ts`，并尽量减少 runtime 主流程改动。
 
 7. 数据闭环加固。
+   状态：下一票。
    预计：0.5-1.5 天。
    目的：处理历史 Visitor 脏数据、rating 幂等性、同账号多标签页占位、result/replay/rating/profile 一致性。
 

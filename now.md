@@ -363,16 +363,17 @@
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 - 静态 asset path 审计通过：`ASSET_PATHS` 中 28 个 `/assets/...` 路径都能落到 `frontend/public/assets`。
 - SVG 静态扫描未发现 `<text>` 或字体类元素。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、小地图静态层重绘 delta `0`。
 
 残留风险：
 
-- 还没有做真实浏览器 BattlePage 视觉 smoke；当前确认的是构建和路径有效。
+- 还没有做人工 headful 视觉审美验收；当前确认的是构建、路径有效和 headless battle smoke 未被资产阻断。
 - 多个 hero 暂时共用一个 body SVG，身份差异主要靠 tint 和现有 UI/HUD；后续应补 hero variant 或 overlay。
 - SVG 第一轮仍是轻量 repo-native 资产，不等于最终商业级序列帧和完整素材包。
 
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产第一轮已接入，下一步进入 BattlePage 视觉 smoke 与第二轮可读性打磨。
+当前主线：BattlePage SVG 美术资产第一轮已接入并通过 headless smoke，下一步进入第二轮可读性打磨。
 
 扩展性基础第一轮已经覆盖：
 

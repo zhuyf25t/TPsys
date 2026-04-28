@@ -12,3 +12,4 @@ Current boundaries:
 - Profile loading returns `undefined` for empty or visitor-like handles and does not normalize empty handles into a visitor profile.
 - Replay playback is still available, but rating hydration does not use empty or visitor-like requested/auth/remote/display handles as rating lookup handles.
 - Local battle truth fallback now uses the same playable-handle boundary before writing official local records, battle mails, rating/profile views, and backend backfill/sync. Visitor-like settlements can return a transient disabled replay/summary, but they are not persisted as official local battle truth.
+- Local auth fallback now rejects visitor-like handles during register/login, filters old visitor-like users from local account storage, and refuses to restore visitor-like sessions as playable users.

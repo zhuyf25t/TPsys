@@ -115,48 +115,58 @@
 - `npm run build` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### 前端 auth/local fallback Visitor-like 入口防护
+
+已完成本轮第六刀：
+
+- `authGateway` 现在复用 `identityHandlePolicy` 的 playable handle 规则。
+- 本地 fallback 注册和登录会拒绝空 handle、Visitor、guest、anonymous、anon、访客、游客、未登录等 visitor-like 身份。
+- `readUsers` / `writeUsers` 会过滤历史 localStorage 中的 visitor-like 账号。
+- 本地 session hydrate/current-user 恢复链路不会把 visitor-like 身份恢复成 current playable user；必要时会清理 session。
+- 内置 `admin` 保持可用，未改动战斗、邮件、论坛或后端。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第六刀。
+当前主线：数据闭环加固第七刀。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 
-- 审计前端 auth/local fallback 入口，防止本地注册、登录、会话恢复再制造 Visitor-like 正式账号。
-- 审计并处理 `backend/data` 与前端 localStorage 中历史 Visitor result/mail/replay 脏数据。
+- 审计并处理 `backend/data` 与前端 localStorage 中历史 Visitor result/mail/replay/account 脏数据。
 - 确认 replay/result/mail/rating 在服务重启、重复 projection、多标签页面下不会重复刷榜、重复刷信或写错账号。
 - 优先做服务层过滤和幂等证明；只有必要时才做一次性数据清理脚本。
 
 ## 下一步计划
 
-1. 前端 auth/local fallback 的 Visitor-like 入口防护。
-   预计：1-2 小时。
-   目标：本地注册、登录、session 恢复、fallback account 列表都复用 `identityHandlePolicy`，禁止 Visitor-like 身份成为 playable account。
-
-2. 历史 Visitor 脏数据清理与服务层防护。
+1. 历史 Visitor 脏数据清理与服务层防护。
    预计：1-3 小时。
    目标：让历史 `backend/data` 与前端 localStorage 中的 Visitor result/mail/replay 不再污染当前榜单、档案、站内信和回放列表；如果清理文件风险可控，再做可审计的清理脚本或迁移。
 
-3. Result/replay/rating/mail 幂等审计。
+2. Result/replay/rating/mail 幂等审计。
    预计：2-4 小时。
    目标：证明或修复重复投影、后端重启、同局多账号结算、同账号多标签页造成的重复写入问题。
 
-4. Authoritative battle 规则小收口。
+3. Authoritative battle 规则小收口。
    预计：0.5-1 天。
    目标：检查一命模式、时间清零、武器拾取保留当前枪、滚轮切枪、火箭 AoE、加特林热量和后坐力是否在权威链路中完全一致。
 
-5. 扩展性第二轮。
+4. 扩展性第二轮。
    预计：1-2 天。
    目标：把后端地图/武器/技能内容也进一步 profile 化，形成更清楚的前后端同名契约，为之后地图、技能、bot 社区做基础。
 
-6. 主界面视觉重构第一轮。
+5. 主界面视觉重构第一轮。
    预计：1-2 天。
    目标：按参考图做金属大厅结构、核心 CTA、排行/档案/配装/邮件入口、背景机械动效和粒子层。
 
-7. BattlePage 美术资产第一轮。
+6. BattlePage 美术资产第一轮。
    预计：2-4 天。
    目标：建立“自然 + 金属战争 + 空洞骑士剪影”的统一战斗视觉语言，同时保持命中判定可读、弹道可读、技能范围可读。
 
-8. 启动、验收、交付脚本。
+7. 启动、验收、交付脚本。
    预计：0.5-1 天。
    目标：一键关闭旧进程、一键启动前后端、一键 build/backend compile/smoke，减少端口占用和 sbt pipe 误解。
 

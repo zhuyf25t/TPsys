@@ -1,4 +1,5 @@
 import { normalizeApiBase } from "../api/apiUrl";
+import { normalizePlayableIdentityHandle } from "../identity/identityHandlePolicy";
 
 export interface AuthSkinOption {
   id: string;
@@ -225,11 +226,11 @@ export function registerLocalUser(input: {
   password: string;
   skinId: string;
 }): AuthResult {
-  const handle = input.handle.trim();
+  const handle = normalizePlayableIdentityHandle(input.handle);
   const password = input.password.trim();
   const skin = getAuthSkinById(input.skinId);
 
-  if (handle.length < 3 || handle.length > 16) {
+  if (!handle || handle.length < 3 || handle.length > 16) {
     return { ok: false, error: "玩家名称需要 3 到 16 个字符。" };
   }
 
@@ -262,8 +263,13 @@ export function registerLocalUser(input: {
 }
 
 export function loginLocalUser(input: { handle: string; password: string }): AuthResult {
-  const handle = input.handle.trim();
+  const handle = normalizePlayableIdentityHandle(input.handle);
   const password = input.password.trim();
+
+  if (!handle) {
+    return { ok: false, error: "名称或密码不正确。" };
+  }
+
   const user = readUsers().find((entry) => entry.handle.toLowerCase() === handle.toLowerCase());
 
   if (!user || user.password !== password) {
@@ -520,7 +526,7 @@ function normalizeRemoteAuthPayload(value: unknown): RemoteAuthPayload | null {
   }
 
   const payload = value as Partial<Record<keyof RemoteAuthPayload, unknown>>;
-  const handle = readRequiredString(payload.handle);
+  const handle = normalizePlayableIdentityHandle(readRequiredString(payload.handle));
   const skinId = readRequiredString(payload.skinId);
   const session = readRequiredString(payload.session);
   return handle && skinId && session ? { handle, skinId, session } : null;
@@ -592,16 +598,24 @@ function recordBackendHealth(healthy: boolean): void {
 }
 
 function setCachedCurrentAuthUser(user: LocalAuthUser | null): void {
-  cachedCurrentAuthUser = user;
+  cachedCurrentAuthUser = isPlayableLocalAuthUser(user) ? user : null;
   emitAuthStateChange();
 }
 
 async function persistRemoteAuthUser(user: LocalAuthUser): Promise<AuthResult> {
-  hydrateLocalSession(user, user.sessionToken);
+  const playableHandle = normalizePlayableIdentityHandle(user.handle);
+  if (!playableHandle) {
+    clearLocalSession();
+    setCachedCurrentAuthUser(null);
+    return { ok: false, error: mapRemoteAuthError("invalid_handle") };
+  }
+
+  const playableUser = { ...user, handle: playableHandle };
+  hydrateLocalSession(playableUser, playableUser.sessionToken);
   recordBackendHealth(true);
-  setCachedCurrentAuthUser(user);
+  setCachedCurrentAuthUser(playableUser);
   void refreshCurrentAuthUser();
-  return { ok: true, user, sessionToken: user.sessionToken };
+  return { ok: true, user: playableUser, sessionToken: playableUser.sessionToken };
 }
 
 function emitAuthStateChange(): void {
@@ -644,26 +658,41 @@ function mapRemoteAuthError(code: string): string {
 }
 
 function hydrateLocalSession(user: LocalAuthUser, sessionToken?: string): void {
+  const playableHandle = normalizePlayableIdentityHandle(user.handle);
+  if (!playableHandle) {
+    clearLocalSession();
+    return;
+  }
+
   const users = readUsers();
-  const withoutCurrent = users.filter((entry) => entry.handle.toLowerCase() !== user.handle.toLowerCase());
-  const hydratedUser = sessionToken ? { ...user, sessionToken } : user;
+  const withoutCurrent = users.filter((entry) => entry.handle.toLowerCase() !== playableHandle.toLowerCase());
+  const hydratedUser = sessionToken
+    ? { ...user, handle: playableHandle, sessionToken }
+    : { ...user, handle: playableHandle };
   writeUsers([hydratedUser, ...withoutCurrent]);
   writeSessionHandle(hydratedUser.handle);
   writeSessionToken(sessionToken ?? hydratedUser.sessionToken ?? null);
 }
 
 function readLocalCurrentAuthUser(): LocalAuthUser | null {
+  const users = readUsers();
   const sessionHandle = readSessionHandle();
   if (!sessionHandle) {
     return null;
   }
 
-  const localUser = readUsers().find((user) => user.handle.toLowerCase() === sessionHandle.toLowerCase()) ?? null;
+  const playableSessionHandle = normalizePlayableIdentityHandle(sessionHandle);
+  if (!playableSessionHandle) {
+    clearLocalSession();
+    return null;
+  }
+
+  const localUser = users.find((user) => user.handle.toLowerCase() === playableSessionHandle.toLowerCase()) ?? null;
   if (localUser) {
     return localUser;
   }
 
-  if (isBuiltinAdminHandle(sessionHandle)) {
+  if (isBuiltinAdminHandle(playableSessionHandle)) {
     return buildBuiltinAdminUser(getCurrentAuthSessionToken() ?? undefined);
   }
 
@@ -681,8 +710,17 @@ function readUsers(): LocalAuthUser[] {
   }
 
   try {
-    const parsed = JSON.parse(raw) as LocalAuthUser[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const playableUsers = parsed.filter(isPlayableLocalAuthUser);
+    if (playableUsers.length !== parsed.length) {
+      writeUsers(playableUsers);
+    }
+
+    return playableUsers;
   } catch {
     return [];
   }
@@ -693,7 +731,16 @@ function writeUsers(users: LocalAuthUser[]): void {
     return;
   }
 
-  window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  window.localStorage.setItem(USERS_KEY, JSON.stringify(users.filter(isPlayableLocalAuthUser)));
+}
+
+function isPlayableLocalAuthUser(user: unknown): user is LocalAuthUser {
+  if (!user || typeof user !== "object") {
+    return false;
+  }
+
+  const handle = (user as { handle?: unknown }).handle;
+  return typeof handle === "string" && normalizePlayableIdentityHandle(handle) !== null;
 }
 
 function readSessionHandle(): string | null {

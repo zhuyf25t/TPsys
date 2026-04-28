@@ -183,9 +183,24 @@
 
 - 极端并发下，如果两个不同 `result_id` 但同一逻辑键的首写同时发生，数据库会拒绝其中一个重复写入；当前服务层还没有把这个 unique violation 转成优雅幂等返回。正常重复 projection/backfill/multi-tab 路径已由服务层查询和 `result_id` upsert 覆盖。
 
+### 历史数据闭环只读审计工具
+
+已完成本轮第十刀：
+
+- 新增 `scripts/audit-data-closure.mjs`，通过 `npm run audit:data-closure` 执行。
+- 脚本只读 `backend/data/*.json`，不删除、不重写、不迁移数据文件。
+- 当前报告结果：Visitor-like battle results 为 `6 / 901`，Visitor-like mails 为 `16 / 1965`，Visitor-like replay records 为 `4 / 514`，Visitor-like identity accounts 为 `0 / 808`。
+- battle result duplicate logical groups 为 `0`，说明当前文件数据中没有同一 `lower(trim(battleId)) + lower(trim(handle))` 的重复 result 组。
+- `backend/data` 在脚本运行后没有 git 变更。
+
+验证：
+
+- `npm run audit:data-closure` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第十刀。
+当前主线：Authoritative battle 规则小收口。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 
@@ -194,27 +209,23 @@
 
 ## 下一步计划
 
-1. 历史数据清理脚本评估。
-   预计：1-2 小时。
-   目标：在服务层已隐藏脏数据的前提下，评估是否需要提供只读报告脚本或 dry-run 清理脚本；默认不直接改 `backend/data`。
-
-2. Authoritative battle 规则小收口。
+1. Authoritative battle 规则小收口。
    预计：0.5-1 天。
    目标：检查一命模式、时间清零、武器拾取保留当前枪、滚轮切枪、火箭 AoE、加特林热量和后坐力是否在权威链路中完全一致。
 
-4. 扩展性第二轮。
+2. 扩展性第二轮。
    预计：1-2 天。
    目标：把后端地图/武器/技能内容也进一步 profile 化，形成更清楚的前后端同名契约，为之后地图、技能、bot 社区做基础。
 
-5. 主界面视觉重构第一轮。
+3. 主界面视觉重构第一轮。
    预计：1-2 天。
    目标：按参考图做金属大厅结构、核心 CTA、排行/档案/配装/邮件入口、背景机械动效和粒子层。
 
-6. BattlePage 美术资产第一轮。
+4. BattlePage 美术资产第一轮。
    预计：2-4 天。
    目标：建立“自然 + 金属战争 + 空洞骑士剪影”的统一战斗视觉语言，同时保持命中判定可读、弹道可读、技能范围可读。
 
-7. 启动、验收、交付脚本。
+5. 启动、验收、交付脚本。
    预计：0.5-1 天。
    目标：一键关闭旧进程、一键启动前后端、一键 build/backend compile/smoke，减少端口占用和 sbt pipe 误解。
 

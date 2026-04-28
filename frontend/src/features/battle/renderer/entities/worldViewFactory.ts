@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { GameSnapshot, Hero, PreparedSkill, Projectile, ProjectileKind, SlowField, Vec2, WeaponKind } from "../../../../domain/types";
-import { BULLET_TEXTURE_KEY, CRATE_TEXTURE_KEY, ROCKET_TEXTURE_KEY, WEAPON_PICKUP_ICON_KEYS } from "../../../../game/constants";
+import { BULLET_TEXTURE_KEY, ROCKET_TEXTURE_KEY } from "../../../../game/constants";
 import { resolveHeroVisual } from "../../../../game/spawn";
 import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
 import {
@@ -8,7 +8,6 @@ import {
   isPreparedTargetSkillKind,
   type PreparedTargetSkillKind
 } from "../../runtime-local/skills/skillRuntimeProfiles";
-import { getItemPickupDisplayLabel, getWeaponDisplayLabel, getWeaponPickupTint } from "../../presenters/battleDisplayCatalog";
 import { recordRemoteHeroViewDiagnostics } from "../remoteViewDiagnostics";
 import {
   createHeroWeaponOverlayView,
@@ -16,6 +15,14 @@ import {
   syncHeroWeaponOverlayVisuals,
   type HeroWeaponOverlayView
 } from "./heroWeaponOverlayView";
+import {
+  createItemPickupView,
+  createWeaponPickupView,
+  setPickupViewVisible,
+  syncItemPickupView,
+  syncWeaponPickupView,
+  type PickupView
+} from "./pickupViewPresentation";
 
 export interface HeroView {
   localMotionStreaks: LocalHeroMotionStreakView | null;
@@ -48,12 +55,6 @@ export interface ProjectileView {
   sprite: Phaser.GameObjects.Image;
   glow: Phaser.GameObjects.Arc;
   trail: Phaser.GameObjects.Rectangle;
-}
-
-export interface PickupView {
-  halo: Phaser.GameObjects.Arc;
-  sprite: Phaser.GameObjects.Image;
-  label: Phaser.GameObjects.Text;
 }
 
 export interface SlowFieldView {
@@ -180,17 +181,6 @@ interface WeaponCueReadabilityStyle {
   muzzleAlphaScale: number;
 }
 
-interface PickupReadabilityStyle {
-  radius: number;
-  fillTint: number;
-  fillAlpha: number;
-  strokeTint: number;
-  strokeAlpha: number;
-  strokeWidth: number;
-  spriteScale: number;
-  labelColor: string;
-}
-
 const WEAPON_CUE_READABILITY_STYLES: Record<WeaponKind, WeaponCueReadabilityStyle> = {
   Pistol: {
     lengthRadiusScale: 0.68,
@@ -256,60 +246,6 @@ const WEAPON_CUE_READABILITY_STYLES: Record<WeaponKind, WeaponCueReadabilityStyl
     muzzleRadius: 5,
     muzzleAlphaScale: 0.78
   }
-};
-
-const WEAPON_PICKUP_READABILITY_STYLES: Record<WeaponKind, PickupReadabilityStyle> = {
-  Pistol: {
-    radius: 32,
-    fillTint: 0x20394b,
-    fillAlpha: 0.22,
-    strokeTint: 0xaeeeff,
-    strokeAlpha: 0.58,
-    strokeWidth: 1,
-    spriteScale: 0.88,
-    labelColor: "#d9f6ff"
-  },
-  RocketLauncher: {
-    radius: 39,
-    fillTint: 0x5a2613,
-    fillAlpha: 0.28,
-    strokeTint: 0xff9b55,
-    strokeAlpha: 0.72,
-    strokeWidth: 2,
-    spriteScale: 1.08,
-    labelColor: "#ffd7ad"
-  },
-  Gatling: {
-    radius: 36,
-    fillTint: 0x4b3415,
-    fillAlpha: 0.25,
-    strokeTint: 0xffd86d,
-    strokeAlpha: 0.68,
-    strokeWidth: 2,
-    spriteScale: 0.98,
-    labelColor: "#ffe7a3"
-  },
-  Shotgun: {
-    radius: 37,
-    fillTint: 0x52311b,
-    fillAlpha: 0.26,
-    strokeTint: 0xffefb7,
-    strokeAlpha: 0.68,
-    strokeWidth: 2,
-    spriteScale: 1,
-    labelColor: "#fff0ce"
-  }
-};
-
-const ITEM_PICKUP_READABILITY_STYLE: PickupReadabilityStyle = {
-  radius: 35,
-  fillTint: 0x183c23,
-  fillAlpha: 0.24,
-  strokeTint: 0x7bff9b,
-  strokeAlpha: 0.7,
-  strokeWidth: 2,
-  spriteScale: 0.72,
-  labelColor: "#d8ffe1"
 };
 
 export function createWorldViewState(context: WorldViewFactoryContext): WorldViewState {
@@ -443,52 +379,11 @@ export function createWorldViewState(context: WorldViewFactoryContext): WorldVie
   });
 
   snapshot.weaponPickups.forEach((pickup) => {
-    const readability = getWeaponPickupReadabilityStyle(pickup.weaponKind);
-    const halo = scene.add
-      .circle(pickup.position.x, pickup.position.y, readability.radius, readability.fillTint, readability.fillAlpha)
-      .setDepth(61);
-    halo.setStrokeStyle(readability.strokeWidth, readability.strokeTint, readability.strokeAlpha);
-    const sprite = scene.add
-      .image(pickup.position.x, pickup.position.y, WEAPON_PICKUP_ICON_KEYS[pickup.weaponKind])
-      .setScale(readability.spriteScale)
-      .setDepth(62);
-
-    const label = scene.add
-      .text(pickup.position.x, pickup.position.y + 26, getWeaponDisplayLabel(pickup.weaponKind), {
-        fontFamily: "Segoe UI",
-        fontSize: "12px",
-        color: readability.labelColor
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(63);
-
-    sprite.setTint(getWeaponPickupTint(pickup.weaponKind));
-    pickupViews.set(pickup.weaponId, { halo, sprite, label });
+    pickupViews.set(pickup.weaponId, createWeaponPickupView(scene, pickup));
   });
 
   snapshot.itemPickups.forEach((pickup) => {
-    const halo = scene.add
-      .circle(pickup.position.x, pickup.position.y, ITEM_PICKUP_READABILITY_STYLE.radius, ITEM_PICKUP_READABILITY_STYLE.fillTint, ITEM_PICKUP_READABILITY_STYLE.fillAlpha)
-      .setDepth(61);
-    halo.setStrokeStyle(
-      ITEM_PICKUP_READABILITY_STYLE.strokeWidth,
-      ITEM_PICKUP_READABILITY_STYLE.strokeTint,
-      ITEM_PICKUP_READABILITY_STYLE.strokeAlpha
-    );
-    const sprite = scene.add.image(pickup.position.x, pickup.position.y, CRATE_TEXTURE_KEY).setDepth(62);
-    sprite.setScale(ITEM_PICKUP_READABILITY_STYLE.spriteScale);
-    sprite.setTint(0x7bff9b);
-
-    const label = scene.add
-      .text(pickup.position.x, pickup.position.y + 26, getItemPickupDisplayLabel(pickup.kind), {
-        fontFamily: "Segoe UI",
-        fontSize: "12px",
-        color: ITEM_PICKUP_READABILITY_STYLE.labelColor
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(63);
-
-    itemPickupViews.set(pickup.pickupId, { halo, sprite, label });
+    itemPickupViews.set(pickup.pickupId, createItemPickupView(scene, pickup));
   });
 
   const rangeIndicator = scene.add.circle(0, 0, 1, 0x69d2ff, 0.05).setDepth(16).setVisible(false);
@@ -738,10 +633,6 @@ function resolveHeroWeaponKind(hero: Hero): WeaponKind {
 
 function getWeaponCueReadabilityStyle(weaponKind: WeaponKind): WeaponCueReadabilityStyle {
   return WEAPON_CUE_READABILITY_STYLES[weaponKind];
-}
-
-function getWeaponPickupReadabilityStyle(weaponKind: WeaponKind): PickupReadabilityStyle {
-  return WEAPON_PICKUP_READABILITY_STYLES[weaponKind];
 }
 
 function syncHeroReadabilityVisuals(
@@ -1450,9 +1341,7 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
       continue;
     }
 
-    view.halo.setVisible(false);
-    view.sprite.setVisible(false);
-    view.label.setVisible(false);
+    setPickupViewVisible(view, false);
   }
 
   const liveItemPickupIds = worldViews.scratchLiveItemPickupIds;
@@ -1466,9 +1355,7 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
       continue;
     }
 
-    view.halo.setVisible(false);
-    view.sprite.setVisible(false);
-    view.label.setVisible(false);
+    setPickupViewVisible(view, false);
   }
 
   snapshot.weaponPickups.forEach((pickup) => {
@@ -1477,25 +1364,7 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
       return;
     }
 
-    if (!pickup.available) {
-      view.halo.setVisible(false);
-      view.sprite.setVisible(false);
-      view.label.setVisible(false);
-      return;
-    }
-
-    const bob = Math.sin((snapshot.elapsedMs + pickup.position.x) / 240) * 4;
-    const pulse = 0.5 + Math.sin((snapshot.elapsedMs + pickup.position.y) / 360) * 0.5;
-    const readability = getWeaponPickupReadabilityStyle(pickup.weaponKind);
-    view.halo.setVisible(true);
-    view.sprite.setVisible(true);
-    view.label.setVisible(true);
-    view.halo.setPosition(pickup.position.x, pickup.position.y);
-    view.halo.setRadius(readability.radius + pulse * 2);
-    view.halo.setFillStyle(readability.fillTint, readability.fillAlpha);
-    view.halo.setStrokeStyle(readability.strokeWidth, readability.strokeTint, readability.strokeAlpha + pulse * 0.1);
-    view.sprite.setPosition(pickup.position.x, pickup.position.y + bob);
-    view.label.setPosition(pickup.position.x, pickup.position.y + 28);
+    syncWeaponPickupView(view, pickup, snapshot.elapsedMs);
   });
 
   snapshot.itemPickups.forEach((pickup) => {
@@ -1504,28 +1373,7 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
       return;
     }
 
-    if (!pickup.available) {
-      view.halo.setVisible(false);
-      view.sprite.setVisible(false);
-      view.label.setVisible(false);
-      return;
-    }
-
-    const bob = Math.sin((snapshot.elapsedMs + pickup.position.x) / 260) * 3;
-    const pulse = 0.5 + Math.sin((snapshot.elapsedMs + pickup.position.y) / 420) * 0.5;
-    view.halo.setVisible(true);
-    view.sprite.setVisible(true);
-    view.label.setVisible(true);
-    view.halo.setPosition(pickup.position.x, pickup.position.y);
-    view.halo.setRadius(ITEM_PICKUP_READABILITY_STYLE.radius + pulse * 2);
-    view.halo.setFillStyle(ITEM_PICKUP_READABILITY_STYLE.fillTint, ITEM_PICKUP_READABILITY_STYLE.fillAlpha);
-    view.halo.setStrokeStyle(
-      ITEM_PICKUP_READABILITY_STYLE.strokeWidth,
-      ITEM_PICKUP_READABILITY_STYLE.strokeTint,
-      ITEM_PICKUP_READABILITY_STYLE.strokeAlpha + pulse * 0.08
-    );
-    view.sprite.setPosition(pickup.position.x, pickup.position.y + bob);
-    view.label.setPosition(pickup.position.x, pickup.position.y + 28);
+    syncItemPickupView(view, pickup, snapshot.elapsedMs);
   });
 }
 

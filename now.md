@@ -432,9 +432,30 @@
 - 这是纯搬移型重构，headless smoke 已覆盖基础加载和同步；人工视觉对比仍需要后续 headful 检查。
 - `worldViewFactory.ts` 仍然偏大，后续 pickup view、projectile view、slow field view 也适合逐步拆出。
 
+### BattlePage pickup presentation helper 与可读性增强
+
+已完成本轮第二十二刀：
+
+- 新增 `frontend/src/features/battle/renderer/entities/pickupViewPresentation.ts`。
+- 从 `worldViewFactory.ts` 抽出 pickup style、`PickupView` 类型、weapon/item pickup 创建、显隐和同步逻辑。
+- `worldViewFactory.ts` 从约 `1630` 行降到约 `1478` 行，继续向 renderer host/factory 边界收敛。
+- weapon pickup 和医疗包 pickup 新增内环、标签底板和 glint；中文 label 仍由文本渲染，不把文字写进资产或 primitive。
+- 本轮没有改 pickup radius、auto pickup、respawn、weapon ammo、item effect、map spawn、后端、domain type、`GameScene.ts` 或 battle rules。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- pickup 的 label 底板/glint 亮度仍需要人工 headful 审美验收，尤其要确认不会遮挡角色脚下状态圈。
+- `worldViewFactory.ts` 仍直接包含 projectile view、slow field view、hero interpolation 等逻辑，后续仍可继续拆。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay 已接入；weapon overlay helper 已抽离并通过 headless smoke。下一步进入 pickup 与障碍可读性第二轮打磨。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation 已接入并通过 headless smoke。下一步进入障碍/arena 可读性第二轮打磨。
 
 扩展性基础第一轮已经覆盖：
 
@@ -445,15 +466,15 @@
 
 下一阶段候选：
 
-- BattlePage pickup 与障碍可读性第二轮：补 pickup icon 细节、障碍封闭轮廓、遮挡层级和弹道/技能层级。
+- BattlePage 障碍/arena 可读性第二轮：继续优化封闭轮廓、遮挡层级、边界提示和弹道/技能层级。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage pickup 与障碍可读性第二轮。
+1. BattlePage 障碍/arena 可读性第二轮。
    预计：0.5-1.5 天。
-   目标：继续提升 pickup、障碍封闭轮廓、遮挡层级、弹道/技能层级，不改变 gameplay 语义。
+   目标：继续提升障碍封闭轮廓、遮挡层级、边界提示、弹道/技能层级，不改变 gameplay 语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

@@ -3,7 +3,11 @@ import type { GameSnapshot, Hero, PreparedSkill, Projectile, ProjectileKind, Slo
 import { BULLET_TEXTURE_KEY, CRATE_TEXTURE_KEY, ROCKET_TEXTURE_KEY, WEAPON_PICKUP_ICON_KEYS } from "../../../../game/constants";
 import { resolveHeroVisual } from "../../../../game/spawn";
 import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
-import { SKILL_DEFINITIONS } from "../../../../game/skills";
+import {
+  getPreparedTargetSkillRuntimeProfile,
+  isPreparedTargetSkillKind,
+  type PreparedTargetSkillKind
+} from "../../runtime-local/skills/skillRuntimeProfiles";
 import { getItemPickupDisplayLabel, getWeaponDisplayLabel, getWeaponPickupTint } from "../../presenters/battleDisplayCatalog";
 import { recordRemoteHeroViewDiagnostics } from "../remoteViewDiagnostics";
 
@@ -1513,58 +1517,80 @@ export function syncIndicators({
   localHeroDisplayOverride
 }: WorldViewSyncContext): void {
   const player = snapshot.heroes.find((hero) => hero.heroId === snapshot.playerHeroId);
-  const blink = player ? player.skills.find((skill) => skill.kind === "Blink") : null;
-  const freeze = player ? player.skills.find((skill) => skill.kind === "Freeze") : null;
+  const preparedSkill = player?.preparedSkill ?? null;
 
-  if (!player || !player.alive || (player.preparedSkill !== "Blink" && player.preparedSkill !== "Freeze")) {
+  if (!player || !player.alive || !isPreparedTargetSkillKind(preparedSkill)) {
     worldViews.rangeIndicator.setVisible(false);
     worldViews.targetIndicator.setVisible(false);
     return;
   }
 
   const displayPosition = sharedAuthoritativeRuntime ? player.position : localHeroDisplayOverride?.position ?? player.position;
-  const isFreeze = player.preparedSkill === "Freeze";
-  const definition = isFreeze ? SKILL_DEFINITIONS.Freeze : SKILL_DEFINITIONS.Blink;
-  const valid = isFreeze
-    ? Boolean(freeze && freeze.cooldownMs <= 0 && isFreezeTargetValid(player, pointerWorld, displayPosition, isPreparedTargetValid))
-    : Boolean(blink && blink.cooldownMs <= 0 && isBlinkIndicatorTargetValid(player, pointerWorld, localHeroDisplayOverride, isBlinkTargetValid, isPreparedTargetValid));
+  const profile = getPreparedTargetSkillRuntimeProfile(preparedSkill);
+  const skill = player.skills.find((entry) => entry.kind === preparedSkill) ?? null;
+  const valid = Boolean(
+    skill &&
+      skill.cooldownMs <= 0 &&
+      isPreparedIndicatorTargetValid(
+        player,
+        preparedSkill,
+        pointerWorld,
+        displayPosition,
+        localHeroDisplayOverride,
+        isBlinkTargetValid,
+        isPreparedTargetValid
+      )
+  );
   const color = valid ? 0x69ff9f : 0xff6b6b;
 
   worldViews.rangeIndicator.setVisible(true);
   worldViews.rangeIndicator.setPosition(displayPosition.x, displayPosition.y);
-  worldViews.rangeIndicator.setRadius(definition.range);
+  worldViews.rangeIndicator.setRadius(profile.target.range);
   worldViews.rangeIndicator.setFillStyle(color, 0.05);
   worldViews.rangeIndicator.setStrokeStyle(2, color, 0.88);
 
   worldViews.targetIndicator.setVisible(true);
   worldViews.targetIndicator.setPosition(pointerWorld.x, pointerWorld.y);
-  worldViews.targetIndicator.setRadius(isFreeze ? SKILL_DEFINITIONS.Freeze.radius : 11);
+  worldViews.targetIndicator.setRadius(profile.target.indicatorRadius);
   worldViews.targetIndicator.setFillStyle(color, 0.16);
   worldViews.targetIndicator.setStrokeStyle(2, color, 0.88);
 }
 
-function isFreezeTargetValid(
+function isPreparedIndicatorTargetValid(
   player: Hero,
+  preparedSkill: PreparedTargetSkillKind,
   target: Vec2,
   displayPosition: Vec2,
+  localHeroDisplayOverride: LocalHeroDisplayOverride | undefined,
+  isBlinkTargetValid: WorldViewSyncContext["isBlinkTargetValid"],
   isPreparedTargetValid: WorldViewSyncContext["isPreparedTargetValid"]
 ): boolean {
-  return isPreparedTargetValid
-    ? isPreparedTargetValid(player, "Freeze", target)
-    : Phaser.Math.Distance.Between(displayPosition.x, displayPosition.y, target.x, target.y) <= SKILL_DEFINITIONS.Freeze.range;
+  if (isPreparedTargetValid) {
+    return isPreparedTargetValid(player, preparedSkill, target);
+  }
+
+  switch (preparedSkill) {
+    case "Blink":
+      return isBlinkIndicatorTargetValid(player, target, localHeroDisplayOverride, isBlinkTargetValid);
+    case "Freeze":
+      return isFreezeIndicatorTargetValid(target, displayPosition);
+  }
+}
+
+function isFreezeIndicatorTargetValid(
+  target: Vec2,
+  displayPosition: Vec2
+): boolean {
+  const profile = getPreparedTargetSkillRuntimeProfile("Freeze");
+  return Phaser.Math.Distance.Between(displayPosition.x, displayPosition.y, target.x, target.y) <= profile.target.range;
 }
 
 function isBlinkIndicatorTargetValid(
   player: Hero,
   target: Vec2,
   localHeroDisplayOverride: LocalHeroDisplayOverride | undefined,
-  isBlinkTargetValid: WorldViewSyncContext["isBlinkTargetValid"],
-  isPreparedTargetValid: WorldViewSyncContext["isPreparedTargetValid"]
+  isBlinkTargetValid: WorldViewSyncContext["isBlinkTargetValid"]
 ): boolean {
-  if (isPreparedTargetValid) {
-    return isPreparedTargetValid(player, "Blink", target);
-  }
-
   return isBlinkTargetValid(
     localHeroDisplayOverride
       ? { ...player, position: localHeroDisplayOverride.position, facing: localHeroDisplayOverride.facing }

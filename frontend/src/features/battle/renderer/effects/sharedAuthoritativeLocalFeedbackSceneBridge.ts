@@ -1,7 +1,15 @@
 import type { Hero, PlayerCommand, SkillKind, Vec2, WeaponKind, WeaponState } from "../../../../domain/types";
-import { SKILL_DEFINITIONS } from "../../../../game/skills";
 import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
 import type { SceneGeometryObstacleBounds } from "../../runtime-local/geometry/sceneGeometry";
+import {
+  PREPARED_TARGET_FEEDBACK_COMMAND_PRIORITY,
+  getInstantSkillRuntimeProfile,
+  getPreparedTargetSkillFeedbackRadius,
+  isSkillCommandPressed,
+  resolvePreparedTargetSkillCommand,
+  type PreparedTargetSkillKind,
+  type SkillFeedbackIntent
+} from "../../runtime-local/skills/skillRuntimeProfiles";
 import { recordLocalMuzzleFeedbackDiagnostics } from "../localFeedbackDiagnostics";
 import type { LocalHeroDisplayPoseReader } from "../localHeroDisplayPose";
 import { isSharedAuthoritativeTargetValid } from "./sharedAuthoritativeTargetValidity";
@@ -27,11 +35,8 @@ interface MuzzleFeedbackStyle {
   };
 }
 
-type SkillFeedbackIntent = "prepare" | "release";
-type TargetedFeedbackSkillKind = "Blink" | "Freeze";
-
 interface TargetedSkillFeedbackRequest {
-  kind: TargetedFeedbackSkillKind;
+  kind: PreparedTargetSkillKind;
   intent: SkillFeedbackIntent;
   feedbackRadius: number;
 }
@@ -71,10 +76,6 @@ const PRIMARY_FEEDBACK_MIN_MS = 120;
 const SKILL_REJECT_FEEDBACK_MIN_MS = 160;
 const RELOAD_INTENT_FEEDBACK_MIN_MS = 520;
 const AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE = 4;
-const BLINK_PREPARE_FEEDBACK_RADIUS = 24;
-const BLINK_RELEASE_FEEDBACK_RADIUS = 28;
-const FREEZE_PREPARE_FEEDBACK_RADIUS = SKILL_DEFINITIONS.Freeze.radius * 0.2;
-const FREEZE_RELEASE_FEEDBACK_RADIUS = SKILL_DEFINITIONS.Freeze.radius;
 const PISTOL_SHORT_MUZZLE_TRACER: MuzzleFeedbackStyle["tracer"] = {
   length: 22,
   thickness: 2,
@@ -240,11 +241,14 @@ export class SharedAuthoritativeLocalFeedbackSceneBridge {
     displayPosition: Vec2,
     targetedRequest: TargetedSkillFeedbackRequest | null
   ): void {
-    if (command.castDash) {
+    if (isSkillCommandPressed(command, "Dash")) {
       if (canPresentSkillFeedback(player, "Dash")) {
         this.options.createDashSkillFeedback(displayPosition, resolveAimDirection(command.aim));
       } else {
-        this.presentSkillRejectionFeedback(displayPosition, 22);
+        this.presentSkillRejectionFeedback(
+          displayPosition,
+          getInstantSkillRuntimeProfile("Dash").feedback.rejectionRadius
+        );
       }
     }
 
@@ -262,7 +266,7 @@ export class SharedAuthoritativeLocalFeedbackSceneBridge {
 
   private presentTargetedSkillFeedback(
     player: Hero,
-    kind: TargetedFeedbackSkillKind,
+    kind: PreparedTargetSkillKind,
     target: Vec2,
     displayPosition: Vec2,
     successRadius: number,
@@ -353,12 +357,12 @@ function resolveTargetedSkillFeedbackRequest(
       return {
         kind: releaseKind,
         intent: "release",
-        feedbackRadius: getTargetedSkillFeedbackRadius(releaseKind, "release")
+        feedbackRadius: getPreparedTargetSkillFeedbackRadius(releaseKind, "release")
       };
     }
   }
 
-  const prepareKind = resolveToggledTargetedSkill(command);
+  const prepareKind = resolvePreparedTargetSkillCommand(command, PREPARED_TARGET_FEEDBACK_COMMAND_PRIORITY);
   if (!prepareKind) {
     return null;
   }
@@ -366,39 +370,17 @@ function resolveTargetedSkillFeedbackRequest(
   return {
     kind: prepareKind,
     intent: "prepare",
-    feedbackRadius: getTargetedSkillFeedbackRadius(prepareKind, "prepare")
+    feedbackRadius: getPreparedTargetSkillFeedbackRadius(prepareKind, "prepare")
   };
 }
 
-function resolveTargetedSkillReleaseKind(player: Hero, command: PlayerCommand): TargetedFeedbackSkillKind | null {
-  const toggledKind = resolveToggledTargetedSkill(command);
+function resolveTargetedSkillReleaseKind(player: Hero, command: PlayerCommand): PreparedTargetSkillKind | null {
+  const toggledKind = resolvePreparedTargetSkillCommand(command, PREPARED_TARGET_FEEDBACK_COMMAND_PRIORITY);
   if (toggledKind) {
     return toggledKind;
   }
 
   return player.preparedSkill;
-}
-
-function resolveToggledTargetedSkill(command: PlayerCommand): TargetedFeedbackSkillKind | null {
-  if (command.toggleFreeze) {
-    return "Freeze";
-  }
-  if (command.toggleBlink) {
-    return "Blink";
-  }
-
-  return null;
-}
-
-function getTargetedSkillFeedbackRadius(
-  kind: TargetedFeedbackSkillKind,
-  intent: SkillFeedbackIntent
-): number {
-  if (kind === "Blink") {
-    return intent === "release" ? BLINK_RELEASE_FEEDBACK_RADIUS : BLINK_PREPARE_FEEDBACK_RADIUS;
-  }
-
-  return intent === "release" ? FREEZE_RELEASE_FEEDBACK_RADIUS : FREEZE_PREPARE_FEEDBACK_RADIUS;
 }
 
 function resolveAimDirection(aim: Vec2): Vec2 {

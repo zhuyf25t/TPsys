@@ -3,6 +3,11 @@ import { JUMP_COOLDOWN_MS, JUMP_DISTANCE } from "../../../../game/constants";
 import { SKILL_DEFINITIONS, getSkillState } from "../../../../game/skills";
 import { findDashDestination, type SceneGeometryObstacleBounds } from "../geometry/sceneGeometry";
 import { isFreezeTargetInRange } from "../skills/freezeFieldController";
+import {
+  PREPARED_TARGET_APPLY_COMMAND_ORDER,
+  isSkillCommandPressed,
+  type PreparedTargetSkillKind
+} from "../skills/skillRuntimeProfiles";
 import { isBlinkTargetValid } from "./blinkTargetResolver";
 
 type FloatingTone = "neutral" | "warning" | "error" | "success";
@@ -58,15 +63,13 @@ export function applySkillInputs(input: ApplySkillInputs): void {
     return;
   }
 
-  if (input.command.toggleBlink) {
-    input.player.preparedSkill = input.player.preparedSkill === "Blink" ? null : "Blink";
+  for (const kind of PREPARED_TARGET_APPLY_COMMAND_ORDER) {
+    if (isSkillCommandPressed(input.command, kind)) {
+      togglePreparedSkill(input.player, kind);
+    }
   }
 
-  if (input.command.toggleFreeze) {
-    input.player.preparedSkill = input.player.preparedSkill === "Freeze" ? null : "Freeze";
-  }
-
-  if (input.command.castDash && dash.cooldownMs <= 0) {
+  if (isSkillCommandPressed(input.command, "Dash") && dash.cooldownMs <= 0) {
     const direction = input.command.movement.x === 0 && input.command.movement.y === 0 ? input.command.aim : input.command.movement;
     if (direction.x !== 0 || direction.y !== 0) {
       const destination = findDashDestination({
@@ -128,6 +131,10 @@ export function applySkillInputs(input: ApplySkillInputs): void {
       input.callbacks.createFloatingText(input.command.pointerWorld, "冰雾目标无效", "#8beeff");
     }
   }
+}
+
+function togglePreparedSkill(player: Hero, kind: PreparedTargetSkillKind): void {
+  player.preparedSkill = player.preparedSkill === kind ? null : kind;
 }
 
 export function applyJumpAction(input: ApplyJumpActionInputs): void {

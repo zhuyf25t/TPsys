@@ -1,9 +1,9 @@
 import type { Hero, PreparedSkill, Vec2 } from "../../../../domain/types";
-import { SKILL_DEFINITIONS } from "../../../../game/skills";
 import type { SceneGeometryObstacleBounds } from "../../runtime-local/geometry/sceneGeometry";
 import { isBlinkTargetValid } from "../../runtime-local/movement/blinkTargetResolver";
 import { isInsideWorld } from "../../runtime-local/movement/motionController";
 import { isFreezeTargetInRange } from "../../runtime-local/skills/freezeFieldController";
+import { getPreparedTargetSkillRuntimeProfile } from "../../runtime-local/skills/skillRuntimeProfiles";
 
 export interface SharedAuthoritativeTargetValidityInput {
   player: Hero;
@@ -14,10 +14,12 @@ export interface SharedAuthoritativeTargetValidityInput {
 }
 
 export function isSharedAuthoritativeTargetValid(input: SharedAuthoritativeTargetValidityInput): boolean {
-  switch (input.preparedSkill) {
+  const profile = getPreparedTargetSkillRuntimeProfile(input.preparedSkill);
+
+  switch (profile.kind) {
     case "Blink":
       return (
-        isTargetInRange(input.player.position, input.target, SKILL_DEFINITIONS.Blink.range) &&
+        isTargetInRange(input.player.position, input.target, profile.target.range) &&
         isBlinkTargetValid({
           player: input.player,
           target: input.target,
@@ -27,7 +29,7 @@ export function isSharedAuthoritativeTargetValid(input: SharedAuthoritativeTarge
       );
     case "Freeze":
       return (
-        isFreezeTargetInRange(input.player.position, input.target, SKILL_DEFINITIONS.Freeze.range) &&
+        isFreezeTargetInRange(input.player.position, input.target, profile.target.range) &&
         isInsideWorld(input.target, 0, input.worldSize)
       );
   }

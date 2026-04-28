@@ -31,7 +31,9 @@
 - 前端 battle 内容参数已抽到 `frontend/src/game/battleContentCatalog.ts`，`weapons.ts`、`skills.ts`、`spawn.ts` 保留原 public API 并从 catalog 读取。
 - 第一轮前后端内容契约审计已完成，记录见 `docs/BATTLE_CONTENT_CONTRACT_AUDIT.md`。
 - 加特林模型已统一为 authoritative heat / overheat，不再是前端热量、后端弹匣近似。
+- Bot SDK 最小接口已落地，记录见 `docs/BOT_SDK_FOUNDATION.md`；外部策略现在可以通过类型化 command strategy 接入，不需要直接修改 runtime/controller 主逻辑。
 - 当前 GitHub main 已保存：
+  - `45fd758 Add local bot strategy SDK boundary`
   - `6150a4e Unify authoritative Gatling heat contract`
   - `fd52c80 Align battle content contracts`
   - `7e2cc28 Extract frontend battle content catalog`
@@ -49,21 +51,20 @@
 
 刚完成的单一任务：
 
-- 加特林武器契约统一。
-- 后端 `BattleWeaponState` / player scalar mirror 新增 `heat`、`overheated`、`overheatRemainingMs`。
-- 后端 Gatling 改为 `usesHeat=true`、`magazineSize=0`、不消耗 ammo、按 heat/overheat 控制开火。
-- 前端 authoritative client、frame bridge、snapshot applier 已把服务器 heat 字段写入 `WeaponState`。
+- Bot SDK 最小接口。
+- 新增 `frontend/src/features/battle/runtime-local/bots/botSdk.ts`，提供 copied observation、`BotCommandStrategy`、策略注册表和 command 归一化兜底。
+- `botController.ts` 保留内置 bot command，只有注册策略命中时才允许覆盖 command；策略异常或非法输出会回退内置 command。
+- 文档 `docs/BOT_SDK_FOUNDATION.md` 写明 SDK 能读什么、能输出什么，以及不能写 rating/replay/runtime state。
 
 结果：
 
-- `npm run backend:compile` 通过。
 - `npm run build` 通过。
-- 审核确认非 Gatling 武器保持原弹药语义。
+- 默认无注册策略时 bot 行为保持原路径。
 
 下一票：
 
-- bot SDK 最小接口设计与落地。
-- 目标是定义 bot observation/action/tick/权限边界，并给朋友或同学一个不直接改 runtime 的贡献入口。
+- 地图配置化第一刀。
+- 目标是把 world size、出生点、障碍物、pickup 点和基础主题入口集中为 map config，先做内置配置，不做外部编辑器。
 
 ## 下一步计划
 
@@ -83,11 +84,12 @@
    目的：检查 WeaponKind、SkillKind、ProjectileKind、pickup kind、字段命名、数值语义是否同名同义。必要时只做小范围修正，不做课程风格大改。
 
 4. bot SDK 最小接口。
-   状态：下一票。
-   预计：0.5-1 天。
+   状态：已完成第一刀。
+   实际结果：外部策略可通过 `registerBotStrategy` 接入 command 决策；默认行为不变。
    目的：定义 bot 可读 observation、可输出 command、tick 频率、权限边界和一个样例 bot，让朋友以后能贡献 bot，而不是直接改 authoritative runtime。
 
 5. 地图配置化第一刀。
+   状态：下一票。
    预计：0.5-1 天。
    目的：把地图尺寸、出生点、障碍物、pickup 点、视觉主题从硬编码结构变成可替换配置。第一版只支持内置配置，不急着做外部编辑器。
 

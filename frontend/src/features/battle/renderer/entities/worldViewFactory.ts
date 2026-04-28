@@ -29,11 +29,9 @@ import {
 import {
   createItemPickupView,
   createWeaponPickupView,
-  setPickupViewVisible,
-  syncItemPickupView,
-  syncWeaponPickupView,
   type PickupView
 } from "./pickupViewPresentation";
+import { syncPickupViews } from "./pickupViewSync";
 import {
   getProjectileDisplayPositionFromViews,
   syncProjectileViews,
@@ -101,6 +99,8 @@ export interface WorldViewSyncContext {
 }
 
 const EMPTY_REMOTE_AUTH_HERO_IDS: ReadonlySet<string> = new Set<string>();
+
+export { syncPickupViews };
 
 export function createWorldViewState(context: WorldViewFactoryContext): WorldViewState {
   const { scene, snapshot, getBaseHeroScale } = context;
@@ -330,54 +330,6 @@ export function getHeroDisplayPosition(worldViews: WorldViewState, heroId: strin
 
 export function getProjectileDisplayPosition(worldViews: WorldViewState, projectileId: string): Vec2 | null {
   return getProjectileDisplayPositionFromViews(worldViews, projectileId);
-}
-
-export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext): void {
-  const liveWeaponPickupIds = worldViews.scratchLiveWeaponPickupIds;
-  liveWeaponPickupIds.clear();
-  snapshot.weaponPickups.forEach((pickup) => {
-    liveWeaponPickupIds.add(pickup.weaponId);
-  });
-
-  for (const [weaponId, view] of worldViews.pickupViews.entries()) {
-    if (liveWeaponPickupIds.has(weaponId)) {
-      continue;
-    }
-
-    setPickupViewVisible(view, false);
-  }
-
-  const liveItemPickupIds = worldViews.scratchLiveItemPickupIds;
-  liveItemPickupIds.clear();
-  snapshot.itemPickups.forEach((pickup) => {
-    liveItemPickupIds.add(pickup.pickupId);
-  });
-
-  for (const [pickupId, view] of worldViews.itemPickupViews.entries()) {
-    if (liveItemPickupIds.has(pickupId)) {
-      continue;
-    }
-
-    setPickupViewVisible(view, false);
-  }
-
-  snapshot.weaponPickups.forEach((pickup) => {
-    const view = worldViews.pickupViews.get(pickup.weaponId);
-    if (!view) {
-      return;
-    }
-
-    syncWeaponPickupView(view, pickup, snapshot.elapsedMs);
-  });
-
-  snapshot.itemPickups.forEach((pickup) => {
-    const view = worldViews.itemPickupViews.get(pickup.pickupId);
-    if (!view) {
-      return;
-    }
-
-    syncItemPickupView(view, pickup, snapshot.elapsedMs);
-  });
 }
 
 export function syncIndicators({

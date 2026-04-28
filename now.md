@@ -607,9 +607,31 @@
 - 这是表现层搬移，headless smoke 不能替代人工 headful 审美验收；当前确认 hero 显示链路和基础指标未被破坏。
 - `worldViewFactory.ts` 现在主要剩 pickup sync、indicator sync、hero wrapper/visibility orchestration；下一刀适合拆 pickup sync 或 indicator sync，之后再转向 `battleFeedbackSceneBridge.ts` / `sceneVfxController.ts`。
 
+### BattlePage pickup view sync helper 抽离
+
+已完成本轮第三十刀：
+
+- 新增 `frontend/src/features/battle/renderer/entities/pickupViewSync.ts`。
+- 从 `worldViewFactory.ts` 抽出 `syncPickupViews(...)` 主体、`scratchLiveWeaponPickupIds` / `scratchLiveItemPickupIds` 维护、weapon/item pickup view 不可见处理、`syncWeaponPickupView(...)` / `syncItemPickupView(...)` 调用。
+- `worldViewFactory.ts` 继续 re-export 同名 `syncPickupViews`，`syncWorldViews(context)` 调用语义保持不变。
+- `WorldViewState` 仍保留 `pickupViews`、`itemPickupViews`、`scratchLiveWeaponPickupIds`、`scratchLiveItemPickupIds` 字段名。
+- `createWorldViewState(...)` 仍创建初始 weapon/item pickup views；live-id 收集顺序、不可见处理顺序、`snapshot.elapsedMs` 传入顺序保持原样。
+- `worldViewFactory.ts` 从约 `431` LOC 降到约 `392` LOC。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD pickup count 仍为 `6`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 这是 pickup 显示同步搬移，未改变 pickup spawn、radius、auto pickup、respawn、weapon ammo、item effect、map/backend/domain。
+- `worldViewFactory.ts` 现在主要剩 indicator sync 和 hero visibility/action orchestration；下一刀适合拆 indicator sync。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter、remote hero interpolation helper、local hero motion streak helper、hero readability/health/cue presenter 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `431` LOC；下一步拆 `worldViewFactory.ts` 的 pickup sync / indicator sync 小职责，随后转向 VFX bridge 大文件。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter、remote hero interpolation helper、local hero motion streak helper、hero readability/health/cue presenter、pickup sync helper 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `392` LOC；下一步拆 `worldViewFactory.ts` 的 indicator sync 小职责，随后转向 VFX bridge 大文件。
 
 扩展性基础第一轮已经覆盖：
 
@@ -620,7 +642,7 @@
 
 下一阶段候选：
 
-- BattlePage world view 剩余边界整理：把 pickup sync 或 indicator sync 从 `worldViewFactory.ts` 拆成 focused helper，让主工厂只保留 view state 装配和顶层同步编排。
+- BattlePage world view 剩余边界整理：把 indicator sync 从 `worldViewFactory.ts` 拆成 focused helper，让主工厂只保留 view state 装配和顶层同步编排。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
@@ -628,7 +650,7 @@
 
 1. BattlePage world view factory pickup / indicator 边界整理。
    预计：1-3 小时。
-   目标：把 pickup sync 或 indicator sync 从 `worldViewFactory.ts` 拆成 focused helper，不改变拾取显示、技能范围指示、Blink/Freeze 目标合法性或本地/远端手感。
+   目标：把 indicator sync 从 `worldViewFactory.ts` 拆成 focused helper，不改变技能范围指示、Blink/Freeze 目标合法性或本地/远端手感。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

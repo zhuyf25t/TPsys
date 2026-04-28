@@ -1,5 +1,7 @@
 package slaydemo.backend.battle.rules
 
+import slaydemo.backend.shared.rules.HandleRules
+
 object BattleRules {
   val ArenaPlayerCapacity: Int = 6
   val MatchmakingDurationMs: Long = 5_000L
@@ -7,5 +9,5 @@ object BattleRules {
   val VisitorHandle: String = "Visitor"
 
   def isVisitorHandle(value: String): Boolean =
-    value.trim.equalsIgnoreCase(VisitorHandle)
+    HandleRules.isVisitorLikeHandle(value)
 }

@@ -57,9 +57,24 @@
 - `npm run build` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### 后端 Visitor-like 身份边界
+
+已完成本轮第二刀：
+
+- 新增 `backend/src/main/scala/shared/rules/HandleRules.scala`。
+- 后端 visitor-like 判断现在覆盖空身份、`Visitor`、`guest`、`anonymous`、`anon`、`访客`、`游客`、`未登录`。
+- `BattleRules.isVisitorHandle` 保留老 API，但内部委托共享规则。
+- `DefaultIdentityService` 注册、登录、session、账号列表会过滤 visitor-like 正式账号；内置 `admin` 不受影响。
+- 文档见 `docs/BACKEND_VISITOR_HANDLE_GUARDRAILS.md`。
+
+验证：
+
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第二刀。
+当前主线：数据闭环加固第三刀。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 

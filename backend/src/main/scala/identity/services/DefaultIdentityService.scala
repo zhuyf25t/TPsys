@@ -7,6 +7,7 @@ import scala.collection.concurrent.TrieMap
 import slaydemo.backend.identity.database.IdentityAccountRepository
 import slaydemo.backend.identity.objects.IdentityAccount
 import slaydemo.backend.shared.objects.UserId
+import slaydemo.backend.shared.rules.HandleRules
 
 final class DefaultIdentityService(repository: IdentityAccountRepository) extends IdentityService {
   private val allowedSkins = Set("blue", "survivor", "soldier", "old")
@@ -20,7 +21,9 @@ final class DefaultIdentityService(repository: IdentityAccountRepository) extend
     val normalizedPassword = password.trim
     val normalizedSkinId = skinId.trim.toLowerCase
 
-    if (normalizedHandle.length < 3 || normalizedHandle.length > 16) {
+    if (!HandleRules.isPlayableIdentityHandle(normalizedHandle)) {
+      Left("invalid_handle")
+    } else if (normalizedHandle.length < 3 || normalizedHandle.length > 16) {
       Left("invalid_handle")
     } else if (!normalizedHandle.matches("^[a-zA-Z0-9_-]+$")) {
       Left("invalid_handle")
@@ -47,7 +50,12 @@ final class DefaultIdentityService(repository: IdentityAccountRepository) extend
       return Right(account)
     }
 
-    repository.authenticate(handle.trim, password.trim) match {
+    val normalizedHandle = handle.trim
+    if (!HandleRules.isPlayableIdentityHandle(normalizedHandle)) {
+      return Left("invalid_credentials")
+    }
+
+    repository.authenticate(normalizedHandle, password.trim) match {
       case None => Left("invalid_credentials")
       case Some(account) =>
         val sessionToken = newSessionToken(account.handle)
@@ -56,13 +64,24 @@ final class DefaultIdentityService(repository: IdentityAccountRepository) extend
   }
 
   override def loadAccount(handle: String): Option[IdentityAccount] =
-    if (isBuiltinAdminHandle(handle)) Some(builtinAdminAccount()) else repository.findByHandle(handle)
+    if (isBuiltinAdminHandle(handle)) {
+      Some(builtinAdminAccount())
+    } else if (!HandleRules.isPlayableIdentityHandle(handle)) {
+      None
+    } else {
+      repository.findByHandle(handle).filter(account => HandleRules.isPlayableIdentityHandle(account.handle))
+    }
 
   override def loadAccountBySessionToken(sessionToken: String): Option[IdentityAccount] =
-    builtinSessions.get(sessionToken).orElse(repository.findBySessionToken(sessionToken))
+    builtinSessions
+      .get(sessionToken)
+      .orElse(repository.findBySessionToken(sessionToken).filter(account => HandleRules.isPlayableIdentityHandle(account.handle)))
 
   override def listActiveAccounts(): Seq[IdentityAccount] =
-    (repository.listActiveAccounts().filterNot(account => isBuiltinAdminHandle(account.handle)) :+ builtinAdminAccount())
+    (repository
+      .listActiveAccounts()
+      .filter(account => !isBuiltinAdminHandle(account.handle) && HandleRules.isPlayableIdentityHandle(account.handle)) :+
+      builtinAdminAccount())
       .sortBy(_.handle.toLowerCase)
 
   private def newSessionToken(handle: String): String = {

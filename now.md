@@ -33,7 +33,9 @@
 - 加特林模型已统一为 authoritative heat / overheat，不再是前端热量、后端弹匣近似。
 - Bot SDK 最小接口已落地，记录见 `docs/BOT_SDK_FOUNDATION.md`；外部策略现在可以通过类型化 command strategy 接入，不需要直接修改 runtime/controller 主逻辑。
 - 前端地图配置化第一刀已完成，记录见 `docs/BATTLE_MAP_CONFIG_FOUNDATION.md`；默认地图数据集中到 `battleMapCatalog.ts`，旧 public API 保持可用。
+- 前端本地武器扩展接口第一刀已完成，记录见 `docs/BATTLE_WEAPON_EXTENSION_FOUNDATION.md`；Pistol/Rocket/Gatling/Shotgun 的触发模式、弹药模式、弹丸生成、VFX、后坐力已集中到 runtime profile。
 - 当前 GitHub main 已保存：
+  - `34335aa Extract local weapon runtime profiles`
   - `6018d76 Extract frontend battle map catalog`
   - `45fd758 Add local bot strategy SDK boundary`
   - `6150a4e Unify authoritative Gatling heat contract`
@@ -53,20 +55,21 @@
 
 刚完成的单一任务：
 
-- 地图配置化第一刀。
-- 新增 `frontend/src/game/battleMapCatalog.ts`，集中 `mapId`、`displayName`、`themeId`、world size、英雄出生点、障碍物、pickup 定义和 pickup pad。
-- `constants.ts`、`battleContentCatalog.ts`、`spawn.ts` 的旧导出保持可用，避免一次性牵动 arena/replay/runtime 调用方。
-- 文档 `docs/BATTLE_MAP_CONFIG_FOUNDATION.md` 明确当前只是前端内置 map config，不等于后端 authoritative geometry 也已配置化。
+- 前端本地武器扩展接口第一刀。
+- 新增 `frontend/src/features/battle/runtime-local/weapons/weaponRuntimeProfiles.ts`，集中 trigger mode、ammo mode、recoil、muzzle VFX、projectile spawn plan。
+- `weaponActionController.ts` 不再用主流程硬分支生成 Shotgun/Gatling/Rocket/Pistol 的弹丸、VFX 和后坐力。
+- `weaponController.ts` 改用 profile + definition `usesHeat` 判定 held/pressed 与 magazine/heat。
+- 文档 `docs/BATTLE_WEAPON_EXTENSION_FOUNDATION.md` 明确这只是前端本地 runtime profile，不等于后端 authoritative weapon plugin。
 
 结果：
 
 - `npm run build` 通过。
-- 默认地图布局和渲染 public API 保持不变。
+- projectile sequence、spread/randomFn、muzzle position、recoil 数值保持原语义。
 
 下一票：
 
-- 技能/武器扩展接口第一刀。
-- 目标是先收敛前端本地 runtime 的武器/技能分支入口，新增技能或武器时减少对 `GameScene.ts` 和 runtime 主流程的修改。
+- 技能扩展接口第一刀。
+- 目标是先把 Blink/Dash/Freeze 的配置、target validity、输入切换/释放分类从多处硬分支中收敛一层；不改后端，不改技能玩法。
 
 ## 下一步计划
 
@@ -96,7 +99,8 @@
    目的：把地图尺寸、出生点、障碍物、pickup 点、视觉主题从硬编码结构变成可替换配置。第一版只支持内置配置，不急着做外部编辑器。
 
 6. 技能/武器扩展接口第一刀。
-   状态：下一票。
+   状态：武器第一刀已完成；技能第一刀为下一票。
+   实际结果：前端本地武器 runtime profile 已落地；后端 authoritative weapon plugin 仍待后续独立对齐。
    预计：0.5-1 天。
    目的：新增技能或武器时不需要修改 `GameScene.ts`，并尽量减少 runtime 主流程改动。
 

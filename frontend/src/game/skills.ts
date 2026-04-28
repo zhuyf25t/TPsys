@@ -1,40 +1,7 @@
 import type { Hero, SkillKind, SkillState } from "../domain/types";
+import { SKILL_DEFINITIONS, type SkillDefinition } from "./battleContentCatalog";
 
-export interface SkillDefinition {
-  cooldownMs: number;
-  range: number;
-  radius: number;
-  durationMs: number;
-  healAmount: number;
-  distance: number;
-}
-
-export const SKILL_DEFINITIONS: Record<SkillKind, SkillDefinition> = {
-  Blink: {
-    cooldownMs: 2200,
-    range: 250,
-    radius: 0,
-    durationMs: 0,
-    healAmount: 0,
-    distance: 0
-  },
-  Dash: {
-    cooldownMs: 2600,
-    range: 0,
-    radius: 0,
-    durationMs: 0,
-    healAmount: 0,
-    distance: 180
-  },
-  Freeze: {
-    cooldownMs: 12000,
-    range: 520,
-    radius: 150,
-    durationMs: 10000,
-    healAmount: 0,
-    distance: 0
-  }
-};
+export { SKILL_DEFINITIONS, type SkillDefinition };
 
 export function createDefaultSkills(): SkillState[] {
   return [

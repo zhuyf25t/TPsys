@@ -1,13 +1,26 @@
-import type { Hero, ItemPickup, PickupSpawnPoint, Vec2, WeaponPickup } from "../domain/types";
+import type { Hero, ItemPickup, Vec2, WeaponPickup } from "../domain/types";
 import { getCurrentAuthHandle, getCurrentAuthSkin } from "../features/auth/authGateway";
+import {
+  HERO_DEFINITIONS,
+  HERO_SPAWN_POINTS,
+  HERO_VISUALS,
+  ITEM_PICKUP_DEFINITIONS,
+  ITEM_PICKUP_SPAWN_POINTS,
+  SKIN_VISUALS,
+  WEAPON_PICKUP_DEFINITIONS,
+  WEAPON_PICKUP_SPAWN_POINTS,
+  type HeroVisualDefinition
+} from "./battleContentCatalog";
 import { HERO_MAX_HP, HERO_MAX_STAMINA, HERO_RADIUS, TEAM_MODE, WEAPON_PICKUP_RESPAWN_MS } from "./constants";
 import { createDefaultSkills } from "./skills";
 import { createStarterInventory } from "./weapons";
 
-export interface HeroVisualDefinition {
-  textureKey: string;
-  tint: number;
-}
+export {
+  HERO_SPAWN_POINTS,
+  ITEM_PICKUP_SPAWN_POINTS,
+  WEAPON_PICKUP_SPAWN_POINTS,
+  type HeroVisualDefinition
+};
 
 export interface InitialHeroConfig {
   heroId: string;
@@ -15,83 +28,7 @@ export interface InitialHeroConfig {
   skin?: string;
 }
 
-const HERO_DEFINITIONS: readonly {
-  heroId: string;
-  displayName: string;
-  position: Vec2;
-}[] = [
-  { heroId: "player-1", displayName: "玩家-1", position: { x: 704, y: 800 } },
-  { heroId: "bot-1", displayName: "机器人-1", position: { x: 512, y: 544 } },
-  { heroId: "bot-2", displayName: "机器人-2", position: { x: 512, y: 1056 } },
-  { heroId: "bot-3", displayName: "机器人-3", position: { x: 1600, y: 320 } },
-  { heroId: "bot-4", displayName: "机器人-4", position: { x: 1600, y: 1280 } },
-  { heroId: "bot-5", displayName: "机器人-5", position: { x: 2048, y: 800 } }
-] as const;
-
-export const HERO_SPAWN_POINTS: readonly Vec2[] = [
-  { x: 704, y: 800 },
-  { x: 512, y: 544 },
-  { x: 512, y: 1056 },
-  { x: 1600, y: 320 },
-  { x: 1600, y: 1280 },
-  { x: 2048, y: 800 }
-] as const;
-
-const HERO_VISUALS: Record<string, HeroVisualDefinition> = {
-  "player-1": { textureKey: "hero-player", tint: 0x7ae2ff },
-  "bot-1": { textureKey: "hero-survivor", tint: 0x7dd87d },
-  "bot-2": { textureKey: "hero-soldier", tint: 0xffd36e },
-  "bot-3": { textureKey: "hero-brown", tint: 0xff9d7a },
-  "bot-4": { textureKey: "hero-old", tint: 0xc8b6ff },
-  "bot-5": { textureKey: "hero-woman", tint: 0x87f0d6 }
-};
-
-const SKIN_VISUALS: Record<string, HeroVisualDefinition> = {
-  blue: { textureKey: "hero-player", tint: 0x7ae2ff },
-  survivor: { textureKey: "hero-survivor", tint: 0x7dd87d },
-  soldier: { textureKey: "hero-soldier", tint: 0xffd36e },
-  brown: { textureKey: "hero-brown", tint: 0xff9d7a },
-  old: { textureKey: "hero-old", tint: 0xc8b6ff },
-  woman: { textureKey: "hero-woman", tint: 0x87f0d6 }
-};
-
 let heroVisualOverrides = new Map<string, HeroVisualDefinition>();
-
-const WEAPON_PICKUP_DEFINITIONS: readonly {
-  weaponId: string;
-  weaponKind: WeaponPickup["weaponKind"];
-  position: Vec2;
-}[] = [
-  { weaponId: "pickup-rocket-1", weaponKind: "RocketLauncher", position: { x: 1280, y: 256 } },
-  { weaponId: "pickup-gatling-1", weaponKind: "Gatling", position: { x: 704, y: 800 } },
-  { weaponId: "pickup-shotgun-1", weaponKind: "Shotgun", position: { x: 1856, y: 800 } },
-  { weaponId: "pickup-rocket-2", weaponKind: "RocketLauncher", position: { x: 1280, y: 1344 } },
-  { weaponId: "pickup-gatling-2", weaponKind: "Gatling", position: { x: 448, y: 800 } },
-  { weaponId: "pickup-shotgun-2", weaponKind: "Shotgun", position: { x: 2112, y: 800 } }
-] as const;
-
-export const WEAPON_PICKUP_SPAWN_POINTS: readonly PickupSpawnPoint[] = WEAPON_PICKUP_DEFINITIONS.map((definition, index) => ({
-  id: `weapon-pad-${index + 1}`,
-  kind: "weapon",
-  position: definition.position,
-  occupied: false
-}));
-
-const ITEM_PICKUP_DEFINITIONS: readonly {
-  pickupId: string;
-  kind: ItemPickup["kind"];
-  position: Vec2;
-}[] = [
-  { pickupId: "pickup-medkit-1", kind: "Medkit", position: { x: 960, y: 608 } },
-  { pickupId: "pickup-medkit-2", kind: "Medkit", position: { x: 1600, y: 992 } }
-] as const;
-
-export const ITEM_PICKUP_SPAWN_POINTS: readonly PickupSpawnPoint[] = ITEM_PICKUP_DEFINITIONS.map((definition, index) => ({
-  id: `medkit-pad-${index + 1}`,
-  kind: "medkit",
-  position: definition.position,
-  occupied: false
-}));
 
 export function resolveHeroVisual(heroId: string): HeroVisualDefinition {
   const override = heroVisualOverrides.get(heroId);

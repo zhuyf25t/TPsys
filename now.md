@@ -32,7 +32,9 @@
 - 第一轮前后端内容契约审计已完成，记录见 `docs/BATTLE_CONTENT_CONTRACT_AUDIT.md`。
 - 加特林模型已统一为 authoritative heat / overheat，不再是前端热量、后端弹匣近似。
 - Bot SDK 最小接口已落地，记录见 `docs/BOT_SDK_FOUNDATION.md`；外部策略现在可以通过类型化 command strategy 接入，不需要直接修改 runtime/controller 主逻辑。
+- 前端地图配置化第一刀已完成，记录见 `docs/BATTLE_MAP_CONFIG_FOUNDATION.md`；默认地图数据集中到 `battleMapCatalog.ts`，旧 public API 保持可用。
 - 当前 GitHub main 已保存：
+  - `6018d76 Extract frontend battle map catalog`
   - `45fd758 Add local bot strategy SDK boundary`
   - `6150a4e Unify authoritative Gatling heat contract`
   - `fd52c80 Align battle content contracts`
@@ -51,20 +53,20 @@
 
 刚完成的单一任务：
 
-- Bot SDK 最小接口。
-- 新增 `frontend/src/features/battle/runtime-local/bots/botSdk.ts`，提供 copied observation、`BotCommandStrategy`、策略注册表和 command 归一化兜底。
-- `botController.ts` 保留内置 bot command，只有注册策略命中时才允许覆盖 command；策略异常或非法输出会回退内置 command。
-- 文档 `docs/BOT_SDK_FOUNDATION.md` 写明 SDK 能读什么、能输出什么，以及不能写 rating/replay/runtime state。
+- 地图配置化第一刀。
+- 新增 `frontend/src/game/battleMapCatalog.ts`，集中 `mapId`、`displayName`、`themeId`、world size、英雄出生点、障碍物、pickup 定义和 pickup pad。
+- `constants.ts`、`battleContentCatalog.ts`、`spawn.ts` 的旧导出保持可用，避免一次性牵动 arena/replay/runtime 调用方。
+- 文档 `docs/BATTLE_MAP_CONFIG_FOUNDATION.md` 明确当前只是前端内置 map config，不等于后端 authoritative geometry 也已配置化。
 
 结果：
 
 - `npm run build` 通过。
-- 默认无注册策略时 bot 行为保持原路径。
+- 默认地图布局和渲染 public API 保持不变。
 
 下一票：
 
-- 地图配置化第一刀。
-- 目标是把 world size、出生点、障碍物、pickup 点和基础主题入口集中为 map config，先做内置配置，不做外部编辑器。
+- 技能/武器扩展接口第一刀。
+- 目标是先收敛前端本地 runtime 的武器/技能分支入口，新增技能或武器时减少对 `GameScene.ts` 和 runtime 主流程的修改。
 
 ## 下一步计划
 
@@ -89,11 +91,12 @@
    目的：定义 bot 可读 observation、可输出 command、tick 频率、权限边界和一个样例 bot，让朋友以后能贡献 bot，而不是直接改 authoritative runtime。
 
 5. 地图配置化第一刀。
-   状态：下一票。
-   预计：0.5-1 天。
+   状态：已完成第一刀。
+   实际结果：默认地图数据集中到 `battleMapCatalog.ts`；后端 authoritative geometry 仍待后续独立对齐。
    目的：把地图尺寸、出生点、障碍物、pickup 点、视觉主题从硬编码结构变成可替换配置。第一版只支持内置配置，不急着做外部编辑器。
 
 6. 技能/武器扩展接口第一刀。
+   状态：下一票。
    预计：0.5-1 天。
    目的：新增技能或武器时不需要修改 `GameScene.ts`，并尽量减少 runtime 主流程改动。
 

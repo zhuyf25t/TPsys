@@ -412,9 +412,29 @@
 - 仍未做人工 headful 视觉审美验收；headless smoke 只能确认加载、同步、基础性能和无 warning。
 - overlay 仍是程序化 primitive，不是最终武器 sprite sheet；后续如果要更接近商业美术，需要武器 SVG/PNG overlay 或序列帧。
 
+### BattlePage weapon overlay helper 抽离
+
+已完成本轮第二十一刀：
+
+- 新增 `frontend/src/features/battle/renderer/entities/heroWeaponOverlayView.ts`。
+- 从 `worldViewFactory.ts` 抽出 `HeroWeaponOverlayView`、overlay 创建、显隐同步、四类武器 overlay 同步和内部 primitive helper。
+- `worldViewFactory.ts` 从约 `1844` 行降到约 `1630` 行，只保留创建/隐藏/同步调用。
+- 本轮是边界清理，视觉参数保持原值；未改 gameplay、domain、backend、AI、`GameScene.ts` 或任何武器/技能数值。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 这是纯搬移型重构，headless smoke 已覆盖基础加载和同步；人工视觉对比仍需要后续 headful 检查。
+- `worldViewFactory.ts` 仍然偏大，后续 pickup view、projectile view、slow field view 也适合逐步拆出。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay 已接入并通过 headless smoke，下一步进入 pickup 与障碍可读性第二轮打磨。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay 已接入；weapon overlay helper 已抽离并通过 headless smoke。下一步进入 pickup 与障碍可读性第二轮打磨。
 
 扩展性基础第一轮已经覆盖：
 

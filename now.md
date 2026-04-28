@@ -1,6 +1,6 @@
 # Now
 
-更新时间：2026-04-28 Asia/Shanghai
+更新时间：2026-04-29 Asia/Shanghai
 
 ## 当前状态
 
@@ -30,9 +30,13 @@
 - 后端 authoritative battle 内容参数已抽到 `BattleContentCatalog`，runtime 主类不再直接承载武器、技能、pickup、出生点、bot tuning 等静态内容表。
 - 前端 battle 内容参数已抽到 `frontend/src/game/battleContentCatalog.ts`，`weapons.ts`、`skills.ts`、`spawn.ts` 保留原 public API 并从 catalog 读取。
 - 第一轮前后端内容契约审计已完成，记录见 `docs/BATTLE_CONTENT_CONTRACT_AUDIT.md`。
+- 加特林模型已统一为 authoritative heat / overheat，不再是前端热量、后端弹匣近似。
 - 当前 GitHub main 已保存：
-  - `aaf93eb Save battle rendering and systems checkpoint`
-  - `9166754 Document autonomous roadmap and visual direction`
+  - `6150a4e Unify authoritative Gatling heat contract`
+  - `fd52c80 Align battle content contracts`
+  - `7e2cc28 Extract frontend battle content catalog`
+  - `7adf04b Extract backend battle content catalog`
+  - `03d81b7 Rewrite current roadmap`
   - `fcc435f Refresh GameScene hard gate report`
 - 最近验证包括：
   - `npm run build`
@@ -45,38 +49,41 @@
 
 刚完成的单一任务：
 
-- 前后端 battle 内容契约对齐审计。
-- 修复 Dash 冷却不一致：前端从 2600ms 改为后端 authoritative 同值 5000ms。
-- 修复医疗包点不一致：后端 authoritative medkit pickup 改为和前端地图同一组两个点。
-- 记录剩余较大漂移：Gatling 前端是热量模型，后端 authoritative 仍是弹匣模型，不能作为小修强改。
+- 加特林武器契约统一。
+- 后端 `BattleWeaponState` / player scalar mirror 新增 `heat`、`overheated`、`overheatRemainingMs`。
+- 后端 Gatling 改为 `usesHeat=true`、`magazineSize=0`、不消耗 ammo、按 heat/overheat 控制开火。
+- 前端 authoritative client、frame bridge、snapshot applier 已把服务器 heat 字段写入 `WeaponState`。
 
 结果：
 
 - `npm run backend:compile` 通过。
 - `npm run build` 通过。
-- 审核确认 Dash 和 medkit 修复是契约对齐，不是任意平衡调整。
+- 审核确认非 Gatling 武器保持原弹药语义。
 
 下一票：
 
-- Gatling 武器契约决策与实现。
-- 需要决定 authoritative 后端是否正式支持 heat / overheat 字段，还是把前端也改回弹匣模型。
-- 目标是消除“前端显示热量、后端实际弹匣”的模型漂移。
+- bot SDK 最小接口设计与落地。
+- 目标是定义 bot observation/action/tick/权限边界，并给朋友或同学一个不直接改 runtime 的贡献入口。
 
 ## 下一步计划
 
 1. 后端内容 catalog 抽离。
-   预计：1-3 小时。
+   状态：已完成。
+   实际结果：authoritative runtime 不再直接承载主要静态内容表，内容入口集中到 `BattleContentCatalog`。
    目的：把 authoritative runtime 从“硬编码内容表”推进到“可扩展内容入口”。
 
 2. 前端内容 catalog 对齐。
-   预计：2-4 小时。
+   状态：已完成。
+   实际结果：`weapons.ts`、`skills.ts`、`spawn.ts` 保留原 public API，但数据来源集中到 `battleContentCatalog.ts`。
    目的：把 `frontend/src/game/weapons.ts`、`skills.ts`、spawn/pickup/arena 常量整理成更明确的 battle content 层，减少散落硬编码。
 
 3. 前后端 battle 内容契约对齐审计。
-   预计：2-4 小时。
+   状态：已完成第一轮。
+   实际结果：Dash 冷却、医疗包点位、Gatling 热量模型已经对齐；审计记录见 `docs/BATTLE_CONTENT_CONTRACT_AUDIT.md`。
    目的：检查 WeaponKind、SkillKind、ProjectileKind、pickup kind、字段命名、数值语义是否同名同义。必要时只做小范围修正，不做课程风格大改。
 
 4. bot SDK 最小接口。
+   状态：下一票。
    预计：0.5-1 天。
    目的：定义 bot 可读 observation、可输出 command、tick 频率、权限边界和一个样例 bot，让朋友以后能贡献 bot，而不是直接改 authoritative runtime。
 

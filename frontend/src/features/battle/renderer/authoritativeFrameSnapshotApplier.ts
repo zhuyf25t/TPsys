@@ -29,7 +29,7 @@ const MAX_AUTHORITATIVE_EVENTS = 12;
 type AuthoritativeProjectileFrame = BattleRuntimeAuthoritativeFrame["projectiles"][number];
 type AuthoritativeSlowFieldFrame = BattleRuntimeAuthoritativeFrame["slowFields"][number];
 type AuthoritativePickupFrame = BattleRuntimeAuthoritativeFrame["pickups"][number];
-type AuthoritativePistolPickupFrame = AuthoritativePickupFrame & { kind: "Weapon"; weaponKind: "Pistol" };
+type AuthoritativeWeaponPickupFrame = AuthoritativePickupFrame & { kind: "Weapon"; weaponKind: WeaponPickup["weaponKind"] };
 type AuthoritativeMedkitPickupFrame = AuthoritativePickupFrame & { kind: "Medkit" };
 type AuthoritativeWeaponFrame = BattleRuntimeAuthoritativeFrame["heroes"][number]["weapons"][number];
 
@@ -222,10 +222,10 @@ function createAuthoritativeOnlyReplayProjection(
   };
 }
 
-function isAuthoritativePistolPickup(
+function isAuthoritativeWeaponPickup(
   pickup: BattleRuntimeAuthoritativeFrame["pickups"][number]
-): pickup is BattleRuntimeAuthoritativeFrame["pickups"][number] & { kind: "Weapon"; weaponKind: "Pistol" } {
-  return pickup.kind === "Weapon" && pickup.weaponKind === "Pistol";
+): pickup is AuthoritativeWeaponPickupFrame {
+  return pickup.kind === "Weapon" && isAuthoritativeWeaponKind(pickup.weaponKind);
 }
 
 function isAuthoritativeMedkitPickup(
@@ -297,7 +297,7 @@ function syncAuthoritativeWeaponPickups(
   let writeIndex = 0;
 
   for (const authoritativePickup of authoritativePickups) {
-    if (!isAuthoritativePistolPickup(authoritativePickup)) {
+    if (!isAuthoritativeWeaponPickup(authoritativePickup)) {
       continue;
     }
 
@@ -325,7 +325,7 @@ function indexWeaponPickupsById(pickups: readonly WeaponPickup[]): Map<string, W
   return pickupsById;
 }
 
-function createAuthoritativeWeaponPickup(pickup: AuthoritativePistolPickupFrame): WeaponPickup {
+function createAuthoritativeWeaponPickup(pickup: AuthoritativeWeaponPickupFrame): WeaponPickup {
   const snapshotPickup: WeaponPickup = {
     weaponId: pickup.pickupId,
     weaponKind: pickup.weaponKind,
@@ -337,7 +337,7 @@ function createAuthoritativeWeaponPickup(pickup: AuthoritativePistolPickupFrame)
   return snapshotPickup;
 }
 
-function applyAuthoritativeWeaponPickup(snapshotPickup: WeaponPickup, pickup: AuthoritativePistolPickupFrame): void {
+function applyAuthoritativeWeaponPickup(snapshotPickup: WeaponPickup, pickup: AuthoritativeWeaponPickupFrame): void {
   snapshotPickup.weaponId = pickup.pickupId;
   snapshotPickup.weaponKind = pickup.weaponKind;
   snapshotPickup.position.x = pickup.position.x;
@@ -596,4 +596,11 @@ function normalizeAuthoritativeProjectileKind(kind: string): ProjectileKind {
     default:
       return "pistol-bullet";
   }
+}
+
+function isAuthoritativeWeaponKind(weaponKind: unknown): weaponKind is WeaponPickup["weaponKind"] {
+  return weaponKind === "Pistol" ||
+    weaponKind === "RocketLauncher" ||
+    weaponKind === "Gatling" ||
+    weaponKind === "Shotgun";
 }

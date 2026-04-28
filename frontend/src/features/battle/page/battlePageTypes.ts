@@ -1,7 +1,8 @@
 import type { GameSnapshot } from "../../../domain/types";
 import type { ReplayFrame } from "../../replay/replayTypes";
+import { BATTLE_MATCHMAKING_DURATION_MS } from "../rules/battleRules";
 
-export const MATCHMAKING_DURATION_MS = 10_000;
+export const MATCHMAKING_DURATION_MS = BATTLE_MATCHMAKING_DURATION_MS;
 
 export type MatchPhase = "matching" | "playing" | "settled";
 export type BattleDrawerId = "replay" | "discussion" | "rating" | "mails" | "social";
@@ -14,6 +15,7 @@ export interface ActiveBattleSessionOwner {
 export interface ActiveBattleSession {
   version: 1;
   owner: ActiveBattleSessionOwner;
+  sessionEpoch?: string;
   battleId: string;
   sharedAuthoritativeRuntime?: boolean;
   localAuthoritativePlayerId?: string;

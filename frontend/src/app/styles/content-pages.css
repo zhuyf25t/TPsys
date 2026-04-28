@@ -125,6 +125,13 @@ body:has(.text-shell) #app {
   margin-bottom: 18px;
 }
 
+.text-shell__header-aside {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: min(360px, 42%);
+}
+
 .text-shell__header h2 {
   margin: 0;
   font-size: 2rem;
@@ -141,10 +148,70 @@ body:has(.text-shell) #app {
   margin-top: 16px;
 }
 
+.mails-overview {
+  display: grid;
+  gap: 10px;
+}
+
+.mails-overview__copy {
+  max-width: 82ch;
+  margin: 0;
+}
+
+.mails-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mails-header-actions span,
+.mails-header-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 112, 0.16);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.mails-header-actions span {
+  color: var(--gold-1);
+}
+
+.mail-filter-chip {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.mail-filter-chip:hover,
+.mail-filter-chip:focus-visible,
+.mail-filter-chip--active {
+  border-color: rgba(117, 232, 255, 0.38);
+  background: rgba(117, 232, 255, 0.12);
+  color: var(--cyan-1);
+}
+
+.mail-filter-chip:focus-visible {
+  outline: 2px solid rgba(117, 232, 255, 0.34);
+  outline-offset: 2px;
+}
+
 .mail-card {
   width: 100%;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, max-content);
   gap: 10px;
+  column-gap: 18px;
   text-align: left;
   appearance: none;
   -webkit-appearance: none;
@@ -264,11 +331,20 @@ body:has(.text-shell) #app {
   word-break: break-word;
 }
 
+.mail-card > .mail-card__meta,
+.mail-card > strong,
+.mail-card > span:not(.mail-card__actions) {
+  grid-column: 1;
+}
+
 .mail-card__actions {
+  grid-column: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  justify-content: flex-end;
+  align-self: start;
 }
 
 .mail-card__action {
@@ -287,7 +363,10 @@ body:has(.text-shell) #app {
 }
 
 .mail-card__action-status {
+  grid-column: 2;
+  justify-self: end;
   color: var(--text-2);
+  text-align: right;
 }
 
 .cf-board {
@@ -927,6 +1006,27 @@ body:has(.text-shell) #app {
   .content-page__summary-strip,
   .content-page__grid {
     grid-template-columns: 1fr;
+  }
+
+  .mail-card {
+    grid-template-columns: 1fr;
+  }
+
+  .mail-card__actions,
+  .mail-card__action-status {
+    grid-column: 1;
+    justify-self: start;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .text-shell__header-aside {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .mails-header-actions {
+    justify-content: flex-start;
   }
 
   .content-page__summary-strip--contribution {

@@ -8,6 +8,7 @@ const LEGACY_ACTIVE_BATTLE_SESSION_KEY = "slay-demo.active-battle-session.v1";
 const LEGACY_COMPLETED_BATTLE_SESSION_KEY = "slay-demo.completed-battle-session.v1";
 const ACTIVE_BATTLE_SESSION_KEY_PREFIX = "slay-demo.active-battle-session.v2";
 const COMPLETED_BATTLE_SESSION_KEY_PREFIX = "slay-demo.completed-battle-session.v2";
+const ACTIVE_BATTLE_SESSION_EPOCH_KEY_PREFIX = "slay-demo.active-battle-session-epoch.v1";
 const ACTIVE_SESSION_REPLAY_FRAME_LIMIT = 120;
 const ACTIVE_SESSION_EMERGENCY_FRAME_LIMIT = 24;
 const ACTIVE_SESSION_READ_LIMIT_BYTES = 900_000;
@@ -34,6 +35,12 @@ export function readActiveBattleSession(owner: ActiveBattleSessionOwner): Active
   }
 
   return session;
+}
+
+export function publishActiveBattleSessionEpoch(owner: ActiveBattleSessionOwner): string {
+  const epoch = createActiveBattleSessionEpoch();
+  writeActiveBattleSessionEpoch(owner, epoch);
+  return epoch;
 }
 
 export function consumeCompletedActiveBattleSession(owner: ActiveBattleSessionOwner): ActiveBattleSession | null {
@@ -78,6 +85,10 @@ export function readCompletedActiveBattleSession(owner: ActiveBattleSessionOwner
 }
 
 export function writeActiveBattleSession(session: ActiveBattleSession): void {
+  if (!isSessionEpochCurrent(session)) {
+    return;
+  }
+
   if (isSharedAuthoritativeSession(session)) {
     writeStoredBattleSession(getActiveBattleSessionStorageKey(session.owner), session);
     return;
@@ -92,6 +103,10 @@ export function writeActiveBattleSession(session: ActiveBattleSession): void {
 }
 
 export function writeCompletedActiveBattleSession(session: ActiveBattleSession): void {
+  if (!isSessionEpochCurrent(session)) {
+    return;
+  }
+
   const normalizedSession = normalizeCompletedActiveBattleSession(session);
   const completedStorageKey = getCompletedBattleSessionStorageKey(normalizedSession.owner);
   const previousSession = readStoredActiveBattleSession(completedStorageKey, normalizedSession.owner);
@@ -160,6 +175,10 @@ function getCompletedBattleSessionStorageKey(owner: ActiveBattleSessionOwner): s
   return `${COMPLETED_BATTLE_SESSION_KEY_PREFIX}.${buildBattleSessionStorageOwnerKey(owner)}`;
 }
 
+function getActiveBattleSessionEpochStorageKey(owner: ActiveBattleSessionOwner): string {
+  return `${ACTIVE_BATTLE_SESSION_EPOCH_KEY_PREFIX}.${buildBattleSessionStorageOwnerKey(owner)}`;
+}
+
 function buildBattleSessionStorageOwnerKey(owner: ActiveBattleSessionOwner): string {
   const normalizedOwner = normalizeSessionOwner(owner);
   const handle = encodeURIComponent(normalizeHandle(normalizedOwner.handle));
@@ -219,11 +238,18 @@ function readStoredActiveBattleSession(
     }
 
     const savedAt = typeof parsed.savedAt === "number" ? parsed.savedAt : Date.now();
+    const sessionEpoch = normalizeOptionalStoredString(parsed.sessionEpoch);
+    if (!isStoredSessionEpochReadable(ownerResolution.owner, sessionEpoch)) {
+      clearStoredBattleSession(storageKey);
+      return null;
+    }
+
     const localAuthoritativePlayerId = normalizeOptionalStoredString(parsed.localAuthoritativePlayerId);
     const localAuthoritativeTicketId = normalizeOptionalStoredString(parsed.localAuthoritativeTicketId);
     const session: ActiveBattleSession = {
       version: 1,
       owner: ownerResolution.owner,
+      ...(sessionEpoch ? { sessionEpoch } : {}),
       battleId: typeof parsed.battleId === "string" && parsed.battleId.trim() ? parsed.battleId : `battle-${savedAt}`,
       ...(parsed.sharedAuthoritativeRuntime === true ? { sharedAuthoritativeRuntime: true } : {}),
       ...(localAuthoritativePlayerId ? { localAuthoritativePlayerId } : {}),
@@ -243,6 +269,48 @@ function readStoredActiveBattleSession(
     clearStoredBattleSession(storageKey);
     return null;
   }
+}
+
+function readActiveBattleSessionEpoch(owner: ActiveBattleSessionOwner): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return normalizeOptionalStoredString(window.localStorage.getItem(getActiveBattleSessionEpochStorageKey(owner)));
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveBattleSessionEpoch(owner: ActiveBattleSessionOwner, epoch: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(getActiveBattleSessionEpochStorageKey(owner), epoch);
+  } catch {
+    // Epoch guards are best-effort; session reads remain backward compatible without them.
+  }
+}
+
+function isStoredSessionEpochReadable(owner: ActiveBattleSessionOwner, sessionEpoch: string | null): boolean {
+  const currentEpoch = readActiveBattleSessionEpoch(owner);
+  return !currentEpoch || sessionEpoch === currentEpoch;
+}
+
+function isSessionEpochCurrent(session: ActiveBattleSession): boolean {
+  const currentEpoch = readActiveBattleSessionEpoch(session.owner);
+  return !currentEpoch || session.sessionEpoch === currentEpoch;
+}
+
+function createActiveBattleSessionEpoch(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `epoch-${crypto.randomUUID()}`;
+  }
+
+  return `epoch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function migrateLegacyStoredBattleSession(

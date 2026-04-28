@@ -3280,7 +3280,7 @@ function Install-InputEventProbe {
   };
   cleanup();
   probe.cleanup = cleanup;
-  probe.timeoutId = setTimeout(cleanup, 10000);
+  probe.timeoutId = setTimeout(cleanup, 5000);
   window.__bp28InputEventProbe = probe;
   window.addEventListener("keydown", onInput, true);
   window.addEventListener("mousedown", onInput, true);
@@ -4830,6 +4830,10 @@ function New-RemoteHeroReadSummary {
     targetFacing = Get-ObjectPropertyValue -InputObject $Hero -Name "targetFacing"
     displayToTargetDistance = Get-ObjectPropertyValue -InputObject $Hero -Name "displayToTargetDistance"
     motionDistanceDelta = Get-ObjectPropertyValue -InputObject $Hero -Name "motionDistanceDelta"
+    targetMotionDistanceDelta = Get-ObjectPropertyValue -InputObject $Hero -Name "targetMotionDistanceDelta"
+    displayToTargetDistanceSummary = Get-ObjectPropertyValue -InputObject $Hero -Name "displayToTargetDistanceSummary"
+    displayMotionDeltaSummary = Get-ObjectPropertyValue -InputObject $Hero -Name "displayMotionDeltaSummary"
+    targetMotionDeltaSummary = Get-ObjectPropertyValue -InputObject $Hero -Name "targetMotionDeltaSummary"
     totalDisplayMotionDistance = Get-ObjectPropertyValue -InputObject $Hero -Name "totalDisplayMotionDistance"
     totalTargetMotionDistance = Get-ObjectPropertyValue -InputObject $Hero -Name "totalTargetMotionDistance"
     lastSample = Get-ObjectPropertyValue -InputObject $Hero -Name "lastSample"
@@ -5274,6 +5278,12 @@ function New-HitDisputeSamples {
     foreach ($entry in $serverFields.GetEnumerator()) {
       $sampleEntry[$entry.Key] = $entry.Value
     }
+    if (
+      (Test-HitDisputeHitDamageObserved -Sample $sampleEntry -Side "client") -or
+      (Test-HitDisputeHitDamageObserved -Sample $sampleEntry -Side "server")
+    ) {
+      $sampleEntry["terminalNearButNoDamage"] = $false
+    }
     $samples += $sampleEntry
   }
 
@@ -5460,6 +5470,44 @@ function Add-HitDisputeHitFieldAssertions {
   }
 }
 
+function Test-HitDisputeReasonExplainsNoDamage {
+  param($Reason)
+
+  $normalizedReason = ("" + $Reason).Trim().ToLowerInvariant()
+  return @("obstacle", "world", "ttl") -contains $normalizedReason
+}
+
+function Test-HitDisputeHitDamageObserved {
+  param(
+    $Sample,
+    [Parameter(Mandatory = $true)][string]$Side
+  )
+
+  $reasonName = "${Side}Reason"
+  $targetHeroName = "${Side}TargetHeroId"
+  $hpBeforeName = "${Side}HpBefore"
+  $hpAfterName = "${Side}HpAfter"
+  $damageName = "${Side}Damage"
+
+  $reason = ("" + (Get-ObjectPropertyValue -InputObject $Sample -Name $reasonName -DefaultValue "")).Trim().ToLowerInvariant()
+  if ($reason -ne "hit") {
+    return $false
+  }
+
+  $targetHeroId = "" + (Get-ObjectPropertyValue -InputObject $Sample -Name $targetHeroName -DefaultValue "")
+  $hpBefore = Get-ObjectPropertyValue -InputObject $Sample -Name $hpBeforeName
+  $hpAfter = Get-ObjectPropertyValue -InputObject $Sample -Name $hpAfterName
+  $damage = Get-ObjectPropertyValue -InputObject $Sample -Name $damageName
+  return (
+    -not [string]::IsNullOrWhiteSpace($targetHeroId) -and
+    (Test-FiniteNumber -Value $hpBefore) -and
+    (Test-FiniteNumber -Value $hpAfter) -and
+    [double]$hpAfter -lt [double]$hpBefore -and
+    (Test-FiniteNumber -Value $damage) -and
+    [double]$damage -gt 0
+  )
+}
+
 function New-HitDisputeAssertionFailures {
   param($HitDisputeSamples)
 
@@ -5476,7 +5524,15 @@ function New-HitDisputeAssertionFailures {
   $samples = @(Get-ObjectPropertyValue -InputObject $HitDisputeSamples -Name "samples" -DefaultValue @())
   foreach ($sample in @($samples | Where-Object { $null -ne $_ })) {
     $projectileLabel = Get-HitDisputeProjectileLabel -Sample $sample
-    if ((Get-ObjectPropertyValue -InputObject $sample -Name "terminalNearButNoDamage") -eq $true) {
+    $clientReason = ("" + (Get-ObjectPropertyValue -InputObject $sample -Name "clientReason" -DefaultValue "")).Trim().ToLowerInvariant()
+    $serverReason = ("" + (Get-ObjectPropertyValue -InputObject $sample -Name "serverReason" -DefaultValue "")).Trim().ToLowerInvariant()
+    if (
+      (Get-ObjectPropertyValue -InputObject $sample -Name "terminalNearButNoDamage") -eq $true -and
+      -not (Test-HitDisputeReasonExplainsNoDamage -Reason $clientReason) -and
+      -not (Test-HitDisputeReasonExplainsNoDamage -Reason $serverReason) -and
+      -not (Test-HitDisputeHitDamageObserved -Sample $sample -Side "client") -and
+      -not (Test-HitDisputeHitDamageObserved -Sample $sample -Side "server")
+    ) {
       $nearestHeroId = Get-ObjectPropertyValue -InputObject $sample -Name "nearestHeroId"
       $displayEdge = Get-ObjectPropertyValue -InputObject $sample -Name "nearestHeroDisplayEdgeDistance"
       $authoritativeEdge = Get-ObjectPropertyValue -InputObject $sample -Name "nearestHeroAuthoritativeEdgeDistance"
@@ -5485,12 +5541,10 @@ function New-HitDisputeAssertionFailures {
       $failures.Add("Hit dispute $projectileLabel is terminalNearButNoDamage=true nearestHeroId=$nearestHeroId displayEdge=$displayEdge authoritativeEdge=$authoritativeEdge beforeHp=$beforeHp afterHp=$afterHp.") | Out-Null
     }
 
-    $clientReason = ("" + (Get-ObjectPropertyValue -InputObject $sample -Name "clientReason" -DefaultValue "")).Trim().ToLowerInvariant()
     if ($clientReason -eq "hit") {
       Add-HitDisputeHitFieldAssertions -Failures $failures -Sample $sample -Side "client"
     }
 
-    $serverReason = ("" + (Get-ObjectPropertyValue -InputObject $sample -Name "serverReason" -DefaultValue "")).Trim().ToLowerInvariant()
     if ($serverReason -eq "hit") {
       Add-HitDisputeHitFieldAssertions -Failures $failures -Sample $sample -Side "server"
     }
@@ -5816,6 +5870,11 @@ function New-RemoteViewMetric {
   } elseif (-not [string]::IsNullOrWhiteSpace($RemoteHeroDisplayName)) {
     $projectileBirthMatchMode = "ownerDisplayName"
   }
+  $remoteHeroQuality = [ordered]@{
+    displayToTargetDistanceSummary = Get-ObjectPropertyValue -InputObject $afterHero -Name "displayToTargetDistanceSummary"
+    displayMotionDeltaSummary = Get-ObjectPropertyValue -InputObject $afterHero -Name "displayMotionDeltaSummary"
+    targetMotionDeltaSummary = Get-ObjectPropertyValue -InputObject $afterHero -Name "targetMotionDeltaSummary"
+  }
 
   return [ordered]@{
     available = $true
@@ -5831,6 +5890,7 @@ function New-RemoteViewMetric {
     remoteHeroObserved = ($null -ne $afterHero)
     remoteHeroSampleDelta = $afterHeroSampleCount - $beforeHeroSampleCount
     remoteHeroMotionDelta = $remoteHeroMotionDelta
+    remoteHeroQuality = $remoteHeroQuality
     remoteHeroFirstSeenLatencyMs = $remoteHeroFirstSeenLatencyMs
     remoteHeroFirstPostInputSampleLatencyMs = $remoteHeroFirstPostInputSampleLatencyMs
     remoteHeroCapturedDuringInput = $remoteHeroCapturedDuringInput
@@ -6582,6 +6642,7 @@ try {
   if (-not [string]::IsNullOrWhiteSpace($battleIdentity.battleId)) {
     $afterState = Get-BattleState -BackendBase $backendBase -BattleId $battleIdentity.battleId
   }
+  $remoteViewHitDisputeAfterB = Read-RemoteViewDiagnostics -Client $clientB -Phase "hitDisputeAfterState" -Warnings $warnings
 
   $localStorageActionMetric = Measure-LocalStorageActionEffect `
     -BeforeContext $contextBeforeA `
@@ -6893,7 +6954,7 @@ try {
   }
   $hitDisputeSamples = New-HitDisputeSamples `
     -BeforeRemoteView $remoteViewBeforeB `
-    -AfterRemoteView $remoteViewAfterB `
+    -AfterRemoteView $remoteViewHitDisputeAfterB `
     -BeforeState $beforeState `
     -AfterState $afterState `
     -BattleId $battleIdentity.battleId `

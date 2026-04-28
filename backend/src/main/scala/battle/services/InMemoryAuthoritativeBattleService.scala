@@ -79,22 +79,25 @@ final class InMemoryAuthoritativeBattleService(
     finishProjector.exists(_.isReplayReady(battleId))
 
   override def roomStatus(roomId: String, now: Long): Option[BattleRoomStatus] = {
-    var finishedState: Option[BattleAggregateState] = None
     val normalizedRoomId = roomId.trim
     if (normalizedRoomId.isEmpty) {
       None
     } else {
-      val status = lock.synchronized {
-        battleIdsByRoom.get(normalizedRoomId).flatMap(battleId => battles.get(battleId)).map { storedBattle =>
-          val advancedBattle = advanceToNow(storedBattle, now)
-          battles.put(advancedBattle.state.battleId.value, advancedBattle)
-          if (advancedBattle.state.phase == "finished") {
-            finishedState = Some(advancedBattle.state)
-          }
-          BattleRoomStatus(
-            phase = advancedBattle.state.phase,
-            finishedAt = advancedBattle.finishedAt
-          )
+      val (status, finishedState) = lock.synchronized {
+        val nextStatus = battleIdsByRoom.get(normalizedRoomId).flatMap(battleId => battles.get(battleId)).map {
+          storedBattle =>
+            val advancedBattle = advanceToNow(storedBattle, now)
+            battles.put(advancedBattle.state.battleId.value, advancedBattle)
+            val finishedState = Option.when(advancedBattle.state.phase == "finished")(advancedBattle.state)
+            val status = BattleRoomStatus(
+              phase = advancedBattle.state.phase,
+              finishedAt = advancedBattle.finishedAt
+            )
+            status -> finishedState
+        }
+        nextStatus match {
+          case Some((status, finishedState)) => Some(status) -> finishedState
+          case None                         => None -> None
         }
       }
       finishedState.foreach(projectFinishedBattle)
@@ -103,68 +106,16 @@ final class InMemoryAuthoritativeBattleService(
   }
 
   override def acceptCommand(request: BattleCommandRequest): Either[String, BattleCommandAccepted] = {
-    var finishedState: Option[BattleAggregateState] = None
-    val accepted: Either[String, BattleCommandAccepted] = lock.synchronized {
+    val (accepted, finishedState) = lock.synchronized {
       battles.get(request.battleId.value) match {
         case None =>
-          Left("battle_not_found")
+          Left("battle_not_found") -> None
         case Some(storedBattle) =>
           validateCommandOwnership(storedBattle, request) match {
             case Left(error) =>
-              Left(error)
+              Left(error) -> None
             case Right(()) =>
-              val now = System.currentTimeMillis()
-              if (storedBattle.state.phase == "finished") {
-                finishedState = Some(storedBattle.state.copy(serverTime = now))
-                Right(
-                  BattleCommandAccepted(
-                    battleId = storedBattle.state.battleId,
-                    acceptedTick = storedBattle.state.tick,
-                    acceptedCommandSeq = lastClientCommandSeq(storedBattle.state, request),
-                    serverTime = now,
-                    commandStatus = "ignored",
-                    commandReason = Some("battle_finished")
-                  )
-                )
-              } else {
-                val advancedBattle = advanceToNow(storedBattle, now)
-                if (advancedBattle.state.phase == "finished") {
-                  battles.put(request.battleId.value, advancedBattle)
-                  finishedState = Some(advancedBattle.state)
-                  Right(
-                    BattleCommandAccepted(
-                      battleId = advancedBattle.state.battleId,
-                      acceptedTick = advancedBattle.state.tick,
-                      acceptedCommandSeq = lastClientCommandSeq(advancedBattle.state, request),
-                      serverTime = advancedBattle.state.serverTime,
-                      commandStatus = "ignored",
-                      commandReason = Some("battle_finished")
-                    )
-                  )
-                } else {
-                  runtime.applyCommand(advancedBattle.state, request, now).map { commandApplication =>
-                    val nextState = commandApplication.state
-                    val nextStoredBattle = advancedBattle.copy(
-                      state = nextState,
-                      lastUpdatedAt = now
-                    )
-                    val storedNextBattle = rememberFinishedAt(nextStoredBattle)
-                    battles.put(request.battleId.value, storedNextBattle)
-                    if (nextState.phase == "finished") {
-                      finishedState = Some(nextState)
-                    }
-                    BattleCommandAccepted(
-                      battleId = nextState.battleId,
-                      acceptedTick = nextState.tick,
-                      acceptedCommandSeq = lastClientCommandSeq(nextState, request),
-                      serverTime = nextState.serverTime,
-                      commandStatus = commandApplication.commandStatus,
-                      commandReason = commandApplication.commandReason,
-                      outcomes = commandApplication.outcomes
-                    )
-                  }
-                }
-              }
+              acceptAuthorizedCommand(storedBattle, request)
           }
       }
     }
@@ -176,6 +127,65 @@ final class InMemoryAuthoritativeBattleService(
     lock.synchronized {
       battleIdsByRoom.remove(roomId).foreach(battleId => battles.remove(battleId))
     }
+
+  private def acceptAuthorizedCommand(
+    storedBattle: StoredBattle,
+    request: BattleCommandRequest
+  ): (Either[String, BattleCommandAccepted], Option[BattleAggregateState]) = {
+    val now = System.currentTimeMillis()
+    if (storedBattle.state.phase == "finished") {
+      val finishedState = storedBattle.state.copy(serverTime = now)
+      Right(
+        BattleCommandAccepted(
+          battleId = storedBattle.state.battleId,
+          acceptedTick = storedBattle.state.tick,
+          acceptedCommandSeq = lastClientCommandSeq(storedBattle.state, request),
+          serverTime = now,
+          commandStatus = "ignored",
+          commandReason = Some("battle_finished")
+        )
+      ) -> Some(finishedState)
+    } else {
+      val advancedBattle = advanceToNow(storedBattle, now)
+      if (advancedBattle.state.phase == "finished") {
+        battles.put(request.battleId.value, advancedBattle)
+        Right(
+          BattleCommandAccepted(
+            battleId = advancedBattle.state.battleId,
+            acceptedTick = advancedBattle.state.tick,
+            acceptedCommandSeq = lastClientCommandSeq(advancedBattle.state, request),
+            serverTime = advancedBattle.state.serverTime,
+            commandStatus = "ignored",
+            commandReason = Some("battle_finished")
+          )
+        ) -> Some(advancedBattle.state)
+      } else {
+        runtime.applyCommand(advancedBattle.state, request, now) match {
+          case Left(error) =>
+            Left(error) -> None
+          case Right(commandApplication) =>
+            val nextState = commandApplication.state
+            val nextStoredBattle = advancedBattle.copy(
+              state = nextState,
+              lastUpdatedAt = now
+            )
+            val storedNextBattle = rememberFinishedAt(nextStoredBattle)
+            battles.put(request.battleId.value, storedNextBattle)
+            Right(
+              BattleCommandAccepted(
+                battleId = nextState.battleId,
+                acceptedTick = nextState.tick,
+                acceptedCommandSeq = lastClientCommandSeq(nextState, request),
+                serverTime = nextState.serverTime,
+                commandStatus = commandApplication.commandStatus,
+                commandReason = commandApplication.commandReason,
+                outcomes = commandApplication.outcomes
+              )
+            ) -> Option.when(nextState.phase == "finished")(nextState)
+        }
+      }
+    }
+  }
 
   private def advanceToNow(storedBattle: StoredBattle, now: Long): StoredBattle = {
     val safeNow = math.max(now, storedBattle.lastUpdatedAt)
@@ -200,13 +210,10 @@ final class InMemoryAuthoritativeBattleService(
         pendingStepMs = remainderMs
       ))
     } else {
-      var nextState = storedBattle.state
-      var stepIndex = 0L
       val steppedThroughAt = safeNow - remainderMs
-      while (stepIndex < steps) {
+      val nextState = (0L until steps).foldLeft(storedBattle.state) { case (state, stepIndex) =>
         val stepNow = steppedThroughAt - ((steps - stepIndex - 1L) * tickStepMs)
-        nextState = runtime.step(nextState, tickStepMs, stepNow)
-        stepIndex += 1L
+        runtime.step(state, tickStepMs, stepNow)
       }
 
       val clockedState = runtime.step(nextState, 0L, safeNow)

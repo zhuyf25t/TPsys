@@ -21,6 +21,7 @@ import slaydemo.backend.battle.objects.{
   BattleSessionDescriptor,
   BattleVector2
 }
+import slaydemo.backend.battle.rules.BattleRules
 import slaydemo.backend.shared.objects.UserId
 
 final class InMemoryAuthoritativeBattleRuntime(
@@ -57,6 +58,28 @@ final class InMemoryAuthoritativeBattleRuntime(
     slowFields: Vector[BattleSlowFieldState],
     outcome: BattleCommandSkillOutcome
   )
+  private final case class WeaponDefinition(
+    weaponKind: String,
+    projectileKind: String,
+    cooldownMs: Long,
+    reloadMs: Long,
+    projectileSpeedPerSecond: Double,
+    projectileDamage: Int,
+    projectileLifetimeMs: Long,
+    projectileRadius: Double,
+    splashRadius: Double,
+    pellets: Int,
+    spreadRadians: Double,
+    magazineSize: Int,
+    reserveAmmo: Int,
+    pickupAmmo: Int,
+    recoilStrength: Double
+  )
+  private final case class WeaponPickupDefinition(
+    pickupId: String,
+    weaponKind: String,
+    position: BattleVector2
+  )
 
   private val spawnPoints = Vector(
     BattleVector2(704.0, 800.0),
@@ -69,16 +92,82 @@ final class InMemoryAuthoritativeBattleRuntime(
   private val playerMoveSpeedPerSecond = 255.0
   private val playerSprintMultiplier = 1.75
   private val botMoveSpeedPerSecond = 108.0
-  private val projectileSpeedPerSecond = 920.0
-  private val projectileRadius = AuthoritativeArenaGeometry.ProjectileRadius
+  private val defaultProjectileRadius = AuthoritativeArenaGeometry.ProjectileRadius
   private val projectileShooterAdvantageRadius = 6.0
-  private val projectileDamage = 12
-  private val projectileLifetimeMs = 900L
-  private val weaponKind = "Pistol"
-  private val weaponMagazineSize = 12
-  private val weaponReserveAmmo = 48
-  private val weaponCooldownMs = 260L
-  private val weaponReloadMs = 1000L
+  private val pistolWeaponKind = "Pistol"
+  private val rocketLauncherWeaponKind = "RocketLauncher"
+  private val gatlingWeaponKind = "Gatling"
+  private val shotgunWeaponKind = "Shotgun"
+  private val weaponDefinitions = Map(
+    pistolWeaponKind -> WeaponDefinition(
+      weaponKind = pistolWeaponKind,
+      projectileKind = "pistol-bullet",
+      cooldownMs = 260L,
+      reloadMs = 1000L,
+      projectileSpeedPerSecond = 920.0,
+      projectileDamage = 12,
+      projectileLifetimeMs = 900L,
+      projectileRadius = defaultProjectileRadius,
+      splashRadius = 0.0,
+      pellets = 1,
+      spreadRadians = 0.0,
+      magazineSize = 12,
+      reserveAmmo = 48,
+      pickupAmmo = 24,
+      recoilStrength = 20.0
+    ),
+    rocketLauncherWeaponKind -> WeaponDefinition(
+      weaponKind = rocketLauncherWeaponKind,
+      projectileKind = "rocket",
+      cooldownMs = 160L,
+      reloadMs = 2500L,
+      projectileSpeedPerSecond = 340.0,
+      projectileDamage = 60,
+      projectileLifetimeMs = 2200L,
+      projectileRadius = 14.0,
+      splashRadius = 132.0,
+      pellets = 1,
+      spreadRadians = 0.0,
+      magazineSize = 1,
+      reserveAmmo = 3,
+      pickupAmmo = 1,
+      recoilStrength = 120.0
+    ),
+    gatlingWeaponKind -> WeaponDefinition(
+      weaponKind = gatlingWeaponKind,
+      projectileKind = "gatling-bullet",
+      cooldownMs = 72L,
+      reloadMs = 0L,
+      projectileSpeedPerSecond = 980.0,
+      projectileDamage = 5,
+      projectileLifetimeMs = 620L,
+      projectileRadius = 7.0,
+      splashRadius = 0.0,
+      pellets = 1,
+      spreadRadians = 0.06,
+      magazineSize = 100,
+      reserveAmmo = 0,
+      pickupAmmo = 0,
+      recoilStrength = 8.0
+    ),
+    shotgunWeaponKind -> WeaponDefinition(
+      weaponKind = shotgunWeaponKind,
+      projectileKind = "shotgun-pellet",
+      cooldownMs = 760L,
+      reloadMs = 1200L,
+      projectileSpeedPerSecond = 720.0,
+      projectileDamage = 8,
+      projectileLifetimeMs = 330L,
+      projectileRadius = 7.0,
+      splashRadius = 0.0,
+      pellets = 5,
+      spreadRadians = 0.42,
+      magazineSize = 6,
+      reserveAmmo = 18,
+      pickupAmmo = 6,
+      recoilStrength = 80.0
+    )
+  )
   private val playerHitRadius = AuthoritativeArenaGeometry.HeroRadius
   private val medkitPickupId = "pickup-medkit-1"
   private val medkitPickupKind = "Medkit"
@@ -86,12 +175,17 @@ final class InMemoryAuthoritativeBattleRuntime(
   private val medkitPickupRadius = 40.0
   private val medkitHealAmount = 25
   private val medkitRespawnMs = 10000L
-  private val weaponPickupId = "pickup-pistol-cache-1"
   private val weaponPickupKind = "Weapon"
-  private val weaponPickupPosition = BattleVector2(1280.0, 256.0)
   private val weaponPickupRadius = 40.0
-  private val weaponPickupReserveAmmo = 24
   private val weaponPickupRespawnMs = 10000L
+  private val weaponPickupDefinitions = Vector(
+    WeaponPickupDefinition("pickup-rocket-1", rocketLauncherWeaponKind, BattleVector2(1280.0, 256.0)),
+    WeaponPickupDefinition("pickup-gatling-1", gatlingWeaponKind, BattleVector2(704.0, 800.0)),
+    WeaponPickupDefinition("pickup-shotgun-1", shotgunWeaponKind, BattleVector2(1856.0, 800.0)),
+    WeaponPickupDefinition("pickup-rocket-2", rocketLauncherWeaponKind, BattleVector2(1280.0, 1344.0)),
+    WeaponPickupDefinition("pickup-gatling-2", gatlingWeaponKind, BattleVector2(448.0, 800.0)),
+    WeaponPickupDefinition("pickup-shotgun-2", shotgunWeaponKind, BattleVector2(2112.0, 800.0))
+  )
   private val dashSkillKind = "Dash"
   private val dashDistance = 180.0
   private val dashCooldownMs = 5000L
@@ -147,11 +241,11 @@ final class InMemoryAuthoritativeBattleRuntime(
         reloadPressed = false,
         lastClientCommandSeq = 0L,
         currentWeaponIndex = 0,
-        weapons = Vector(initialPistolWeapon),
-        currentWeaponKind = weaponKind,
-        ammoInMagazine = weaponMagazineSize,
-        magazineSize = weaponMagazineSize,
-        reserveAmmo = weaponReserveAmmo,
+        weapons = Vector(initialWeapon(pistolWeaponKind)),
+        currentWeaponKind = pistolWeaponKind,
+        ammoInMagazine = weaponDefinitions(pistolWeaponKind).magazineSize,
+        magazineSize = weaponDefinitions(pistolWeaponKind).magazineSize,
+        reserveAmmo = weaponDefinitions(pistolWeaponKind).reserveAmmo,
         fireCooldownMs = 0L,
         reloadRemainingMs = 0L,
         hp = defaultMaxHp,
@@ -332,14 +426,14 @@ final class InMemoryAuthoritativeBattleRuntime(
         val movementIntent = normalizeVector(request.movement)
         val aim = normalizeAim(player.aim, request.aim)
         latestHumanSprints.update(playerControlKey(commandState, player), request.sprint)
-        val nextPlayer = player.copy(
+        val weaponResolvedPlayer = applyWeaponSwitchRequest(player, request.switchWeaponDirection)
+        val nextPlayer = weaponResolvedPlayer.copy(
           movementIntent = movementIntent,
           aim = aim,
           facing = vectorAngle(aim, player.facing),
           primaryHeld = request.primaryHeld,
           reloadPressed = request.reloadPressed,
-          lastClientCommandSeq = math.max(player.lastClientCommandSeq, request.clientCommandSeq),
-          currentWeaponIndex = 0
+          lastClientCommandSeq = math.max(player.lastClientCommandSeq, request.clientCommandSeq)
         )
         val (blinkResolvedPlayer, blinkOutcomes) =
           if (request.castBlink) {
@@ -400,7 +494,7 @@ final class InMemoryAuthoritativeBattleRuntime(
         reloadRemainingMs = math.max(0L, currentWeapon.reloadRemainingMs - deltaMs)
       )
       val timedPlayer = finishReloadIfReady(
-        withPistolWeapon(
+        withPrimaryWeapon(
           player.copy(
           skills = advanceSkills(player.skills, deltaMs)
           ),
@@ -470,43 +564,51 @@ final class InMemoryAuthoritativeBattleRuntime(
 
     players.indices.foreach { index =>
       val player = startReloadIfRequested(nextPlayers(index))
+      val weapon = primaryWeapon(player)
+      val weaponDefinition = weaponDefinitionFor(weapon.weaponKind)
       if (
         player.alive &&
         player.primaryHeld &&
-        player.fireCooldownMs <= 0L &&
-        player.reloadRemainingMs <= 0L &&
-        player.ammoInMagazine > 0
+        weapon.fireCooldownMs <= 0L &&
+        weapon.reloadRemainingMs <= 0L &&
+        weapon.ammoInMagazine > 0
       ) {
         val facing = normalizeAim(BattleVector2(1.0, 0.0), player.aim)
-        val origin = add(
-          player.position,
-          scale(facing, playerHitRadius + projectileRadius + 4.0)
-        )
-        val projectileId = s"projectile-${nextTick}-${player.seat}"
-        spawnedProjectiles += BattleProjectileState(
-          projectileId = projectileId,
-          ownerPlayerId = player.playerId,
-          ownerHeroId = player.heroId,
-          kind = "pistol-bullet",
-          position = origin,
-          velocity = scale(facing, projectileSpeedPerSecond),
-          facing = vectorAngle(facing, player.facing),
-          radius = projectileRadius,
-          damage = projectileDamage,
-          ttlMs = projectileLifetimeMs,
-          maxLifetimeMs = projectileLifetimeMs,
-          splashRadius = 0.0
-        )
-        val firedPlayer = withPistolWeapon(
+        val projectileCount = math.max(1, weaponDefinition.pellets)
+        (0 until projectileCount).foreach { projectileIndex =>
+          val projectileFacing = spreadFacing(facing, weaponDefinition, projectileIndex, projectileCount)
+          val origin = add(
+            player.position,
+            scale(projectileFacing, playerHitRadius + weaponDefinition.projectileRadius + 4.0)
+          )
+          val projectileId =
+            if (projectileCount == 1) s"projectile-${nextTick}-${player.seat}"
+            else s"projectile-${nextTick}-${player.seat}-${projectileIndex + 1}"
+          spawnedProjectiles += BattleProjectileState(
+            projectileId = projectileId,
+            ownerPlayerId = player.playerId,
+            ownerHeroId = player.heroId,
+            kind = weaponDefinition.projectileKind,
+            position = origin,
+            velocity = scale(projectileFacing, weaponDefinition.projectileSpeedPerSecond),
+            facing = vectorAngle(projectileFacing, player.facing),
+            radius = weaponDefinition.projectileRadius,
+            damage = weaponDefinition.projectileDamage,
+            ttlMs = weaponDefinition.projectileLifetimeMs,
+            maxLifetimeMs = weaponDefinition.projectileLifetimeMs,
+            splashRadius = weaponDefinition.splashRadius
+          )
+        }
+        val firedPlayer = withPrimaryWeapon(
           player.copy(
           reloadPressed = false
           ),
-          primaryWeapon(player).copy(
-            ammoInMagazine = math.max(0, player.ammoInMagazine - 1),
-            fireCooldownMs = weaponCooldownMs
+          weapon.copy(
+            ammoInMagazine = math.max(0, weapon.ammoInMagazine - 1),
+            fireCooldownMs = weaponDefinition.cooldownMs
           )
         )
-        nextPlayers(index) = startReloadIfRequested(firedPlayer)
+        nextPlayers(index) = startReloadIfRequested(applyWeaponRecoil(firedPlayer, facing, weaponDefinition))
       } else {
         nextPlayers(index) = player.copy(reloadPressed = false)
       }
@@ -517,20 +619,25 @@ final class InMemoryAuthoritativeBattleRuntime(
 
   private def startReloadIfRequested(player: BattlePlayerState): BattlePlayerState =
     if (canStartReload(player) && (player.reloadPressed || (player.primaryHeld && player.ammoInMagazine <= 0))) {
-      withPistolWeapon(player, primaryWeapon(player).copy(reloadRemainingMs = weaponReloadMs))
+      val weapon = primaryWeapon(player)
+      withPrimaryWeapon(player, weapon.copy(reloadRemainingMs = weaponDefinitionFor(weapon.weaponKind).reloadMs))
     } else {
       player
     }
 
   private def canStartReload(player: BattlePlayerState): Boolean =
-    player.alive &&
-      player.reloadRemainingMs <= 0L &&
-      player.magazineSize > 0 &&
-      player.ammoInMagazine < player.magazineSize &&
-      player.reserveAmmo > 0
+    {
+      val weapon = primaryWeapon(player)
+      player.alive &&
+        weapon.reloadRemainingMs <= 0L &&
+        weaponDefinitionFor(weapon.weaponKind).reloadMs > 0L &&
+        weapon.magazineSize > 0 &&
+        weapon.ammoInMagazine < weapon.magazineSize &&
+        weapon.reserveAmmo > 0
+    }
 
   private def shouldBotReload(player: BattlePlayerState): Boolean =
-    canStartReload(player) && player.ammoInMagazine <= 0
+    canStartReload(player) && primaryWeapon(player).ammoInMagazine <= 0
 
   private def finishReloadIfReady(player: BattlePlayerState, previousReloadRemainingMs: Long): BattlePlayerState =
     if (previousReloadRemainingMs > 0L && player.reloadRemainingMs <= 0L) {
@@ -540,16 +647,17 @@ final class InMemoryAuthoritativeBattleRuntime(
     }
 
   private def finishReload(player: BattlePlayerState): BattlePlayerState = {
-    val missingAmmo = math.max(0, player.magazineSize - player.ammoInMagazine)
-    val transferredAmmo = math.min(missingAmmo, math.max(0, player.reserveAmmo))
+    val weapon = primaryWeapon(player)
+    val missingAmmo = math.max(0, weapon.magazineSize - weapon.ammoInMagazine)
+    val transferredAmmo = math.min(missingAmmo, math.max(0, weapon.reserveAmmo))
     if (transferredAmmo <= 0) {
       player
     } else {
-      withPistolWeapon(
+      withPrimaryWeapon(
         player,
-        primaryWeapon(player).copy(
-          ammoInMagazine = player.ammoInMagazine + transferredAmmo,
-          reserveAmmo = player.reserveAmmo - transferredAmmo
+        weapon.copy(
+          ammoInMagazine = weapon.ammoInMagazine + transferredAmmo,
+          reserveAmmo = weapon.reserveAmmo - transferredAmmo
         )
       )
     }
@@ -606,55 +714,94 @@ final class InMemoryAuthoritativeBattleRuntime(
           .flatMap(index => projectileHitCandidate(advancedProjectile, nextPlayers(index), index))
           .minByOption(_.hitT)
 
-      maybeHit match {
-        case Some(hit) =>
-          val target = nextPlayers(hit.playerIndex)
-          val hpBefore = target.hp
-          val nextHp = math.max(0, target.hp - projectile.damage)
-          nextPlayers(hit.playerIndex) =
-            if (nextHp <= 0) {
-              val eliminated = eliminatePlayer(target, elapsedMs)
-              resolveKillEvent(projectile, target, nextPlayers.toVector, elapsedMs).foreach(killEvents += _)
-              awardProjectileKillScore(projectile, target, nextPlayers)
-              eliminated
-            } else {
-              target.copy(hp = nextHp)
+      val terminal =
+        maybeHit match {
+          case Some(hit) =>
+            Some(("hit", hit.hitT, Some(hit.playerIndex)))
+          case None =>
+            advancedProjectile.block match {
+              case Some(block) =>
+                Some((block.reason, block.blockedAtT, None))
+              case None if projectile.ttlMs <= 0L =>
+                Some(("ttl", 1.0, None))
+              case None =>
+                None
             }
+        }
+
+      terminal match {
+        case Some((reason, terminalT, directHitIndex)) =>
+          val terminalPosition = pointAtSegmentT(advancedProjectile.start, advancedProjectile.end, terminalT)
+          val damageTargetIndices = projectileDamageTargetIndices(projectile, terminalPosition, nextPlayers, directHitIndex)
+          var terminalTargetPlayerId: Option[UserId] = None
+          var terminalTargetHeroId: Option[String] = None
+          var terminalHpBefore: Option[Int] = None
+          var terminalHpAfter: Option[Int] = None
+          var terminalDamage: Option[Int] = None
+
+          damageTargetIndices.foreach { playerIndex =>
+            val target = nextPlayers(playerIndex)
+            val hpBefore = target.hp
+            val nextHp = math.max(0, target.hp - projectile.damage)
+            nextPlayers(playerIndex) =
+              if (nextHp <= 0) {
+                val eliminated = eliminatePlayer(target, elapsedMs)
+                resolveKillEvent(projectile, target, nextPlayers.toVector, elapsedMs).foreach(killEvents += _)
+                awardProjectileKillScore(projectile, target, nextPlayers)
+                eliminated
+              } else {
+                target.copy(hp = nextHp)
+              }
+
+            if (terminalTargetPlayerId.isEmpty || directHitIndex.contains(playerIndex)) {
+              terminalTargetPlayerId = Some(target.playerId)
+              terminalTargetHeroId = Some(target.heroId)
+              terminalHpBefore = Some(hpBefore)
+              terminalHpAfter = Some(nextHp)
+              terminalDamage = Some(projectile.damage)
+            }
+          }
+
           projectileTerminals += projectileTerminal(
             advancedProjectile = advancedProjectile,
-            reason = "hit",
-            terminalT = hit.hitT,
+            reason = reason,
+            terminalT = terminalT,
             elapsedMs = elapsedMs,
-            targetPlayerId = Some(target.playerId),
-            targetHeroId = Some(target.heroId),
-            hpBefore = Some(hpBefore),
-            hpAfter = Some(nextHp),
-            damage = Some(projectile.damage)
+            targetPlayerId = terminalTargetPlayerId,
+            targetHeroId = terminalTargetHeroId,
+            hpBefore = terminalHpBefore,
+            hpAfter = terminalHpAfter,
+            damage = terminalDamage
           )
 
         case None =>
-          advancedProjectile.block match {
-            case Some(block) =>
-              projectileTerminals += projectileTerminal(
-                advancedProjectile = advancedProjectile,
-                reason = block.reason,
-                terminalT = block.blockedAtT,
-                elapsedMs = elapsedMs
-              )
-            case None if projectile.ttlMs > 0L =>
-              survivingProjectiles += projectile
-            case None =>
-              projectileTerminals += projectileTerminal(
-                advancedProjectile = advancedProjectile,
-                reason = "ttl",
-                terminalT = 1.0,
-                elapsedMs = elapsedMs
-              )
-          }
+          survivingProjectiles += projectile
       }
     }
 
     (nextPlayers.toVector, survivingProjectiles.result(), killEvents.result(), projectileTerminals.result())
+  }
+
+  private def projectileDamageTargetIndices(
+    projectile: BattleProjectileState,
+    terminalPosition: BattleVector2,
+    players: Array[BattlePlayerState],
+    directHitIndex: Option[Int]
+  ): Vector[Int] = {
+    val directTargets = directHitIndex.toVector
+    if (projectile.splashRadius <= 0.0) {
+      directTargets
+    } else {
+      val splashRadius = projectile.splashRadius + playerHitRadius
+      val splashRadiusSquared = splashRadius * splashRadius
+      val splashTargets =
+        players.indices
+          .filter(index => isProjectileTargetCandidate(projectile, players(index)))
+          .filter(index => distanceSquared(players(index).position, terminalPosition) <= splashRadiusSquared)
+          .toVector
+
+      (directTargets ++ splashTargets.filterNot(index => directTargets.contains(index))).distinct
+    }
   }
 
   private def projectileTerminal(
@@ -718,7 +865,7 @@ final class InMemoryAuthoritativeBattleRuntime(
         val maybePlayerIndex = pickup.kind match {
           case `medkitPickupKind` =>
             closestPickupTarget(nextPlayers, pickup, medkitPickupRadius)
-          case `weaponPickupKind` if pickup.pickupId == weaponPickupId && pickup.weaponKind.contains(weaponKind) =>
+          case `weaponPickupKind` if pickup.weaponKind.exists(isKnownWeaponKind) =>
             closestPickupTarget(nextPlayers, pickup, weaponPickupRadius)
           case _ =>
             None
@@ -736,12 +883,15 @@ final class InMemoryAuthoritativeBattleRuntime(
               pickupEvents += resolveMedkitPickupEvent(player, pickup, elapsedMs)
 
             case `weaponPickupKind` =>
-              nextPlayers(playerIndex) = refillPistolAmmo(player)
+              nextPlayers(playerIndex) = pickup.weaponKind match {
+                case Some(weaponKind) => equipOrRefillWeapon(player, weaponKind)
+                case None => player
+              }
               nextPickups(pickupIndex) = pickup.copy(
                 available = false,
                 respawnMs = weaponPickupRespawnMs
               )
-              pickupEvents += resolvePistolCachePickupEvent(player, pickup, elapsedMs)
+              pickupEvents += resolveWeaponPickupEvent(player, pickup, elapsedMs)
 
             case _ =>
           }
@@ -761,17 +911,32 @@ final class InMemoryAuthoritativeBattleRuntime(
       .filter(index => isPickupTarget(players(index), pickup, radius))
       .minByOption(index => distanceSquared(players(index).position, pickup.position))
 
-  private def refillPistolAmmo(player: BattlePlayerState): BattlePlayerState =
-    withPistolWeapon(
-      player,
-      primaryWeapon(player).copy(
-        weaponKind = weaponKind,
-        ammoInMagazine = weaponMagazineSize,
-        magazineSize = weaponMagazineSize,
-        reserveAmmo = player.reserveAmmo + weaponPickupReserveAmmo,
+  private def equipOrRefillWeapon(player: BattlePlayerState, weaponKind: String): BattlePlayerState = {
+    val definition = weaponDefinitionFor(weaponKind)
+    val (weapons, currentIndex) = normalizedWeaponInventory(player)
+    val existingIndex = weapons.indexWhere(_.weaponKind == definition.weaponKind)
+    val weapon =
+      BattleWeaponState(
+        weaponKind = definition.weaponKind,
+        ammoInMagazine = definition.magazineSize,
+        magazineSize = definition.magazineSize,
+        reserveAmmo = existingIndex match {
+          case index if index >= 0 =>
+            weapons(index).reserveAmmo + definition.pickupAmmo
+          case _ =>
+            definition.reserveAmmo
+        },
+        fireCooldownMs = 0L,
         reloadRemainingMs = 0L
       )
-    )
+
+    if (existingIndex >= 0) {
+      syncWeaponInventory(player, weapons.updated(existingIndex, normalizeWeaponState(weapon)), currentIndex)
+    } else {
+      val nextWeapons = weapons :+ normalizeWeaponState(weapon)
+      syncWeaponInventory(player, nextWeapons, currentIndex)
+    }
+  }
 
   private def resolveMedkitPickupEvent(
     player: BattlePlayerState,
@@ -789,17 +954,18 @@ final class InMemoryAuthoritativeBattleRuntime(
       eventType = "heal",
       kind = "heal",
       elapsedMs = elapsedMs,
-      message = s"${player.displayName} 拾取了医疗包",
+      message = s"${player.displayName} 鎷惧彇浜嗗尰鐤楀寘",
       source = participant,
       target = participant
     )
   }
 
-  private def resolvePistolCachePickupEvent(
+  private def resolveWeaponPickupEvent(
     player: BattlePlayerState,
     pickup: BattlePickupState,
     elapsedMs: Long
   ): BattleEventState = {
+    val pickupWeaponLabel = pickup.weaponKind.getOrElse("Weapon")
     val participant = BattleEventParticipant(
       playerId = player.playerId,
       heroId = player.heroId,
@@ -811,7 +977,7 @@ final class InMemoryAuthoritativeBattleRuntime(
       eventType = "pickup",
       kind = "pickup",
       elapsedMs = elapsedMs,
-      message = s"${player.displayName} 补充了手枪弹药",
+      message = s"${player.displayName} 拾取了 ${pickupWeaponLabel}",
       source = participant,
       target = participant
     )
@@ -855,7 +1021,7 @@ final class InMemoryAuthoritativeBattleRuntime(
         eventType = "kill",
         kind = "kill",
         elapsedMs = elapsedMs,
-        message = s"${source.displayName} 淘汰了 ${target.displayName}",
+        message = s"${source.displayName} 娣樻卑浜?${target.displayName}",
         source = sourceParticipant,
         target = targetParticipant
       )
@@ -931,7 +1097,7 @@ final class InMemoryAuthoritativeBattleRuntime(
           alive = player.alive,
           score = player.score,
           facing = player.facing,
-          currentWeaponKind = Option(player.currentWeaponKind).map(_.trim).filter(_.nonEmpty).getOrElse(weaponKind),
+          currentWeaponKind = Option(player.currentWeaponKind).map(_.trim).filter(_.nonEmpty).getOrElse(pistolWeaponKind),
           eliminatedAtMs = player.eliminatedAtMs.map(value => math.max(0L, value))
         )
       },
@@ -1002,44 +1168,138 @@ final class InMemoryAuthoritativeBattleRuntime(
       skills = player.skills.map(skill => skill.copy(activeMs = 0L))
     ))
 
-  private def initialPistolWeapon: BattleWeaponState =
+  private def initialWeapon(weaponKind: String): BattleWeaponState = {
+    val definition = weaponDefinitionFor(weaponKind)
     BattleWeaponState(
-      weaponKind = weaponKind,
-      ammoInMagazine = weaponMagazineSize,
-      magazineSize = weaponMagazineSize,
-      reserveAmmo = weaponReserveAmmo,
+      weaponKind = definition.weaponKind,
+      ammoInMagazine = definition.magazineSize,
+      magazineSize = definition.magazineSize,
+      reserveAmmo = definition.reserveAmmo,
       fireCooldownMs = 0L,
       reloadRemainingMs = 0L
     )
+  }
+
+  private def weaponDefinitionFor(weaponKind: String): WeaponDefinition =
+    weaponDefinitions.getOrElse(Option(weaponKind).map(_.trim).filter(_.nonEmpty).getOrElse(pistolWeaponKind), weaponDefinitions(pistolWeaponKind))
+
+  private def isKnownWeaponKind(weaponKind: String): Boolean =
+    weaponDefinitions.contains(weaponKind)
 
   private def primaryWeapon(player: BattlePlayerState): BattleWeaponState =
-    player.weapons.headOption.getOrElse(
-      BattleWeaponState(
-        weaponKind = Option(player.currentWeaponKind).map(_.trim).filter(_.nonEmpty).getOrElse(weaponKind),
-        ammoInMagazine = player.ammoInMagazine,
-        magazineSize = player.magazineSize,
-        reserveAmmo = player.reserveAmmo,
-        fireCooldownMs = player.fireCooldownMs,
-        reloadRemainingMs = player.reloadRemainingMs
-      )
-    )
+    normalizedWeaponInventory(player) match {
+      case (weapons, currentIndex) =>
+        weapons.lift(currentIndex).getOrElse(initialWeapon(pistolWeaponKind))
+    }
 
-  private def withPistolWeapon(player: BattlePlayerState, weapon: BattleWeaponState): BattlePlayerState = {
-    val pistol = weapon.copy(weaponKind = weaponKind)
-    player.copy(
-      currentWeaponIndex = 0,
-      weapons = Vector(pistol),
-      currentWeaponKind = pistol.weaponKind,
-      ammoInMagazine = pistol.ammoInMagazine,
-      magazineSize = pistol.magazineSize,
-      reserveAmmo = pistol.reserveAmmo,
-      fireCooldownMs = pistol.fireCooldownMs,
-      reloadRemainingMs = pistol.reloadRemainingMs
+  private def normalizedWeaponInventory(player: BattlePlayerState): (Vector[BattleWeaponState], Int) = {
+    val sourceWeapons =
+      if (player.weapons.nonEmpty) {
+        player.weapons
+      } else {
+        Vector(
+          BattleWeaponState(
+            weaponKind = Option(player.currentWeaponKind).map(_.trim).filter(_.nonEmpty).getOrElse(pistolWeaponKind),
+            ammoInMagazine = player.ammoInMagazine,
+            magazineSize = player.magazineSize,
+            reserveAmmo = player.reserveAmmo,
+            fireCooldownMs = player.fireCooldownMs,
+            reloadRemainingMs = player.reloadRemainingMs
+          )
+        )
+      }
+    val normalizedWeapons = sourceWeapons.map(normalizeWeaponState).filter(weapon => isKnownWeaponKind(weapon.weaponKind))
+    val safeWeapons = if (normalizedWeapons.nonEmpty) normalizedWeapons else Vector(initialWeapon(pistolWeaponKind))
+    val currentIndex = math.max(0, math.min(player.currentWeaponIndex, safeWeapons.length - 1))
+    (safeWeapons, currentIndex)
+  }
+
+  private def normalizeWeaponState(weapon: BattleWeaponState): BattleWeaponState = {
+    val definition = weaponDefinitionFor(weapon.weaponKind)
+    weapon.copy(
+      weaponKind = definition.weaponKind,
+      ammoInMagazine = math.max(0, math.min(weapon.ammoInMagazine, math.max(1, definition.magazineSize))),
+      magazineSize = definition.magazineSize,
+      reserveAmmo = math.max(0, weapon.reserveAmmo),
+      fireCooldownMs = math.max(0L, weapon.fireCooldownMs),
+      reloadRemainingMs = math.max(0L, weapon.reloadRemainingMs)
     )
   }
 
+  private def syncWeaponInventory(
+    player: BattlePlayerState,
+    weapons: Vector[BattleWeaponState],
+    currentWeaponIndex: Int
+  ): BattlePlayerState = {
+    val safeWeapons = if (weapons.nonEmpty) weapons.map(normalizeWeaponState) else Vector(initialWeapon(pistolWeaponKind))
+    val safeIndex = math.max(0, math.min(currentWeaponIndex, safeWeapons.length - 1))
+    val currentWeapon = safeWeapons(safeIndex)
+    player.copy(
+      currentWeaponIndex = safeIndex,
+      weapons = safeWeapons,
+      currentWeaponKind = currentWeapon.weaponKind,
+      ammoInMagazine = currentWeapon.ammoInMagazine,
+      magazineSize = currentWeapon.magazineSize,
+      reserveAmmo = currentWeapon.reserveAmmo,
+      fireCooldownMs = currentWeapon.fireCooldownMs,
+      reloadRemainingMs = currentWeapon.reloadRemainingMs
+    )
+  }
+
+  private def applyWeaponSwitchRequest(player: BattlePlayerState, direction: Int): BattlePlayerState = {
+    val switchDirection =
+      if (direction < 0) {
+        -1
+      } else if (direction > 0) {
+        1
+      } else {
+        0
+      }
+    val (weapons, currentIndex) = normalizedWeaponInventory(player)
+    if (!player.alive || switchDirection == 0 || weapons.length <= 1) {
+      syncWeaponInventory(player, weapons, currentIndex)
+    } else {
+      val nextIndex = (currentIndex + switchDirection + weapons.length) % weapons.length
+      val cancelledReloadWeapon = weapons(currentIndex).copy(reloadRemainingMs = 0L)
+      syncWeaponInventory(player, weapons.updated(currentIndex, cancelledReloadWeapon), nextIndex)
+    }
+  }
+
+  private def applyWeaponRecoil(
+    player: BattlePlayerState,
+    direction: BattleVector2,
+    weaponDefinition: WeaponDefinition
+  ): BattlePlayerState = {
+    val recoilDistance = math.min(24.0, math.max(0.0, weaponDefinition.recoilStrength) * 0.18)
+    val recoilDirection = normalizeVector(BattleVector2(-direction.x, -direction.y))
+    if (recoilDistance <= 0.0 || isZeroVector(recoilDirection)) {
+      player
+    } else {
+      val resolvedMotion = AuthoritativeArenaGeometry.findMotionDestination(
+        position = player.position,
+        direction = recoilDirection,
+        distance = recoilDistance,
+        radius = playerHitRadius
+      )
+      player.copy(position = resolvedMotion.destination)
+    }
+  }
+
+  private def withPrimaryWeapon(player: BattlePlayerState, weapon: BattleWeaponState): BattlePlayerState = {
+    val (weapons, currentIndex) = normalizedWeaponInventory(player)
+    val normalizedWeapon = normalizeWeaponState(weapon)
+    val nextWeapons =
+      if (weapons.nonEmpty) {
+        weapons.updated(currentIndex, normalizedWeapon)
+      } else {
+        Vector(normalizedWeapon)
+      }
+
+    syncWeaponInventory(player, nextWeapons, currentIndex)
+  }
+
   private def clearWeaponRuntime(player: BattlePlayerState): BattlePlayerState =
-    withPistolWeapon(
+    withPrimaryWeapon(
       player,
       primaryWeapon(player).copy(
         fireCooldownMs = 0L,
@@ -1241,8 +1501,8 @@ final class InMemoryAuthoritativeBattleRuntime(
     player.alive &&
       distanceSquared(player.position, pickup.position) <= math.pow(radius, 2)
 
-  private def initialPickups: Vector[BattlePickupState] =
-    Vector(
+  private def initialPickups: Vector[BattlePickupState] = {
+    val fixedPickups = Vector(
       BattlePickupState(
         pickupId = medkitPickupId,
         kind = medkitPickupKind,
@@ -1250,16 +1510,19 @@ final class InMemoryAuthoritativeBattleRuntime(
         position = medkitPickupPosition,
         available = true,
         respawnMs = 0L
-      ),
+      )
+    )
+    fixedPickups ++ weaponPickupDefinitions.map { pickup =>
       BattlePickupState(
-        pickupId = weaponPickupId,
+        pickupId = pickup.pickupId,
         kind = weaponPickupKind,
-        weaponKind = Some(weaponKind),
-        position = weaponPickupPosition,
+        weaponKind = Some(pickup.weaponKind),
+        position = pickup.position,
         available = true,
         respawnMs = 0L
       )
-    )
+    }
+  }
 
   private def initialSkills: Vector[BattlePlayerSkillState] =
     Vector(
@@ -1364,6 +1627,21 @@ final class InMemoryAuthoritativeBattleRuntime(
 
   private def vectorAngle(vector: BattleVector2, fallback: Double): Double =
     if (isZeroVector(vector)) fallback else math.atan2(vector.y, vector.x)
+
+  private def spreadFacing(
+    facing: BattleVector2,
+    weaponDefinition: WeaponDefinition,
+    projectileIndex: Int,
+    projectileCount: Int
+  ): BattleVector2 =
+    if (projectileCount <= 1 || weaponDefinition.spreadRadians <= 0.0) {
+      facing
+    } else {
+      val centerOffset = (projectileCount - 1).toDouble / 2.0
+      val step = weaponDefinition.spreadRadians / math.max(1.0, projectileCount - 1.0)
+      val angle = vectorAngle(facing, 0.0) + (projectileIndex.toDouble - centerOffset) * step
+      BattleVector2(math.cos(angle), math.sin(angle))
+    }
 
   private def add(left: BattleVector2, right: BattleVector2): BattleVector2 =
     BattleVector2(left.x + right.x, left.y + right.y)
@@ -1559,5 +1837,5 @@ final class InMemoryAuthoritativeBattleRuntime(
 }
 
 object InMemoryAuthoritativeBattleRuntime {
-  val DefaultBattleDurationMs: Long = 5L * 60L * 1000L
+  val DefaultBattleDurationMs: Long = BattleRules.BattleDurationMs
 }

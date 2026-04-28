@@ -7,6 +7,7 @@ interface ShellLayoutProps {
   children: ReactNode;
   variant?: "default" | "lobby";
   hidePageHeader?: boolean;
+  headerAside?: ReactNode;
   backTo?: string;
   backLabel?: string;
 }
@@ -17,6 +18,7 @@ export function ShellLayout({
   children,
   variant = "default",
   hidePageHeader = false,
+  headerAside,
   backTo = "/",
   backLabel = "返回大厅"
 }: ShellLayoutProps) {
@@ -39,6 +41,7 @@ export function ShellLayout({
                 <h2>{title}</h2>
                 <p>{subtitle}</p>
               </div>
+              {headerAside ? <div className="text-shell__header-aside">{headerAside}</div> : null}
             </header>
           ) : null}
           {children}

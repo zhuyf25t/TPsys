@@ -7,6 +7,7 @@ export type FriendRequestMailStatus = "pending" | "accepted" | "rejected";
 
 export interface MailSummary {
   id: string;
+  relatedMailIds?: string[];
   sourceBattleId?: string;
   backendSyncDisabled?: boolean;
   subject: string;
@@ -32,6 +33,7 @@ const MAILS_API_BASE = normalizeApiBase(
 );
 const HAS_REMOTE_MAIL_SOURCE = true;
 const REQUEST_TIMEOUT_MS = 5_000;
+const MERGED_BATTLE_RESULT_SUBJECT = "\u6218\u6597\u7ed3\u7b97\u4e0e\u8bc4\u5206\u66f4\u65b0";
 const OPEN_REPLAY_SOURCE_LABEL = "查看回放";
 export const MAIL_SUMMARIES_CHANGED_EVENT = "slay-demo:mails:changed";
 export const REMOTE_MAIL_REFRESH_INTERVAL_MS = 15_000;
@@ -63,7 +65,7 @@ export function getLocalBattleMailSummaries(ownerHandle?: string | null): MailSu
     return [];
   }
 
-  return getMailEntries().map((mail) => toBattleMailSummary(mail));
+  return mergeBattleRatingMailSummaries(getMailEntries().map((mail) => toBattleMailSummary(mail)));
 }
 
 export async function loadMergedMailSummaries(ownerHandle?: string | null): Promise<MailSummary[] | null> {
@@ -138,10 +140,10 @@ export async function loadRemoteMailSummaries(ownerHandle?: string | null): Prom
         return [];
       }
 
-      const summaries = payload.mails
+      const summaries = mergeBattleRatingMailSummaries(payload.mails
         .filter(isRemoteMailRecord)
         .filter((mail) => normalizeHandle(mail.ownerHandle) === normalizeHandle(visibleOwner))
-        .map((mail) => toRemoteMailSummary(mail));
+        .map((mail) => toRemoteMailSummary(mail)));
       writeRemoteMailCache(visibleOwner, summaries);
       dispatchMailSummariesChanged(visibleOwner);
       return [...summaries];
@@ -198,7 +200,9 @@ function updateRemoteMailCacheReadStatus(ownerHandle: string, mailId: string): v
 
   remoteMailSummariesCache = {
     ...remoteMailSummariesCache,
-    summaries: remoteMailSummariesCache.summaries.map((mail) => (mail.id === mailId ? { ...mail, unread: false } : mail))
+    summaries: remoteMailSummariesCache.summaries.map((mail) =>
+      mail.id === mailId || mail.relatedMailIds?.includes(mailId) ? { ...mail, unread: false } : mail
+    )
   };
 }
 
@@ -235,12 +239,14 @@ function toBattleMailSummary(mail: ReturnType<typeof getMailEntries>[number]): M
 }
 
 function mergeMailSummaries(localSummaries: MailSummary[], remoteSummaries: MailSummary[]): MailSummary[] {
+  const normalizedLocalSummaries = mergeBattleRatingMailSummaries(localSummaries);
+  const normalizedRemoteSummaries = mergeBattleRatingMailSummaries(remoteSummaries);
   const merged = new Map<string, MailSummary>();
   const remoteBattleMailKeys = new Set(
-    remoteSummaries.map((mail) => getBattleResultMailKey(mail)).filter((key): key is string => Boolean(key))
+    normalizedRemoteSummaries.map((mail) => getBattleResultMailKey(mail)).filter((key): key is string => Boolean(key))
   );
 
-  localSummaries.forEach((mail) => {
+  normalizedLocalSummaries.forEach((mail) => {
     const battleMailKey = getBattleResultMailKey(mail);
     if (battleMailKey && remoteBattleMailKeys.has(battleMailKey)) {
       return;
@@ -252,14 +258,14 @@ function mergeMailSummaries(localSummaries: MailSummary[], remoteSummaries: Mail
     }
   });
 
-  remoteSummaries.forEach((mail) => {
+  normalizedRemoteSummaries.forEach((mail) => {
     const key = normalizeStableMailId(mail.id);
     if (key) {
       merged.set(key, mail);
     }
   });
 
-  return Array.from(merged.values());
+  return mergeBattleRatingMailSummaries(Array.from(merged.values()));
 }
 
 function toRemoteMailSummary(mail: RemoteMailRecord): MailSummary {
@@ -305,7 +311,98 @@ function getBattleResultMailKey(mail: MailSummary): string | null {
     return null;
   }
 
-  return `${resultMail.kind}:${resultMail.battleId}:${normalizeHandle(ownerHandle)}`;
+  return `${resultMail.battleId}:${normalizeHandle(ownerHandle)}`;
+}
+
+function mergeBattleRatingMailSummaries(summaries: MailSummary[]): MailSummary[] {
+  const slots: Array<{ key: string; mail?: MailSummary }> = [];
+  const grouped = new Map<string, MailSummary[]>();
+
+  summaries.forEach((mail) => {
+    const key = getBattleResultMailKey(mail);
+    if (!key) {
+      slots.push({ key: `mail:${mail.id}`, mail });
+      return;
+    }
+
+    const group = grouped.get(key);
+    if (group) {
+      group.push(mail);
+      return;
+    }
+
+    grouped.set(key, [mail]);
+    slots.push({ key });
+  });
+
+  return slots.map((slot) => {
+    if (slot.mail) {
+      return slot.mail;
+    }
+
+    return mergeBattleResultMailGroup(grouped.get(slot.key) ?? []);
+  });
+}
+
+function mergeBattleResultMailGroup(group: MailSummary[]): MailSummary {
+  const primary =
+    group.find((mail) => parseBattleResultMailId(normalizeStableMailId(mail.id), mail.sourceBattleId)?.kind === "battle") ??
+    group[0];
+  if (!primary || group.length === 1) {
+    return primary ?? {
+      id: "",
+      subject: MERGED_BATTLE_RESULT_SUBJECT,
+      excerpt: "",
+      kind: "battle",
+      unread: false,
+      important: false,
+      senderLabel: "",
+      receivedLabel: ""
+    };
+  }
+
+  const ratingMail = group.find(
+    (mail) => parseBattleResultMailId(normalizeStableMailId(mail.id), mail.sourceBattleId)?.kind === "rating"
+  );
+  const sourceMail = group.find((mail) => mail.sourcePath?.trim()) ?? primary;
+  const relatedMailIds = uniqueStrings(group.flatMap((mail) => [mail.id, ...(mail.relatedMailIds ?? [])]));
+  const sourceBattleId = primary.sourceBattleId ?? group.find((mail) => mail.sourceBattleId)?.sourceBattleId;
+  const sourcePath = sourceMail.sourcePath?.trim() || undefined;
+  const sourceLabel = sourceMail.sourceLabel?.trim() || (sourcePath ? OPEN_REPLAY_SOURCE_LABEL : undefined);
+
+  return {
+    ...primary,
+    relatedMailIds,
+    ...(sourceBattleId ? { sourceBattleId } : {}),
+    ...(sourcePath ? { sourcePath } : {}),
+    ...(sourceLabel ? { sourceLabel } : {}),
+    subject: MERGED_BATTLE_RESULT_SUBJECT,
+    excerpt: buildMergedBattleResultExcerpt(primary, ratingMail),
+    kind: "battle",
+    unread: group.some((mail) => mail.unread),
+    important: group.some((mail) => mail.important)
+  };
+}
+
+function buildMergedBattleResultExcerpt(primary: MailSummary, ratingMail: MailSummary | undefined): string {
+  return uniqueStrings([primary.excerpt.trim(), ratingMail?.excerpt.trim() ?? ""]).join(" / ");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  values.forEach((value) => {
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  });
+
+  return result;
 }
 
 function getMailResultOwnerHandle(mailId: string): string | null {

@@ -5,6 +5,7 @@ import {
   logoutLocalUser,
   subscribeAuthState
 } from "../features/auth/authGateway";
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../features/battle/rules/battleRules";
 import { fetchDiscussionSummaries, getDiscussionSummaries } from "../features/forum/forumGateway";
 import {
   getLoadoutPresets,
@@ -152,8 +153,8 @@ export function LoadoutPage() {
             : { label: "创建档案", onClick: () => setAuthMode("register"), variant: "ghost" }
         }
         railItems={[
-          { label: "ARENA", value: "6 人" },
-          { label: "ROUND", value: "5 分钟" },
+          { label: "ARENA", value: `${BATTLE_ARENA_PLAYER_CAPACITY} 人` },
+          { label: "ROUND", value: BATTLE_MATCH_DURATION_LABEL },
           { label: "RULE", value: "单命" }
         ]}
         menuBody={

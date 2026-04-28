@@ -141,7 +141,7 @@ object BackendApp {
       finishProjector = Some(authoritativeBattleFinishProjector)
     )
     val battleQueueService = new InMemoryBattleQueueService(battleService = battleService)
-    val battleQueueRoutes = new BattleQueueRoutes(battleQueueService)
+    val battleQueueRoutes = new BattleQueueRoutes(battleQueueService, service)
     val battleRoutes = new BattleRoutes(battleService)
     val friendRequestService = new DefaultFriendRequestService(friendRequestRepository, mailService)
     val contributionAdjustmentService = new DefaultContributionAdjustmentService(contributionAdjustmentRepository, mailService)

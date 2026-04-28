@@ -2,6 +2,7 @@ package slaydemo.backend.battle.api
 
 final case class BattleQueueJoinRequest(
   handle: String,
+  sessionToken: Option[String] = None,
   queueRequestId: Option[String] = None,
   rating: Option[Int] = None,
   avatar: Option[String] = None,

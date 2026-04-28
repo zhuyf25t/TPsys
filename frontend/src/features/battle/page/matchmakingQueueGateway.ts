@@ -16,19 +16,22 @@ import type {
   MatchmakingQueueParticipant,
   MatchmakingQueueState
 } from "./matchmakingQueueTypes";
+import { isBattleVisitorHandle } from "../rules/battleRules";
 
 const BATTLE_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 const QUEUE_REQUEST_TIMEOUT_MS = 1_250;
 
 export async function joinMatchmakingQueue(input: {
   handle: string;
+  sessionToken: string | null;
   queueRequestId?: string;
   rating?: number;
   skin?: string;
 }): Promise<MatchmakingQueueState | null> {
   const normalizedHandle = input.handle.trim();
+  const normalizedSessionToken = input.sessionToken?.trim() ?? "";
   const normalizedQueueRequestId = input.queueRequestId?.trim() ?? "";
-  if (!BATTLE_API_BASE || !normalizedHandle) {
+  if (!BATTLE_API_BASE || !normalizedHandle || !normalizedSessionToken || isBattleVisitorHandle(normalizedHandle)) {
     return null;
   }
 
@@ -37,6 +40,7 @@ export async function joinMatchmakingQueue(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       handle: normalizedHandle,
+      sessionToken: normalizedSessionToken,
       ...(normalizedQueueRequestId ? { queueRequestId: normalizedQueueRequestId } : {}),
       ...(typeof input.rating === "number" && Number.isFinite(input.rating)
         ? { rating: String(Math.trunc(input.rating)) }

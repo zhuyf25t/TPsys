@@ -23,6 +23,7 @@ import {
   clearActiveBattleSession,
   clearActiveBattleSessionProgress,
   consumeCompletedActiveBattleSession,
+  publishActiveBattleSessionEpoch,
   readActiveBattleSession,
   writeActiveBattleSession,
   writeCompletedActiveBattleSession
@@ -77,6 +78,7 @@ import {
   resolveAcceptedCommandNotice,
   resolveCommandFailureNotice
 } from "./authoritativeCommandNotice";
+import { isBattleVisitorHandle } from "../rules/battleRules";
 
 const AUTHORITATIVE_STATE_POLL_INTERVAL_MS = 33;
 const AUTHORITATIVE_COMMAND_UPLINK_INTERVAL_MS = 33;
@@ -86,6 +88,7 @@ const AUTHORITATIVE_RESULT_READY_TIMEOUT_MS = 5_000;
 const ACTIVE_SESSION_PERSIST_INTERVAL_MS = 5_000;
 const BATTLE_COMMAND_NOTICE_DEDUPE_MS = 1_200;
 const BATTLE_COMMAND_NOTICE_VISIBLE_MS = 2_000;
+const VISITOR_BATTLE_BLOCKED_MESSAGE = "请先登录正式账号，Visitor/未登录状态不能进入正式匹配或开战。";
 
 export interface BattlePageTransientNotice {
   id: number;
@@ -128,6 +131,7 @@ export function useBattlePageRuntime() {
   const lastReplaySampleElapsedRef = useRef<number | null>(null);
   const lastActiveSessionPersistedAtRef = useRef(0);
   const battleIdRef = useRef<string | null>(null);
+  const activeSessionEpochRef = useRef<string | null>(null);
   const authoritativeBattleStateRef = useRef<AuthoritativeBattleState | null>(null);
   const authoritativeInputCaptureRef = useRef<AuthoritativeBattleInputCapture | null>(null);
   const authoritativeStateRequestInFlightRef = useRef(false);
@@ -155,12 +159,14 @@ export function useBattlePageRuntime() {
   const [queueState, setQueueState] = useState<MatchmakingQueueState | null>(null);
   const [activeDrawer, setActiveDrawer] = useState<BattleDrawerId | null>(null);
   const [transientNotice, setTransientNotice] = useState<BattlePageTransientNotice | null>(null);
+  const [entryBlockNotice, setEntryBlockNotice] = useState<string | null>(null);
   const pageData = useBattlePageData({ matchPhase, matchNonce });
   const { currentUser, loadout } = pageData;
   const currentBattleSessionOwner: ActiveBattleSessionOwner = {
     handle: currentUser?.handle ?? loadout.handle,
     sessionToken: currentUser?.sessionToken?.trim() ? currentUser.sessionToken : null
   };
+  const isBattleEntryBlocked = isVisitorBattleIdentity(currentBattleSessionOwner);
   const urlSearchParams = new URLSearchParams(location.search);
   const urlRequestsNewBattle = urlSearchParams.get("new") === "1";
   const urlRequestsResumeBattle = urlSearchParams.get("resume") === "1" && !urlRequestsNewBattle;
@@ -193,6 +199,7 @@ export function useBattlePageRuntime() {
     matchWaitDeadlineRef.current = null;
     battleDurationDeadlineRef.current = null;
     battleIdRef.current = null;
+    activeSessionEpochRef.current = null;
     authoritativeBattleStateRef.current = null;
     authoritativeStateRequestInFlightRef.current = false;
     authoritativeCommandRequestInFlightRef.current = false;
@@ -208,10 +215,24 @@ export function useBattlePageRuntime() {
     runtimeRootRef.current.replaceChildren();
     hudRootRef.current.replaceChildren();
 
+    if (isBattleEntryBlocked) {
+      setEntryBlockNotice(VISITOR_BATTLE_BLOCKED_MESSAGE);
+      setMatchPhase("matching");
+      setQueueState(null);
+      return () => {
+        clearTransientNotice();
+        runtimeRootRef.current?.replaceChildren();
+        hudRootRef.current?.replaceChildren();
+      };
+    }
+
+    setEntryBlockNotice(null);
+
     let completedSession: ActiveBattleSession | null = null;
     let restoredActiveSession: ActiveBattleSession | null = null;
 
     if (shouldStartNewBattle) {
+      activeSessionEpochRef.current = publishActiveBattleSessionEpoch(currentBattleSessionOwner);
       clearActiveBattleSession(currentBattleSessionOwner);
       newBattleResetPendingRef.current = false;
     } else {
@@ -228,9 +249,15 @@ export function useBattlePageRuntime() {
         isActiveBattleSessionForLocalPlayer(activeSession, loadout.handle)
       ) {
         restoredActiveSession = activeSession;
+        activeSessionEpochRef.current = activeSession.sessionEpoch ?? null;
       } else if (!completedSession && activeSession) {
+        activeSessionEpochRef.current = publishActiveBattleSessionEpoch(currentBattleSessionOwner);
         clearActiveBattleSessionProgress(currentBattleSessionOwner);
       }
+    }
+
+    if (!completedSession && !restoredActiveSession && activeSessionEpochRef.current === null) {
+      activeSessionEpochRef.current = publishActiveBattleSessionEpoch(currentBattleSessionOwner);
     }
 
     const resolveRuntimeBattleId = (preferredQueueState: MatchmakingQueueState | null = queueStateRef.current): string =>
@@ -658,6 +685,7 @@ export function useBattlePageRuntime() {
       return {
         version: 1,
         owner: currentBattleSessionOwner,
+        ...(activeSessionEpochRef.current ? { sessionEpoch: activeSessionEpochRef.current } : {}),
         battleId,
         ...(sharedAuthoritativeRuntimeRef.current ? { sharedAuthoritativeRuntime: true } : {}),
         ...(sharedAuthoritativeRuntimeRef.current && localAuthoritativePlayerId
@@ -717,6 +745,7 @@ export function useBattlePageRuntime() {
       battleDurationDeadlineRef.current = null;
       matchWaitDeadlineRef.current = null;
       battleIdRef.current = null;
+      activeSessionEpochRef.current = null;
       stopAuthoritativeBattleBridge();
       sharedAuthoritativeRuntimeRef.current = false;
       authoritativeFirstFrameAppliedRef.current = false;
@@ -1037,7 +1066,6 @@ export function useBattlePageRuntime() {
       runtime.setAuthoritativePreparedSkill(authoritativePreparedSkillRef.current);
       battleIdRef.current = initialAuthoritativeState?.battleId ?? battleId ?? resolveRuntimeBattleId();
       setActiveDrawer(null);
-      setMatchPhase("playing");
       replayFramesRef.current = [...restoredReplayFrames];
       lastReplaySampleFrameRef.current = null;
       lastReplaySampleElapsedRef.current = restoredLastReplaySampleElapsed;
@@ -1059,6 +1087,10 @@ export function useBattlePageRuntime() {
         sharedAuthoritativeRuntime && !authoritativeFirstFrameAppliedRef.current ? null : readRuntimeSnapshot();
       if (initialSnapshot && replayFramesRef.current.length === 0) {
         pushReplayFrame(initialSnapshot, true);
+      }
+      if (initialSnapshot) {
+        persistRuntime(false, initialSnapshot);
+        setMatchPhase("playing");
       }
 
       const initialElapsedMs = Math.max(0, initialAuthoritativeState?.elapsedMs ?? initialSnapshot?.elapsedMs ?? 0);
@@ -1088,6 +1120,7 @@ export function useBattlePageRuntime() {
 
         pushReplayFrame(snapshot);
         persistRuntime(false, snapshot);
+        setMatchPhase("playing");
         if (isRuntimeBattleComplete(snapshot)) {
           finalizeRuntime(isAuthoritativeDurationExpired());
         } else if (isBattleDurationExpired()) {
@@ -1108,6 +1141,13 @@ export function useBattlePageRuntime() {
         }, battleDurationRemainingMs);
       }
 
+      window.setTimeout(() => {
+        const snapshot = readRuntimeSnapshot();
+        if (snapshot) {
+          persistRuntime(true, snapshot);
+          setMatchPhase("playing");
+        }
+      }, 0);
       finalizeRuntime(isBattleDurationExpired());
     };
 
@@ -1290,6 +1330,7 @@ export function useBattlePageRuntime() {
 
         clearActiveBattleSession(currentBattleSessionOwner);
         restoredActiveSession = null;
+        activeSessionEpochRef.current = publishActiveBattleSessionEpoch(currentBattleSessionOwner);
         queueTicketId = null;
         battleStartLockedRef.current = false;
         clearMatchStartTimer();
@@ -1511,6 +1552,7 @@ export function useBattlePageRuntime() {
       backendQueueJoinPendingRef.current = true;
       const joined = await joinMatchmakingQueue({
         handle: loadout.handle,
+        sessionToken: currentBattleSessionOwner.sessionToken,
         queueRequestId,
         rating: loadout.rating,
         skin: loadout.skinId
@@ -1565,7 +1607,7 @@ export function useBattlePageRuntime() {
       tearDownRuntime();
       clearTransientNotice();
     };
-  }, [currentBattleSessionOwner.handle, currentBattleSessionOwner.sessionToken, loadout.handle, matchNonce, location.search]);
+  }, [currentBattleSessionOwner.handle, currentBattleSessionOwner.sessionToken, isBattleEntryBlocked, loadout.handle, matchNonce, location.search]);
 
   const clearTransientNotice = (): void => {
     if (transientNoticeTimerRef.current !== null) {
@@ -1586,10 +1628,16 @@ export function useBattlePageRuntime() {
     queueState,
     activeDrawer,
     transientNotice,
+    entryBlockNotice,
     ...pageData,
     openDrawer: setActiveDrawer,
     closeDrawer: () => setActiveDrawer(null),
     startNewMatch: () => {
+      if (isVisitorBattleIdentity(currentBattleSessionOwner)) {
+        setEntryBlockNotice(VISITOR_BATTLE_BLOCKED_MESSAGE);
+        return;
+      }
+
       discardSessionOnNextTeardownRef.current = true;
       newBattleResetPendingRef.current = true;
       countdownStartedAtRef.current = null;
@@ -1597,10 +1645,15 @@ export function useBattlePageRuntime() {
       battleIdRef.current = null;
       authoritativePreparedSkillRef.current = null;
       runtimeHandleRef.current?.setAuthoritativePreparedSkill(null);
+      activeSessionEpochRef.current = publishActiveBattleSessionEpoch(currentBattleSessionOwner);
       clearActiveBattleSession(currentBattleSessionOwner);
       setMatchNonce((value) => value + 1);
     }
   };
+}
+
+function isVisitorBattleIdentity(owner: ActiveBattleSessionOwner): boolean {
+  return !owner.sessionToken?.trim() || isBattleVisitorHandle(owner.handle);
 }
 
 interface AuthoritativePreparedInputResolution {

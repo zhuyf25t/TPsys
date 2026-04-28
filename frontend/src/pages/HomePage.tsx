@@ -4,6 +4,7 @@ import {
   logoutLocalUser,
   subscribeAuthState
 } from "../features/auth/authGateway";
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../features/battle/rules/battleRules";
 import {
   getContributionEntries,
   isRemoteContributionSourceConfigured,
@@ -112,7 +113,7 @@ export function HomePage() {
       <LobbyShell
         brand="SLAY"
         title="SLAY DEMO"
-        subtitle="6 人竞技场"
+        subtitle={`${BATTLE_ARENA_PLAYER_CAPACITY} 人竞技场`}
         playerName={playerName}
         playerBadge={authUser ? buildHandleBadge(resolvedHandle) : "P1"}
         playerAvatarSrc={loadout.skinImageSrc}
@@ -142,8 +143,8 @@ export function HomePage() {
             : { label: "登录", onClick: () => setAuthMode("login"), variant: "ghost" }
         }
         railItems={[
-          { label: "ARENA", value: "6 人" },
-          { label: "ROUND", value: "5 分钟" },
+          { label: "ARENA", value: `${BATTLE_ARENA_PLAYER_CAPACITY} 人` },
+          { label: "ROUND", value: BATTLE_MATCH_DURATION_LABEL },
           { label: "RATING", value: currentRatingLabel }
         ]}
         leftDock={<ContributionTopCard entries={contributionEntries} />}

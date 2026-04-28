@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { buildBattleDrawer } from "../features/battle/page/battleDrawerPresenter";
 import { BattleSettlementOverlay } from "../features/battle/page/BattleSettlementOverlay";
 import { MatchingOverlay } from "../features/battle/page/MatchingOverlay";
@@ -37,7 +38,9 @@ export function BattlePage() {
       leftButtons={[]}
       rightButtons={[]}
       matchingOverlay={
-        runtime.matchPhase === "matching" ? (
+        runtime.entryBlockNotice ? (
+          <BattleEntryBlockedOverlay message={runtime.entryBlockNotice} />
+        ) : runtime.matchPhase === "matching" ? (
           <MatchingOverlay
             countdownMs={runtime.matchCountdownMs}
             loadout={runtime.loadout}
@@ -48,7 +51,7 @@ export function BattlePage() {
       settlementOverlay={settlementOverlay}
       drawerOverlay={drawerOverlay}
     >
-      {runtime.transientNotice ? (
+      {runtime.entryBlockNotice ? null : runtime.transientNotice ? (
         <div
           key={runtime.transientNotice.id}
           className="arena-shell__transient-notice"
@@ -61,5 +64,57 @@ export function BattlePage() {
       <div ref={runtime.runtimeRootRef} className="arena-shell__runtime" aria-label="battle runtime" />
       <div id="hud-root" ref={runtime.hudRootRef} className="arena-shell__hud-root" />
     </BattleChrome>
+  );
+}
+
+function BattleEntryBlockedOverlay({ message }: { message: string }) {
+  return (
+    <div className="arena-shell__overlay" role="dialog" aria-modal="true" aria-label="需要登录">
+      <div className="match-board">
+        <header className="match-board__header match-board__header--matching">
+          <div className="match-board__headline">
+            <small>正式匹配已锁定</small>
+            <strong>请先登录账号</strong>
+          </div>
+          <div className="match-board__header-metrics">
+            <article>
+              <span>状态</span>
+              <strong>Visitor</strong>
+            </article>
+            <article>
+              <span>结果写入</span>
+              <strong>禁止</strong>
+            </article>
+            <article>
+              <span>Rating</span>
+              <strong>不计入</strong>
+            </article>
+          </div>
+        </header>
+
+        <section className="match-board__summary">
+          <div className="match-board__summary-copy">
+            <h2>{message}</h2>
+            <p>游客可以浏览大厅、配装、榜单和回放，但不能进入正式匹配，也不能写入战绩、回放或评分。</p>
+          </div>
+          <div className="match-board__summary-card">
+            <div className="match-board__summary-meta">
+              <small>安全规则</small>
+              <strong>正式对战需要后端身份 session</strong>
+              <span>前端不会加入队列，后端也会拒绝 anonymous/Visitor ticket。</span>
+            </div>
+          </div>
+        </section>
+
+        <footer className="match-board__actions">
+          <Link className="match-board__action match-board__action--primary" to="/">
+            返回大厅登录
+          </Link>
+          <Link className="match-board__action match-board__action--ghost" to="/rating">
+            查看榜单
+          </Link>
+        </footer>
+      </div>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { GameSnapshot, Hero, SkillState, Vec2 } from "../../../domain/types";
+import type { GameSnapshot, Hero, SkillState, Vec2, WeaponKind } from "../../../domain/types";
 import type { AuthoritativeBattleState } from "../adapters/authoritativeBattleClient";
 
 export interface BattleRuntimeAuthoritativeHeroFrame {
@@ -8,7 +8,7 @@ export interface BattleRuntimeAuthoritativeHeroFrame {
   facing: number;
   currentWeaponIndex: number;
   weapons: BattleRuntimeAuthoritativeWeaponFrame[];
-  currentWeaponKind: "Pistol";
+  currentWeaponKind: WeaponKind;
   ammoInMagazine: number;
   magazineSize: number;
   reserveAmmo: number | null;
@@ -27,7 +27,7 @@ export interface BattleRuntimeAuthoritativeHeroFrame {
 }
 
 export interface BattleRuntimeAuthoritativeWeaponFrame {
-  weaponKind: "Pistol";
+  weaponKind: WeaponKind;
   ammoInMagazine: number;
   magazineSize: number;
   reserveAmmo: number | null;
@@ -81,7 +81,7 @@ export interface BattleRuntimeAuthoritativeSlowFieldFrame {
 export interface BattleRuntimeAuthoritativePickupFrame {
   pickupId: string;
   kind: "Medkit" | "Weapon";
-  weaponKind?: "Pistol";
+  weaponKind?: WeaponKind;
   position: Vec2;
   available: boolean;
   respawnMs: number;

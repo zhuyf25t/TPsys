@@ -1,5 +1,7 @@
 package slaydemo.backend.battle.runtime
 
+import scala.annotation.tailrec
+
 import slaydemo.backend.battle.objects.BattleVector2
 
 final case class AuthoritativeArenaObstacle(
@@ -132,32 +134,41 @@ object AuthoritativeArenaGeometry {
     distance: Double,
     radius: Double
   ): SteppedMotionResult = {
-    var lastValid = position
     val steps = math.ceil(math.max(0.0, distance) / 16.0).toInt
-    var step = 1
-    var hitBlocker = false
+    val stepped = stepMotion(position, position, direction, distance, radius, steps, 1)
 
-    while (step <= steps && !hitBlocker) {
+    SteppedMotionResult(
+      destination = stepped.destination,
+      blocked = stepped.destination.x == position.x && stepped.destination.y == position.y,
+      hitBlocker = stepped.hitBlocker
+    )
+  }
+
+  @tailrec
+  private def stepMotion(
+    origin: BattleVector2,
+    lastValid: BattleVector2,
+    direction: BattleVector2,
+    distance: Double,
+    radius: Double,
+    steps: Int,
+    step: Int
+  ): SteppedMotionResult =
+    if (step > steps) {
+      SteppedMotionResult(lastValid, blocked = false, hitBlocker = false)
+    } else {
       val travel = math.min(distance, step.toDouble * 16.0)
       val candidate = BattleVector2(
-        x = position.x + direction.x * travel,
-        y = position.y + direction.y * travel
+        x = origin.x + direction.x * travel,
+        y = origin.y + direction.y * travel
       )
 
       if (!canOccupy(candidate, radius)) {
-        hitBlocker = true
+        SteppedMotionResult(lastValid, blocked = false, hitBlocker = true)
       } else {
-        lastValid = candidate
+        stepMotion(origin, candidate, direction, distance, radius, steps, step + 1)
       }
-      step += 1
     }
-
-    SteppedMotionResult(
-      destination = lastValid,
-      blocked = lastValid.x == position.x && lastValid.y == position.y,
-      hitBlocker = hitBlocker
-    )
-  }
 
   private def toMotionDestination(result: SteppedMotionResult): MotionDestination =
     MotionDestination(destination = result.destination, blocked = result.blocked)

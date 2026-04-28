@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { GameSnapshot, Hero, PreparedSkill, Projectile, ProjectileKind, SlowField, Vec2 } from "../../../../domain/types";
+import type { GameSnapshot, Hero, PreparedSkill, Projectile, ProjectileKind, SlowField, Vec2, WeaponKind } from "../../../../domain/types";
 import { BULLET_TEXTURE_KEY, CRATE_TEXTURE_KEY, ROCKET_TEXTURE_KEY, WEAPON_PICKUP_ICON_KEYS } from "../../../../game/constants";
 import { resolveHeroVisual } from "../../../../game/spawn";
 import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
@@ -13,7 +13,10 @@ export interface HeroView {
   bodyDisc: Phaser.GameObjects.Arc;
   silhouetteRing: Phaser.GameObjects.Arc;
   hitRing: Phaser.GameObjects.Arc;
+  statusRing: Phaser.GameObjects.Arc;
+  weaponStock: Phaser.GameObjects.Rectangle;
   weaponCue: Phaser.GameObjects.Rectangle;
+  weaponMuzzle: Phaser.GameObjects.Arc;
   sprite: Phaser.GameObjects.Image;
   nameLabel: Phaser.GameObjects.Text;
   healthBackground: Phaser.GameObjects.Rectangle;
@@ -37,6 +40,7 @@ export interface ProjectileView {
 }
 
 export interface PickupView {
+  halo: Phaser.GameObjects.Arc;
   sprite: Phaser.GameObjects.Image;
   label: Phaser.GameObjects.Text;
 }
@@ -110,9 +114,9 @@ export interface WorldViewSyncContext {
 }
 
 const AUTHORITATIVE_REMOTE_HERO_SNAP_DISTANCE = 150;
-// Remote heroes use tighter smoothing than projectiles so 60ms snapshots feel responsive without exposing small jitter.
-const AUTHORITATIVE_REMOTE_HERO_SMOOTHING_MS = 70;
-const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS = 83;
+// Remote heroes prioritize readability and input feel; keep only a small interpolation cushion over 60ms snapshots.
+const AUTHORITATIVE_REMOTE_HERO_SMOOTHING_MS = 58;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS = 70;
 const AUTHORITATIVE_REMOTE_HERO_INTERPOLATION_BUFFER_CAP = 10;
 const AUTHORITATIVE_REMOTE_HERO_POSITION_EPSILON = 0.05;
 const AUTHORITATIVE_REMOTE_HERO_FACING_EPSILON = 0.001;
@@ -129,18 +133,173 @@ const HERO_READABILITY_SHADOW_DEPTH = 33;
 const HERO_READABILITY_BODY_DEPTH = 34;
 const HERO_READABILITY_SILHOUETTE_DEPTH = 35;
 const HERO_READABILITY_HIT_RING_DEPTH = 36;
+const HERO_READABILITY_STATUS_RING_DEPTH = 37;
+const HERO_READABILITY_WEAPON_STOCK_DEPTH = 38;
 const HERO_READABILITY_WEAPON_CUE_DEPTH = 39;
+const HERO_READABILITY_WEAPON_MUZZLE_DEPTH = 40;
 const HERO_HEALTH_WARNING_RATIO = 0.55;
 const HERO_HEALTH_DANGER_RATIO = 0.3;
 const HERO_HEALTH_WARNING_TINT = 0xffc857;
 const HERO_HEALTH_DANGER_TINT = 0xff5a4f;
 const HERO_HEALTH_BACKGROUND_TINT = 0x0d1014;
 const HERO_HEALTH_BACKGROUND_NORMAL_ALPHA = 0.95;
+const HERO_SLOWED_STATUS_TINT = 0x9bf8ff;
+const HERO_SLOWED_STATUS_FILL_ALPHA = 0.055;
+const HERO_SLOWED_STATUS_STROKE_ALPHA = 0.58;
 const LOCAL_HERO_MOTION_STREAK_COUNT = 3;
 const LOCAL_HERO_MOTION_MIN_SPEED = 70;
 const LOCAL_HERO_MOTION_MAX_SPEED = 470;
 const LOCAL_HERO_MOTION_DECAY = 0.34;
 const LOCAL_HERO_MOTION_TINT = 0x8fe8ff;
+
+interface WeaponCueReadabilityStyle {
+  lengthRadiusScale: number;
+  thickness: number;
+  tint: number;
+  localAlpha: number;
+  remoteAlpha: number;
+  strokeWidth: number;
+  strokeTint: number;
+  localStrokeAlpha: number;
+  remoteStrokeAlpha: number;
+  stockLengthRadiusScale: number;
+  stockThicknessScale: number;
+  stockAlphaScale: number;
+  muzzleRadius: number;
+  muzzleAlphaScale: number;
+}
+
+interface PickupReadabilityStyle {
+  radius: number;
+  fillTint: number;
+  fillAlpha: number;
+  strokeTint: number;
+  strokeAlpha: number;
+  strokeWidth: number;
+  spriteScale: number;
+  labelColor: string;
+}
+
+const WEAPON_CUE_READABILITY_STYLES: Record<WeaponKind, WeaponCueReadabilityStyle> = {
+  Pistol: {
+    lengthRadiusScale: 0.68,
+    thickness: 4,
+    tint: 0xfff0c6,
+    localAlpha: 0.68,
+    remoteAlpha: 0.46,
+    strokeWidth: 1,
+    strokeTint: 0xfff7df,
+    localStrokeAlpha: 0.24,
+    remoteStrokeAlpha: 0.14,
+    stockLengthRadiusScale: 0.34,
+    stockThicknessScale: 1.25,
+    stockAlphaScale: 0.68,
+    muzzleRadius: 3,
+    muzzleAlphaScale: 0.78
+  },
+  RocketLauncher: {
+    lengthRadiusScale: 1.38,
+    thickness: 9,
+    tint: 0xff9b55,
+    localAlpha: 0.86,
+    remoteAlpha: 0.68,
+    strokeWidth: 2,
+    strokeTint: 0xffd2a8,
+    localStrokeAlpha: 0.38,
+    remoteStrokeAlpha: 0.24,
+    stockLengthRadiusScale: 0.62,
+    stockThicknessScale: 1.5,
+    stockAlphaScale: 0.7,
+    muzzleRadius: 7,
+    muzzleAlphaScale: 0.82
+  },
+  Gatling: {
+    lengthRadiusScale: 1.22,
+    thickness: 5,
+    tint: 0xffd86d,
+    localAlpha: 0.84,
+    remoteAlpha: 0.64,
+    strokeWidth: 1,
+    strokeTint: 0xffefaa,
+    localStrokeAlpha: 0.34,
+    remoteStrokeAlpha: 0.2,
+    stockLengthRadiusScale: 0.5,
+    stockThicknessScale: 1.15,
+    stockAlphaScale: 0.66,
+    muzzleRadius: 5,
+    muzzleAlphaScale: 0.8
+  },
+  Shotgun: {
+    lengthRadiusScale: 1.04,
+    thickness: 11,
+    tint: 0xffefb7,
+    localAlpha: 0.82,
+    remoteAlpha: 0.62,
+    strokeWidth: 2,
+    strokeTint: 0xfff7d6,
+    localStrokeAlpha: 0.34,
+    remoteStrokeAlpha: 0.22,
+    stockLengthRadiusScale: 0.72,
+    stockThicknessScale: 1.35,
+    stockAlphaScale: 0.72,
+    muzzleRadius: 5,
+    muzzleAlphaScale: 0.78
+  }
+};
+
+const WEAPON_PICKUP_READABILITY_STYLES: Record<WeaponKind, PickupReadabilityStyle> = {
+  Pistol: {
+    radius: 32,
+    fillTint: 0x20394b,
+    fillAlpha: 0.22,
+    strokeTint: 0xaeeeff,
+    strokeAlpha: 0.58,
+    strokeWidth: 1,
+    spriteScale: 0.88,
+    labelColor: "#d9f6ff"
+  },
+  RocketLauncher: {
+    radius: 39,
+    fillTint: 0x5a2613,
+    fillAlpha: 0.28,
+    strokeTint: 0xff9b55,
+    strokeAlpha: 0.72,
+    strokeWidth: 2,
+    spriteScale: 1.08,
+    labelColor: "#ffd7ad"
+  },
+  Gatling: {
+    radius: 36,
+    fillTint: 0x4b3415,
+    fillAlpha: 0.25,
+    strokeTint: 0xffd86d,
+    strokeAlpha: 0.68,
+    strokeWidth: 2,
+    spriteScale: 0.98,
+    labelColor: "#ffe7a3"
+  },
+  Shotgun: {
+    radius: 37,
+    fillTint: 0x52311b,
+    fillAlpha: 0.26,
+    strokeTint: 0xffefb7,
+    strokeAlpha: 0.68,
+    strokeWidth: 2,
+    spriteScale: 1,
+    labelColor: "#fff0ce"
+  }
+};
+
+const ITEM_PICKUP_READABILITY_STYLE: PickupReadabilityStyle = {
+  radius: 35,
+  fillTint: 0x183c23,
+  fillAlpha: 0.24,
+  strokeTint: 0x7bff9b,
+  strokeAlpha: 0.7,
+  strokeWidth: 2,
+  spriteScale: 0.72,
+  labelColor: "#d8ffe1"
+};
 
 export function createWorldViewState(context: WorldViewFactoryContext): WorldViewState {
   const { scene, snapshot, getBaseHeroScale } = context;
@@ -174,11 +333,45 @@ export function createWorldViewState(context: WorldViewFactoryContext): WorldVie
     silhouetteRing.setStrokeStyle(3, 0x06101b, isPlayer ? 0.58 : 0.42);
     const hitRing = scene.add.circle(hero.position.x, hero.position.y, readabilityRadius, visual.tint, 0).setDepth(HERO_READABILITY_HIT_RING_DEPTH);
     hitRing.setStrokeStyle(isPlayer ? 2 : 1, visual.tint, isPlayer ? 0.62 : 0.36);
+    const statusRing = scene.add
+      .circle(hero.position.x, hero.position.y, readabilityRadius + 6, HERO_SLOWED_STATUS_TINT, HERO_SLOWED_STATUS_FILL_ALPHA)
+      .setDepth(HERO_READABILITY_STATUS_RING_DEPTH)
+      .setVisible(false);
+    statusRing.setStrokeStyle(2, HERO_SLOWED_STATUS_TINT, HERO_SLOWED_STATUS_STROKE_ALPHA);
+    const weaponCueStyle = getWeaponCueReadabilityStyle(resolveHeroWeaponKind(hero));
+    const weaponStock = scene.add
+      .rectangle(
+        hero.position.x,
+        hero.position.y,
+        readabilityRadius * weaponCueStyle.stockLengthRadiusScale,
+        weaponCueStyle.thickness * weaponCueStyle.stockThicknessScale,
+        weaponCueStyle.strokeTint,
+        (isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha) * weaponCueStyle.stockAlphaScale
+      )
+      .setOrigin(0.74, 0.5)
+      .setDepth(HERO_READABILITY_WEAPON_STOCK_DEPTH);
     const weaponCue = scene.add
-      .rectangle(hero.position.x, hero.position.y, readabilityRadius * 0.9, isPlayer ? 5 : 4, visual.tint, isPlayer ? 0.72 : 0.48)
+      .rectangle(
+        hero.position.x,
+        hero.position.y,
+        readabilityRadius * weaponCueStyle.lengthRadiusScale,
+        weaponCueStyle.thickness,
+        weaponCueStyle.tint,
+        isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha
+      )
       .setOrigin(0.08, 0.5)
       .setDepth(HERO_READABILITY_WEAPON_CUE_DEPTH);
-    weaponCue.setStrokeStyle(1, 0xf4fbff, isPlayer ? 0.34 : 0.2);
+    weaponCue.setStrokeStyle(weaponCueStyle.strokeWidth, weaponCueStyle.strokeTint, isPlayer ? weaponCueStyle.localStrokeAlpha : weaponCueStyle.remoteStrokeAlpha);
+    const weaponMuzzle = scene.add
+      .circle(
+        hero.position.x,
+        hero.position.y,
+        weaponCueStyle.muzzleRadius,
+        weaponCueStyle.strokeTint,
+        (isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha) * weaponCueStyle.muzzleAlphaScale
+      )
+      .setDepth(HERO_READABILITY_WEAPON_MUZZLE_DEPTH);
+    weaponMuzzle.setStrokeStyle(1, weaponCueStyle.tint, isPlayer ? weaponCueStyle.localStrokeAlpha : weaponCueStyle.remoteStrokeAlpha);
     const sprite = scene.add
       .image(hero.position.x, hero.position.y, visual.textureKey)
       .setScale(getBaseHeroScale(hero.heroId))
@@ -222,7 +415,10 @@ export function createWorldViewState(context: WorldViewFactoryContext): WorldVie
       bodyDisc,
       silhouetteRing,
       hitRing,
+      statusRing,
+      weaponStock,
       weaponCue,
+      weaponMuzzle,
       sprite,
       nameLabel,
       healthBackground,
@@ -234,39 +430,52 @@ export function createWorldViewState(context: WorldViewFactoryContext): WorldVie
   });
 
   snapshot.weaponPickups.forEach((pickup) => {
+    const readability = getWeaponPickupReadabilityStyle(pickup.weaponKind);
+    const halo = scene.add
+      .circle(pickup.position.x, pickup.position.y, readability.radius, readability.fillTint, readability.fillAlpha)
+      .setDepth(61);
+    halo.setStrokeStyle(readability.strokeWidth, readability.strokeTint, readability.strokeAlpha);
     const sprite = scene.add
       .image(pickup.position.x, pickup.position.y, WEAPON_PICKUP_ICON_KEYS[pickup.weaponKind])
-      .setScale(pickup.weaponKind === "RocketLauncher" ? 1.05 : 0.95)
+      .setScale(readability.spriteScale)
       .setDepth(62);
 
     const label = scene.add
       .text(pickup.position.x, pickup.position.y + 26, getWeaponDisplayLabel(pickup.weaponKind), {
         fontFamily: "Segoe UI",
         fontSize: "12px",
-        color: "#f4f8ff"
+        color: readability.labelColor
       })
       .setOrigin(0.5, 0)
       .setDepth(63);
 
     sprite.setTint(getWeaponPickupTint(pickup.weaponKind));
-    pickupViews.set(pickup.weaponId, { sprite, label });
+    pickupViews.set(pickup.weaponId, { halo, sprite, label });
   });
 
   snapshot.itemPickups.forEach((pickup) => {
+    const halo = scene.add
+      .circle(pickup.position.x, pickup.position.y, ITEM_PICKUP_READABILITY_STYLE.radius, ITEM_PICKUP_READABILITY_STYLE.fillTint, ITEM_PICKUP_READABILITY_STYLE.fillAlpha)
+      .setDepth(61);
+    halo.setStrokeStyle(
+      ITEM_PICKUP_READABILITY_STYLE.strokeWidth,
+      ITEM_PICKUP_READABILITY_STYLE.strokeTint,
+      ITEM_PICKUP_READABILITY_STYLE.strokeAlpha
+    );
     const sprite = scene.add.image(pickup.position.x, pickup.position.y, CRATE_TEXTURE_KEY).setDepth(62);
-    sprite.setScale(0.72);
+    sprite.setScale(ITEM_PICKUP_READABILITY_STYLE.spriteScale);
     sprite.setTint(0x7bff9b);
 
     const label = scene.add
       .text(pickup.position.x, pickup.position.y + 26, getItemPickupDisplayLabel(pickup.kind), {
         fontFamily: "Segoe UI",
         fontSize: "12px",
-        color: "#f4f8ff"
+        color: ITEM_PICKUP_READABILITY_STYLE.labelColor
       })
       .setOrigin(0.5, 0)
       .setDepth(63);
 
-    itemPickupViews.set(pickup.pickupId, { sprite, label });
+    itemPickupViews.set(pickup.pickupId, { halo, sprite, label });
   });
 
   const rangeIndicator = scene.add.circle(0, 0, 1, 0x69d2ff, 0.05).setDepth(16).setVisible(false);
@@ -327,7 +536,10 @@ export function syncHeroViews({
       view.bodyDisc.setVisible(false);
       view.silhouetteRing.setVisible(false);
       view.hitRing.setVisible(false);
+      view.statusRing.setVisible(false);
+      view.weaponStock.setVisible(false);
       view.weaponCue.setVisible(false);
+      view.weaponMuzzle.setVisible(false);
       view.sprite.setVisible(false);
       view.nameLabel.setVisible(false);
       view.healthBackground.setVisible(false);
@@ -343,7 +555,10 @@ export function syncHeroViews({
     view.bodyDisc.setVisible(true);
     view.silhouetteRing.setVisible(true);
     view.hitRing.setVisible(true);
+    view.statusRing.setVisible(true);
+    view.weaponStock.setVisible(true);
     view.weaponCue.setVisible(true);
+    view.weaponMuzzle.setVisible(true);
     view.sprite.setVisible(true);
     view.nameLabel.setVisible(true);
     view.healthBackground.setVisible(true);
@@ -368,7 +583,7 @@ export function syncHeroViews({
     view.sprite.setPosition(displayPosition.x, displayPosition.y);
     view.sprite.setRotation(displayState.facing);
     syncLocalHeroMotionStreaks(view.localMotionStreaks, displayPosition, deltaMs);
-    syncHeroReadabilityVisuals(view, hero, displayPosition, displayState.facing, isPlayer);
+    syncHeroReadabilityVisuals(view, hero, displayPosition, displayState.facing, isPlayer, snapshot.slowFields);
     if (view.nameLabel.text !== hero.displayName) {
       view.nameLabel.setText(hero.displayName);
     }
@@ -503,12 +718,25 @@ function resolveHeroReadabilityRadius(radius: number): number {
   return Math.max(HERO_READABILITY_MIN_RADIUS, Number.isFinite(radius) ? radius : HERO_READABILITY_MIN_RADIUS);
 }
 
+function resolveHeroWeaponKind(hero: Hero): WeaponKind {
+  return hero.weapons[hero.currentWeaponIndex]?.weaponKind ?? "Pistol";
+}
+
+function getWeaponCueReadabilityStyle(weaponKind: WeaponKind): WeaponCueReadabilityStyle {
+  return WEAPON_CUE_READABILITY_STYLES[weaponKind];
+}
+
+function getWeaponPickupReadabilityStyle(weaponKind: WeaponKind): PickupReadabilityStyle {
+  return WEAPON_PICKUP_READABILITY_STYLES[weaponKind];
+}
+
 function syncHeroReadabilityVisuals(
   view: HeroView,
   hero: Hero,
   displayPosition: Vec2,
   displayFacing: number,
-  isPlayer: boolean
+  isPlayer: boolean,
+  slowFields: readonly SlowField[]
 ): void {
   const radius = resolveHeroReadabilityRadius(hero.radius);
   view.shadow.setPosition(displayPosition.x, displayPosition.y);
@@ -519,10 +747,59 @@ function syncHeroReadabilityVisuals(
   view.silhouetteRing.setRadius(radius + 1);
   view.hitRing.setPosition(displayPosition.x, displayPosition.y);
   view.hitRing.setRadius(radius);
-  view.weaponCue.setPosition(displayPosition.x + Math.cos(displayFacing) * radius * 0.22, displayPosition.y + Math.sin(displayFacing) * radius * 0.22);
+  const slowed = isHeroInsideSlowField(hero, slowFields);
+  view.statusRing.setVisible(slowed);
+  if (slowed) {
+    view.statusRing.setPosition(displayPosition.x, displayPosition.y);
+    view.statusRing.setRadius(radius + 6);
+    view.statusRing.setFillStyle(HERO_SLOWED_STATUS_TINT, HERO_SLOWED_STATUS_FILL_ALPHA);
+    view.statusRing.setStrokeStyle(2, HERO_SLOWED_STATUS_TINT, HERO_SLOWED_STATUS_STROKE_ALPHA);
+  }
+  const weaponCueStyle = getWeaponCueReadabilityStyle(resolveHeroWeaponKind(hero));
+  const directionX = Math.cos(displayFacing);
+  const directionY = Math.sin(displayFacing);
+  const cueLength = radius * weaponCueStyle.lengthRadiusScale;
+  const cueOriginOffset = radius * 0.22;
+  const alpha = isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha;
+  const strokeAlpha = isPlayer ? weaponCueStyle.localStrokeAlpha : weaponCueStyle.remoteStrokeAlpha;
+
+  view.weaponStock.setPosition(displayPosition.x - directionX * radius * 0.05, displayPosition.y - directionY * radius * 0.05);
+  view.weaponStock.setRotation(displayFacing);
+  view.weaponStock.setDisplaySize(radius * weaponCueStyle.stockLengthRadiusScale, weaponCueStyle.thickness * weaponCueStyle.stockThicknessScale);
+  view.weaponStock.setFillStyle(weaponCueStyle.strokeTint, alpha * weaponCueStyle.stockAlphaScale);
+  view.weaponStock.setStrokeStyle(1, weaponCueStyle.tint, strokeAlpha * 0.72);
+
+  view.weaponCue.setPosition(displayPosition.x + directionX * cueOriginOffset, displayPosition.y + directionY * cueOriginOffset);
   view.weaponCue.setRotation(displayFacing);
-  view.weaponCue.setDisplaySize(radius * (isPlayer ? 1 : 0.86), isPlayer ? 5 : 4);
-  view.weaponCue.setAlpha(isPlayer ? 0.78 : 0.58);
+  view.weaponCue.setDisplaySize(cueLength, weaponCueStyle.thickness);
+  view.weaponCue.setFillStyle(weaponCueStyle.tint, alpha);
+  view.weaponCue.setStrokeStyle(
+    weaponCueStyle.strokeWidth,
+    weaponCueStyle.strokeTint,
+    strokeAlpha
+  );
+
+  view.weaponMuzzle.setPosition(
+    displayPosition.x + directionX * (cueOriginOffset + cueLength * 0.92),
+    displayPosition.y + directionY * (cueOriginOffset + cueLength * 0.92)
+  );
+  view.weaponMuzzle.setRadius(weaponCueStyle.muzzleRadius);
+  view.weaponMuzzle.setFillStyle(weaponCueStyle.strokeTint, alpha * weaponCueStyle.muzzleAlphaScale);
+  view.weaponMuzzle.setStrokeStyle(1, weaponCueStyle.tint, strokeAlpha);
+}
+
+function isHeroInsideSlowField(hero: Hero, slowFields: readonly SlowField[]): boolean {
+  if (!isFiniteVec2(hero.position)) {
+    return false;
+  }
+
+  return slowFields.some((field) => {
+    if (!isFiniteVec2(field.position) || !Number.isFinite(field.radius) || field.radius <= 0) {
+      return false;
+    }
+
+    return Phaser.Math.Distance.Between(hero.position.x, hero.position.y, field.position.x, field.position.y) <= field.radius + hero.radius;
+  });
 }
 
 function syncHeroHealthVisuals(view: HeroView, hero: Hero, elapsedMs: number): void {
@@ -1041,39 +1318,39 @@ interface ProjectileReadabilityStyle {
 
 const PROJECTILE_READABILITY_STYLES: Record<ProjectileKind, ProjectileReadabilityStyle> = {
   "pistol-bullet": {
-    glowAlpha: 0.22,
-    glowRadius: 6,
+    glowAlpha: 0.18,
+    glowRadius: 5,
     glowTint: 0xdaf3ff,
-    trailAlpha: 0.42,
-    trailHeight: 3,
-    trailLength: 28,
+    trailAlpha: 0.34,
+    trailHeight: 2,
+    trailLength: 20,
     trailTint: 0xaeeeff
   },
   rocket: {
-    glowAlpha: 0.18,
-    glowRadius: 10,
+    glowAlpha: 0.24,
+    glowRadius: 12,
     glowTint: 0xff9b55,
-    trailAlpha: 0.34,
-    trailHeight: 8,
-    trailLength: 34,
+    trailAlpha: 0.42,
+    trailHeight: 9,
+    trailLength: 42,
     trailTint: 0xff7a32
   },
   "gatling-bullet": {
-    glowAlpha: 0.18,
+    glowAlpha: 0.2,
     glowRadius: 5,
     glowTint: 0xffd86d,
-    trailAlpha: 0.42,
+    trailAlpha: 0.48,
     trailHeight: 3,
-    trailLength: 26,
+    trailLength: 30,
     trailTint: 0xffe28a
   },
   "shotgun-pellet": {
-    glowAlpha: 0.12,
+    glowAlpha: 0.14,
     glowRadius: 4,
     glowTint: 0xfff7cf,
-    trailAlpha: 0.28,
-    trailHeight: 2,
-    trailLength: 18,
+    trailAlpha: 0.32,
+    trailHeight: 3,
+    trailLength: 16,
     trailTint: 0xfff0b8
   }
 };
@@ -1147,6 +1424,7 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
       continue;
     }
 
+    view.halo.setVisible(false);
     view.sprite.setVisible(false);
     view.label.setVisible(false);
   }
@@ -1162,6 +1440,7 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
       continue;
     }
 
+    view.halo.setVisible(false);
     view.sprite.setVisible(false);
     view.label.setVisible(false);
   }
@@ -1173,14 +1452,22 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
     }
 
     if (!pickup.available) {
+      view.halo.setVisible(false);
       view.sprite.setVisible(false);
       view.label.setVisible(false);
       return;
     }
 
     const bob = Math.sin((snapshot.elapsedMs + pickup.position.x) / 240) * 4;
+    const pulse = 0.5 + Math.sin((snapshot.elapsedMs + pickup.position.y) / 360) * 0.5;
+    const readability = getWeaponPickupReadabilityStyle(pickup.weaponKind);
+    view.halo.setVisible(true);
     view.sprite.setVisible(true);
     view.label.setVisible(true);
+    view.halo.setPosition(pickup.position.x, pickup.position.y);
+    view.halo.setRadius(readability.radius + pulse * 2);
+    view.halo.setFillStyle(readability.fillTint, readability.fillAlpha);
+    view.halo.setStrokeStyle(readability.strokeWidth, readability.strokeTint, readability.strokeAlpha + pulse * 0.1);
     view.sprite.setPosition(pickup.position.x, pickup.position.y + bob);
     view.label.setPosition(pickup.position.x, pickup.position.y + 28);
   });
@@ -1192,14 +1479,25 @@ export function syncPickupViews({ snapshot, worldViews }: WorldViewSyncContext):
     }
 
     if (!pickup.available) {
+      view.halo.setVisible(false);
       view.sprite.setVisible(false);
       view.label.setVisible(false);
       return;
     }
 
     const bob = Math.sin((snapshot.elapsedMs + pickup.position.x) / 260) * 3;
+    const pulse = 0.5 + Math.sin((snapshot.elapsedMs + pickup.position.y) / 420) * 0.5;
+    view.halo.setVisible(true);
     view.sprite.setVisible(true);
     view.label.setVisible(true);
+    view.halo.setPosition(pickup.position.x, pickup.position.y);
+    view.halo.setRadius(ITEM_PICKUP_READABILITY_STYLE.radius + pulse * 2);
+    view.halo.setFillStyle(ITEM_PICKUP_READABILITY_STYLE.fillTint, ITEM_PICKUP_READABILITY_STYLE.fillAlpha);
+    view.halo.setStrokeStyle(
+      ITEM_PICKUP_READABILITY_STYLE.strokeWidth,
+      ITEM_PICKUP_READABILITY_STYLE.strokeTint,
+      ITEM_PICKUP_READABILITY_STYLE.strokeAlpha + pulse * 0.08
+    );
     view.sprite.setPosition(pickup.position.x, pickup.position.y + bob);
     view.label.setPosition(pickup.position.x, pickup.position.y + 28);
   });

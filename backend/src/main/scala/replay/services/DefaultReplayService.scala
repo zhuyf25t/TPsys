@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Base64
 import scala.util.Try
 
+import slaydemo.backend.battle.rules.BattleRules
 import slaydemo.backend.replay.api.{ReplayCatalogView, ReplayCommentSubmissionRequest, ReplayCommentView, ReplayDetailView, ReplaySubmissionRequest}
 import slaydemo.backend.replay.database.ReplayRepository
 import slaydemo.backend.replay.objects.{ReplayCommentRecord, ReplayRecord}
@@ -22,6 +23,8 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
       Left("invalid_battle_id")
     } else if (handle.isEmpty) {
       Left("invalid_handle")
+    } else if (isVisitorHandle(handle)) {
+      Left("visitor_not_allowed")
     } else {
       ReplayJsonSupport.validateArrayString(request.framesJson) match {
         case Left(error) =>
@@ -85,6 +88,8 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
       Left("replay_not_found")
     } else if (authorHandle.isEmpty) {
       Left("invalid_author_handle")
+    } else if (isVisitorHandle(authorHandle)) {
+      Left("visitor_not_allowed")
     } else if (body.isEmpty) {
       Left("invalid_body")
     } else {
@@ -105,6 +110,8 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
   private def hydrateCatalogView(record: ReplayRecord): Option[ReplayCatalogView] = {
     validateStoredRecord(record) match {
       case Right(normalizedRecord) => Some(toCatalogView(normalizedRecord))
+      case Left("visitor_not_allowed") =>
+        None
       case Left(reason) =>
         purgeBadReplay(record.replayId, reason)
         None
@@ -114,6 +121,8 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
   private def hydrateDetailView(record: ReplayRecord): Option[ReplayDetailView] = {
     validateStoredRecord(record) match {
       case Right(normalizedRecord) => Some(toDetailView(normalizedRecord))
+      case Left("visitor_not_allowed") =>
+        None
       case Left(reason) =>
         purgeBadReplay(record.replayId, reason)
         None
@@ -131,6 +140,8 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
       Left("invalid_battle_id")
     } else if (handle.isEmpty) {
       Left("invalid_handle")
+    } else if (isVisitorHandle(handle)) {
+      Left("visitor_not_allowed")
     } else {
       Right(
         record.copy(
@@ -254,4 +265,7 @@ final class DefaultReplayService(repository: ReplayRepository) extends ReplaySer
   private def isSafeIdentifier(value: String): Boolean = {
     value.nonEmpty && value.forall(ch => ch.isLetterOrDigit || ch == '-' || ch == '_' || ch == '.' || ch == '~')
   }
+
+  private def isVisitorHandle(value: String): Boolean =
+    BattleRules.isVisitorHandle(value)
 }

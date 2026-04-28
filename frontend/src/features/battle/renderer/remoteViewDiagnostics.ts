@@ -20,6 +20,16 @@ export interface RemoteHeroViewDiagnosticSample {
   targetMotionDelta: number | null;
 }
 
+export interface RemoteHeroViewMetricSummary {
+  sampleCount: number;
+  valueCount: number;
+  nullCount: number;
+  avg: number | null;
+  max: number | null;
+  p95: number | null;
+  p99: number | null;
+}
+
 export interface RemoteHeroViewDiagnostics {
   heroId: string;
   displayName: string;
@@ -34,6 +44,9 @@ export interface RemoteHeroViewDiagnostics {
   displayToTargetDistance: number | null;
   motionDistanceDelta: number;
   targetMotionDistanceDelta: number | null;
+  displayToTargetDistanceSummary: RemoteHeroViewMetricSummary;
+  displayMotionDeltaSummary: RemoteHeroViewMetricSummary;
+  targetMotionDeltaSummary: RemoteHeroViewMetricSummary;
   totalDisplayMotionDistance: number;
   totalTargetMotionDistance: number;
   recentSamples: RemoteHeroViewDiagnosticSample[];
@@ -82,6 +95,8 @@ export interface RemoteProjectileTerminalDiagnosticSample {
   nearestHeroDisplayName: string | null;
   nearestHeroAuthoritativeEdgeDistance: number | null;
   nearestHeroDisplayEdgeDistance: number | null;
+  vfxSkipped?: boolean;
+  vfxBudgetReason?: string | null;
 }
 
 export interface RemoteProjectileTerminalDiagnostics {
@@ -136,6 +151,8 @@ export interface RemoteProjectileTerminalDiagnosticsRecordInput {
   nearestHeroDisplayName?: string | null;
   nearestHeroAuthoritativeEdgeDistance?: number | null;
   nearestHeroDisplayEdgeDistance?: number | null;
+  vfxSkipped?: boolean;
+  vfxBudgetReason?: string | null;
 }
 
 interface RemoteHeroViewDiagnosticsState {
@@ -299,7 +316,7 @@ export function recordRemoteProjectileTerminalDiagnostics(input: RemoteProjectil
   remoteProjectileTerminalFirstAtMs = remoteProjectileTerminalFirstAtMs ?? atMs;
   remoteProjectileTerminalLastAtMs = atMs;
 
-  pushSample(remoteProjectileTerminalSamples, {
+  const terminalSample: RemoteProjectileTerminalDiagnosticSample = {
     sequence: remoteProjectileTerminalCount,
     atMs,
     projectileId: input.projectileId,
@@ -321,7 +338,14 @@ export function recordRemoteProjectileTerminalDiagnostics(input: RemoteProjectil
     nearestHeroDisplayName: input.nearestHeroDisplayName ?? null,
     nearestHeroAuthoritativeEdgeDistance: toFiniteNumberOrNull(input.nearestHeroAuthoritativeEdgeDistance),
     nearestHeroDisplayEdgeDistance: toFiniteNumberOrNull(input.nearestHeroDisplayEdgeDistance)
-  }, MAX_REMOTE_PROJECTILE_TERMINAL_SAMPLES);
+  };
+
+  if (input.vfxSkipped === true) {
+    terminalSample.vfxSkipped = true;
+    terminalSample.vfxBudgetReason = normalizeOptionalString(input.vfxBudgetReason);
+  }
+
+  pushSample(remoteProjectileTerminalSamples, terminalSample, MAX_REMOTE_PROJECTILE_TERMINAL_SAMPLES);
 
   publishRemoteViewDiagnostics();
 }
@@ -391,11 +415,69 @@ function createHeroSnapshot(state: RemoteHeroViewDiagnosticsState): RemoteHeroVi
     displayToTargetDistance: state.displayToTargetDistance,
     motionDistanceDelta: state.motionDistanceDelta,
     targetMotionDistanceDelta: state.targetMotionDistanceDelta,
+    displayToTargetDistanceSummary: summarizeRemoteHeroMetric(
+      state.recentSamples,
+      (sample) => sample.displayToTargetDistance
+    ),
+    displayMotionDeltaSummary: summarizeRemoteHeroMetric(state.recentSamples, (sample) => sample.displayMotionDelta),
+    targetMotionDeltaSummary: summarizeRemoteHeroMetric(state.recentSamples, (sample) => sample.targetMotionDelta),
     totalDisplayMotionDistance: state.totalDisplayMotionDistance,
     totalTargetMotionDistance: state.totalTargetMotionDistance,
     recentSamples: state.recentSamples.map(cloneHeroSample),
     lastSample: state.recentSamples.length > 0 ? cloneHeroSample(state.recentSamples[state.recentSamples.length - 1]) : null
   };
+}
+
+function summarizeRemoteHeroMetric(
+  samples: RemoteHeroViewDiagnosticSample[],
+  selectValue: (sample: RemoteHeroViewDiagnosticSample) => number | null
+): RemoteHeroViewMetricSummary {
+  const values: number[] = [];
+  let nullCount = 0;
+
+  samples.forEach((sample) => {
+    const value = selectValue(sample);
+    if (typeof value === "number" && Number.isFinite(value)) {
+      values.push(value);
+    } else {
+      nullCount += 1;
+    }
+  });
+
+  if (values.length === 0) {
+    return {
+      sampleCount: samples.length,
+      valueCount: 0,
+      nullCount,
+      avg: null,
+      max: null,
+      p95: null,
+      p99: null
+    };
+  }
+
+  const sortedValues = [...values].sort((left, right) => left - right);
+  const total = values.reduce((sum, value) => sum + value, 0);
+
+  return {
+    sampleCount: samples.length,
+    valueCount: values.length,
+    nullCount,
+    avg: total / values.length,
+    max: sortedValues[sortedValues.length - 1],
+    p95: percentile(sortedValues, 0.95),
+    p99: percentile(sortedValues, 0.99)
+  };
+}
+
+function percentile(sortedValues: number[], percentileValue: number): number | null {
+  if (sortedValues.length === 0) {
+    return null;
+  }
+
+  const clampedPercentile = Math.min(1, Math.max(0, percentileValue));
+  const index = Math.min(sortedValues.length - 1, Math.ceil(sortedValues.length * clampedPercentile) - 1);
+  return sortedValues[index];
 }
 
 function cloneHeroSample(sample: RemoteHeroViewDiagnosticSample): RemoteHeroViewDiagnosticSample {

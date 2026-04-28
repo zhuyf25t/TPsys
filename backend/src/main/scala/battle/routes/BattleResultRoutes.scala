@@ -47,6 +47,8 @@ final class BattleResultRoutes(service: BattleResultService) {
                   sendJson(exchange, 400, """{"error":"invalid_handle"}""")
                 case Left("invalid_battle_id") =>
                   sendJson(exchange, 400, """{"error":"invalid_battle_id"}""")
+                case Left("visitor_not_allowed") =>
+                  sendJson(exchange, 403, """{"error":"visitor_not_allowed"}""")
                 case Left(other) =>
                   sendJson(exchange, 400, s"""{"error":"${escape(other)}"}""")
               }

@@ -42,6 +42,8 @@ final class ReplayRoutes(service: ReplayService, battleResultService: Option[Bat
                         sendJson(exchange, 404, """{"error":"replay_not_found"}""")
                       case Left("invalid_author_handle") =>
                         sendJson(exchange, 400, """{"error":"invalid_author_handle"}""")
+                      case Left("visitor_not_allowed") =>
+                        sendJson(exchange, 403, """{"error":"visitor_not_allowed"}""")
                       case Left("invalid_body") =>
                         sendJson(exchange, 400, """{"error":"invalid_body"}""")
                       case Left(other) =>
@@ -146,6 +148,8 @@ final class ReplayRoutes(service: ReplayService, battleResultService: Option[Bat
             sendJson(exchange, 400, """{"error":"invalid_battle_id"}""")
           case Left("invalid_handle") =>
             sendJson(exchange, 400, """{"error":"invalid_handle"}""")
+          case Left("visitor_not_allowed") =>
+            sendJson(exchange, 403, """{"error":"visitor_not_allowed"}""")
           case Left(other) =>
             sendJson(exchange, 400, s"""{"error":"${escape(other)}"}""")
         }

@@ -3,6 +3,7 @@ package slaydemo.backend.bots.database
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, StandardCopyOption, StandardOpenOption}
 import java.util.concurrent.ConcurrentHashMap
+import scala.annotation.tailrec
 import scala.jdk.CollectionConverters.*
 
 import slaydemo.backend.bots.objects.{BotProfileRecord, BotSkinProfile, DemoBotProfiles}
@@ -10,6 +11,14 @@ import slaydemo.backend.bots.objects.{BotProfileRecord, BotSkinProfile, DemoBotP
 final class FileBotProfileRepository(storagePath: Path) extends BotProfileRepository {
   private val lock = new Object
   private val records = new ConcurrentHashMap[String, BotProfileRecord]()
+  private final case class ProfileScanState(
+    depth: Int,
+    inString: Boolean,
+    escaped: Boolean,
+    start: Int,
+    index: Int,
+    chunks: Vector[String]
+  )
 
   loadFromDisk()
 
@@ -119,45 +128,62 @@ final class FileBotProfileRepository(storagePath: Path) extends BotProfileReposi
     if (start < 0 || end < 0 || end <= start) return Seq.empty
 
     val section = raw.substring(start + 1, end)
-    val chunks = scala.collection.mutable.ArrayBuffer.empty[String]
-    val buffer = new StringBuilder
-    var depth = 0
-    var inString = false
-    var escaped = false
+    val initialState = ProfileScanState(
+      depth = 0,
+      inString = false,
+      escaped = false,
+      start = -1,
+      index = 0,
+      chunks = Vector.empty
+    )
 
-    section.foreach { ch =>
-      buffer.append(ch)
-      if (inString) {
-        if (escaped) {
-          escaped = false
-        } else if (ch == '\\') {
-          escaped = true
-        } else if (ch == '"') {
-          inString = false
-        }
-      } else {
-        ch match {
-          case '"' =>
-            inString = true
-          case '{' =>
-            depth += 1
-          case '}' =>
-            depth -= 1
-            if (depth == 0) {
-              chunks += buffer.result()
-              buffer.clear()
-            }
-          case _ =>
-        }
-      }
-
-      if (depth == 0 && !inString && buffer.nonEmpty && buffer.last != '}') {
-        buffer.clear()
-      }
-    }
-
-    chunks.toSeq
+    scanProfileObjects(section, initialState).chunks
   }
+
+  @tailrec
+  private def scanProfileObjects(section: String, state: ProfileScanState): ProfileScanState =
+    if (state.index >= section.length) {
+      state
+    } else {
+      val ch = section.charAt(state.index)
+      val nextState =
+        if (state.inString) {
+          if (state.escaped) {
+            state.copy(escaped = false)
+          } else if (ch == '\\') {
+            state.copy(escaped = true)
+          } else if (ch == '"') {
+            state.copy(inString = false)
+          } else {
+            state
+          }
+        } else {
+          ch match {
+            case '"' =>
+              state.copy(inString = true)
+            case '{' =>
+              state.copy(
+                depth = state.depth + 1,
+                start = if (state.depth == 0) state.index else state.start
+              )
+            case '}' =>
+              val nextDepth = state.depth - 1
+              if (nextDepth == 0 && state.start >= 0) {
+                state.copy(
+                  depth = nextDepth,
+                  start = -1,
+                  chunks = state.chunks :+ section.substring(state.start, state.index + 1)
+                )
+              } else {
+                state.copy(depth = nextDepth)
+              }
+            case _ =>
+              state
+          }
+        }
+
+      scanProfileObjects(section, nextState.copy(index = state.index + 1))
+    }
 
   private def parseRecord(chunk: String, fallbackOrder: Int): Option[BotProfileRecord] = {
     for {

@@ -1,3 +1,5 @@
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../battle/rules/battleRules";
+
 export interface NavItem {
   label: string;
   path: string;
@@ -57,7 +59,10 @@ const homeHeroSeed: HomeHeroContent = {
   highlights: [
     { label: "当前玩家", detail: "Player-1 作为当前大厅身份继续排队和进入战斗。" },
     { label: "当前配置", detail: "手枪起手，技能是 Q 闪现 / E 冲刺 / 右键跳跃。" },
-    { label: "局内结构", detail: "6 人竞技场，5 分钟一局，结束后会生成真实结果。" }
+    {
+      label: "局内结构",
+      detail: `${BATTLE_ARENA_PLAYER_CAPACITY} 人竞技场，${BATTLE_MATCH_DURATION_LABEL}一局，结束后会生成真实结果。`
+    }
   ]
 };
 
@@ -107,7 +112,7 @@ const homePanelsSeed: HomePanel[] = [
   },
   {
     title: "当前对局",
-    detail: "6 人竞技场与 5 分钟一局保持清晰节奏，战后结果会继续流向记录页。"
+    detail: `${BATTLE_ARENA_PLAYER_CAPACITY} 人竞技场与 ${BATTLE_MATCH_DURATION_LABEL}一局保持清晰节奏，战后结果会继续流向记录页。`
   },
   {
     title: "社区入口",

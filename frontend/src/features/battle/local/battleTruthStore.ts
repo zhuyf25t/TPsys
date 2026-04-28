@@ -10,8 +10,9 @@ import {
   createBotOnlyBattleClosure,
   type BotOnlyBattleClosure
 } from "../runtime-local/session/botOnlyBattleClosure";
+import { BATTLE_MATCH_DURATION_MS as RULE_BATTLE_MATCH_DURATION_MS } from "../rules/battleRules";
 
-export const BATTLE_MATCH_DURATION_MS = 5 * 60 * 1000;
+export const BATTLE_MATCH_DURATION_MS = RULE_BATTLE_MATCH_DURATION_MS;
 const STORAGE_KEY = "slay-demo.truthful-battle-data.v2";
 const DEFAULT_RATING = 1200;
 const FALLBACK_STORED_BATTLE_RECORDS = 12;
@@ -456,6 +457,7 @@ export function markMailRead(mailId: string): boolean {
 
   const state = readState();
   const normalizedHandle = normalizeHandle(currentUser.handle);
+  let found = false;
   let changed = false;
 
   const mails = state.mails.map((mail) => {
@@ -464,21 +466,27 @@ export function markMailRead(mailId: string): boolean {
     }
 
     if (!mail.ownerHandle || normalizeHandle(mail.ownerHandle) !== normalizedHandle || !mail.unread) {
+      if (mail.ownerHandle && normalizeHandle(mail.ownerHandle) === normalizedHandle) {
+        found = true;
+      }
       return mail;
     }
 
+    found = true;
     changed = true;
     return { ...mail, unread: false };
   });
 
-  if (!changed) {
+  if (!found) {
     return false;
   }
 
-  writeState({
-    ...state,
-    mails
-  });
+  if (changed) {
+    writeState({
+      ...state,
+      mails
+    });
+  }
 
   return true;
 }
@@ -650,13 +658,13 @@ function mergeStoredBattleMails(
 function createMailsForRecord(record: StoredBattleRecord): StoredBattleMail[] {
   const createdAt = record.finishedAt;
   const replayPath = `/replay/${record.id}`;
-  const mails: StoredBattleMail[] = [
+  return [
     {
       id: `mail-battle-${record.id}`,
       ownerHandle: record.handle,
       sourceBattleId: record.id,
       backendSyncDisabled: record.backendSyncDisabled || undefined,
-      subject: "战斗结算",
+      subject: "战斗结算与评分更新",
       excerpt: buildBattleCloseoutMailExcerpt(record),
       kind: "battle",
       important: true,
@@ -667,26 +675,6 @@ function createMailsForRecord(record: StoredBattleRecord): StoredBattleMail[] {
       sourcePath: replayPath
     }
   ];
-
-  if (record.ratingDelta !== 0) {
-    mails.push({
-      id: `mail-rating-${record.id}`,
-      ownerHandle: record.handle,
-      sourceBattleId: record.id,
-      backendSyncDisabled: record.backendSyncDisabled || undefined,
-      subject: "评分已更新",
-      excerpt: `战斗结算已应用 ${formatRatingDelta(record.ratingDelta)}。当前评分 ${record.ratingAfter}。`,
-      kind: "system",
-      important: false,
-      unread: true,
-      senderLabel: "排位中心",
-      createdAt: createdAt + 1,
-      sourceLabel: "查看回放",
-      sourcePath: replayPath
-    });
-  }
-
-  return mails;
 }
 
 function buildReturnSummary(record: StoredBattleRecord): LocalBattleReturnSummary {

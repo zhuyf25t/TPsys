@@ -12,7 +12,6 @@ import { createBattleControlKeys, type ControlKeys } from "../features/battle/in
 import type { WheelSwitchDetail } from "../features/battle/input/wheelSwitchAdapter";
 import { BattleTemporalFrameBridge } from "../features/battle/runtime-local/timers/battleTemporalFrameBridge";
 import { FreezeFieldSceneBridge } from "../features/battle/runtime-local/skills/freezeFieldSceneBridge";
-import { applyKnockbackDisplacement, applyRecoilDisplacement } from "../features/battle/runtime-local/geometry/heroDisplacementAdapter";
 import { PlayerAbilitySceneBridge } from "../features/battle/renderer/effects/playerAbilitySceneBridge";
 import { BattleHudSceneBridge } from "../features/battle/renderer/hud/battleHudSceneBridge";
 import { createInitialBattleSnapshot } from "../features/battle/runtime-local/session/initialBattleSnapshot";
@@ -47,6 +46,7 @@ import {
   updateGameSceneCameraTarget
 } from "../features/battle/renderer/gameSceneCameraBridge";
 import { readGameScenePlayerCommand } from "../features/battle/renderer/gameSceneInputBridge";
+import { createGameSceneHeroDisplacementBridge } from "../features/battle/renderer/gameSceneHeroDisplacementBridge";
 import {
   createGameSceneBattleFeedbackBridge,
   createGameSceneSharedAuthoritativeLocalFeedbackBridge
@@ -171,6 +171,12 @@ export class GameScene extends Phaser.Scene {
       addFreezeField: (ownerHeroId, position, radius, durationMs) =>
         this.freezeFieldBridge.addFreezeField(ownerHeroId, position, radius, durationMs)
     });
+    const heroDisplacementBridge = createGameSceneHeroDisplacementBridge({
+      getWorldSize: () => this.snapshot.worldSize,
+      getObstacleBounds: () => this.obstacleBounds,
+      getPlayerHero: () => this.getPlayerHero(),
+      setHeroPosition: (hero, position) => this.setHeroPosition(hero, position)
+    });
     this.combatEffectBridge = new CombatProjectileEffectSceneBridge({
       getSnapshot: () => this.snapshot,
       createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color),
@@ -185,15 +191,7 @@ export class GameScene extends Phaser.Scene {
         body.enable = false;
         this.playerActor.setVelocity(0, 0);
       },
-      applyKnockback: (hero, direction, strength) =>
-        applyKnockbackDisplacement({
-          hero,
-          direction,
-          strength,
-          worldSize: this.snapshot.worldSize,
-          obstacleBounds: this.obstacleBounds,
-          setHeroPosition: (position) => this.setHeroPosition(hero, position)
-        }),
+      applyKnockback: (hero, direction, strength) => heroDisplacementBridge.applyKnockback(hero, direction, strength),
       pushEvent: (type, message) => this.temporalFrameBridge.pushEvent(this.snapshot, type, message)
     });
     this.weaponActionBridge = new WeaponActionSceneBridge({
@@ -210,17 +208,7 @@ export class GameScene extends Phaser.Scene {
         this.vfx.createMuzzleBurst(position, color, radius, sparks, direction),
       createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color),
       createImpactSpark: (position, color) => this.vfx.createImpactSpark(position, color),
-      applyRecoil: (direction, strength) => {
-        const player = this.getPlayerHero();
-        applyRecoilDisplacement({
-          hero: player,
-          direction,
-          strength,
-          worldSize: this.snapshot.worldSize,
-          obstacleBounds: this.obstacleBounds,
-          setHeroPosition: (position) => this.setHeroPosition(player, position)
-        });
-      }
+      applyRecoil: (direction, strength) => heroDisplacementBridge.applyRecoil(direction, strength)
     });
     this.projectileFrameBridge = new ProjectileFrameSceneBridge({
       getSnapshot: () => this.snapshot,
@@ -398,13 +386,25 @@ export class GameScene extends Phaser.Scene {
 
     if (event.ctrlKey) { return; }
 
+    this.captureWeaponSwitchDirection(deltaY);
     this.weaponWheelSwitchBridge.handleWheel("Phaser", deltaY);
   }
   private readonly onGlobalWheelSwitch = (event: Event): void => {
     const customEvent = event as CustomEvent<WheelSwitchDetail>;
     const deltaY = customEvent.detail?.deltaY ?? 0;
+    this.captureWeaponSwitchDirection(deltaY);
     this.weaponWheelSwitchBridge.handleWheel("Window", deltaY);
   };
+  private captureWeaponSwitchDirection(deltaY: number) {
+    if (deltaY < 0) {
+      this.pendingWeaponSwitchDirection = -1;
+      return;
+    }
+
+    if (deltaY > 0) {
+      this.pendingWeaponSwitchDirection = 1;
+    }
+  }
   private readPlayerCommand() {
     const player = this.getPlayerHero();
     return readGameScenePlayerCommand({

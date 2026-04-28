@@ -16,6 +16,7 @@ export interface HudWeaponEntry {
   label: string;
   current: boolean;
   warning: boolean;
+  tone: "pistol" | "rocket" | "gatling" | "shotgun";
 }
 
 export interface HudSkillEntry {
@@ -160,7 +161,7 @@ function ensureHudStyle(): void {
     #hud-root .hud-panel {
       position: absolute;
       pointer-events: none;
-      padding: 8px 10px;
+      padding: 7px 8px;
       border: 1px solid var(--hud-edge);
       border-radius: 4px;
       background:
@@ -185,14 +186,14 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-line {
-      font-size: 11px;
+      font-size: 10px;
       line-height: 1.28;
       color: #e8eef3;
       white-space: pre-wrap;
     }
 
     #hud-root .hud-bar-shell {
-      width: 220px;
+      width: 202px;
       height: 10px;
       margin-top: 4px;
       margin-bottom: 8px;
@@ -214,8 +215,8 @@ function ensureHudStyle(): void {
 
     #hud-root .hud-minimap {
       display: block;
-      width: 118px;
-      height: 118px;
+      width: 112px;
+      height: 112px;
       margin-bottom: 6px;
       border: 1px solid var(--hud-edge-cool);
       background: rgba(8, 25, 34, 0.88);
@@ -240,7 +241,7 @@ function ensureHudStyle(): void {
     #hud-root .hud-leaderboard-entry,
     #hud-root .hud-weapon-entry,
     #hud-root .hud-feed-entry {
-      font-size: 11px;
+      font-size: 10px;
       line-height: 1.22;
     }
 
@@ -338,6 +339,29 @@ function ensureHudStyle(): void {
       box-shadow: inset 3px 0 0 rgba(105, 223, 246, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
+    #hud-root .hud-weapon-entry.pistol.current {
+      border-color: rgba(174, 238, 255, 0.72);
+      box-shadow: inset 3px 0 0 rgba(174, 238, 255, 0.66), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    #hud-root .hud-weapon-entry.rocket.current {
+      border-color: rgba(255, 155, 85, 0.78);
+      background: linear-gradient(90deg, rgba(255, 155, 85, 0.2), rgba(22, 15, 11, 0.84));
+      box-shadow: inset 3px 0 0 rgba(255, 155, 85, 0.78), 0 0 10px rgba(255, 155, 85, 0.1);
+    }
+
+    #hud-root .hud-weapon-entry.gatling.current {
+      border-color: rgba(255, 216, 109, 0.76);
+      background: linear-gradient(90deg, rgba(255, 216, 109, 0.17), rgba(20, 17, 10, 0.84));
+      box-shadow: inset 3px 0 0 rgba(255, 216, 109, 0.74), 0 0 10px rgba(255, 216, 109, 0.08);
+    }
+
+    #hud-root .hud-weapon-entry.shotgun.current {
+      border-color: rgba(255, 239, 183, 0.74);
+      background: linear-gradient(90deg, rgba(255, 239, 183, 0.16), rgba(22, 17, 13, 0.84));
+      box-shadow: inset 3px 0 0 rgba(255, 239, 183, 0.7), 0 0 10px rgba(255, 239, 183, 0.07);
+    }
+
     #hud-root .hud-weapon-entry.warning {
       color: #ff8c8c;
       border-color: rgba(255, 114, 114, 0.44);
@@ -351,12 +375,12 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-status-entry {
-      padding: 2px 6px;
+      padding: 2px 5px;
       border: 1px solid rgba(255, 255, 255, 0.13);
       border-radius: 3px;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(0, 0, 0, 0.18));
       color: #dce7f2;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
     }
@@ -387,13 +411,13 @@ function ensureHudStyle(): void {
 
     #hud-root .hud-skills-grid {
       display: grid;
-      grid-template-columns: repeat(3, 48px);
-      gap: 5px;
+      grid-template-columns: repeat(3, 42px);
+      gap: 4px;
     }
 
     #hud-root .hud-skill-entry {
-      min-height: 46px;
-      padding: 5px;
+      min-height: 40px;
+      padding: 4px;
       border: 1px solid rgba(123, 141, 160, 0.26);
       border-radius: 3px;
       background:
@@ -421,7 +445,7 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-skill-key {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
     }
 
@@ -723,25 +747,25 @@ export class Hud {
     Object.assign(this.rightTop.style, {
       right: "14px",
       top: "14px",
-      width: "140px"
+      width: "132px"
     });
 
     Object.assign(this.leftBottom.style, {
       left: "14px",
       bottom: "14px",
-      width: `${Math.min(232, Math.max(208, width - 40))}px`
+      width: `${Math.min(216, Math.max(202, width - 40))}px`
     });
 
     Object.assign(this.weaponPanel.style, {
       right: "14px",
       bottom: "14px",
-      width: "196px"
+      width: "174px"
     });
 
     Object.assign(this.skillPanel.style, {
-      right: "226px",
+      right: "202px",
       bottom: "14px",
-      width: "154px"
+      width: "136px"
     });
 
     if (width < 760) {
@@ -802,7 +826,7 @@ export class Hud {
       const row = this.weaponList.children[index] as HTMLElement;
       setClassNameIfChanged(
         row,
-        `hud-weapon-entry${entry.current ? " current" : ""}${entry.warning ? " warning" : ""}`
+        `hud-weapon-entry ${entry.tone}${entry.current ? " current" : ""}${entry.warning ? " warning" : ""}`
       );
       setTextIfChanged(row, entry.label);
     });

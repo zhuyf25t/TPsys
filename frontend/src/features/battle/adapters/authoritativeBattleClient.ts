@@ -5,7 +5,7 @@ export interface AuthoritativeBattleVector {
   y: number;
 }
 
-export type AuthoritativeBattleWeaponKind = "Pistol";
+export type AuthoritativeBattleWeaponKind = "Pistol" | "RocketLauncher" | "Gatling" | "Shotgun";
 export type AuthoritativeBattleSkillKind = "Blink" | "Dash" | "Freeze";
 export type AuthoritativeBattleCommandStatus = "applied" | "ignored";
 export type AuthoritativeBattleCommandReason = "battle_finished" | "battle_inactive" | "player_dead";
@@ -655,7 +655,12 @@ function normalizeAuthoritativeBattleSkillKind(payload: unknown): AuthoritativeB
 }
 
 function normalizeAuthoritativeBattleWeaponKind(payload: unknown): AuthoritativeBattleWeaponKind | null {
-  return payload === "Pistol" ? "Pistol" : null;
+  return payload === "Pistol" ||
+    payload === "RocketLauncher" ||
+    payload === "Gatling" ||
+    payload === "Shotgun"
+    ? payload
+    : null;
 }
 
 function normalizeAuthoritativeBattleProjectileState(payload: unknown): AuthoritativeBattleProjectileState | null {

@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, StandardCopyOption, StandardOpenOption}
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
+import scala.annotation.tailrec
 import scala.jdk.CollectionConverters.*
 
 import slaydemo.backend.forum.objects.{
@@ -251,24 +252,24 @@ final class FileForumRepository(storagePath: Path) extends ForumRepository {
     "\\{([^{}]*)\\}".r.findAllMatchIn(section).map(_.group(1)).toSeq
   }
 
-  private def findMatchingBracket(raw: String, start: Int): Int = {
-    var depth = 0
-    var index = start
-    while (index < raw.length) {
-      raw.charAt(index) match {
-        case '[' => depth += 1
-        case ']' =>
-          depth -= 1
-          if (depth == 0) {
-            return index
-          }
-        case _ =>
-      }
-      index += 1
-    }
+  private def findMatchingBracket(raw: String, start: Int): Int =
+    scanBracket(raw, depth = 0, index = start)
 
-    -1
-  }
+  @tailrec
+  private def scanBracket(raw: String, depth: Int, index: Int): Int =
+    if (index >= raw.length) {
+      -1
+    } else {
+      raw.charAt(index) match {
+        case '[' =>
+          scanBracket(raw, depth + 1, index + 1)
+        case ']' =>
+          val nextDepth = depth - 1
+          if (nextDepth == 0) index else scanBracket(raw, nextDepth, index + 1)
+        case _ =>
+          scanBracket(raw, depth, index + 1)
+      }
+    }
 
   private def parseTopicRecord(chunk: String): Option[ForumTopicRecord] = {
     for {

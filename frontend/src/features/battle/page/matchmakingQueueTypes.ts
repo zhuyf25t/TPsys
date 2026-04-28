@@ -1,4 +1,5 @@
 import { getBotProfileBySlot } from "../runtime-local/bots/botRegistry";
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCHMAKING_DURATION_MS } from "../rules/battleRules";
 
 export interface MatchmakingQueueParticipant {
   playerId: string;
@@ -81,8 +82,8 @@ export interface MatchmakingSlotState {
   isLocalPlayer: boolean;
 }
 
-export const MATCHMAKING_SLOT_COUNT = 6;
-const MATCHMAKING_DURATION_MS = 10_000;
+export const MATCHMAKING_SLOT_COUNT = BATTLE_ARENA_PLAYER_CAPACITY;
+const MATCHMAKING_DURATION_MS = BATTLE_MATCHMAKING_DURATION_MS;
 
 export function buildMatchmakingSlots(
   localHandle: string,

@@ -31,6 +31,7 @@ import type {
   WeaponState
 } from "../../../domain/types";
 import type { HudState } from "../../../ui/Hud";
+import { getItemPickupDisplayLabel, getWeaponDisplayLabel } from "../presenters/battleDisplayCatalog";
 
 export interface LocalBattleCommandAdapterInput {
   sessionId: BattleSessionId;
@@ -301,25 +302,9 @@ function mapEventKind(kind: GameEvent["type"]): BattleEventKindDto {
 }
 
 function labelForWeaponKind(weaponKind: WeaponPickup["weaponKind"]): string {
-  switch (weaponKind) {
-    case "Pistol":
-      return "手枪";
-    case "RocketLauncher":
-      return "火箭炮";
-    case "Gatling":
-      return "加特林";
-    case "Shotgun":
-      return "霰弹枪";
-    default:
-      return weaponKind;
-  }
+  return getWeaponDisplayLabel(weaponKind);
 }
 
 function labelForItemPickupKind(kind: ItemPickup["kind"]): string {
-  switch (kind) {
-    case "Medkit":
-      return "医疗包";
-    default:
-      return kind;
-  }
+  return getItemPickupDisplayLabel(kind);
 }

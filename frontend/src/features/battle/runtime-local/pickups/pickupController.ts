@@ -1,5 +1,6 @@
 import type { Hero, ItemPickup, WeaponPickup } from "../../../../domain/types";
 import { createWeaponState, findWeaponIndex, refillWeaponState } from "../../../../game/weapons";
+import { getWeaponDisplayLabel } from "../../presenters/battleDisplayCatalog";
 
 export interface AutomaticPickupControllerInput {
   player: Hero;
@@ -47,16 +48,14 @@ export function applyAutomaticWeaponPickup(input: AutomaticPickupControllerInput
   const existingIndex = findWeaponIndex(input.player.weapons, pickup.weaponKind);
   if (existingIndex >= 0) {
     input.player.weapons[existingIndex] = refillWeaponState(input.player.weapons[existingIndex]);
-    input.player.currentWeaponIndex = existingIndex;
   } else {
     input.player.weapons.push(createWeaponState(pickup.weaponKind));
-    input.player.currentWeaponIndex = input.player.weapons.length - 1;
   }
 
   pickup.available = false;
   pickup.respawnMs = 10000;
 
-  const weaponLabel = getWeaponPickupLabel(pickup.weaponKind);
+  const weaponLabel = getWeaponDisplayLabel(pickup.weaponKind);
   return {
     pickup,
     presentation:
@@ -150,20 +149,4 @@ function findNearbyItemPickup(position: Hero["position"], pickups: readonly Item
 
 function distanceBetween(left: { x: number; y: number }, right: { x: number; y: number }): number {
   return Math.hypot(left.x - right.x, left.y - right.y);
-}
-
-function getWeaponPickupLabel(weaponKind: WeaponPickup["weaponKind"]): string {
-  if (weaponKind === "Pistol") {
-    return "\u624b\u67aa";
-  }
-
-  if (weaponKind === "Gatling") {
-    return "\u52a0\u7279\u6797";
-  }
-
-  if (weaponKind === "Shotgun") {
-    return "\u9739\u5f39\u67aa";
-  }
-
-  return "\u706b\u7bad\u70ae";
 }

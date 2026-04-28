@@ -17,6 +17,9 @@ interface MuzzleFeedbackStyle {
     alpha?: number;
     ghostScale?: number;
     glintAlphaScale?: number;
+    underglowAlphaScale?: number;
+    coreAlphaScale?: number;
+    ghostAlphaScale?: number;
   };
   reticlePulse?: {
     radius: number;
@@ -43,6 +46,9 @@ export interface LocalProjectileTracerFeedback {
   alpha?: number;
   ghostScale?: number;
   glintAlphaScale?: number;
+  underglowAlphaScale?: number;
+  coreAlphaScale?: number;
+  ghostAlphaScale?: number;
 }
 
 export interface SharedAuthoritativeLocalFeedbackSceneBridgeOptions {
@@ -64,8 +70,7 @@ export interface SharedAuthoritativeLocalFeedbackSceneBridgeOptions {
 const PRIMARY_FEEDBACK_MIN_MS = 120;
 const SKILL_REJECT_FEEDBACK_MIN_MS = 160;
 const RELOAD_INTENT_FEEDBACK_MIN_MS = 520;
-const DEFAULT_MUZZLE_FORWARD_OFFSET = 14;
-const AUTHORITATIVE_PISTOL_PROJECTILE_BIRTH_DISTANCE = 30;
+const AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE = 4;
 const BLINK_PREPARE_FEEDBACK_RADIUS = 24;
 const BLINK_RELEASE_FEEDBACK_RADIUS = 28;
 const FREEZE_PREPARE_FEEDBACK_RADIUS = SKILL_DEFINITIONS.Freeze.radius * 0.2;
@@ -76,7 +81,10 @@ const PISTOL_SHORT_MUZZLE_TRACER: MuzzleFeedbackStyle["tracer"] = {
   durationMs: 54,
   alpha: 0.2,
   ghostScale: 0.22,
-  glintAlphaScale: 0
+  glintAlphaScale: 0,
+  underglowAlphaScale: 0,
+  coreAlphaScale: 0.64,
+  ghostAlphaScale: 0
 };
 
 // Former pistol values are archived in docs as `piercing-rail-tracer-long`
@@ -100,10 +108,19 @@ const MUZZLE_FEEDBACK_STYLES: Record<WeaponKind, MuzzleFeedbackStyle> = {
   },
   Gatling: {
     color: 0xffd86d,
-    radius: 10,
-    sparks: 4,
-    tracer: { length: 136, thickness: 2, durationMs: 88, alpha: 0.54, ghostScale: 1.65 },
-    reticlePulse: { radius: 7, color: 0xffd86d }
+    radius: 8,
+    sparks: 2,
+    tracer: {
+      length: 72,
+      thickness: 2,
+      durationMs: 68,
+      alpha: 0.36,
+      ghostScale: 0.5,
+      glintAlphaScale: 0,
+      underglowAlphaScale: 0,
+      coreAlphaScale: 0.46,
+      ghostAlphaScale: 0
+    }
   },
   Shotgun: {
     color: 0xffefb7,
@@ -202,7 +219,10 @@ export class SharedAuthoritativeLocalFeedbackSceneBridge {
       durationMs: style.tracer.durationMs,
       alpha: style.tracer.alpha,
       ghostScale: style.tracer.ghostScale,
-      glintAlphaScale: style.tracer.glintAlphaScale
+      glintAlphaScale: style.tracer.glintAlphaScale,
+      underglowAlphaScale: style.tracer.underglowAlphaScale,
+      coreAlphaScale: style.tracer.coreAlphaScale,
+      ghostAlphaScale: style.tracer.ghostAlphaScale
     });
     if (style.reticlePulse) {
       this.options.createPulse(command.pointerWorld, style.reticlePulse.radius, style.reticlePulse.color);
@@ -290,12 +310,8 @@ function getPrimaryFeedbackIntervalMs(weaponKind: WeaponKind): number {
 }
 
 function resolveMuzzleForwardDistance(player: Hero, weaponKind: WeaponKind): number {
-  if (weaponKind === "Pistol") {
-    // Mirrors authoritative pistol birth: player hit radius 18 + projectile radius 8 + 4px clearance.
-    return AUTHORITATIVE_PISTOL_PROJECTILE_BIRTH_DISTANCE;
-  }
-
-  return player.radius + DEFAULT_MUZZLE_FORWARD_OFFSET;
+  // Mirrors authoritative projectile birth: hero radius + projectile radius + 4px clearance.
+  return player.radius + WEAPON_DEFINITIONS[weaponKind].radius + AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE;
 }
 
 function canPresentPrimaryFeedback(weapon: WeaponState): boolean {

@@ -1,4 +1,5 @@
 import type { GameSnapshot, Hero, ItemPickup, Projectile, Vec2, WeaponPickup } from "../../../../domain/types";
+import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
 import type { BattleRuntimeAuthoritativeFrame } from "../authoritativeBattleStateBridge";
 import {
   recordRemoteProjectileBirthDiagnostics,
@@ -20,6 +21,7 @@ interface PickupFeedbackState {
 }
 
 interface ProjectileFeedbackState {
+  ownerHeroId: string;
   kind: Projectile["kind"];
   displayPosition: Vec2;
   authoritativePosition: Vec2;
@@ -32,6 +34,8 @@ type AuthoritativeProjectileTerminalFrame = BattleRuntimeAuthoritativeFrame["pro
 
 interface AuthoritativeProjectileTerminalFeedbackState {
   projectileId: string;
+  ownerPlayerId: string;
+  ownerHeroId: string;
   kind: Projectile["kind"];
   reason: string;
   start: Vec2;
@@ -50,6 +54,8 @@ interface AuthoritativeProjectileTerminalFeedbackState {
 interface AuthoritativeProjectileTerminalVfxStrategy {
   impactSpark: "none" | "normal" | "weak";
   pulseRadius: number | null;
+  shockwaveRadius: number | null;
+  dissipate: boolean;
 }
 
 const PROJECTILE_SPARK_COLORS: Record<Projectile["kind"], number> = {
@@ -86,12 +92,17 @@ const PROJECTILE_TERMINAL_TRACER_GHOST_SCALE: Record<Projectile["kind"], number>
 const PROJECTILE_CORRECTION_TRACER_MIN_DISTANCE = 18;
 const PROJECTILE_CORRECTION_TRACER_MAX_DISTANCE = 140;
 const PROJECTILE_CORRECTION_TRACER_DURATION_MS = 140;
-const REMOTE_PROJECTILE_BIRTH_FORWARD_OFFSET = 14;
+const AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE = 4;
 const REMOTE_PROJECTILE_BIRTH_FALLBACK_BACKSTEP = 10;
 const REMEMBERED_LIVE_PROJECTILE_ID_LIMIT = 256;
 const PLAYED_AUTHORITATIVE_PROJECTILE_TERMINAL_LIMIT = 256;
+const AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_QUEUE_LIMIT = 96;
+const AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_PER_UPDATE_LIMIT = 12;
 const AMMO_PICKUP_PULSE_RADIUS = 30;
 const AMMO_PICKUP_PULSE_COLOR = 0xffd86d;
+const ROCKET_SPLASH_VISUAL_RADIUS = WEAPON_DEFINITIONS.RocketLauncher.splashRadius;
+
+type AuthoritativeProjectileTerminalVfxBudgetReason = "queue-limit" | "per-update-limit";
 
 export interface BattleFeedbackSceneBridgeOptions {
   getSnapshot(): GameSnapshot;
@@ -101,7 +112,9 @@ export interface BattleFeedbackSceneBridgeOptions {
   showFloatingText(position: Vec2, text: string, tone: "neutral" | "success" | "warning" | "error"): void;
   createPulse(position: Vec2, radius: number, color: number): void;
   createImpactSpark(position: Vec2, color: number): void;
+  createProjectileDissipate(position: Vec2, color: number): void;
   createHitConfirm(position: Vec2, color: number): void;
+  createShockwave(position: Vec2, startRadius: number, endRadius: number, color: number, duration: number): void;
   createProjectileTracer(options: {
     start: Vec2;
     direction: Vec2;
@@ -111,6 +124,10 @@ export interface BattleFeedbackSceneBridgeOptions {
     durationMs: number;
     alpha?: number;
     ghostScale?: number;
+    glintAlphaScale?: number;
+    underglowAlphaScale?: number;
+    coreAlphaScale?: number;
+    ghostAlphaScale?: number;
   }): void;
   shakeCamera(duration: number, intensity: number): void;
 }
@@ -158,7 +175,7 @@ export class BattleFeedbackSceneBridge {
 
       const terminalState = createAuthoritativeProjectileTerminalFeedbackState(terminal);
       if (terminalState) {
-        this.authoritativeProjectileTerminals.set(terminalKey, terminalState);
+        this.enqueueAuthoritativeProjectileTerminal(terminalKey, terminalState);
       }
     });
   }
@@ -299,6 +316,27 @@ export class BattleFeedbackSceneBridge {
         ownerDisplayName: owner?.displayName,
         position
       });
+      if (projectile.kind === "gatling-bullet") {
+        this.options.createProjectileTracer({
+          start: {
+            x: position.x - projectile.velocity.x * 0.012,
+            y: position.y - projectile.velocity.y * 0.012
+          },
+          direction: resolveProjectileDirection(projectile),
+          length: 18,
+          color,
+          thickness: 1,
+          durationMs: 58,
+          alpha: 0.26,
+          ghostScale: 0.35,
+          glintAlphaScale: 0,
+          underglowAlphaScale: 0,
+          coreAlphaScale: 0.35,
+          ghostAlphaScale: 0
+        });
+        return;
+      }
+
       this.options.createImpactSpark(position, color);
 
       if (projectile.kind === "rocket") {
@@ -322,17 +360,34 @@ export class BattleFeedbackSceneBridge {
       }
 
       const color = PROJECTILE_SPARK_COLORS[previous.kind];
-      this.presentProjectileTerminalTracer(previous, color);
-      this.presentProjectileTerminalCorrectionTracer(previous, color);
+      if (!this.isLocalProjectileTerminal(previous, snapshot.playerHeroId)) {
+        this.presentProjectileTerminalTracer(previous, color);
+        this.presentProjectileTerminalCorrectionTracer(previous, color);
+      }
+      if (previous.ttlMs <= 0) {
+        this.options.createProjectileDissipate(previous.authoritativePosition, softenColor(color));
+      }
       this.recordProjectileTerminalDiagnostics(previous, projectileId, snapshot);
       if (previous.kind === "rocket") {
         this.options.createImpactSpark(previous.authoritativePosition, color);
-        this.options.createPulse(previous.authoritativePosition, 18, color);
+        this.options.createShockwave(
+          previous.authoritativePosition,
+          resolveRocketShockwaveStartRadius(),
+          ROCKET_SPLASH_VISUAL_RADIUS,
+          color,
+          240
+        );
       }
     });
   }
 
   private presentQueuedAuthoritativeProjectileTerminals(snapshot: GameSnapshot, liveProjectileIds: Set<string>): void {
+    const readyTerminals: Array<{
+      terminalKey: string;
+      terminal: AuthoritativeProjectileTerminalFeedbackState;
+      previous: ProjectileFeedbackState | undefined;
+    }> = [];
+
     this.authoritativeProjectileTerminals.forEach((terminal, terminalKey) => {
       if (this.playedAuthoritativeProjectileTerminals.has(terminalKey)) {
         this.authoritativeProjectileTerminals.delete(terminalKey);
@@ -343,12 +398,35 @@ export class BattleFeedbackSceneBridge {
         return;
       }
 
-      const previous = this.projectileStates.get(terminal.projectileId);
-      const color = PROJECTILE_SPARK_COLORS[terminal.kind];
-      this.presentAuthoritativeProjectileTerminalTracer(terminal, previous, color);
-      this.presentAuthoritativeProjectileTerminalCorrectionTracer(terminal, previous, color);
-      this.recordAuthoritativeProjectileTerminalDiagnostics(terminal, previous, snapshot);
-      this.presentAuthoritativeProjectileTerminalReasonVfx(terminal, color);
+      readyTerminals.push({
+        terminalKey,
+        terminal,
+        previous: this.projectileStates.get(terminal.projectileId)
+      });
+    });
+
+    const vfxTerminalKeys = selectAuthoritativeProjectileTerminalVfxKeys(
+      readyTerminals,
+      AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_PER_UPDATE_LIMIT
+    );
+
+    readyTerminals.forEach(({ terminalKey, terminal, previous }) => {
+      const shouldPlayVfx = vfxTerminalKeys.has(terminalKey);
+      this.recordAuthoritativeProjectileTerminalDiagnostics(
+        terminal,
+        previous,
+        snapshot,
+        shouldPlayVfx ? null : "per-update-limit"
+      );
+
+      if (shouldPlayVfx) {
+        const color = PROJECTILE_SPARK_COLORS[terminal.kind];
+        if (!this.isLocalAuthoritativeProjectileTerminal(terminal, snapshot.playerHeroId)) {
+          this.presentAuthoritativeProjectileTerminalTracer(terminal, previous, color);
+          this.presentAuthoritativeProjectileTerminalCorrectionTracer(terminal, previous, color);
+        }
+        this.presentAuthoritativeProjectileTerminalReasonVfx(terminal, color);
+      }
 
       this.rememberPlayedAuthoritativeProjectileTerminal(terminalKey);
       this.authoritativeProjectileTerminals.delete(terminalKey);
@@ -370,6 +448,20 @@ export class BattleFeedbackSceneBridge {
     if (strategy.pulseRadius !== null) {
       this.options.createPulse(terminal.terminalPosition, strategy.pulseRadius, color);
     }
+
+    if (strategy.shockwaveRadius !== null) {
+      this.options.createShockwave(
+        terminal.terminalPosition,
+        resolveRocketShockwaveStartRadius(),
+        strategy.shockwaveRadius,
+        color,
+        240
+      );
+    }
+
+    if (strategy.dissipate) {
+      this.options.createProjectileDissipate(terminal.terminalPosition, softenColor(color));
+    }
   }
 
   private presentProjectileTerminalTracer(previous: ProjectileFeedbackState, color: number): void {
@@ -385,7 +477,8 @@ export class BattleFeedbackSceneBridge {
       thickness: PROJECTILE_TERMINAL_TRACER_THICKNESS[previous.kind],
       durationMs: PROJECTILE_TERMINAL_TRACER_DURATION_MS,
       alpha: PROJECTILE_TERMINAL_TRACER_ALPHA[previous.kind],
-      ghostScale: PROJECTILE_TERMINAL_TRACER_GHOST_SCALE[previous.kind]
+      ghostScale: PROJECTILE_TERMINAL_TRACER_GHOST_SCALE[previous.kind],
+      ...resolveProjectileTracerNoiseOptions(previous.kind)
     });
   }
 
@@ -407,7 +500,8 @@ export class BattleFeedbackSceneBridge {
       thickness: PROJECTILE_TERMINAL_TRACER_THICKNESS[terminal.kind],
       durationMs: PROJECTILE_TERMINAL_TRACER_DURATION_MS,
       alpha: PROJECTILE_TERMINAL_TRACER_ALPHA[terminal.kind],
-      ghostScale: PROJECTILE_TERMINAL_TRACER_GHOST_SCALE[terminal.kind]
+      ghostScale: PROJECTILE_TERMINAL_TRACER_GHOST_SCALE[terminal.kind],
+      ...resolveProjectileTracerNoiseOptions(terminal.kind)
     });
   }
 
@@ -431,7 +525,11 @@ export class BattleFeedbackSceneBridge {
       thickness: 2,
       durationMs: PROJECTILE_CORRECTION_TRACER_DURATION_MS,
       alpha: 0.38,
-      ghostScale: 0.35
+      ghostScale: 0.35,
+      glintAlphaScale: 0,
+      underglowAlphaScale: 0,
+      coreAlphaScale: 0.46,
+      ghostAlphaScale: 0
     });
   }
 
@@ -463,7 +561,11 @@ export class BattleFeedbackSceneBridge {
       thickness: 2,
       durationMs: PROJECTILE_CORRECTION_TRACER_DURATION_MS,
       alpha: 0.38,
-      ghostScale: 0.35
+      ghostScale: 0.35,
+      glintAlphaScale: 0,
+      underglowAlphaScale: 0,
+      coreAlphaScale: 0.46,
+      ghostAlphaScale: 0
     });
   }
 
@@ -501,7 +603,8 @@ export class BattleFeedbackSceneBridge {
   private recordAuthoritativeProjectileTerminalDiagnostics(
     terminal: AuthoritativeProjectileTerminalFeedbackState,
     previous: ProjectileFeedbackState | undefined,
-    snapshot: GameSnapshot
+    snapshot: GameSnapshot,
+    vfxBudgetReason: AuthoritativeProjectileTerminalVfxBudgetReason | null = null
   ): void {
     if (!shouldRecordRemoteProjectileTerminalDiagnostics()) {
       return;
@@ -531,7 +634,8 @@ export class BattleFeedbackSceneBridge {
       nearestHeroId: nearestHero?.heroId ?? null,
       nearestHeroDisplayName: nearestHero?.displayName ?? null,
       nearestHeroAuthoritativeEdgeDistance: nearestHero?.authoritativeEdgeDistance ?? null,
-      nearestHeroDisplayEdgeDistance: nearestHero?.displayEdgeDistance ?? null
+      nearestHeroDisplayEdgeDistance: nearestHero?.displayEdgeDistance ?? null,
+      ...(vfxBudgetReason ? { vfxSkipped: true, vfxBudgetReason } : {})
     });
   }
 
@@ -563,6 +667,7 @@ export class BattleFeedbackSceneBridge {
       const existing = this.projectileStates.get(projectile.projectileId);
       if (existing) {
         existing.kind = projectile.kind;
+        existing.ownerHeroId = projectile.ownerHeroId;
         existing.displayPosition.x = feedbackPosition.x;
         existing.displayPosition.y = feedbackPosition.y;
         existing.authoritativePosition.x = projectile.position.x;
@@ -614,6 +719,54 @@ export class BattleFeedbackSceneBridge {
     }
   }
 
+  private enqueueAuthoritativeProjectileTerminal(
+    terminalKey: string,
+    terminal: AuthoritativeProjectileTerminalFeedbackState
+  ): void {
+    if (this.authoritativeProjectileTerminals.has(terminalKey)) {
+      this.authoritativeProjectileTerminals.set(terminalKey, terminal);
+      return;
+    }
+
+    if (this.authoritativeProjectileTerminals.size < AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_QUEUE_LIMIT) {
+      this.authoritativeProjectileTerminals.set(terminalKey, terminal);
+      return;
+    }
+
+    const droppedTerminalKey = resolveAuthoritativeProjectileTerminalQueueDropKey(
+      this.authoritativeProjectileTerminals,
+      terminalKey,
+      terminal
+    );
+    const droppedTerminal =
+      droppedTerminalKey === terminalKey ? terminal : this.authoritativeProjectileTerminals.get(droppedTerminalKey);
+    if (droppedTerminal) {
+      this.recordSkippedAuthoritativeProjectileTerminalDiagnostics(droppedTerminal, "queue-limit");
+      this.rememberPlayedAuthoritativeProjectileTerminal(droppedTerminalKey);
+    }
+
+    if (droppedTerminalKey !== terminalKey) {
+      this.authoritativeProjectileTerminals.delete(droppedTerminalKey);
+      this.authoritativeProjectileTerminals.set(terminalKey, terminal);
+    }
+  }
+
+  private recordSkippedAuthoritativeProjectileTerminalDiagnostics(
+    terminal: AuthoritativeProjectileTerminalFeedbackState,
+    vfxBudgetReason: AuthoritativeProjectileTerminalVfxBudgetReason
+  ): void {
+    if (!shouldRecordRemoteProjectileTerminalDiagnostics()) {
+      return;
+    }
+
+    this.recordAuthoritativeProjectileTerminalDiagnostics(
+      terminal,
+      this.projectileStates.get(terminal.projectileId),
+      this.options.getSnapshot(),
+      vfxBudgetReason
+    );
+  }
+
   private hasPlayedAuthoritativeProjectileTerminalForProjectile(projectileId: string): boolean {
     for (const terminalKey of this.playedAuthoritativeProjectileTerminals) {
       if (terminalKey.startsWith(`${projectileId}:`)) {
@@ -643,6 +796,17 @@ export class BattleFeedbackSceneBridge {
     }
 
     return this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs;
+  }
+
+  private isLocalProjectileTerminal(projectile: ProjectileFeedbackState, playerHeroId: string): boolean {
+    return projectile.ownerHeroId === playerHeroId;
+  }
+
+  private isLocalAuthoritativeProjectileTerminal(
+    terminal: AuthoritativeProjectileTerminalFeedbackState,
+    playerHeroId: string
+  ): boolean {
+    return terminal.ownerHeroId === playerHeroId;
   }
 }
 
@@ -685,6 +849,7 @@ function createItemPickupFeedbackState(pickup: ItemPickup): PickupFeedbackState 
 
 function createProjectileFeedbackState(projectile: Projectile, displayPosition: Vec2, direction: Vec2): ProjectileFeedbackState {
   return {
+    ownerHeroId: projectile.ownerHeroId,
     kind: projectile.kind,
     displayPosition: { x: displayPosition.x, y: displayPosition.y },
     authoritativePosition: { x: projectile.position.x, y: projectile.position.y },
@@ -704,6 +869,8 @@ function createAuthoritativeProjectileTerminalFeedbackState(
 
   return {
     projectileId: terminal.projectileId,
+    ownerPlayerId: terminal.ownerPlayerId,
+    ownerHeroId: terminal.ownerHeroId,
     kind,
     reason: terminal.reason,
     start: { x: terminal.start.x, y: terminal.start.y },
@@ -773,32 +940,121 @@ function normalizeElapsedMs(elapsedMs: number): number {
   return Number.isFinite(elapsedMs) ? Math.max(0, Math.round(elapsedMs)) : 0;
 }
 
+function selectAuthoritativeProjectileTerminalVfxKeys(
+  terminals: Array<{
+    terminalKey: string;
+    terminal: AuthoritativeProjectileTerminalFeedbackState;
+  }>,
+  limit: number
+): Set<string> {
+  if (terminals.length <= limit) {
+    return new Set(terminals.map(({ terminalKey }) => terminalKey));
+  }
+
+  const selected = new Set<string>();
+  terminals.forEach(({ terminalKey, terminal }) => {
+    if (selected.size < limit && terminal.reason === "hit") {
+      selected.add(terminalKey);
+    }
+  });
+
+  terminals.forEach(({ terminalKey }) => {
+    if (selected.size < limit) {
+      selected.add(terminalKey);
+    }
+  });
+
+  return selected;
+}
+
+function resolveAuthoritativeProjectileTerminalQueueDropKey(
+  queuedTerminals: Map<string, AuthoritativeProjectileTerminalFeedbackState>,
+  incomingTerminalKey: string,
+  incomingTerminal: AuthoritativeProjectileTerminalFeedbackState
+): string {
+  for (const [terminalKey, terminal] of queuedTerminals) {
+    if (terminal.reason !== "hit") {
+      return terminalKey;
+    }
+  }
+
+  return incomingTerminal.reason === "hit"
+    ? queuedTerminals.keys().next().value ?? incomingTerminalKey
+    : incomingTerminalKey;
+}
+
 function resolveAuthoritativeTerminalVfxStrategy(
   terminal: AuthoritativeProjectileTerminalFeedbackState
 ): AuthoritativeProjectileTerminalVfxStrategy {
+  if (terminal.kind === "gatling-bullet") {
+    return {
+      impactSpark: "none",
+      pulseRadius: null,
+      shockwaveRadius: null,
+      dissipate: false
+    };
+  }
+
+  if (terminal.kind === "rocket") {
+    return {
+      impactSpark: terminal.reason === "hit" || terminal.reason === "obstacle" ? "normal" : "weak",
+      pulseRadius: null,
+      shockwaveRadius: ROCKET_SPLASH_VISUAL_RADIUS,
+      dissipate: false
+    };
+  }
+
   switch (terminal.reason) {
     case "hit":
     case "obstacle":
       return {
         impactSpark: "normal",
-        pulseRadius: terminal.kind === "rocket" ? 18 : null
+        pulseRadius: null,
+        shockwaveRadius: null,
+        dissipate: false
       };
     case "world":
       return {
         impactSpark: "weak",
-        pulseRadius: terminal.kind === "rocket" ? 14 : 10
+        pulseRadius: 10,
+        shockwaveRadius: null,
+        dissipate: false
       };
     case "ttl":
       return {
         impactSpark: "none",
-        pulseRadius: null
+        pulseRadius: null,
+        shockwaveRadius: null,
+        dissipate: true
       };
     default:
       return {
         impactSpark: "weak",
-        pulseRadius: null
+        pulseRadius: null,
+        shockwaveRadius: null,
+        dissipate: false
       };
   }
+}
+
+function resolveRocketShockwaveStartRadius(): number {
+  return Math.max(18, ROCKET_SPLASH_VISUAL_RADIUS * 0.16);
+}
+
+function resolveProjectileTracerNoiseOptions(kind: Projectile["kind"]): Pick<
+  Parameters<BattleFeedbackSceneBridgeOptions["createProjectileTracer"]>[0],
+  "glintAlphaScale" | "underglowAlphaScale" | "coreAlphaScale" | "ghostAlphaScale"
+> {
+  if (kind === "gatling-bullet") {
+    return {
+      glintAlphaScale: 0,
+      underglowAlphaScale: 0,
+      coreAlphaScale: 0.36,
+      ghostAlphaScale: 0
+    };
+  }
+
+  return {};
 }
 
 function softenColor(color: number): number {
@@ -850,6 +1106,7 @@ function createTerminalDiagnosticProjectileState(
   const direction = resolveAuthoritativeTerminalDirection(terminal, previous);
   return {
     kind: terminal.kind,
+    ownerHeroId: previous?.ownerHeroId ?? terminal.ownerHeroId,
     displayPosition: previous
       ? { x: previous.displayPosition.x, y: previous.displayPosition.y }
       : { x: terminal.terminalPosition.x, y: terminal.terminalPosition.y },
@@ -869,9 +1126,10 @@ function resolveRemoteProjectileBirthFeedbackPosition(
 
   if (owner) {
     const basePosition = ownerDisplayPosition ?? owner.position;
+    const forwardDistance = owner.radius + projectile.radius + AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE;
     return {
-      x: basePosition.x + direction.x * (owner.radius + REMOTE_PROJECTILE_BIRTH_FORWARD_OFFSET),
-      y: basePosition.y + direction.y * (owner.radius + REMOTE_PROJECTILE_BIRTH_FORWARD_OFFSET)
+      x: basePosition.x + direction.x * forwardDistance,
+      y: basePosition.y + direction.y * forwardDistance
     };
   }
 

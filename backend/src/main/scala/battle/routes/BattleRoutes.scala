@@ -3,6 +3,7 @@ package slaydemo.backend.battle.routes
 import java.io.{IOException, InputStream}
 import java.nio.charset.StandardCharsets
 import java.util.regex.Pattern
+import scala.annotation.tailrec
 
 import com.sun.net.httpserver.HttpExchange
 
@@ -93,8 +94,8 @@ final class BattleRoutes(service: BattleService) {
 
     val output = exchange.getResponseBody
     try {
-      var finished = false
-      while (!finished) {
+      @tailrec
+      def writeNextFrame(): Unit =
         service.currentState(battleId) match {
           case Some(state) =>
             val json = renderState(
@@ -105,15 +106,15 @@ final class BattleRoutes(service: BattleService) {
             val frame = s"event: state\ndata: ${compactForSse(json)}\n\n"
             output.write(frame.getBytes(StandardCharsets.UTF_8))
             output.flush()
-            finished = state.phase == "finished"
+            if (state.phase != "finished") {
+              Thread.sleep(StateStreamSleepMs)
+              writeNextFrame()
+            }
           case None =>
-            finished = true
+            ()
         }
 
-        if (!finished) {
-          Thread.sleep(StateStreamSleepMs)
-        }
-      }
+      writeNextFrame()
     } catch {
       case _: IOException =>
       case _: InterruptedException =>

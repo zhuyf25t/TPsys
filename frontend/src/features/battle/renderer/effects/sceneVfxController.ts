@@ -40,6 +40,9 @@ export interface ProjectileTracerOptions {
   alpha?: number;
   ghostScale?: number;
   glintAlphaScale?: number;
+  underglowAlphaScale?: number;
+  coreAlphaScale?: number;
+  ghostAlphaScale?: number;
 }
 
 export type SkillFeedbackIntent = "prepare" | "release";
@@ -127,6 +130,39 @@ export class SceneVfxController {
         onComplete: () => this.destroyTransient(spark)
       });
     }
+  };
+
+  public createProjectileDissipate = (position: Vec2, color: number): void => {
+    const ring = this.trackTransient(
+      this.scene.add
+        .circle(position.x, position.y, 6, color, 0)
+        .setDepth(65)
+        .setBlendMode(Phaser.BlendModes.ADD)
+    );
+    ring.setStrokeStyle(1, color, 0.34);
+    this.scene.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scale: 1.75,
+      duration: 130,
+      ease: "Quad.Out",
+      onComplete: () => this.destroyTransient(ring)
+    });
+
+    const mote = this.trackTransient(
+      this.scene.add
+        .circle(position.x, position.y, 2, color, 0.42)
+        .setDepth(66)
+        .setBlendMode(Phaser.BlendModes.ADD)
+    );
+    this.scene.tweens.add({
+      targets: mote,
+      alpha: 0,
+      scale: 0.3,
+      duration: 95,
+      ease: "Quad.Out",
+      onComplete: () => this.destroyTransient(mote)
+    });
   };
 
   public createHitConfirm = (position: Vec2, color: number): void => {
@@ -478,20 +514,33 @@ export class SceneVfxController {
     const alpha = options.alpha ?? 0.78;
     const ghostScale = Math.max(0.1, options.ghostScale ?? TRACER_GHOST_RADIUS_SCALE);
     const glintAlphaScale = Phaser.Math.Clamp(options.glintAlphaScale ?? 1, 0, 1);
+    const underglowAlphaScale = Phaser.Math.Clamp(options.underglowAlphaScale ?? 1, 0, 1);
+    const coreAlphaScale = Phaser.Math.Clamp(options.coreAlphaScale ?? 1, 0, 1);
+    const ghostAlphaScale = Phaser.Math.Clamp(options.ghostAlphaScale ?? 1, 0, 1);
     const end = {
       x: options.start.x + direction.x * length,
       y: options.start.y + direction.y * length
     };
     const rotation = Math.atan2(direction.y, direction.x);
     const perpendicular = perpendicularDirection(direction);
-    const underglow = this.trackTransient(
-      this.scene.add
-        .rectangle(options.start.x, options.start.y, length, Math.max(thickness * 3.2, 4), options.color, alpha * 0.22)
-        .setOrigin(0, 0.5)
-        .setRotation(rotation)
-        .setDepth(62)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
+    const underglow =
+      underglowAlphaScale > 0
+        ? this.trackTransient(
+            this.scene.add
+              .rectangle(
+                options.start.x,
+                options.start.y,
+                length,
+                Math.max(thickness * 3.2, 4),
+                options.color,
+                alpha * 0.22 * underglowAlphaScale
+              )
+              .setOrigin(0, 0.5)
+              .setRotation(rotation)
+              .setDepth(62)
+              .setBlendMode(Phaser.BlendModes.ADD)
+          )
+        : null;
     const tracer = this.trackTransient(
       this.scene.add
         .rectangle(options.start.x, options.start.y, length, thickness, options.color, alpha)
@@ -500,37 +549,45 @@ export class SceneVfxController {
         .setDepth(64)
         .setBlendMode(Phaser.BlendModes.ADD)
     );
-    const core = this.trackTransient(
-      this.scene.add
-        .rectangle(
-          options.start.x + direction.x * (length * 0.12),
-          options.start.y + direction.y * (length * 0.12),
-          length * 0.76,
-          Math.max(1, thickness * 0.38),
-          0xffffff,
-          Math.min(0.72, alpha * 0.78)
-        )
-        .setOrigin(0, 0.5)
-        .setRotation(rotation)
-        .setDepth(65)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
-    const ghost = this.trackTransient(
-      this.scene.add
-        .circle(end.x, end.y, thickness * ghostScale, options.color, alpha * 0.8)
-        .setDepth(64)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
+    const core =
+      coreAlphaScale > 0
+        ? this.trackTransient(
+            this.scene.add
+              .rectangle(
+                options.start.x + direction.x * (length * 0.12),
+                options.start.y + direction.y * (length * 0.12),
+                length * 0.76,
+                Math.max(1, thickness * 0.38),
+                0xffffff,
+                Math.min(0.72, alpha * 0.78) * coreAlphaScale
+              )
+              .setOrigin(0, 0.5)
+              .setRotation(rotation)
+              .setDepth(65)
+              .setBlendMode(Phaser.BlendModes.ADD)
+          )
+        : null;
+    const ghost =
+      ghostAlphaScale > 0
+        ? this.trackTransient(
+            this.scene.add
+              .circle(end.x, end.y, thickness * ghostScale, options.color, alpha * 0.8 * ghostAlphaScale)
+              .setDepth(64)
+              .setBlendMode(Phaser.BlendModes.ADD)
+          )
+        : null;
 
-    this.scene.tweens.add({
-      targets: underglow,
-      alpha: 0,
-      scaleX: 0.82,
-      scaleY: 1.25,
-      duration: durationMs + 30,
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(underglow)
-    });
+    if (underglow) {
+      this.scene.tweens.add({
+        targets: underglow,
+        alpha: 0,
+        scaleX: 0.82,
+        scaleY: 1.25,
+        duration: durationMs + 30,
+        ease: "Quad.Out",
+        onComplete: () => this.destroyTransient(underglow)
+      });
+    }
     this.scene.tweens.add({
       targets: tracer,
       alpha: 0,
@@ -539,14 +596,16 @@ export class SceneVfxController {
       ease: "Quad.Out",
       onComplete: () => this.destroyTransient(tracer)
     });
-    this.scene.tweens.add({
-      targets: core,
-      alpha: 0,
-      scaleX: 0.52,
-      duration: Math.max(70, durationMs - 25),
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(core)
-    });
+    if (core) {
+      this.scene.tweens.add({
+        targets: core,
+        alpha: 0,
+        scaleX: 0.52,
+        duration: Math.max(70, durationMs - 25),
+        ease: "Quad.Out",
+        onComplete: () => this.destroyTransient(core)
+      });
+    }
     if (glintAlphaScale > 0) {
       const glintLength = Math.min(24, Math.max(8, length * 0.26));
       const glintOffset = (Phaser.Math.Between(0, 1) === 0 ? -1 : 1) * Math.max(2, thickness * 1.25);
@@ -574,14 +633,16 @@ export class SceneVfxController {
         onComplete: () => this.destroyTransient(glint)
       });
     }
-    this.scene.tweens.add({
-      targets: ghost,
-      alpha: 0,
-      scale: 0.45,
-      duration: Math.max(80, durationMs - 20),
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(ghost)
-    });
+    if (ghost) {
+      this.scene.tweens.add({
+        targets: ghost,
+        alpha: 0,
+        scale: 0.45,
+        duration: Math.max(80, durationMs - 20),
+        ease: "Quad.Out",
+        onComplete: () => this.destroyTransient(ghost)
+      });
+    }
   };
 
   public createFloatingText = (position: Vec2, text: string, color: string): void => {

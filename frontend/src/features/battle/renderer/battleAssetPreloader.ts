@@ -7,11 +7,13 @@ import {
   CRATE_TEXTURE_KEY,
   DIRT_TEXTURE_KEY,
   FLOOR_TEXTURE_KEY,
+  GATLING_PICKUP_TEXTURE_KEY,
   OUTSIDE_TEXTURE_KEY,
   PISTOL_PICKUP_TEXTURE_KEY,
   ROCK_TEXTURE_KEY,
   ROCKET_PICKUP_TEXTURE_KEY,
   ROCKET_TEXTURE_KEY,
+  SHOTGUN_PICKUP_TEXTURE_KEY,
   STONE_TEXTURE_KEY,
   STONE_TRIM_TEXTURE_KEY,
   TREE_TEXTURE_KEY,
@@ -38,8 +40,8 @@ export function preloadBattleAssets(scene: Phaser.Scene): void {
   scene.load.image(ROCKET_TEXTURE_KEY, ASSET_PATHS.rocket);
   scene.load.image(PISTOL_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupPistol);
   scene.load.image(ROCKET_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupRocket);
-  scene.load.image("pickup-gatling", ASSET_PATHS.pickupGatling);
-  scene.load.image("pickup-shotgun", ASSET_PATHS.pickupShotgun);
+  scene.load.image(GATLING_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupGatling);
+  scene.load.image(SHOTGUN_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupShotgun);
   scene.load.image("hero-player", ASSET_PATHS.player);
   scene.load.image("hero-survivor", ASSET_PATHS.survivor);
   scene.load.image("hero-soldier", ASSET_PATHS.soldier);

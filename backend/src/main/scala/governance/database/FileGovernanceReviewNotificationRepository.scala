@@ -3,6 +3,7 @@ package slaydemo.backend.governance.database
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, StandardCopyOption, StandardOpenOption}
 import java.util.concurrent.ConcurrentHashMap
+import scala.annotation.tailrec
 import scala.jdk.CollectionConverters.*
 
 import slaydemo.backend.governance.objects.GovernanceReviewNotificationRecord
@@ -11,6 +12,14 @@ final class FileGovernanceReviewNotificationRepository(storagePath: Path)
     extends GovernanceReviewNotificationRepository {
   private val lock = new Object
   private val records = new ConcurrentHashMap[String, GovernanceReviewNotificationRecord]()
+  private final case class ObjectScanState(
+    depth: Int,
+    start: Int,
+    inString: Boolean,
+    escaping: Boolean,
+    index: Int,
+    chunks: Vector[String]
+  )
 
   loadFromDisk()
 
@@ -126,64 +135,76 @@ final class FileGovernanceReviewNotificationRepository(storagePath: Path)
   }
 
   private def extractObjects(section: String): Seq[String] = {
-    val chunks = Vector.newBuilder[String]
-    var depth = 0
-    var start = -1
-    var inString = false
-    var escaping = false
-    var index = 0
-
-    while (index < section.length) {
-      val char = section.charAt(index)
-      if (escaping) {
-        escaping = false
-      } else if (char == '\\' && inString) {
-        escaping = true
-      } else if (char == '"') {
-        inString = !inString
-      } else if (!inString && char == '{') {
-        if (depth == 0) start = index
-        depth += 1
-      } else if (!inString && char == '}') {
-        depth -= 1
-        if (depth == 0 && start >= 0) {
-          chunks += section.substring(start, index + 1)
-          start = -1
-        }
-      }
-
-      index += 1
-    }
-
-    chunks.result()
+    val initialState = ObjectScanState(
+      depth = 0,
+      start = -1,
+      inString = false,
+      escaping = false,
+      index = 0,
+      chunks = Vector.empty
+    )
+    scanObjects(section, initialState).chunks
   }
 
-  private def findMatchingBracket(raw: String, start: Int): Int = {
-    var depth = 0
-    var inString = false
-    var escaping = false
-    var index = start
+  @tailrec
+  private def scanObjects(section: String, state: ObjectScanState): ObjectScanState =
+    if (state.index >= section.length) {
+      state
+    } else {
+      val char = section.charAt(state.index)
+      val nextState =
+        if (state.escaping) {
+          state.copy(escaping = false)
+        } else if (char == '\\' && state.inString) {
+          state.copy(escaping = true)
+        } else if (char == '"') {
+          state.copy(inString = !state.inString)
+        } else if (!state.inString && char == '{') {
+          state.copy(
+            depth = state.depth + 1,
+            start = if (state.depth == 0) state.index else state.start
+          )
+        } else if (!state.inString && char == '}') {
+          val nextDepth = state.depth - 1
+          if (nextDepth == 0 && state.start >= 0) {
+            state.copy(
+              depth = nextDepth,
+              start = -1,
+              chunks = state.chunks :+ section.substring(state.start, state.index + 1)
+            )
+          } else {
+            state.copy(depth = nextDepth)
+          }
+        } else {
+          state
+        }
+      scanObjects(section, nextState.copy(index = state.index + 1))
+    }
 
-    while (index < raw.length) {
+  private def findMatchingBracket(raw: String, start: Int): Int =
+    scanBracket(raw, depth = 0, inString = false, escaping = false, index = start)
+
+  @tailrec
+  private def scanBracket(raw: String, depth: Int, inString: Boolean, escaping: Boolean, index: Int): Int =
+    if (index >= raw.length) {
+      -1
+    } else {
       val char = raw.charAt(index)
       if (escaping) {
-        escaping = false
+        scanBracket(raw, depth, inString, escaping = false, index + 1)
       } else if (char == '\\' && inString) {
-        escaping = true
+        scanBracket(raw, depth, inString, escaping = true, index + 1)
       } else if (char == '"') {
-        inString = !inString
+        scanBracket(raw, depth, !inString, escaping = false, index + 1)
       } else if (!inString && char == '[') {
-        depth += 1
+        scanBracket(raw, depth + 1, inString, escaping = false, index + 1)
       } else if (!inString && char == ']') {
-        depth -= 1
-        if (depth == 0) return index
+        val nextDepth = depth - 1
+        if (nextDepth == 0) index else scanBracket(raw, nextDepth, inString, escaping = false, index + 1)
+      } else {
+        scanBracket(raw, depth, inString, escaping = false, index + 1)
       }
-
-      index += 1
     }
-
-    -1
-  }
 
   private def parseRecord(chunk: String): Option[GovernanceReviewNotificationRecord] = {
     for {

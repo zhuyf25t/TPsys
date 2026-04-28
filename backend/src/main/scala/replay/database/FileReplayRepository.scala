@@ -3,7 +3,7 @@ package slaydemo.backend.replay.database
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, StandardCopyOption, StandardOpenOption}
 import java.util.concurrent.ConcurrentHashMap
-import scala.collection.mutable
+import scala.annotation.tailrec
 import scala.jdk.CollectionConverters.*
 
 import slaydemo.backend.replay.objects.{ReplayCommentRecord, ReplayRecord}
@@ -203,36 +203,34 @@ final class FileReplayRepository(storagePath: Path) extends ReplayRepository {
   }
 
   private def extractObjectChunks(section: String): Seq[String] = {
-    val chunks = Vector.newBuilder[String]
-    var index = 0
-
-    while (index < section.length) {
-      index = skipWhitespace(section, index)
-
-      while (index < section.length && section.charAt(index) == ',') {
-        index = skipWhitespace(section, index + 1)
-      }
-
-      if (index >= section.length) {
-        return chunks.result()
-      }
-
-      if (section.charAt(index) == '{') {
-        val end = findMatchingDelimiter(section, index, '{', '}')
-        if (end < 0) {
-          Console.err.println(s"[replay] truncated catalog object while reading ${storagePath.toAbsolutePath}")
-          return chunks.result()
-        }
-
-        chunks += section.substring(index, end + 1)
-        index = end + 1
-      } else {
-        index = findNextArraySeparator(section, index)
-      }
-    }
-
-    chunks.result()
+    extractObjectChunksFrom(section, index = 0, chunks = Vector.empty)
   }
+
+  @tailrec
+  private def extractObjectChunksFrom(section: String, index: Int, chunks: Vector[String]): Vector[String] = {
+    val nextIndex = skipArraySeparators(section, skipWhitespace(section, index))
+    if (nextIndex >= section.length) {
+      chunks
+    } else if (section.charAt(nextIndex) == '{') {
+      val end = findMatchingDelimiter(section, nextIndex, '{', '}')
+      if (end < 0) {
+        Console.err.println(s"[replay] truncated catalog object while reading ${storagePath.toAbsolutePath}")
+        chunks
+      } else {
+        extractObjectChunksFrom(section, end + 1, chunks :+ section.substring(nextIndex, end + 1))
+      }
+    } else {
+      extractObjectChunksFrom(section, findNextArraySeparator(section, nextIndex), chunks)
+    }
+  }
+
+  @tailrec
+  private def skipArraySeparators(raw: String, index: Int): Int =
+    if (index < raw.length && raw.charAt(index) == ',') {
+      skipArraySeparators(raw, skipWhitespace(raw, index + 1))
+    } else {
+      index
+    }
 
   private def findMatchingBracket(raw: String, start: Int): Int = {
     findMatchingDelimiter(raw, start, '[', ']')
@@ -240,44 +238,51 @@ final class FileReplayRepository(storagePath: Path) extends ReplayRepository {
 
   private def findMatchingDelimiter(raw: String, start: Int, open: Char, close: Char): Int = {
     if (start < 0 || start >= raw.length || raw.charAt(start) != open) {
-      return -1
+      -1
+    } else {
+      scanMatchingDelimiter(raw, open, close, depth = 0, inString = false, escaped = false, index = start)
     }
+  }
 
-    var depth = 0
-    var inString = false
-    var escaped = false
-    var index = start
-
-    while (index < raw.length) {
+  @tailrec
+  private def scanMatchingDelimiter(
+    raw: String,
+    open: Char,
+    close: Char,
+    depth: Int,
+    inString: Boolean,
+    escaped: Boolean,
+    index: Int
+  ): Int =
+    if (index >= raw.length) {
+      -1
+    } else {
       val ch = raw.charAt(index)
       if (inString) {
         if (escaped) {
-          escaped = false
+          scanMatchingDelimiter(raw, open, close, depth, inString, escaped = false, index + 1)
         } else if (ch == '\\') {
-          escaped = true
+          scanMatchingDelimiter(raw, open, close, depth, inString, escaped = true, index + 1)
         } else if (ch == '"') {
-          inString = false
+          scanMatchingDelimiter(raw, open, close, depth, inString = false, escaped = false, index + 1)
+        } else {
+          scanMatchingDelimiter(raw, open, close, depth, inString, escaped = false, index + 1)
         }
       } else {
         ch match {
           case '"' =>
-            inString = true
+            scanMatchingDelimiter(raw, open, close, depth, inString = true, escaped = false, index + 1)
           case value if value == open =>
-            depth += 1
+            scanMatchingDelimiter(raw, open, close, depth + 1, inString, escaped = false, index + 1)
           case value if value == close =>
-            depth -= 1
-            if (depth == 0) {
-              return index
-            }
+            val nextDepth = depth - 1
+            if (nextDepth == 0) index
+            else scanMatchingDelimiter(raw, open, close, nextDepth, inString, escaped = false, index + 1)
           case _ =>
+            scanMatchingDelimiter(raw, open, close, depth, inString, escaped = false, index + 1)
         }
       }
-
-      index += 1
     }
-
-    -1
-  }
 
   private def parseRecord(fields: Map[String, FlatJsonValue]): Option[ReplayRecord] = {
     val replayId = extractString(fields, "replayId")
@@ -423,55 +428,56 @@ final class FileReplayRepository(storagePath: Path) extends ReplayRepository {
   private def parseFlatObject(raw: String): Either[String, Map[String, FlatJsonValue]] = {
     val source = raw.trim
     if (source.isEmpty || source.head != '{') {
-      return Left("malformed object")
+      Left("malformed object")
+    } else {
+      val index = skipWhitespace(source, 1)
+      if (index < source.length && source.charAt(index) == '}') {
+        finishFlatObject(source, Map.empty, index + 1)
+      } else {
+        parseFlatObjectFields(source, index, Map.empty)
+      }
     }
+  }
 
-    val fields = mutable.LinkedHashMap.empty[String, FlatJsonValue]
-    var index = skipWhitespace(source, 1)
-
-    if (index < source.length && source.charAt(index) == '}') {
-      index += 1
-      index = skipWhitespace(source, index)
-      return if (index == source.length) Right(fields.toMap) else Left("trailing content after object")
-    }
-
-    while (index < source.length) {
-      parseJsonString(source, index) match {
-        case Left(error) =>
-          return Left(error)
-        case Right((key, nextIndex)) =>
-          index = skipWhitespace(source, nextIndex)
-          if (index >= source.length || source.charAt(index) != ':') {
-            return Left("malformed object field separator")
-          }
-
-          index = skipWhitespace(source, index + 1)
-          parseFlatValue(source, index) match {
-            case Left(error) =>
-              return Left(error)
-            case Right((value, nextValueIndex)) =>
-              fields.update(key, value)
-              index = skipWhitespace(source, nextValueIndex)
-              if (index >= source.length) {
-                return Left("unterminated object")
-              }
-
-              source.charAt(index) match {
+  private def parseFlatObjectFields(
+    source: String,
+    index: Int,
+    fields: Map[String, FlatJsonValue]
+  ): Either[String, Map[String, FlatJsonValue]] =
+    if (index >= source.length) {
+      Left("unterminated object")
+    } else {
+      parseJsonString(source, index).flatMap { case (key, nextIndex) =>
+        val separatorIndex = skipWhitespace(source, nextIndex)
+        if (separatorIndex >= source.length || source.charAt(separatorIndex) != ':') {
+          Left("malformed object field separator")
+        } else {
+          val valueIndex = skipWhitespace(source, separatorIndex + 1)
+          parseFlatValue(source, valueIndex).flatMap { case (value, nextValueIndex) =>
+            val delimiterIndex = skipWhitespace(source, nextValueIndex)
+            if (delimiterIndex >= source.length) {
+              Left("unterminated object")
+            } else {
+              source.charAt(delimiterIndex) match {
                 case ',' =>
-                  index = skipWhitespace(source, index + 1)
+                  parseFlatObjectFields(source, skipWhitespace(source, delimiterIndex + 1), fields.updated(key, value))
                 case '}' =>
-                  index += 1
-                  index = skipWhitespace(source, index)
-                  return if (index == source.length) Right(fields.toMap) else Left("trailing content after object")
+                  finishFlatObject(source, fields.updated(key, value), delimiterIndex + 1)
                 case _ =>
-                  return Left("malformed object delimiter")
+                  Left("malformed object delimiter")
               }
+            }
           }
+        }
       }
     }
 
-    Left("unterminated object")
-  }
+  private def finishFlatObject(
+    source: String,
+    fields: Map[String, FlatJsonValue],
+    index: Int
+  ): Either[String, Map[String, FlatJsonValue]] =
+    if (skipWhitespace(source, index) == source.length) Right(fields) else Left("trailing content after object")
 
   private def parseFlatValue(source: String, start: Int): Either[String, (FlatJsonValue, Int)] = {
     if (start >= source.length) {
@@ -500,57 +506,80 @@ final class FileReplayRepository(storagePath: Path) extends ReplayRepository {
 
   private def parseJsonString(source: String, start: Int): Either[String, (String, Int)] = {
     if (start >= source.length || source.charAt(start) != '"') {
-      return Left("expected json string")
+      Left("expected json string")
+    } else {
+      parseJsonStringChars(source, start + 1, new StringBuilder)
     }
+  }
 
-    val builder = new StringBuilder
-    var index = start + 1
-
-    while (index < source.length) {
+  private def parseJsonStringChars(
+    source: String,
+    index: Int,
+    builder: StringBuilder
+  ): Either[String, (String, Int)] =
+    if (index >= source.length) {
+      Left("unterminated string")
+    } else {
       source.charAt(index) match {
         case '"' =>
-          return Right((builder.result(), index + 1))
+          Right((builder.result(), index + 1))
         case '\\' =>
-          index += 1
-          if (index >= source.length) {
-            return Left("unterminated string escape")
-          }
-
-          source.charAt(index) match {
-            case '"'  => builder += '"'
-            case '\\' => builder += '\\'
-            case '/'  => builder += '/'
-            case 'b'  => builder += '\b'
-            case 'f'  => builder += '\f'
-            case 'n'  => builder += '\n'
-            case 'r'  => builder += '\r'
-            case 't'  => builder += '\t'
-            case 'u' =>
-              if (index + 4 >= source.length) {
-                return Left("invalid unicode escape")
-              }
-
-              val hex = source.substring(index + 1, index + 5)
-              if (!hex.forall(isHexDigit)) {
-                return Left("invalid unicode escape")
-              }
-
-              builder += Integer.parseInt(hex, 16).toChar
-              index += 4
-            case _ =>
-              return Left("invalid string escape")
+          if (index + 1 >= source.length) {
+            Left("unterminated string escape")
+          } else {
+            parseEscapedJsonStringChar(source, index + 1, builder).flatMap { nextIndex =>
+              parseJsonStringChars(source, nextIndex, builder)
+            }
           }
         case value if Character.isISOControl(value) =>
-          return Left("invalid control character in string")
+          Left("invalid control character in string")
         case value =>
           builder += value
+          parseJsonStringChars(source, index + 1, builder)
       }
-
-      index += 1
     }
 
-    Left("unterminated string")
-  }
+  private def parseEscapedJsonStringChar(source: String, index: Int, builder: StringBuilder): Either[String, Int] =
+    source.charAt(index) match {
+      case '"' =>
+        builder += '"'
+        Right(index + 1)
+      case '\\' =>
+        builder += '\\'
+        Right(index + 1)
+      case '/' =>
+        builder += '/'
+        Right(index + 1)
+      case 'b' =>
+        builder += '\b'
+        Right(index + 1)
+      case 'f' =>
+        builder += '\f'
+        Right(index + 1)
+      case 'n' =>
+        builder += '\n'
+        Right(index + 1)
+      case 'r' =>
+        builder += '\r'
+        Right(index + 1)
+      case 't' =>
+        builder += '\t'
+        Right(index + 1)
+      case 'u' =>
+        if (index + 4 >= source.length) {
+          Left("invalid unicode escape")
+        } else {
+          val hex = source.substring(index + 1, index + 5)
+          if (!hex.forall(isHexDigit)) {
+            Left("invalid unicode escape")
+          } else {
+            builder += Integer.parseInt(hex, 16).toChar
+            Right(index + 5)
+          }
+        }
+      case _ =>
+        Left("invalid string escape")
+    }
 
   private def parseLiteral(source: String, start: Int, expected: String): Either[String, Int] = {
     if (source.regionMatches(start, expected, 0, expected.length)) {
@@ -561,49 +590,57 @@ final class FileReplayRepository(storagePath: Path) extends ReplayRepository {
   }
 
   private def parseJsonNumber(source: String, start: Int): Either[String, (String, Int)] = {
-    var index = start
-    if (source.charAt(index) == '-') {
-      index += 1
-      if (index >= source.length) {
-        return Left("invalid number")
-      }
+    val afterSign =
+      if (source.charAt(start) == '-') start + 1 else start
+
+    if (afterSign >= source.length) {
+      Left("invalid number")
+    } else {
+      parseIntegerDigits(source, afterSign)
+        .flatMap(parseJsonFraction(source, _))
+        .flatMap(parseJsonExponent(source, _))
+        .map(nextIndex => source.substring(start, nextIndex) -> nextIndex)
+    }
+  }
+
+  private def parseIntegerDigits(source: String, index: Int): Either[String, Int] =
+    if (source.charAt(index) == '0') {
+      Right(index + 1)
+    } else if (source.charAt(index).isDigit) {
+      Right(readDigits(source, index))
+    } else {
+      Left("invalid number")
     }
 
-    if (source.charAt(index) == '0') {
-      index += 1
-    } else if (source.charAt(index).isDigit) {
-      while (index < source.length && source.charAt(index).isDigit) {
-        index += 1
+  private def parseJsonFraction(source: String, index: Int): Either[String, Int] =
+    if (index < source.length && source.charAt(index) == '.') {
+      val digitStart = index + 1
+      if (digitStart >= source.length || !source.charAt(digitStart).isDigit) {
+        Left("invalid number")
+      } else {
+        Right(readDigits(source, digitStart))
       }
     } else {
-      return Left("invalid number")
+      Right(index)
     }
 
-    if (index < source.length && source.charAt(index) == '.') {
-      index += 1
-      if (index >= source.length || !source.charAt(index).isDigit) {
-        return Left("invalid number")
-      }
-      while (index < source.length && source.charAt(index).isDigit) {
-        index += 1
-      }
-    }
-
+  private def parseJsonExponent(source: String, index: Int): Either[String, Int] =
     if (index < source.length && (source.charAt(index) == 'e' || source.charAt(index) == 'E')) {
-      index += 1
-      if (index < source.length && (source.charAt(index) == '+' || source.charAt(index) == '-')) {
-        index += 1
+      val exponentStart = index + 1
+      val digitStart =
+        if (exponentStart < source.length && (source.charAt(exponentStart) == '+' || source.charAt(exponentStart) == '-')) {
+          exponentStart + 1
+        } else {
+          exponentStart
+        }
+      if (digitStart >= source.length || !source.charAt(digitStart).isDigit) {
+        Left("invalid number")
+      } else {
+        Right(readDigits(source, digitStart))
       }
-      if (index >= source.length || !source.charAt(index).isDigit) {
-        return Left("invalid number")
-      }
-      while (index < source.length && source.charAt(index).isDigit) {
-        index += 1
-      }
+    } else {
+      Right(index)
     }
-
-    Right((source.substring(start, index), index))
-  }
 
   private def previewStringField(raw: String, field: String): Option[String] = {
     val fieldToken = jsonString(field)
@@ -670,39 +707,48 @@ final class FileReplayRepository(storagePath: Path) extends ReplayRepository {
     }
 
   private def skipWhitespace(raw: String, start: Int): Int = {
-    var index = start
-    while (index < raw.length && raw.charAt(index).isWhitespace) {
-      index += 1
+    if (start < raw.length && raw.charAt(start).isWhitespace) {
+      skipWhitespace(raw, start + 1)
+    } else {
+      start
     }
-    index
   }
 
-  private def findNextArraySeparator(raw: String, start: Int): Int = {
-    var index = start
-    var inString = false
-    var escaped = false
+  @tailrec
+  private def readDigits(raw: String, start: Int): Int =
+    if (start < raw.length && raw.charAt(start).isDigit) {
+      readDigits(raw, start + 1)
+    } else {
+      start
+    }
 
-    while (index < raw.length) {
+  private def findNextArraySeparator(raw: String, start: Int): Int =
+    scanNextArraySeparator(raw, start, inString = false, escaped = false)
+
+  @tailrec
+  private def scanNextArraySeparator(raw: String, index: Int, inString: Boolean, escaped: Boolean): Int =
+    if (index >= raw.length) {
+      index
+    } else {
       val ch = raw.charAt(index)
       if (inString) {
         if (escaped) {
-          escaped = false
+          scanNextArraySeparator(raw, index + 1, inString, escaped = false)
         } else if (ch == '\\') {
-          escaped = true
+          scanNextArraySeparator(raw, index + 1, inString, escaped = true)
         } else if (ch == '"') {
-          inString = false
+          scanNextArraySeparator(raw, index + 1, inString = false, escaped = false)
+        } else {
+          scanNextArraySeparator(raw, index + 1, inString, escaped = false)
         }
       } else if (ch == '"') {
-        inString = true
+        scanNextArraySeparator(raw, index + 1, inString = true, escaped = false)
       } else if (ch == ',') {
-        return index + 1
+        index + 1
+      } else {
+        scanNextArraySeparator(raw, index + 1, inString, escaped = false)
       }
-
-      index += 1
     }
-
-    index
-  }
 
   private def isHexDigit(value: Char): Boolean = {
     (value >= '0' && value <= '9') ||

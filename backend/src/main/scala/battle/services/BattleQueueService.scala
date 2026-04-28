@@ -3,6 +3,7 @@ package slaydemo.backend.battle.services
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 import slaydemo.backend.battle.api.BattleQueueJoinRequest
 import slaydemo.backend.battle.objects.{
@@ -14,6 +15,7 @@ import slaydemo.backend.battle.objects.{
   BattleSessionRosterEntry,
   RealtimeRoomSnapshot
 }
+import slaydemo.backend.battle.rules.BattleRules
 import slaydemo.backend.bots.objects.DemoBotProfiles
 import slaydemo.backend.shared.objects.UserId
 
@@ -27,8 +29,8 @@ trait BattleQueueService {
 
 final class InMemoryBattleQueueService(
   battleService: BattleService,
-  capacity: Int = 6,
-  durationMs: Long = 10_000L,
+  capacity: Int = BattleRules.ArenaPlayerCapacity,
+  durationMs: Long = BattleRules.MatchmakingDurationMs,
   retentionMs: Long = 60_000L
 ) extends BattleQueueService {
   private val heroSlotIds = Vector("player-1", "bot-1", "bot-2", "bot-3", "bot-4", "bot-5")
@@ -52,30 +54,43 @@ final class InMemoryBattleQueueService(
     participants: Vector[QueuedParticipant],
     battleSession: Option[StoredBattleSession]
   )
+  private final case class QueueStore(
+    rooms: Vector[QueueRoom],
+    tickets: Map[String, String]
+  )
 
   private val lock = new AnyRef
-  private var rooms: Vector[QueueRoom] = Vector.empty
-  private var tickets: Map[String, String] = Map.empty
+  private val storeRef = new AtomicReference[QueueStore](QueueStore(Vector.empty, Map.empty))
 
   override def join(request: BattleQueueJoinRequest): Either[String, BattleQueueSnapshot] = {
     val handle = request.handle.trim
+    val sessionToken = normalizeOptional(request.sessionToken)
     if (handle.isEmpty) {
       Left("invalid_handle")
+    } else if (sessionToken.isEmpty) {
+      Left("auth_required")
+    } else if (isVisitorHandle(handle)) {
+      Left("visitor_not_allowed")
     } else {
       lock.synchronized {
         val now = System.currentTimeMillis()
-        cleanup(now)
+        val cleanedStore = cleanup(storeRef.get(), now)
         val handleKey = normalizeHandle(handle)
         val queueRequestId = normalizeOptional(request.queueRequestId)
 
-        findOpenRoomByParticipantIdentity(handleKey, queueRequestId, now) match {
+        findOpenRoomByParticipantIdentity(cleanedStore, handleKey, queueRequestId, now) match {
           case Some((queueRoom, queuedParticipant)) =>
             val nextRoom = touchParticipant(queueRoom, queuedParticipant.ticketId, now)
-            replaceRoom(nextRoom)
-            tickets = tickets + (queuedParticipant.ticketId -> nextRoom.roomId)
+            val nextStore = replaceRoom(cleanedStore, nextRoom).copy(
+              tickets = cleanedStore.tickets + (queuedParticipant.ticketId -> nextRoom.roomId)
+            )
+            storeRef.set(nextStore)
             Right(snapshot(queuedParticipant.ticketId, nextRoom, now))
           case None =>
-            val queueRoom = findOpenRoom(handleKey, queueRequestId, now).getOrElse(createRoom(now))
+            val (queueRoom, roomStore) =
+              findOpenRoom(cleanedStore, handleKey, queueRequestId, now)
+                .map(room => room -> cleanedStore)
+                .getOrElse(createRoom(cleanedStore, now))
             val ticketId = s"ticket-${UUID.randomUUID().toString}"
             val playerId = buildHumanPlayerId(queueRoom.roomId, ticketId)
             val participant = QueuedParticipant(
@@ -92,8 +107,10 @@ final class InMemoryBattleQueueService(
               )
             )
             val nextRoom = queueRoom.copy(participants = queueRoom.participants :+ participant)
-            replaceRoom(nextRoom)
-            tickets = tickets + (ticketId -> nextRoom.roomId)
+            val nextStore = replaceRoom(roomStore, nextRoom).copy(
+              tickets = roomStore.tickets + (ticketId -> nextRoom.roomId)
+            )
+            storeRef.set(nextStore)
             Right(snapshot(ticketId, nextRoom, now))
         }
       }
@@ -107,13 +124,13 @@ final class InMemoryBattleQueueService(
     } else {
       lock.synchronized {
         val now = System.currentTimeMillis()
-        cleanup(now)
-        tickets
+        val cleanedStore = cleanup(storeRef.get(), now)
+        cleanedStore.tickets
           .get(normalizedTicket)
-          .flatMap(roomId => rooms.find(_.roomId == roomId))
+          .flatMap(roomId => cleanedStore.rooms.find(_.roomId == roomId))
           .map { queueRoom =>
             val nextRoom = ensureBattleSession(touchParticipant(queueRoom, normalizedTicket, now), now)
-            replaceRoom(nextRoom)
+            storeRef.set(replaceRoom(cleanedStore, nextRoom))
             snapshot(normalizedTicket, nextRoom, now)
           }
       }
@@ -126,10 +143,10 @@ final class InMemoryBattleQueueService(
       false
     } else {
       lock.synchronized {
-        tickets.get(normalizedTicket) match {
+        val currentStore = storeRef.get()
+        currentStore.tickets.get(normalizedTicket) match {
           case Some(roomId) =>
-            tickets = tickets - normalizedTicket
-            rooms = rooms.flatMap { queueRoom =>
+            val nextRooms = currentStore.rooms.flatMap { queueRoom =>
               if (queueRoom.roomId != roomId) {
                 Some(queueRoom)
               } else {
@@ -137,6 +154,10 @@ final class InMemoryBattleQueueService(
                 if (nextParticipants.isEmpty) None else Some(queueRoom.copy(participants = nextParticipants))
               }
             }
+            storeRef.set(currentStore.copy(
+              rooms = nextRooms,
+              tickets = currentStore.tickets - normalizedTicket
+            ))
             true
           case None =>
             false
@@ -152,10 +173,10 @@ final class InMemoryBattleQueueService(
     } else {
       lock.synchronized {
         val now = System.currentTimeMillis()
-        cleanup(now)
-        rooms.find(_.roomId == normalizedRoomId).map { room =>
+        val cleanedStore = cleanup(storeRef.get(), now)
+        cleanedStore.rooms.find(_.roomId == normalizedRoomId).map { room =>
           val nextRoom = ensureBattleSession(room, now)
-          replaceRoom(nextRoom)
+          storeRef.set(replaceRoom(cleanedStore, nextRoom))
           realtimeSnapshot(nextRoom, now)
         }
       }
@@ -173,32 +194,38 @@ final class InMemoryBattleQueueService(
     } else {
       lock.synchronized {
         val now = System.currentTimeMillis()
-        cleanup(now)
-        rooms.find(_.roomId == normalizedRoomId).map { room =>
+        val cleanedStore = cleanup(storeRef.get(), now)
+        cleanedStore.rooms.find(_.roomId == normalizedRoomId).map { room =>
           val nextRoom = ensureBattleSession(
             touchParticipant(room, normalizeOptional(ticketId), normalizeOptional(handle), now),
             now
           )
-          replaceRoom(nextRoom)
+          storeRef.set(replaceRoom(cleanedStore, nextRoom))
           realtimeSnapshot(nextRoom, now)
         }
       }
     }
   }
 
-  private def findOpenRoom(handleKey: String, queueRequestId: Option[String], now: Long): Option[QueueRoom] =
-    rooms.find { queueRoom =>
+  private def findOpenRoom(
+    store: QueueStore,
+    handleKey: String,
+    queueRequestId: Option[String],
+    now: Long
+  ): Option[QueueRoom] =
+    store.rooms.find { queueRoom =>
       isJoinableRoom(queueRoom, now) &&
         queueRoom.participants.size < capacity &&
         !hasConflictingFreshParticipant(queueRoom, handleKey, queueRequestId)
     }
 
   private def findOpenRoomByParticipantIdentity(
+    store: QueueStore,
     handleKey: String,
     queueRequestId: Option[String],
     now: Long
   ): Option[(QueueRoom, QueuedParticipant)] =
-    rooms
+    store.rooms
       .filter(isJoinableRoom(_, now))
       .flatMap { queueRoom =>
         queueRoom.participants
@@ -229,7 +256,7 @@ final class InMemoryBattleQueueService(
   private def isJoinableRoom(queueRoom: QueueRoom, now: Long): Boolean =
     queueRoom.battleSession.isEmpty && queueRoom.startsAt > now
 
-  private def createRoom(now: Long): QueueRoom = {
+  private def createRoom(store: QueueStore, now: Long): (QueueRoom, QueueStore) = {
     val queueRoom = QueueRoom(
       roomId = s"room-${UUID.randomUUID().toString}",
       createdAt = now,
@@ -237,13 +264,11 @@ final class InMemoryBattleQueueService(
       participants = Vector.empty,
       battleSession = None
     )
-    rooms = rooms :+ queueRoom
-    queueRoom
+    queueRoom -> store.copy(rooms = store.rooms :+ queueRoom)
   }
 
-  private def replaceRoom(nextRoom: QueueRoom): Unit = {
-    rooms = rooms.map(queueRoom => if (queueRoom.roomId == nextRoom.roomId) nextRoom else queueRoom)
-  }
+  private def replaceRoom(store: QueueStore, nextRoom: QueueRoom): QueueStore =
+    store.copy(rooms = store.rooms.map(queueRoom => if (queueRoom.roomId == nextRoom.roomId) nextRoom else queueRoom))
 
   private def touchParticipant(queueRoom: QueueRoom, ticketId: String, now: Long): QueueRoom = {
     val nextParticipants = queueRoom.participants.map { queued =>
@@ -280,13 +305,15 @@ final class InMemoryBattleQueueService(
     }
   }
 
-  private def cleanup(now: Long): Unit = {
-    val retainedRooms = rooms.filter(shouldRetainRoom(_, now))
+  private def cleanup(store: QueueStore, now: Long): QueueStore = {
+    val retainedRooms = store.rooms.filter(shouldRetainRoom(_, now))
     val retainedRoomIds = retainedRooms.map(_.roomId).toSet
-    val expiredRoomIds = rooms.map(_.roomId).toSet -- retainedRoomIds
+    val expiredRoomIds = store.rooms.map(_.roomId).toSet -- retainedRoomIds
     expiredRoomIds.foreach(battleService.releaseRoom)
-    rooms = retainedRooms
-    tickets = tickets.filter { case (_, roomId) => retainedRoomIds.contains(roomId) }
+    val retainedTickets = store.tickets.filter { case (_, roomId) => retainedRoomIds.contains(roomId) }
+    val nextStore = QueueStore(retainedRooms, retainedTickets)
+    storeRef.set(nextStore)
+    nextStore
   }
 
   private def shouldRetainRoom(queueRoom: QueueRoom, now: Long): Boolean =
@@ -472,4 +499,7 @@ final class InMemoryBattleQueueService(
 
   private def normalizeHandle(value: String): String =
     value.trim.toLowerCase(Locale.ROOT)
+
+  private def isVisitorHandle(value: String): Boolean =
+    BattleRules.isVisitorHandle(value)
 }

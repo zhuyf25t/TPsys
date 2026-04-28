@@ -71,7 +71,7 @@ export function createHudState(input: HudPresenterInput): HudState {
       maxHp: playerHero.maxHp,
       stamina: playerHero.stamina,
       maxStamina: playerHero.maxStamina,
-      currentWeaponName: formatAuthoritativeWeaponName(playerHero),
+      currentWeaponName: formatAuthoritativeWeaponName(playerHero, currentWeapon),
       currentWeaponAmmo: formatAuthoritativeWeaponAmmo(currentWeapon),
       currentWeaponState: formatAuthoritativeWeaponState(playerHero, currentWeapon),
       pickupHint: formatAuthoritativePickupHint(
@@ -81,7 +81,7 @@ export function createHudState(input: HudPresenterInput): HudState {
         nearbyWeaponPickup,
         nearbyItemPickup
       ),
-      weaponEntries: buildAuthoritativeWeaponEntries(currentWeapon),
+      weaponEntries: buildAuthoritativeWeaponEntries(playerHero),
       skillEntries: buildAuthoritativeSkillEntries(playerHero),
       statusEntries: buildStatusEntries(playerHero, currentWeapon, weaponSwitchRemainingMs, sharedAuthoritativeHud, nearbyWeaponPickup, nearbyItemPickup),
       leaderboard: buildLeaderboard(snapshot.heroes, playerHero),
@@ -160,14 +160,13 @@ function buildStatusEntries(
   return entries.slice(0, 4);
 }
 
-function buildAuthoritativeWeaponEntries(currentWeapon: WeaponState): HudWeaponEntry[] {
-  return [
-    {
-      label: `> 服务器手枪 | ${formatAuthoritativeWeaponAmmo(currentWeapon)} | ${formatAuthoritativeWeaponStateText(currentWeapon)}`,
-      current: true,
-      warning: currentWeapon.ammoInMagazine <= 0 && (currentWeapon.reserveAmmo ?? 0) <= 0
-    }
-  ];
+function buildAuthoritativeWeaponEntries(playerHero: Hero): HudWeaponEntry[] {
+  return playerHero.weapons.map((weapon, index) => ({
+    label: `${index === playerHero.currentWeaponIndex ? ">" : " "} 服务器${getWeaponDisplayLabel(weapon.weaponKind)} | ${formatAuthoritativeWeaponAmmo(weapon)} | ${formatAuthoritativeWeaponStateText(weapon)}`,
+    current: index === playerHero.currentWeaponIndex,
+    warning: isWeaponWarning(weapon),
+    tone: getHudWeaponTone(weapon.weaponKind)
+  }));
 }
 
 function buildAuthoritativeSkillEntries(playerHero: Hero): HudSkillEntry[] {
@@ -208,9 +207,9 @@ function formatAuthoritativePickupHint(
   nearbyItemPickup: ItemPickup | null
 ): string {
   const weaponPickup =
-    nearbyWeaponPickup ?? findNearbyAuthoritativeWeaponCache(playerHero.position, weaponPickups, WEAPON_PICKUP_RADIUS);
+    nearbyWeaponPickup ?? findNearbyAuthoritativeWeaponPickup(playerHero.position, weaponPickups, WEAPON_PICKUP_RADIUS);
   if (weaponPickup) {
-    return "附近有服务器手枪补给；接触后自动补弹；当前不可切枪";
+    return `附近有服务器${getWeaponDisplayLabel(weaponPickup.weaponKind)}；接触后加入武器栏，滚轮切换`;
   }
 
   const pickup =
@@ -219,10 +218,10 @@ function formatAuthoritativePickupHint(
     return "附近有服务器医疗包；接触后自动拾取";
   }
 
-  return "服务器医疗包和手枪补给已显示；当前固定使用手枪；不可切枪";
+  return "服务器医疗包和武器补给已显示；接触武器后会切换当前装备";
 }
 
-function findNearbyAuthoritativeWeaponCache(
+function findNearbyAuthoritativeWeaponPickup(
   position: Hero["position"],
   pickups: readonly WeaponPickup[],
   radius: number
@@ -231,7 +230,7 @@ function findNearbyAuthoritativeWeaponCache(
   let closestDistance = radius;
 
   pickups.forEach((pickup) => {
-    if (!pickup.available || pickup.weaponKind !== "Pistol") {
+    if (!pickup.available) {
       return;
     }
 
@@ -268,11 +267,15 @@ function findNearbyAuthoritativeMedkit(
   return closest;
 }
 
-function formatAuthoritativeWeaponName(playerHero: Hero): string {
-  return playerHero.alive ? "服务器手枪" : "已淘汰";
+function formatAuthoritativeWeaponName(playerHero: Hero, currentWeapon: WeaponState): string {
+  return playerHero.alive ? `服务器${getWeaponDisplayLabel(currentWeapon.weaponKind)}` : "已淘汰";
 }
 
 function formatAuthoritativeWeaponAmmo(currentWeapon: WeaponState): string {
+  if (currentWeapon.weaponKind === "Gatling") {
+    return `热量 ${Math.round(currentWeapon.heat)} / 100`;
+  }
+
   return `${currentWeapon.ammoInMagazine} / ${currentWeapon.reserveAmmo ?? 0}`;
 }
 
@@ -285,11 +288,27 @@ function formatAuthoritativeWeaponState(playerHero: Hero, currentWeapon: WeaponS
 }
 
 function formatAuthoritativeWeaponStateText(currentWeapon: WeaponState): string {
+  if (currentWeapon.weaponKind === "Gatling") {
+    if (currentWeapon.overheated) {
+      return "过热";
+    }
+
+    if (currentWeapon.overheatRemaining > 0) {
+      return `散热 ${(Math.max(0, currentWeapon.overheatRemaining) / 1000).toFixed(1)} 秒`;
+    }
+  }
+
   if (currentWeapon.reloadRemaining > 0) {
     return `换弹 ${(Math.max(0, currentWeapon.reloadRemaining) / 1000).toFixed(1)} 秒`;
   }
 
   return `冷却 ${(Math.max(0, currentWeapon.cooldownRemaining) / 1000).toFixed(1)} 秒`;
+}
+
+function isWeaponWarning(weapon: WeaponState): boolean {
+  return weapon.weaponKind === "Gatling"
+    ? weapon.overheated || weapon.overheatRemaining > 0
+    : weapon.ammoInMagazine <= 0 && (weapon.reserveAmmo ?? 0) <= 0;
 }
 
 function getSkillDisplayLabel(kind: SkillKind): string {
@@ -315,8 +334,23 @@ function buildWeaponEntries(playerHero: Hero): HudWeaponEntry[] {
     warning:
       weapon.weaponKind === "Gatling"
         ? weapon.overheated
-        : weapon.ammoInMagazine <= 0 && (weapon.reserveAmmo ?? 0) <= 0
+        : weapon.ammoInMagazine <= 0 && (weapon.reserveAmmo ?? 0) <= 0,
+    tone: getHudWeaponTone(weapon.weaponKind)
   }));
+}
+
+function getHudWeaponTone(weaponKind: WeaponState["weaponKind"]): HudWeaponEntry["tone"] {
+  switch (weaponKind) {
+    case "RocketLauncher":
+      return "rocket";
+    case "Gatling":
+      return "gatling";
+    case "Shotgun":
+      return "shotgun";
+    case "Pistol":
+    default:
+      return "pistol";
+  }
 }
 
 function buildSkillEntries(playerHero: Hero, skillBindings: HudSkillBinding[]): HudSkillEntry[] {
@@ -415,7 +449,7 @@ function formatCurrentWeaponState(playerHero: Hero, currentWeapon: WeaponState, 
 
 function formatPickupHint(nearbyWeaponPickup: WeaponPickup | null, nearbyItemPickup: ItemPickup | null): string {
   if (nearbyWeaponPickup) {
-    return `附近武器：${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)} · 自动拾取`;
+    return `附近武器：${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)} · 加入武器栏`;
   }
 
   if (nearbyItemPickup) {

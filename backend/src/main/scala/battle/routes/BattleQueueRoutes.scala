@@ -15,8 +15,10 @@ import slaydemo.backend.battle.objects.{
   RealtimeRoomSnapshot
 }
 import slaydemo.backend.battle.services.BattleQueueService
+import slaydemo.backend.battle.rules.BattleRules
+import slaydemo.backend.identity.services.IdentityService
 
-final class BattleQueueRoutes(service: BattleQueueService) {
+final class BattleQueueRoutes(service: BattleQueueService, identityService: IdentityService) {
   def handle(exchange: HttpExchange): Unit = {
     addCors(exchange)
     try {
@@ -37,21 +39,33 @@ final class BattleQueueRoutes(service: BattleQueueService) {
         case "POST" if path == "/battle/queue/join" =>
           parseBody(exchange.getRequestBody) match {
             case Right(fields) =>
-              service.join(
-                BattleQueueJoinRequest(
-                  handle = fields.getOrElse("handle", ""),
-                  queueRequestId = fields.get("queueRequestId"),
-                  rating = fields.get("rating").flatMap(_.toIntOption),
-                  avatar = fields.get("avatar"),
-                  skin = fields.get("skin")
-                )
-              ) match {
-                case Right(snapshot) =>
-                  sendJson(exchange, 200, renderSnapshot(snapshot))
-                case Left("invalid_handle") =>
-                  sendJson(exchange, 400, """{"error":"invalid_handle"}""")
-                case Left(other) =>
-                  sendJson(exchange, 400, s"""{"error":"${escape(other)}"}""")
+              val request = BattleQueueJoinRequest(
+                handle = fields.getOrElse("handle", ""),
+                sessionToken = fields.get("sessionToken"),
+                queueRequestId = fields.get("queueRequestId"),
+                rating = fields.get("rating").flatMap(_.toIntOption),
+                avatar = fields.get("avatar"),
+                skin = fields.get("skin")
+              )
+
+              validateBattleIdentity(request) match {
+                case Left("visitor_not_allowed") =>
+                  sendJson(exchange, 403, """{"error":"visitor_not_allowed"}""")
+                case Left(error) =>
+                  sendJson(exchange, 401, s"""{"error":"${escape(error)}"}""")
+                case Right(_) =>
+                  service.join(request) match {
+                    case Right(snapshot) =>
+                      sendJson(exchange, 200, renderSnapshot(snapshot))
+                    case Left("invalid_handle") =>
+                      sendJson(exchange, 400, """{"error":"invalid_handle"}""")
+                    case Left("auth_required") =>
+                      sendJson(exchange, 401, """{"error":"auth_required"}""")
+                    case Left("visitor_not_allowed") =>
+                      sendJson(exchange, 403, """{"error":"visitor_not_allowed"}""")
+                    case Left(other) =>
+                      sendJson(exchange, 400, s"""{"error":"${escape(other)}"}""")
+                  }
               }
             case Left(error) =>
               sendJson(exchange, 400, s"""{"error":"${escape(error)}"}""")
@@ -81,6 +95,28 @@ final class BattleQueueRoutes(service: BattleQueueService) {
       exchange.close()
     }
   }
+
+  private def validateBattleIdentity(request: BattleQueueJoinRequest): Either[String, Unit] = {
+    val handle = request.handle.trim
+    val sessionToken = request.sessionToken.map(_.trim).filter(_.nonEmpty)
+    if (handle.isEmpty || sessionToken.isEmpty) {
+      Left("auth_required")
+    } else if (isVisitorHandle(handle)) {
+      Left("visitor_not_allowed")
+    } else {
+      identityService.loadAccountBySessionToken(sessionToken.get) match {
+        case Some(account) if !isVisitorHandle(account.handle) && account.handle.trim.equalsIgnoreCase(handle) =>
+          Right(())
+        case Some(account) if isVisitorHandle(account.handle) =>
+          Left("visitor_not_allowed")
+        case _ =>
+          Left("auth_required")
+      }
+    }
+  }
+
+  private def isVisitorHandle(handle: String): Boolean =
+    BattleRules.isVisitorHandle(handle)
 
   private def handleRoomSnapshot(exchange: HttpExchange, pathRoomId: Option[String]): Unit = {
     val query = parseQuery(exchange.getRequestURI.getRawQuery)

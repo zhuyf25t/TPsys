@@ -4,6 +4,12 @@ import slaydemo.backend.battle.objects.BattleVector2
 import slaydemo.backend.battle.rules.BattleRules
 
 object BattleContentCatalog {
+  type WeaponPickupDefinition = BattleMapCatalog.WeaponPickupDefinition
+  val WeaponPickupDefinition: BattleMapCatalog.WeaponPickupDefinition.type = BattleMapCatalog.WeaponPickupDefinition
+
+  type ItemPickupDefinition = BattleMapCatalog.ItemPickupDefinition
+  val ItemPickupDefinition: BattleMapCatalog.ItemPickupDefinition.type = BattleMapCatalog.ItemPickupDefinition
+
   final case class WeaponDefinition(
     weaponKind: String,
     projectileKind: String,
@@ -27,28 +33,9 @@ object BattleContentCatalog {
     overheatLockMs: Long = 0L
   )
 
-  final case class WeaponPickupDefinition(
-    pickupId: String,
-    weaponKind: String,
-    position: BattleVector2
-  )
-
-  final case class ItemPickupDefinition(
-    pickupId: String,
-    kind: String,
-    position: BattleVector2
-  )
-
   val DefaultBattleDurationMs: Long = BattleRules.BattleDurationMs
 
-  val spawnPoints: Vector[BattleVector2] = Vector(
-    BattleVector2(704.0, 800.0),
-    BattleVector2(512.0, 544.0),
-    BattleVector2(512.0, 1056.0),
-    BattleVector2(1600.0, 320.0),
-    BattleVector2(1600.0, 1280.0),
-    BattleVector2(2048.0, 800.0)
-  )
+  val spawnPoints: Vector[BattleVector2] = BattleMapCatalog.defaultMap.heroSpawnPoints
 
   val playerMoveSpeedPerSecond: Double = 255.0
   val playerSprintMultiplier: Double = 1.75
@@ -143,22 +130,12 @@ object BattleContentCatalog {
   val medkitPickupRadius: Double = 40.0
   val medkitHealAmount: Int = 25
   val medkitRespawnMs: Long = 10000L
-  val medkitPickupDefinitions: Vector[ItemPickupDefinition] = Vector(
-    ItemPickupDefinition("pickup-medkit-1", medkitPickupKind, BattleVector2(960.0, 608.0)),
-    ItemPickupDefinition("pickup-medkit-2", medkitPickupKind, BattleVector2(1600.0, 992.0))
-  )
+  val medkitPickupDefinitions: Vector[ItemPickupDefinition] = BattleMapCatalog.defaultMap.itemPickupDefinitions
 
   val weaponPickupKind: String = "Weapon"
   val weaponPickupRadius: Double = 40.0
   val weaponPickupRespawnMs: Long = 10000L
-  val weaponPickupDefinitions: Vector[WeaponPickupDefinition] = Vector(
-    WeaponPickupDefinition("pickup-rocket-1", rocketLauncherWeaponKind, BattleVector2(1280.0, 256.0)),
-    WeaponPickupDefinition("pickup-gatling-1", gatlingWeaponKind, BattleVector2(704.0, 800.0)),
-    WeaponPickupDefinition("pickup-shotgun-1", shotgunWeaponKind, BattleVector2(1856.0, 800.0)),
-    WeaponPickupDefinition("pickup-rocket-2", rocketLauncherWeaponKind, BattleVector2(1280.0, 1344.0)),
-    WeaponPickupDefinition("pickup-gatling-2", gatlingWeaponKind, BattleVector2(448.0, 800.0)),
-    WeaponPickupDefinition("pickup-shotgun-2", shotgunWeaponKind, BattleVector2(2112.0, 800.0))
-  )
+  val weaponPickupDefinitions: Vector[WeaponPickupDefinition] = BattleMapCatalog.defaultMap.weaponPickupDefinitions
 
   val dashSkillKind: String = "Dash"
   val dashDistance: Double = 180.0

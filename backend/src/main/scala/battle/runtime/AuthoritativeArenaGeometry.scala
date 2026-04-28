@@ -23,7 +23,7 @@ object AuthoritativeArenaGeometry {
     hitBlocker: Boolean
   )
 
-  val WorldSize: BattleVector2 = BattleVector2(2560.0, 1600.0)
+  val WorldSize: BattleVector2 = BattleMapCatalog.defaultMap.worldSize
   val HeroRadius: Double = 18.0
   val ProjectileRadius: Double = 8.0
   private val FloorTileSize: Int = 64
@@ -47,51 +47,14 @@ object AuthoritativeArenaGeometry {
   }
 
   private val InnerObstacles: Vector[AuthoritativeArenaObstacle] =
-    Vector(
-      AuthoritativeArenaObstacle("cover-nw-1", "wall", BattleVector2(416.0, 416.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-nw-2", "wall", BattleVector2(480.0, 416.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-nw-3", "wall", BattleVector2(416.0, 480.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-ne-1", "wall", BattleVector2(2144.0, 416.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-ne-2", "wall", BattleVector2(2080.0, 416.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-ne-3", "wall", BattleVector2(2144.0, 480.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-sw-1", "wall", BattleVector2(416.0, 1184.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-sw-2", "wall", BattleVector2(480.0, 1184.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-sw-3", "wall", BattleVector2(416.0, 1120.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-se-1", "wall", BattleVector2(2144.0, 1184.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-se-2", "wall", BattleVector2(2080.0, 1184.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("cover-se-3", "wall", BattleVector2(2144.0, 1120.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-top-1", "wall", BattleVector2(1184.0, 448.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-top-2", "wall", BattleVector2(1248.0, 448.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-top-3", "wall", BattleVector2(1312.0, 448.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-top-4", "wall", BattleVector2(1376.0, 448.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-bot-1", "wall", BattleVector2(1184.0, 1152.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-bot-2", "wall", BattleVector2(1248.0, 1152.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-bot-3", "wall", BattleVector2(1312.0, 1152.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("center-bot-4", "wall", BattleVector2(1376.0, 1152.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-left-1", "wall", BattleVector2(928.0, 640.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-left-2", "wall", BattleVector2(928.0, 704.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-left-3", "wall", BattleVector2(928.0, 896.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-left-4", "wall", BattleVector2(928.0, 960.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-right-1", "wall", BattleVector2(1632.0, 640.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-right-2", "wall", BattleVector2(1632.0, 704.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-right-3", "wall", BattleVector2(1632.0, 896.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-right-4", "wall", BattleVector2(1632.0, 960.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("crate-mid-top-left", "crate", BattleVector2(1184.0, 736.0), BattleVector2(48.0, 48.0)),
-      AuthoritativeArenaObstacle("crate-mid-top-right", "crate", BattleVector2(1376.0, 736.0), BattleVector2(48.0, 48.0)),
-      AuthoritativeArenaObstacle("crate-mid-bottom-left", "crate", BattleVector2(1184.0, 864.0), BattleVector2(48.0, 48.0)),
-      AuthoritativeArenaObstacle("crate-mid-bottom-right", "crate", BattleVector2(1376.0, 864.0), BattleVector2(48.0, 48.0)),
-      AuthoritativeArenaObstacle("mid-west-1", "wall", BattleVector2(640.0, 704.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("mid-west-2", "wall", BattleVector2(640.0, 896.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("mid-east-1", "wall", BattleVector2(1920.0, 704.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("mid-east-2", "wall", BattleVector2(1920.0, 896.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-top-left", "wall", BattleVector2(1056.0, 608.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-top-right", "wall", BattleVector2(1504.0, 608.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-bottom-left", "wall", BattleVector2(1056.0, 992.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("lane-bottom-right", "wall", BattleVector2(1504.0, 992.0), BattleVector2(64.0, 64.0)),
-      AuthoritativeArenaObstacle("crate-west-top", "crate", BattleVector2(768.0, 640.0), BattleVector2(48.0, 48.0)),
-      AuthoritativeArenaObstacle("crate-west-bottom", "crate", BattleVector2(768.0, 960.0), BattleVector2(48.0, 48.0)),
-      AuthoritativeArenaObstacle("crate-east-top", "crate", BattleVector2(1792.0, 640.0), BattleVector2(48.0, 48.0)),
-      AuthoritativeArenaObstacle("crate-east-bottom", "crate", BattleVector2(1792.0, 960.0), BattleVector2(48.0, 48.0))
+    BattleMapCatalog.defaultMap.innerObstacles.map(toAuthoritativeObstacle)
+
+  private def toAuthoritativeObstacle(definition: BattleMapCatalog.ArenaObstacleDefinition): AuthoritativeArenaObstacle =
+    AuthoritativeArenaObstacle(
+      obstacleId = definition.obstacleId,
+      kind = definition.kind,
+      position = definition.position,
+      size = definition.size
     )
 
   val Obstacles: Vector[AuthoritativeArenaObstacle] = BorderObstacles ++ InnerObstacles

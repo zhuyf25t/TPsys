@@ -95,7 +95,7 @@ function resolveSkinVisual(skin: string | undefined): HeroVisualDefinition | nul
 
 export function createInitialWeaponPickups(): WeaponPickup[] {
   return WEAPON_PICKUP_DEFINITIONS.map((definition) => ({
-    weaponId: definition.weaponId,
+    weaponId: definition.pickupId,
     weaponKind: definition.weaponKind,
     position: { x: definition.position.x, y: definition.position.y },
     available: true,

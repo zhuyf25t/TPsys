@@ -221,20 +221,43 @@
 - 未启动真实后端与浏览器双端手感 smoke；本轮验证限于类型构建、后端编译和代码审计。
 - 后端 authoritative 切枪仍是立即生效语义，本地保留切枪过渡表现；当前与既有滚轮切枪语义一致，未在本轮引入后端切枪延迟。
 
+### 地图扩展 catalog 第一轮
+
+已完成本轮第十二刀：
+
+- 后端新增 `BattleMapCatalog`，默认地图集中声明 `mapId`、`displayName`、`themeId`、`worldSize`、`heroSpawnPoints`、`innerObstacles`、`weaponPickupDefinitions`、`itemPickupDefinitions`。
+- `AuthoritativeArenaGeometry` 的 `WorldSize` 和内部障碍物来源改为 `BattleMapCatalog.defaultMap`，geometry 只保留边界障碍生成、碰撞和运动解析职责。
+- `BattleContentCatalog.spawnPoints`、`weaponPickupDefinitions`、`medkitPickupDefinitions` 保持原公开名称，但数据源改为默认地图 catalog。
+- 前端 `WeaponPickupDefinition` 字段从 `weaponId` 改为 `pickupId`，与后端 map schema 同名；运行时 `WeaponPickup.weaponId` 仍保留，避免影响战斗 runtime、回放和 HUD 现有语义。
+- 默认地图显示名保持中文：`默认工业竞技场`。
+
+验证：
+
+- `npm run build` 通过。
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 前后端地图 catalog 仍是双语言双文件维护，只是字段形状和后端内部重复硬编码已经收敛；后续若要完全单源，需要引入共享 JSON/生成器或契约校验脚本。
+- 地图视觉层、碰撞层、边界生成策略、tile/asset layer 还没有声明式化。
+
 ## 当前正在做
 
 当前主线：扩展性第二轮。
 
-目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
+目标不是做大迁移，而是先把可扩展内容的声明式边界收紧：
 
-- 确认 replay/result/mail/rating 在服务重启、重复 projection、同账号多标签页下不会重复刷榜、重复刷信或写错账号。
-- 优先做服务层幂等证明和最小修复；只有必要时才做一次性数据清理脚本。
+- 地图：已完成后端默认 map catalog 和前后端 pickup id 字段同名第一轮。
+- 武器：下一步优先对齐前后端 weapon definition 字段名，例如 `speed` vs `projectileSpeedPerSecond`、`damage` vs `projectileDamage`、`radius` vs `projectileRadius`，并处理 `recoilStrength` 双源问题。
+- 技能：后续对齐 `activationKind/effectType/activeMs` 等前后端语义，避免技能继续靠 hardcoded 分支散落。
+- Bot：在地图、武器、技能 profile 更稳定之后，再定义社区 bot manifest/discovery/test harness。
 
 ## 下一步计划
 
 1. 扩展性第二轮。
-   预计：1-2 天。
-   目标：把后端地图/武器/技能内容也进一步 profile 化，形成更清楚的前后端同名契约，为之后地图、技能、bot 社区做基础。
+   预计：0.5-1.5 天。
+   目标：继续小票据推进内容契约，对齐武器字段名和技能 profile，尽量不改玩法数值。
 
 2. 主界面视觉重构第一轮。
    预计：1-2 天。

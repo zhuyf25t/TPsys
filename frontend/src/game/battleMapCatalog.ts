@@ -14,7 +14,7 @@ export interface HeroDefinition {
 }
 
 export interface WeaponPickupDefinition {
-  weaponId: string;
+  pickupId: string;
   weaponKind: WeaponPickup["weaponKind"];
   position: Vec2;
 }
@@ -105,12 +105,12 @@ const INNER_OBSTACLES = [
 ] as const satisfies readonly ArenaObstacle[];
 
 const WEAPON_PICKUP_DEFINITIONS = [
-  { weaponId: "pickup-rocket-1", weaponKind: "RocketLauncher", position: { x: 1280, y: 256 } },
-  { weaponId: "pickup-gatling-1", weaponKind: "Gatling", position: { x: 704, y: 800 } },
-  { weaponId: "pickup-shotgun-1", weaponKind: "Shotgun", position: { x: 1856, y: 800 } },
-  { weaponId: "pickup-rocket-2", weaponKind: "RocketLauncher", position: { x: 1280, y: 1344 } },
-  { weaponId: "pickup-gatling-2", weaponKind: "Gatling", position: { x: 448, y: 800 } },
-  { weaponId: "pickup-shotgun-2", weaponKind: "Shotgun", position: { x: 2112, y: 800 } }
+  { pickupId: "pickup-rocket-1", weaponKind: "RocketLauncher", position: { x: 1280, y: 256 } },
+  { pickupId: "pickup-gatling-1", weaponKind: "Gatling", position: { x: 704, y: 800 } },
+  { pickupId: "pickup-shotgun-1", weaponKind: "Shotgun", position: { x: 1856, y: 800 } },
+  { pickupId: "pickup-rocket-2", weaponKind: "RocketLauncher", position: { x: 1280, y: 1344 } },
+  { pickupId: "pickup-gatling-2", weaponKind: "Gatling", position: { x: 448, y: 800 } },
+  { pickupId: "pickup-shotgun-2", weaponKind: "Shotgun", position: { x: 2112, y: 800 } }
 ] as const satisfies ReadonlyArray<Readonly<WeaponPickupDefinition>>;
 
 const ITEM_PICKUP_DEFINITIONS = [

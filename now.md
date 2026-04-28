@@ -474,9 +474,30 @@
 - 每个 obstacle 增加了少量视觉 primitive，当前 smoke 未显示问题，但低端设备上仍需后续真实试玩观察。
 - `arenaBuilder.ts` 中 floor/boundary/decorations 仍可进一步拆成 presenter/helper，但本轮先只处理 obstacle skin。
 
+### BattlePage arena background/boundary presenter 抽离
+
+已完成本轮第二十四刀：
+
+- 新增 `frontend/src/features/battle/renderer/arena/arenaBackgroundPresenter.ts`。
+- 从 `arenaBuilder.ts` 抽出 arena background、metal floor、panel seams、out-of-bounds shadow、boundary readability layer 和边界提示线。
+- `arenaBuilder.ts` 现在委托 `createArenaPresentationLayers(scene)` 创建纯表现层，自己继续保留 pickup/decorations、physics border walls、inner structures、`obstacleBounds` 和 occludables 注册。
+- 本轮没有改 `createBorderWalls`、`createInnerStructures`、`createStaticObstacle`、`setDisplaySize`、`wallBodies.add`、`obstacleBounds.push`、`registerOccludable`、map catalog、backend、`GameScene.ts`、hitbox、碰撞、出生点或移动边界。
+- `arenaBuilder.ts` 已降到约 `220` LOC，后续可以继续拆 pickup pads / decorations，让 builder 更接近 world construction host。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD obstacle count 仍为 `170`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 本轮是表现层搬移，headless smoke 能证明加载、同局、HUD 和基础 VFX 指标稳定，但还不是 headful 像素级审美验收。
+- `arenaBuilder.ts` 中 pickup pads 和 decorative occludables 仍在 builder 内，下一刀适合继续拆到 decoration/pickup-pad presenter。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin 已接入并通过 headless smoke。下一步进入 arena floor/boundary/decorations 边界整理或主界面第二轮。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter 已接入并通过 headless smoke。下一步继续拆 `arenaBuilder.ts` 中剩余的 pickup pads / decorative occludables，完成后再进入主界面第二轮或 bot 扩展第二轮。
 
 扩展性基础第一轮已经覆盖：
 
@@ -487,15 +508,15 @@
 
 下一阶段候选：
 
-- BattlePage arena floor/boundary/decorations 边界整理：继续把 floor、boundary、decorations 从 `arenaBuilder.ts` 拆成 presenter/helper，避免 arena builder 继续膨胀。
+- BattlePage arena decorations/pickup pads 边界整理：继续把 pickup pads、decorations 和 occludable decorative layer 从 `arenaBuilder.ts` 拆成 presenter/helper，避免 arena builder 继续膨胀。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage arena floor/boundary/decorations 边界整理。
-   预计：0.5-1.5 天。
-   目标：继续拆清 arena floor、boundary、decorations 的表现层边界，不改变 gameplay 语义。
+1. BattlePage arena decorations/pickup pads 边界整理。
+   预计：1-3 小时。
+   目标：继续拆清 pickup pads、decorations、decorative occludables 的表现层边界，不改变 gameplay 语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

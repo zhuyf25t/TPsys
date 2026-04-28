@@ -72,9 +72,24 @@
 - `npm run backend:compile` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### Mail 服务层 Visitor-like owner 边界
+
+已完成本轮第三刀：
+
+- `DefaultMailService.list` 对空 owner 或 visitor-like owner 返回空列表，不读取 repository。
+- `DefaultMailService.markRead` 对空 owner 或 visitor-like owner 返回 `false`，不触发 repository。
+- `DefaultMailService.create` 对空 owner 或 visitor-like owner 不保存，仅返回原 record，保持调用方签名不变。
+- 这会隐藏历史本地 `backend/data/mails.json` 中的 Visitor 邮件，也阻止未来继续写入 visitor-like 邮件。
+- 文档已补充到 `docs/BACKEND_VISITOR_HANDLE_GUARDRAILS.md`。
+
+验证：
+
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第三刀。
+当前主线：数据闭环加固第四刀。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 

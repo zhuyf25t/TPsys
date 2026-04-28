@@ -15,6 +15,12 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
   loadFromDisk()
 
   override def save(record: BattleResultRecord): BattleResultRecord = lock.synchronized {
+    val logicalKey = recordLogicalKey(record)
+    records.entrySet().asScala.foreach { entry =>
+      if (entry.getKey != record.resultId && recordLogicalKey(entry.getValue) == logicalKey) {
+        records.remove(entry.getKey)
+      }
+    }
     records.put(record.resultId, record)
     persist()
     record
@@ -257,4 +263,7 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
       .replace("\u0000", "\\")
 
   private def normalize(battleId: String): String = battleId.trim.toLowerCase
+
+  private def recordLogicalKey(record: BattleResultRecord): String =
+    s"${normalize(record.battleId.value)}\u0000${record.handle.value.trim.toLowerCase}"
 }

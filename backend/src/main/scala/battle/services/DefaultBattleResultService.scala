@@ -22,10 +22,11 @@ final class DefaultBattleResultService(
     } else if (battleId.isEmpty) {
       Left("invalid_battle_id")
     } else {
+      val existingRecord = repository.listByHandleAndBattleId(handle, battleId, 1).headOption
       val displayName = Option(safeText(request.displayName)).filter(_.nonEmpty).getOrElse(handle)
       val record = BattleResultRecord(
-        battleId = slaydemo.backend.shared.objects.BattleId(battleId),
-        handle = slaydemo.backend.shared.objects.UserId(handle),
+        battleId = slaydemo.backend.shared.objects.BattleId(existingRecord.map(_.battleId.value).getOrElse(battleId)),
+        handle = slaydemo.backend.shared.objects.UserId(existingRecord.map(_.handle.value).getOrElse(handle)),
         displayName = displayName,
         finishedAt = request.finishedAt,
         finishedAtLabel = safeText(request.finishedAtLabel),
@@ -33,9 +34,9 @@ final class DefaultBattleResultService(
         score = request.score,
         placement = request.placement,
         aliveAtEnd = request.aliveAtEnd,
-        ratingBefore = request.ratingBefore,
-        ratingDelta = request.ratingDelta,
-        ratingAfter = request.ratingAfter,
+        ratingBefore = existingRecord.map(_.ratingBefore).getOrElse(request.ratingBefore),
+        ratingDelta = existingRecord.map(_.ratingDelta).getOrElse(request.ratingDelta),
+        ratingAfter = existingRecord.map(_.ratingAfter).getOrElse(request.ratingAfter),
         resultLabel = safeText(request.resultLabel),
         modeLabel = safeText(request.modeLabel),
         mapLabel = safeText(request.mapLabel),

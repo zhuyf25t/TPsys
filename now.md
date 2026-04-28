@@ -146,9 +146,28 @@
 - `npm run backend:compile` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### Battle result/replay/mail 幂等第一轮
+
+已完成本轮第八刀：
+
+- `DefaultBattleResultService.record` 现在会先查同一 `handle + battleId` 的既有 result。
+- 重复 result 提交会保留既有 `ratingBefore/ratingDelta/ratingAfter`，避免 completed-session 恢复、多标签页或重复 projection 把评分三元组再次覆盖成累计后的值。
+- 重复 result 仍允许更新展示字段，例如战报文本、时间、placement、loadout，用于补全更完整的后续战报。
+- `FileBattleResultRepository.save` 会按同一 `battleId + handle` 逻辑键清掉旧重复行，再保存当前 result，避免文件存储中残留同逻辑重复记录。
+- replay 幂等已由 `replayId` 主键/Map key 承担；mail 幂等已由 `mail-battle-${resultId}` 和 `(ownerHandle, id)` 承担。
+
+验证：
+
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- Postgres 正常路径已由 service + `result_id` upsert 覆盖，但数据库层还没有 `lower(battle_id), lower(handle)` 唯一约束；极端并发首写和 battleId 大小写异常仍应通过后续小迁移封死。
+
 ## 当前正在做
 
-当前主线：数据闭环加固第八刀。
+当前主线：数据闭环加固第九刀。
 
 目标不是做大迁移，而是继续收紧真实对局数据的可信边界：
 
@@ -157,9 +176,9 @@
 
 ## 下一步计划
 
-1. Result/replay/rating/mail 幂等审计。
-   预计：2-4 小时。
-   目标：证明或修复重复投影、后端重启、同局多账号结算、同账号多标签页造成的重复写入问题。
+1. Postgres result 逻辑唯一约束评估与最小迁移。
+   预计：1-2 小时。
+   目标：为 `lower(battle_id), lower(handle)` 加数据库级唯一约束或等价防护，封死极端并发首写和大小写异常导致的重复 result 风险。
 
 2. 历史数据清理脚本评估。
    预计：1-2 小时。

@@ -1,12 +1,12 @@
 import type { TeamMode, Vec2, WeaponKind } from "../domain/types";
+import { DEFAULT_BATTLE_MAP, type ArenaObstacle } from "./battleMapCatalog";
+
+export type { ArenaObstacle } from "./battleMapCatalog";
 
 export const GAME_WIDTH = 1280;
 export const GAME_HEIGHT = 720;
 
-export const WORLD_SIZE: Vec2 = {
-  x: 2560,
-  y: 1600
-};
+export const WORLD_SIZE: Vec2 = DEFAULT_BATTLE_MAP.worldSize;
 export const GLOBAL_BACKGROUND_PADDING = 600;
 
 export const TEAM_MODE: TeamMode = "FreeForAll";
@@ -115,59 +115,7 @@ export const HERO_TINTS = {
   "bot-9": 0xffffff
 } as const;
 
-export interface ArenaObstacle {
-  obstacleId: string;
-  kind: "wall" | "crate";
-  position: Vec2;
-  size: Vec2;
-}
-
-export const INNER_OBSTACLES: readonly ArenaObstacle[] = [
-  { obstacleId: "cover-nw-1", kind: "wall", position: { x: 416, y: 416 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-nw-2", kind: "wall", position: { x: 480, y: 416 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-nw-3", kind: "wall", position: { x: 416, y: 480 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-ne-1", kind: "wall", position: { x: 2144, y: 416 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-ne-2", kind: "wall", position: { x: 2080, y: 416 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-ne-3", kind: "wall", position: { x: 2144, y: 480 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-sw-1", kind: "wall", position: { x: 416, y: 1184 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-sw-2", kind: "wall", position: { x: 480, y: 1184 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-sw-3", kind: "wall", position: { x: 416, y: 1120 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-se-1", kind: "wall", position: { x: 2144, y: 1184 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-se-2", kind: "wall", position: { x: 2080, y: 1184 }, size: { x: 64, y: 64 } },
-  { obstacleId: "cover-se-3", kind: "wall", position: { x: 2144, y: 1120 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-top-1", kind: "wall", position: { x: 1184, y: 448 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-top-2", kind: "wall", position: { x: 1248, y: 448 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-top-3", kind: "wall", position: { x: 1312, y: 448 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-top-4", kind: "wall", position: { x: 1376, y: 448 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-bot-1", kind: "wall", position: { x: 1184, y: 1152 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-bot-2", kind: "wall", position: { x: 1248, y: 1152 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-bot-3", kind: "wall", position: { x: 1312, y: 1152 }, size: { x: 64, y: 64 } },
-  { obstacleId: "center-bot-4", kind: "wall", position: { x: 1376, y: 1152 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-left-1", kind: "wall", position: { x: 928, y: 640 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-left-2", kind: "wall", position: { x: 928, y: 704 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-left-3", kind: "wall", position: { x: 928, y: 896 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-left-4", kind: "wall", position: { x: 928, y: 960 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-right-1", kind: "wall", position: { x: 1632, y: 640 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-right-2", kind: "wall", position: { x: 1632, y: 704 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-right-3", kind: "wall", position: { x: 1632, y: 896 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-right-4", kind: "wall", position: { x: 1632, y: 960 }, size: { x: 64, y: 64 } },
-  { obstacleId: "crate-mid-top-left", kind: "crate", position: { x: 1184, y: 736 }, size: { x: 48, y: 48 } },
-  { obstacleId: "crate-mid-top-right", kind: "crate", position: { x: 1376, y: 736 }, size: { x: 48, y: 48 } },
-  { obstacleId: "crate-mid-bottom-left", kind: "crate", position: { x: 1184, y: 864 }, size: { x: 48, y: 48 } },
-  { obstacleId: "crate-mid-bottom-right", kind: "crate", position: { x: 1376, y: 864 }, size: { x: 48, y: 48 } },
-  { obstacleId: "mid-west-1", kind: "wall", position: { x: 640, y: 704 }, size: { x: 64, y: 64 } },
-  { obstacleId: "mid-west-2", kind: "wall", position: { x: 640, y: 896 }, size: { x: 64, y: 64 } },
-  { obstacleId: "mid-east-1", kind: "wall", position: { x: 1920, y: 704 }, size: { x: 64, y: 64 } },
-  { obstacleId: "mid-east-2", kind: "wall", position: { x: 1920, y: 896 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-top-left", kind: "wall", position: { x: 1056, y: 608 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-top-right", kind: "wall", position: { x: 1504, y: 608 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-bottom-left", kind: "wall", position: { x: 1056, y: 992 }, size: { x: 64, y: 64 } },
-  { obstacleId: "lane-bottom-right", kind: "wall", position: { x: 1504, y: 992 }, size: { x: 64, y: 64 } },
-  { obstacleId: "crate-west-top", kind: "crate", position: { x: 768, y: 640 }, size: { x: 48, y: 48 } },
-  { obstacleId: "crate-west-bottom", kind: "crate", position: { x: 768, y: 960 }, size: { x: 48, y: 48 } },
-  { obstacleId: "crate-east-top", kind: "crate", position: { x: 1792, y: 640 }, size: { x: 48, y: 48 } },
-  { obstacleId: "crate-east-bottom", kind: "crate", position: { x: 1792, y: 960 }, size: { x: 48, y: 48 } }
-] as const;
+export const INNER_OBSTACLES: readonly ArenaObstacle[] = DEFAULT_BATTLE_MAP.innerObstacles;
 
 export const WEAPON_PICKUP_ICON_KEYS: Record<WeaponKind, string> = {
   Pistol: PISTOL_PICKUP_TEXTURE_KEY,

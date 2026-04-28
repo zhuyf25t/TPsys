@@ -1,12 +1,12 @@
-import type {
-  ItemPickup,
-  PickupSpawnPoint,
-  ProjectileKind,
-  SkillKind,
-  Vec2,
-  WeaponKind,
-  WeaponPickup
-} from "../domain/types";
+import type { PickupSpawnPoint, ProjectileKind, SkillKind, Vec2, WeaponKind } from "../domain/types";
+import {
+  DEFAULT_BATTLE_MAP,
+  type HeroDefinition,
+  type ItemPickupDefinition,
+  type WeaponPickupDefinition
+} from "./battleMapCatalog";
+
+export type { HeroDefinition, ItemPickupDefinition, WeaponPickupDefinition } from "./battleMapCatalog";
 
 export interface WeaponDefinition {
   displayName: string;
@@ -42,24 +42,6 @@ export interface SkillDefinition {
 export interface HeroVisualDefinition {
   textureKey: string;
   tint: number;
-}
-
-export interface HeroDefinition {
-  heroId: string;
-  displayName: string;
-  position: Vec2;
-}
-
-export interface WeaponPickupDefinition {
-  weaponId: string;
-  weaponKind: WeaponPickup["weaponKind"];
-  position: Vec2;
-}
-
-export interface ItemPickupDefinition {
-  pickupId: string;
-  kind: ItemPickup["kind"];
-  position: Vec2;
 }
 
 export const WEAPON_DEFINITIONS: Readonly<Record<WeaponKind, Readonly<WeaponDefinition>>> = {
@@ -176,23 +158,9 @@ export const SKILL_DEFINITIONS: Readonly<Record<SkillKind, Readonly<SkillDefinit
   }
 };
 
-export const HERO_DEFINITIONS: ReadonlyArray<Readonly<HeroDefinition>> = [
-  { heroId: "player-1", displayName: "玩家-1", position: { x: 704, y: 800 } },
-  { heroId: "bot-1", displayName: "机器人-1", position: { x: 512, y: 544 } },
-  { heroId: "bot-2", displayName: "机器人-2", position: { x: 512, y: 1056 } },
-  { heroId: "bot-3", displayName: "机器人-3", position: { x: 1600, y: 320 } },
-  { heroId: "bot-4", displayName: "机器人-4", position: { x: 1600, y: 1280 } },
-  { heroId: "bot-5", displayName: "机器人-5", position: { x: 2048, y: 800 } }
-];
+export const HERO_DEFINITIONS: ReadonlyArray<Readonly<HeroDefinition>> = DEFAULT_BATTLE_MAP.heroDefinitions;
 
-export const HERO_SPAWN_POINTS: readonly Vec2[] = [
-  { x: 704, y: 800 },
-  { x: 512, y: 544 },
-  { x: 512, y: 1056 },
-  { x: 1600, y: 320 },
-  { x: 1600, y: 1280 },
-  { x: 2048, y: 800 }
-];
+export const HERO_SPAWN_POINTS: readonly Vec2[] = DEFAULT_BATTLE_MAP.heroSpawnPoints;
 
 export const HERO_VISUALS: Readonly<Record<string, Readonly<HeroVisualDefinition>>> = {
   "player-1": { textureKey: "hero-player", tint: 0x7ae2ff },
@@ -212,34 +180,12 @@ export const SKIN_VISUALS: Readonly<Record<string, Readonly<HeroVisualDefinition
   woman: { textureKey: "hero-woman", tint: 0x87f0d6 }
 };
 
-export const WEAPON_PICKUP_DEFINITIONS: ReadonlyArray<Readonly<WeaponPickupDefinition>> = [
-  { weaponId: "pickup-rocket-1", weaponKind: "RocketLauncher", position: { x: 1280, y: 256 } },
-  { weaponId: "pickup-gatling-1", weaponKind: "Gatling", position: { x: 704, y: 800 } },
-  { weaponId: "pickup-shotgun-1", weaponKind: "Shotgun", position: { x: 1856, y: 800 } },
-  { weaponId: "pickup-rocket-2", weaponKind: "RocketLauncher", position: { x: 1280, y: 1344 } },
-  { weaponId: "pickup-gatling-2", weaponKind: "Gatling", position: { x: 448, y: 800 } },
-  { weaponId: "pickup-shotgun-2", weaponKind: "Shotgun", position: { x: 2112, y: 800 } }
-];
+export const WEAPON_PICKUP_DEFINITIONS: ReadonlyArray<Readonly<WeaponPickupDefinition>> =
+  DEFAULT_BATTLE_MAP.weaponPickupDefinitions;
 
-export const WEAPON_PICKUP_SPAWN_POINTS: readonly PickupSpawnPoint[] = WEAPON_PICKUP_DEFINITIONS.map(
-  (definition, index) => ({
-    id: `weapon-pad-${index + 1}`,
-    kind: "weapon",
-    position: definition.position,
-    occupied: false
-  })
-);
+export const WEAPON_PICKUP_SPAWN_POINTS: readonly PickupSpawnPoint[] = DEFAULT_BATTLE_MAP.weaponPickupSpawnPoints;
 
-export const ITEM_PICKUP_DEFINITIONS: ReadonlyArray<Readonly<ItemPickupDefinition>> = [
-  { pickupId: "pickup-medkit-1", kind: "Medkit", position: { x: 960, y: 608 } },
-  { pickupId: "pickup-medkit-2", kind: "Medkit", position: { x: 1600, y: 992 } }
-];
+export const ITEM_PICKUP_DEFINITIONS: ReadonlyArray<Readonly<ItemPickupDefinition>> =
+  DEFAULT_BATTLE_MAP.itemPickupDefinitions;
 
-export const ITEM_PICKUP_SPAWN_POINTS: readonly PickupSpawnPoint[] = ITEM_PICKUP_DEFINITIONS.map(
-  (definition, index) => ({
-    id: `medkit-pad-${index + 1}`,
-    kind: "medkit",
-    position: definition.position,
-    occupied: false
-  })
-);
+export const ITEM_PICKUP_SPAWN_POINTS: readonly PickupSpawnPoint[] = DEFAULT_BATTLE_MAP.itemPickupSpawnPoints;

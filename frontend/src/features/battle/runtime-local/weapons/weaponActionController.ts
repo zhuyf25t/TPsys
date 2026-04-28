@@ -2,6 +2,12 @@ import type { Hero, PlayerCommand, Projectile, Vec2, WeaponState } from "../../.
 import type { WeaponDefinition } from "../../../../game/weapons";
 import { createProjectileSpawn } from "../projectiles/projectileFactory";
 import { requestWeaponReload, resolveWeaponFire, type WeaponBlockReason } from "./weaponController";
+import {
+  getWeaponRuntimeProfile,
+  resolveWeaponAmmoMode,
+  type WeaponMuzzleVfxProfile,
+  type WeaponRuntimeProfile
+} from "./weaponRuntimeProfiles";
 
 export interface WeaponActionFloatingText {
   text: string;
@@ -53,6 +59,8 @@ export function getCurrentWeapon(hero: Hero): WeaponState {
 
 export function resolveWeaponAction(context: WeaponActionContext): WeaponActionPlan {
   const randomFn = context.randomFn ?? Math.random;
+  const runtimeProfile = getWeaponRuntimeProfile(context.weapon.weaponKind);
+  const ammoMode = resolveWeaponAmmoMode(runtimeProfile, context.weaponDefinition);
   const basePlan: WeaponActionPlan = {
     canFire: false,
     projectiles: [],
@@ -68,14 +76,15 @@ export function resolveWeaponAction(context: WeaponActionContext): WeaponActionP
     };
   }
 
-  if (context.command.reloadPressed && context.weapon.weaponKind !== "Gatling") {
-    return startReload(context, basePlan);
+  if (context.command.reloadPressed && ammoMode === "magazine") {
+    return startReload(context, basePlan, runtimeProfile);
   }
 
   const fireResolution = resolveWeaponFire({
     player: context.player,
     weapon: context.weapon,
     weaponDefinition: context.weaponDefinition,
+    weaponRuntimeProfile: runtimeProfile,
     command: context.command,
     weaponSwitchRemainingMs: context.weaponSwitchRemainingMs,
     playerMotionActive: context.playerMotionActive
@@ -91,7 +100,7 @@ export function resolveWeaponAction(context: WeaponActionContext): WeaponActionP
     }
 
     if (fireResolution.result.reason === "reloading" && (context.weapon.reserveAmmo ?? 0) > 0) {
-      return startReload(context, basePlan);
+      return startReload(context, basePlan, runtimeProfile);
     }
 
     if (fireResolution.result.reason === "overheated") {
@@ -117,88 +126,23 @@ export function resolveWeaponAction(context: WeaponActionContext): WeaponActionP
     x: context.player.position.x + direction.x * (context.player.radius + 14),
     y: context.player.position.y + direction.y * (context.player.radius + 14)
   };
-  const fireKind = context.weapon.weaponKind;
-  const projectiles: Projectile[] = [];
-  let nextProjectileSequence = context.projectileSequence;
-  let muzzleVfx: WeaponActionMuzzleVfx | undefined;
-  let recoilStrength = 0;
+  const projectileSpawn = createWeaponProjectiles({
+    context,
+    runtimeProfile,
+    aimAngle,
+    randomFn
+  });
+  const projectiles = projectileSpawn.projectiles;
+  const nextProjectileSequence = projectileSpawn.nextProjectileSequence;
+  const muzzleVfx = createMuzzleVfx(muzzle, runtimeProfile.muzzleVfx);
+  const recoilStrength = runtimeProfile.recoilStrength;
 
-  if (fireKind === "Shotgun") {
-    for (let pellet = 0; pellet < context.weaponDefinition.pellets; pellet += 1) {
-      const spread = randomBetween(randomFn, -context.weaponDefinition.spreadRadians / 2, context.weaponDefinition.spreadRadians / 2);
-      projectiles.push(
-        createProjectileSpawn({
-          projectileSequence: nextProjectileSequence,
-          player: context.player,
-          definition: context.weaponDefinition,
-          angle: aimAngle + spread
-        })
-      );
-      nextProjectileSequence += 1;
-    }
-    muzzleVfx = {
-      position: muzzle,
-      color: 0xffefb7,
-      radius: 20,
-      sparks: 7,
-      impactSparkColor: 0xffe2ba
-    };
-    recoilStrength = 80;
-  } else if (fireKind === "Gatling") {
-    const spread = randomBetween(randomFn, -context.weaponDefinition.spreadRadians / 2, context.weaponDefinition.spreadRadians / 2);
-    projectiles.push(
-      createProjectileSpawn({
-        projectileSequence: nextProjectileSequence,
-        player: context.player,
-        definition: context.weaponDefinition,
-        angle: aimAngle + spread
-      })
-    );
-    nextProjectileSequence += 1;
-    muzzleVfx = {
-      position: muzzle,
-      color: 0xffd86d,
-      radius: 10,
-      sparks: 4
-    };
-    recoilStrength = 8;
-  } else {
-    projectiles.push(
-      createProjectileSpawn({
-        projectileSequence: nextProjectileSequence,
-        player: context.player,
-        definition: context.weaponDefinition,
-        angle: aimAngle
-      })
-    );
-    nextProjectileSequence += 1;
-    if (fireKind === "RocketLauncher") {
-      muzzleVfx = {
-        position: muzzle,
-        color: 0xffb36f,
-        radius: 18,
-        sparks: 5,
-        pulse: {
-          radius: 18,
-          color: 0xffb36f
-        }
-      };
-      recoilStrength = 120;
-    } else {
-      muzzleVfx = {
-        position: muzzle,
-        color: 0xfff0c6,
-        radius: 10,
-        sparks: 3
-      };
-      recoilStrength = 20;
-    }
-  }
-
-  if (context.weapon.ammoInMagazine === 0 && (context.weapon.reserveAmmo ?? 0) > 0 && !context.weaponDefinition.usesHeat) {
+  if (context.weapon.ammoInMagazine === 0 && (context.weapon.reserveAmmo ?? 0) > 0 && ammoMode === "magazine") {
     const reloadResult = requestWeaponReload({
       player: context.player,
       weapon: context.weapon,
+      weaponDefinition: context.weaponDefinition,
+      weaponRuntimeProfile: runtimeProfile,
       weaponSwitchRemainingMs: context.weaponSwitchRemainingMs
     });
 
@@ -216,7 +160,7 @@ export function resolveWeaponAction(context: WeaponActionContext): WeaponActionP
     }
   }
 
-  const showOverheatText = context.weapon.weaponKind === "Gatling" && context.weapon.overheated;
+  const showOverheatText = ammoMode === "heat" && context.weapon.overheated;
 
   return {
     canFire: true,
@@ -229,10 +173,16 @@ export function resolveWeaponAction(context: WeaponActionContext): WeaponActionP
   };
 }
 
-function startReload(context: WeaponActionContext, basePlan: WeaponActionPlan): WeaponActionPlan {
+function startReload(
+  context: WeaponActionContext,
+  basePlan: WeaponActionPlan,
+  runtimeProfile: Readonly<WeaponRuntimeProfile>
+): WeaponActionPlan {
   const reloadResult = requestWeaponReload({
     player: context.player,
     weapon: context.weapon,
+    weaponDefinition: context.weaponDefinition,
+    weaponRuntimeProfile: runtimeProfile,
     weaponSwitchRemainingMs: context.weaponSwitchRemainingMs
   });
 
@@ -251,4 +201,66 @@ function startReload(context: WeaponActionContext, basePlan: WeaponActionPlan): 
 
 function randomBetween(randomFn: () => number, min: number, max: number): number {
   return min + (max - min) * randomFn();
+}
+
+interface WeaponProjectileSpawnInput {
+  context: WeaponActionContext;
+  runtimeProfile: Readonly<WeaponRuntimeProfile>;
+  aimAngle: number;
+  randomFn: () => number;
+}
+
+interface WeaponProjectileSpawnResult {
+  projectiles: Projectile[];
+  nextProjectileSequence: number;
+}
+
+function createWeaponProjectiles(input: WeaponProjectileSpawnInput): WeaponProjectileSpawnResult {
+  const projectiles: Projectile[] = [];
+  let nextProjectileSequence = input.context.projectileSequence;
+  const spawnProjectile = (angle: number): void => {
+    projectiles.push(
+      createProjectileSpawn({
+        projectileSequence: nextProjectileSequence,
+        player: input.context.player,
+        definition: input.context.weaponDefinition,
+        angle
+      })
+    );
+    nextProjectileSequence += 1;
+  };
+
+  const plan = input.runtimeProfile.projectileSpawnPlan;
+  switch (plan.mode) {
+    case "single":
+      spawnProjectile(input.aimAngle);
+      break;
+    case "spread":
+      for (let projectile = 0; projectile < plan.projectileCount; projectile += 1) {
+        spawnProjectile(input.aimAngle + createSpreadOffset(input.context.weaponDefinition, input.randomFn));
+      }
+      break;
+    case "pellets":
+      for (let pellet = 0; pellet < input.context.weaponDefinition.pellets; pellet += 1) {
+        spawnProjectile(input.aimAngle + createSpreadOffset(input.context.weaponDefinition, input.randomFn));
+      }
+      break;
+  }
+
+  return { projectiles, nextProjectileSequence };
+}
+
+function createSpreadOffset(definition: WeaponDefinition, randomFn: () => number): number {
+  return randomBetween(randomFn, -definition.spreadRadians / 2, definition.spreadRadians / 2);
+}
+
+function createMuzzleVfx(position: Vec2, profile: Readonly<WeaponMuzzleVfxProfile>): WeaponActionMuzzleVfx {
+  return {
+    position,
+    color: profile.color,
+    radius: profile.radius,
+    sparks: profile.sparks,
+    ...(profile.impactSparkColor === undefined ? {} : { impactSparkColor: profile.impactSparkColor }),
+    ...(profile.pulse === undefined ? {} : { pulse: { ...profile.pulse } })
+  };
 }

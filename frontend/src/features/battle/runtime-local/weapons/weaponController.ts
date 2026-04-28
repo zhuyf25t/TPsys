@@ -1,5 +1,10 @@
 import type { Hero, PlayerCommand, WeaponState } from "../../../../domain/types";
 import { cycleWeaponIndex, isDisposableWeapon, isWeaponDepleted, WEAPON_DEFINITIONS, type WeaponDefinition } from "../../../../game/weapons";
+import {
+  getWeaponRuntimeProfile,
+  resolveWeaponAmmoMode,
+  type WeaponRuntimeProfile
+} from "./weaponRuntimeProfiles";
 
 export type WeaponBlockReason = "switching" | "reloading" | "empty" | "overheated" | "skill";
 
@@ -43,6 +48,8 @@ export interface WeaponSwitchContext {
 export interface WeaponReloadContext {
   player: Hero;
   weapon: WeaponState;
+  weaponDefinition?: WeaponDefinition;
+  weaponRuntimeProfile?: Readonly<WeaponRuntimeProfile>;
   weaponSwitchRemainingMs: number;
 }
 
@@ -50,6 +57,7 @@ export interface WeaponFireContext {
   player: Hero;
   weapon: WeaponState;
   weaponDefinition: WeaponDefinition;
+  weaponRuntimeProfile?: Readonly<WeaponRuntimeProfile>;
   command: PlayerCommand;
   weaponSwitchRemainingMs: number;
   playerMotionActive: boolean;
@@ -152,11 +160,13 @@ export function pruneDepletedDisposableWeapon(player: Hero, previousIndex: numbe
 
 export function requestWeaponReload(context: WeaponReloadContext): WeaponReloadResult {
   const { player, weapon, weaponSwitchRemainingMs } = context;
-  const definition = WEAPON_DEFINITIONS[weapon.weaponKind];
+  const definition = context.weaponDefinition ?? WEAPON_DEFINITIONS[weapon.weaponKind];
+  const runtimeProfile = context.weaponRuntimeProfile ?? getWeaponRuntimeProfile(weapon.weaponKind);
+  const ammoMode = resolveWeaponAmmoMode(runtimeProfile, definition);
 
   if (
     !player.alive ||
-    definition.usesHeat ||
+    ammoMode === "heat" ||
     weaponSwitchRemainingMs > 0 ||
     weapon.reloadRemaining > 0 ||
     weapon.ammoInMagazine >= weapon.magazineSize ||
@@ -171,6 +181,9 @@ export function requestWeaponReload(context: WeaponReloadContext): WeaponReloadR
 
 export function resolveWeaponFire(context: WeaponFireContext): WeaponFireResolution {
   const { weapon, weaponDefinition, command, weaponSwitchRemainingMs, playerMotionActive } = context;
+  const runtimeProfile = context.weaponRuntimeProfile ?? getWeaponRuntimeProfile(weapon.weaponKind);
+  const ammoMode = resolveWeaponAmmoMode(runtimeProfile, weaponDefinition);
+  const usesHeat = ammoMode === "heat";
   if (!context.player.alive || context.player.preparedSkill !== null || playerMotionActive || weaponSwitchRemainingMs > 0) {
     return { result: { canFire: false, reason: "switching" }, mutation: { ammoConsumed: false, heatAdded: 0, overheated: false, overheatRemainingMs: 0, cooldownRemainingMs: 0 } };
   }
@@ -179,36 +192,34 @@ export function resolveWeaponFire(context: WeaponFireContext): WeaponFireResolut
     return { result: { canFire: false, reason: "reloading" }, mutation: { ammoConsumed: false, heatAdded: 0, overheated: false, overheatRemainingMs: 0, cooldownRemainingMs: 0 } };
   }
 
-  const shouldFire =
-    weapon.weaponKind === "Gatling"
-      ? command.primaryHeld && weapon.cooldownRemaining <= 0 && !weapon.overheated
-      : command.primaryJustPressed && weapon.cooldownRemaining <= 0;
+  const triggerActive = runtimeProfile.triggerMode === "held" ? command.primaryHeld : command.primaryJustPressed;
+  const shouldFire = triggerActive && weapon.cooldownRemaining <= 0 && (!usesHeat || !weapon.overheated);
 
   if (!shouldFire) {
     return { result: { canFire: false, reason: "cooldown" }, mutation: { ammoConsumed: false, heatAdded: 0, overheated: false, overheatRemainingMs: 0, cooldownRemainingMs: 0 } };
   }
 
-  if (weapon.weaponKind !== "Gatling" && weapon.ammoInMagazine <= 0) {
+  if (ammoMode === "magazine" && weapon.ammoInMagazine <= 0) {
     return {
       result: { canFire: false, reason: (weapon.reserveAmmo ?? 0) > 0 ? "reloading" : "empty" },
       mutation: { ammoConsumed: false, heatAdded: 0, overheated: false, overheatRemainingMs: 0, cooldownRemainingMs: 0 }
     };
   }
 
-  if (weapon.weaponKind === "Gatling" && weapon.overheated) {
+  if (usesHeat && weapon.overheated) {
     return { result: { canFire: false, reason: "overheated" }, mutation: { ammoConsumed: false, heatAdded: 0, overheated: true, overheatRemainingMs: weapon.overheatRemaining, cooldownRemainingMs: 0 } };
   }
 
-  const ammoConsumed = weapon.weaponKind !== "Gatling";
-  const heatAdded = weapon.weaponKind === "Gatling" ? weaponDefinition.heatPerShot : 0;
+  const ammoConsumed = ammoMode === "magazine";
+  const heatAdded = usesHeat ? weaponDefinition.heatPerShot : 0;
   const heatAfter = weapon.heat + heatAdded;
-  const overheated = weapon.weaponKind === "Gatling" && heatAfter >= weaponDefinition.maxHeat;
+  const overheated = usesHeat && heatAfter >= weaponDefinition.maxHeat;
 
   if (ammoConsumed) {
     weapon.ammoInMagazine = Math.max(0, weapon.ammoInMagazine - 1);
   }
 
-  if (weapon.weaponKind === "Gatling") {
+  if (usesHeat) {
     weapon.heat = Math.min(weaponDefinition.maxHeat, heatAfter);
     if (overheated) {
       weapon.overheated = true;

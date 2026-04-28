@@ -14,6 +14,7 @@ import type { ReplayExportArtifact, ReplayFrame, ReplayHeroFrame, ReplayPlayback
 import { getCurrentAuthUser } from "../auth/authGateway";
 import { getReplayEntries, getReplayEntryById, isReplayEntryBackendSyncDisabled } from "../battle/local/battleTruthStore";
 import { loadBattleResultByBattleId, type BackendBattleResultRecord } from "../battle/results/battleResultsApi";
+import { normalizePlayableIdentityHandle, normalizePlayerHandleKey } from "../identity/identityHandlePolicy";
 
 const DISPLAY_FRAME_LIMIT = REPLAY_PERSIST_FRAME_LIMIT;
 const DISPLAY_POSITION_EPSILON = 4;
@@ -220,9 +221,9 @@ async function hydrateReplayRatingsFromBattleResult(
   remote: ReplayBackendPlaybackItem,
   options: LoadReplayPlaybackOptions
 ): Promise<ReplayPlayback> {
-  const requestedHandle = normalizeOptionalHandle(options.ratingHandle);
-  const authHandle = normalizeOptionalHandle(getCurrentAuthUser()?.handle);
-  const remoteHandle = normalizeOptionalHandle(remote.handle);
+  const requestedHandle = normalizePlayableIdentityHandle(options.ratingHandle);
+  const authHandle = normalizePlayableIdentityHandle(getCurrentAuthUser()?.handle);
+  const remoteHandle = normalizePlayableIdentityHandle(remote.handle);
   const shouldHydrateForOwner =
     Boolean(requestedHandle) ||
     Boolean(authHandle && normalizeHandleKey(authHandle) !== normalizeHandleKey(remoteHandle));
@@ -276,12 +277,12 @@ function resolveReplayRatingHandle(
     return authHandle;
   }
 
-  const replayHandle = remote.handle.trim();
+  const replayHandle = normalizePlayableIdentityHandle(remote.handle);
   if (replayHandle) {
     return replayHandle;
   }
 
-  const displayName = remote.displayName.trim();
+  const displayName = normalizePlayableIdentityHandle(remote.displayName);
   if (displayName) {
     return displayName;
   }
@@ -289,13 +290,8 @@ function resolveReplayRatingHandle(
   return null;
 }
 
-function normalizeOptionalHandle(handle: string | null | undefined): string | null {
-  const normalized = handle?.trim();
-  return normalized || null;
-}
-
 function normalizeHandleKey(handle: string | null): string {
-  return handle?.trim().toLowerCase() ?? "";
+  return normalizePlayerHandleKey(handle);
 }
 
 function normalizeReplayPlaybackRatings(playback: ReplayPlayback): ReplayPlayback {

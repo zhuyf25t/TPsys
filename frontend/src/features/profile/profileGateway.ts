@@ -2,6 +2,11 @@ import { loadBattleResults, type BackendBattleResultRecord } from "../battle/res
 import { buildContributionSnapshotForHandle } from "../contribution/contributionGateway";
 import { loadContributionAdjustments } from "../governance/governanceGateway";
 import { loadIdentityAccounts, type IdentityAccountSummary } from "../identity/identityApi";
+import {
+  isPlayableIdentityHandle,
+  normalizePlayableIdentityHandle,
+  normalizePlayerHandleKey
+} from "../identity/identityHandlePolicy";
 
 export interface ProfileIdentity {
   handle: string;
@@ -76,7 +81,7 @@ export function getProfileSummary(_handle: string): ProfileSummary | undefined {
 }
 
 export async function loadProfileSummary(handle: string): Promise<ProfileSummary | undefined> {
-  const requestedHandle = normalizeDisplayHandle(handle);
+  const requestedHandle = normalizePlayableIdentityHandle(handle);
   if (!requestedHandle) {
     return undefined;
   }
@@ -103,7 +108,7 @@ export async function loadProfileSummary(handle: string): Promise<ProfileSummary
 }
 
 function writeRemoteProfileSummaryCache(summary: ProfileSummary): void {
-  remoteProfileSummaryCache = new Map(remoteProfileSummaryCache).set(normalizeHandle(summary.handle), summary);
+  remoteProfileSummaryCache = new Map(remoteProfileSummaryCache).set(normalizePlayerHandleKey(summary.handle), summary);
 }
 
 function buildProfileSummary(input: {
@@ -235,20 +240,20 @@ function toProfileBattleHistoryItem(record: BackendBattleResultRecord): ProfileB
 }
 
 function findIdentityAccount(requestedHandle: string, accounts: IdentityAccountSummary[]): IdentityAccountSummary | undefined {
-  const key = normalizeHandle(requestedHandle);
-  return accounts.find((account) => normalizeHandle(account.handle) === key);
+  const key = normalizePlayerHandleKey(requestedHandle);
+  return accounts.find((account) => isPlayableIdentityHandle(account.handle) && normalizePlayerHandleKey(account.handle) === key);
 }
 
 function filterBattleResultsByHandle(
   records: BackendBattleResultRecord[],
   requestedHandle: string
 ): BackendBattleResultRecord[] {
-  const key = normalizeHandle(requestedHandle);
+  const key = normalizePlayerHandleKey(requestedHandle);
   if (!key) {
     return [];
   }
 
-  return records.filter((record) => normalizeHandle(record.handle) === key);
+  return records.filter((record) => isPlayableIdentityHandle(record.handle) && normalizePlayerHandleKey(record.handle) === key);
 }
 
 function sortBattleResultsByRecentness(records: BackendBattleResultRecord[]): BackendBattleResultRecord[] {
@@ -335,14 +340,6 @@ function formatDuration(durationMs: number): string {
 
 function formatSignedNumber(value: number): string {
   return value > 0 ? `+${value}` : `${value}`;
-}
-
-function normalizeDisplayHandle(handle: string): string {
-  return handle.trim() || "访客";
-}
-
-function normalizeHandle(handle: string): string {
-  return handle.trim().toLowerCase();
 }
 
 function getRatingTitle(rating: number): string {

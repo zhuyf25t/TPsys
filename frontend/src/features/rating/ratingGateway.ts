@@ -1,5 +1,6 @@
 import { loadBattleResults, type BackendBattleResultRecord } from "../battle/results/battleResultsApi";
 import { loadIdentityAccounts, type IdentityAccountSummary } from "../identity/identityApi";
+import { isPlayableIdentityHandle, normalizePlayerHandleKey } from "../identity/identityHandlePolicy";
 
 const HAS_REMOTE_RATING_SOURCE = true;
 export const REMOTE_RATING_REFRESH_INTERVAL_MS = 6_000;
@@ -41,14 +42,19 @@ export async function loadRatingEntries(): Promise<RatingEntry[]> {
 }
 
 export function getRatingEntryByHandle(handle: string): RatingEntry | undefined {
-  return remoteRatingEntriesCache?.find((entry) => entry.handle.toLowerCase() === handle.toLowerCase());
+  const key = normalizePlayerHandleKey(handle);
+  return remoteRatingEntriesCache?.find((entry) => normalizePlayerHandleKey(entry.handle) === key);
 }
 
 function buildRatingEntriesFromBattleResults(records: BackendBattleResultRecord[]): RatingEntry[] {
   const byHandle = new Map<string, BackendBattleResultRecord[]>();
 
   records.forEach((record) => {
-    const key = record.handle.trim().toLowerCase();
+    if (!isPlayableIdentityHandle(record.handle)) {
+      return;
+    }
+
+    const key = normalizePlayerHandleKey(record.handle);
     const bucket = byHandle.get(key) ?? [];
     bucket.push(record);
     byHandle.set(key, bucket);
@@ -86,11 +92,15 @@ function buildRatingEntriesFromRemoteData(
   const entriesByHandle = new Map<string, RatingEntry>();
 
   buildRatingEntriesFromBattleResults(records).forEach((entry) => {
-    entriesByHandle.set(normalizeHandle(entry.handle), entry);
+    entriesByHandle.set(normalizePlayerHandleKey(entry.handle), entry);
   });
 
   accounts.forEach((account) => {
-    const key = normalizeHandle(account.handle);
+    if (!isPlayableIdentityHandle(account.handle)) {
+      return;
+    }
+
+    const key = normalizePlayerHandleKey(account.handle);
     if (!entriesByHandle.has(key)) {
       entriesByHandle.set(key, buildDefaultRatingEntry(account.handle));
     }
@@ -119,10 +129,6 @@ function rankRatingEntries(entries: RatingEntry[]): RatingEntry[] {
       ...entry,
       rank: index + 1
     }));
-}
-
-function normalizeHandle(handle: string): string {
-  return handle.trim().toLowerCase();
 }
 
 function compareBattleResultByRecentness(

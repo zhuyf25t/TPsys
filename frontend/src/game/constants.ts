@@ -79,14 +79,14 @@ export const ASSET_PATHS = {
   pickupShotgun: "/assets/battle/pickups/shotgun_icon.svg",
   pickupRocket: "/assets/battle/pickups/rocket_icon.svg",
   player: "/assets/battle/actors/hero_body_dark_knight.svg",
-  survivor: "/assets/battle/actors/hero_body_dark_knight.svg",
-  soldier: "/assets/battle/actors/hero_body_dark_knight.svg",
-  brown: "/assets/battle/actors/hero_body_dark_knight.svg",
-  old: "/assets/battle/actors/hero_body_dark_knight.svg",
-  woman: "/assets/battle/actors/hero_body_dark_knight.svg",
-  hitman: "/assets/battle/actors/hero_body_dark_knight.svg",
-  robot: "/assets/battle/actors/hero_body_dark_knight.svg",
-  zombie: "/assets/battle/actors/hero_body_dark_knight.svg"
+  survivor: "/assets/battle/actors/hero_body_moss_knight.svg",
+  soldier: "/assets/battle/actors/hero_body_gold_lancer.svg",
+  brown: "/assets/battle/actors/hero_body_ember_brute.svg",
+  old: "/assets/battle/actors/hero_body_violet_shade.svg",
+  woman: "/assets/battle/actors/hero_body_cyan_scout.svg",
+  hitman: "/assets/battle/actors/hero_body_red_wraith.svg",
+  robot: "/assets/battle/actors/hero_body_steel_sentinel.svg",
+  zombie: "/assets/battle/actors/hero_body_bone_rover.svg"
 } as const;
 
 export const HERO_TEXTURE_KEYS = {

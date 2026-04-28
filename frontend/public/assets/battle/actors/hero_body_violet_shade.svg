@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="violetMask" cx="50%" cy="39%" r="58%">
+      <stop offset="0" stop-color="#f5efff"/>
+      <stop offset="0.7" stop-color="#c8b7dd"/>
+      <stop offset="1" stop-color="#766485"/>
+    </radialGradient>
+    <linearGradient id="violetCloak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#282036"/>
+      <stop offset="0.6" stop-color="#130f1d"/>
+      <stop offset="1" stop-color="#07050b"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="43" rx="18" ry="13" fill="#050309" opacity="0.52"/>
+  <path d="M18 25c-3-7-1-13 4-18 2 6 5 9 10 9s8-3 10-9c5 5 7 11 4 18 6 4 9 10 9 18 0 10-10 17-23 17S9 53 9 43c0-8 3-14 9-18z" fill="#090611" stroke="#020104" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M15 43c0-11 8-20 17-20s17 9 17 20c0 8-7 13-17 13s-17-5-17-13z" fill="url(#violetCloak)" stroke="#332948" stroke-width="2"/>
+  <path d="M18 26c4 2 9 3 14 3s10-1 14-3" fill="none" stroke="#7b6bb0" stroke-width="2" stroke-linecap="round" opacity="0.44"/>
+  <ellipse cx="32" cy="30" rx="14" ry="12" fill="url(#violetMask)" stroke="#0b0712" stroke-width="2.4"/>
+  <path d="M20 42c5 3 19 3 24 0" fill="none" stroke="#9c82cf" stroke-width="1.9" stroke-linecap="round" opacity="0.44"/>
+  <path d="M24 51c5 3 11 3 16 0" fill="none" stroke="#72d9ff" stroke-width="1.6" stroke-linecap="round" opacity="0.3"/>
+  <circle cx="25" cy="31" r="1.8" fill="#0d0915"/>
+  <circle cx="39" cy="31" r="1.8" fill="#0d0915"/>
+</svg>

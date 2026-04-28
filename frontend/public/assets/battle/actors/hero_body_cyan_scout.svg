@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="cyanMask" cx="50%" cy="39%" r="58%">
+      <stop offset="0" stop-color="#eefcff"/>
+      <stop offset="0.7" stop-color="#b9d8dd"/>
+      <stop offset="1" stop-color="#688187"/>
+    </radialGradient>
+    <linearGradient id="cyanCloak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#193239"/>
+      <stop offset="0.6" stop-color="#0b1a20"/>
+      <stop offset="1" stop-color="#03090c"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="43" rx="17" ry="12" fill="#02080a" opacity="0.5"/>
+  <path d="M19 25c-2-6 0-11 4-15 3 5 6 7 9 7s6-2 9-7c4 4 6 9 4 15 6 4 9 10 9 17 0 10-9 17-22 17s-22-7-22-17c0-7 3-13 9-17z" fill="#061014" stroke="#020506" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M16 42c0-11 7-19 16-19s16 8 16 19c0 8-6 13-16 13s-16-5-16-13z" fill="url(#cyanCloak)" stroke="#21434c" stroke-width="2"/>
+  <path d="M19 31c4-4 8-6 13-6s9 2 13 6" fill="none" stroke="#70dce8" stroke-width="2.2" stroke-linecap="round" opacity="0.42"/>
+  <ellipse cx="32" cy="30" rx="13" ry="11.5" fill="url(#cyanMask)" stroke="#071116" stroke-width="2.4"/>
+  <path d="M21 44c4 3 18 3 22 0" fill="none" stroke="#72d9ff" stroke-width="1.9" stroke-linecap="round" opacity="0.45"/>
+  <path d="M32 49l-4 4h8z" fill="#4c9aa4" opacity="0.46"/>
+  <circle cx="25" cy="31" r="1.8" fill="#071217"/>
+  <circle cx="39" cy="31" r="1.8" fill="#071217"/>
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="redMask" cx="50%" cy="39%" r="58%">
+      <stop offset="0" stop-color="#fff0ed"/>
+      <stop offset="0.7" stop-color="#d8aaa6"/>
+      <stop offset="1" stop-color="#785452"/>
+    </radialGradient>
+    <linearGradient id="redCloak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#32191d"/>
+      <stop offset="0.6" stop-color="#180a0d"/>
+      <stop offset="1" stop-color="#070303"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="43" rx="18" ry="13" fill="#080202" opacity="0.52"/>
+  <path d="M18 24c-3-6-2-12 3-17 3 6 7 9 11 9s8-3 11-9c5 5 6 11 3 17 6 4 9 10 9 18 0 11-10 18-23 18S9 53 9 42c0-8 3-14 9-18z" fill="#100407" stroke="#030101" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M15 42c0-11 8-20 17-20s17 9 17 20c0 9-7 14-17 14s-17-5-17-14z" fill="url(#redCloak)" stroke="#4a2025" stroke-width="2"/>
+  <path d="M19 23c5 3 8 4 13 4s8-1 13-4" fill="none" stroke="#9b4b53" stroke-width="2.1" stroke-linecap="round" opacity="0.48"/>
+  <ellipse cx="32" cy="30" rx="14" ry="12" fill="url(#redMask)" stroke="#100507" stroke-width="2.4"/>
+  <path d="M20 40c5 3 19 3 24 0" fill="none" stroke="#bf5b62" stroke-width="2" stroke-linecap="round" opacity="0.52"/>
+  <path d="M18 47c5 5 9 8 14 8s9-3 14-8" fill="none" stroke="#ff7a84" stroke-width="1.8" stroke-linecap="round" opacity="0.32"/>
+  <circle cx="25" cy="31" r="1.9" fill="#110608"/>
+  <circle cx="39" cy="31" r="1.9" fill="#110608"/>
+</svg>

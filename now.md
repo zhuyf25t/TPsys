@@ -368,12 +368,33 @@
 残留风险：
 
 - 还没有做人工 headful 视觉审美验收；当前确认的是构建、路径有效和 headless battle smoke 未被资产阻断。
-- 多个 hero 暂时共用一个 body SVG，身份差异主要靠 tint 和现有 UI/HUD；后续应补 hero variant 或 overlay。
 - SVG 第一轮仍是轻量 repo-native 资产，不等于最终商业级序列帧和完整素材包。
+
+### BattlePage hero silhouette variants 第二轮
+
+已完成本轮第十九刀：
+
+- 新增 8 个原创 64x64 俯视 hero SVG variants：moss knight、gold lancer、ember brute、violet shade、cyan scout、red wraith、steel sentinel、bone rover。
+- `player` 继续使用 `hero_body_dark_knight.svg`，其余 hero texture key 分别指向不同 body SVG。
+- 本轮只改 `ASSET_PATHS` 中 hero texture 路径和新增 actor SVG，没有改 `GameScene.ts`、runtime、后端、地图、武器、技能、HUD 或数值。
+
+验证：
+
+- actor SVG 尺寸审计通过：9 个 actor SVG 均为 `64x64` / `viewBox="0 0 64 64"`。
+- 静态 asset path 审计通过：`ASSET_PATHS` 中 28 个 `/assets/...` 路径都能落到 `frontend/public/assets`。
+- SVG 静态扫描未发现 `<text>` 或字体类元素。
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、小地图静态层重绘 delta `0`。
+
+残留风险：
+
+- Phaser `setTint` 会继续叠加到 SVG 基础色上，最终角色辨识度仍需要人工 headful 视觉审美验收。
+- 当前只有 body variants，武器 overlay 和动作帧仍是程序化/静态组合，未达到最终商业动画资产级别。
 
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产第一轮已接入并通过 headless smoke，下一步进入第二轮可读性打磨。
+当前主线：BattlePage SVG 美术资产与 hero variants 已接入并通过 headless smoke，下一步进入 pickup/weapon overlay 与障碍可读性第二轮打磨。
 
 扩展性基础第一轮已经覆盖：
 
@@ -384,15 +405,15 @@
 
 下一阶段候选：
 
-- BattlePage 视觉 smoke 与第二轮打磨：确认 SVG 在真实 battle 中的清晰度、角色差异、pickup 可读性、障碍轮廓和弹道遮挡。
+- BattlePage pickup/weapon overlay 与障碍可读性第二轮：补 pickup icon 细节、武器 overlay 差异、障碍封闭轮廓和弹道遮挡层级。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage 视觉 smoke 与第二轮打磨。
+1. BattlePage pickup/weapon overlay 与障碍可读性第二轮。
    预计：0.5-1.5 天。
-   目标：在真实 battle 画面中检查 SVG asset 清晰度，补角色差异、pickup 可读性、障碍封闭轮廓、弹道/技能层级，不改变 gameplay 语义。
+   目标：继续提升 pickup、武器 overlay、障碍封闭轮廓、弹道/技能层级，不改变 gameplay 语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

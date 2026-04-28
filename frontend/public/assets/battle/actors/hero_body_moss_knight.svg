@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="mossMask" cx="50%" cy="38%" r="58%">
+      <stop offset="0" stop-color="#edf8ef"/>
+      <stop offset="0.72" stop-color="#bfd3bf"/>
+      <stop offset="1" stop-color="#718272"/>
+    </radialGradient>
+    <linearGradient id="mossCloak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#203529"/>
+      <stop offset="0.62" stop-color="#0f1c16"/>
+      <stop offset="1" stop-color="#070d0a"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="43" rx="18" ry="13" fill="#030806" opacity="0.54"/>
+  <path d="M17 26c-3-5-4-10-1-15 5 3 9 5 13 5h6c4 0 8-2 13-5 3 5 2 10-1 15 5 4 8 10 8 17 0 10-10 17-23 17S9 53 9 43c0-7 3-13 8-17z" fill="#07110c" stroke="#020503" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M15 43c0-12 8-20 17-20s17 8 17 20c0 8-7 13-17 13s-17-5-17-13z" fill="url(#mossCloak)" stroke="#284233" stroke-width="2"/>
+  <path d="M21 25c3-4 7-6 11-6s8 2 11 6c-2 3-6 5-11 5s-9-2-11-5z" fill="#16281e" stroke="#5a7154" stroke-width="1.6"/>
+  <ellipse cx="32" cy="30" rx="14" ry="12" fill="url(#mossMask)" stroke="#07100a" stroke-width="2.4"/>
+  <path d="M18 39c6 3 22 3 28 0" fill="none" stroke="#8aa866" stroke-width="2" stroke-linecap="round" opacity="0.42"/>
+  <path d="M23 50c6 4 12 4 18 0" fill="none" stroke="#73d2a1" stroke-width="1.8" stroke-linecap="round" opacity="0.38"/>
+  <circle cx="25" cy="31" r="1.9" fill="#0b1711"/>
+  <circle cx="39" cy="31" r="1.9" fill="#0b1711"/>
+</svg>

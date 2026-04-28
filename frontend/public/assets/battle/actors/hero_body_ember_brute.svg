@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="emberMask" cx="50%" cy="39%" r="58%">
+      <stop offset="0" stop-color="#fff1df"/>
+      <stop offset="0.7" stop-color="#d6b39d"/>
+      <stop offset="1" stop-color="#745848"/>
+    </radialGradient>
+    <linearGradient id="emberCloak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#392119"/>
+      <stop offset="0.62" stop-color="#1a0d0a"/>
+      <stop offset="1" stop-color="#080302"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="44" rx="20" ry="14" fill="#0b0302" opacity="0.52"/>
+  <path d="M15 28c-4-5-5-10-3-15 5 1 10 3 14 6 2-2 4-3 6-3s4 1 6 3c4-3 9-5 14-6 2 5 1 10-3 15 4 4 7 9 7 16 0 10-10 16-24 16S8 54 8 44c0-7 3-12 7-16z" fill="#100706" stroke="#030101" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M13 43c0-12 9-20 19-20s19 8 19 20c0 9-8 14-19 14s-19-5-19-14z" fill="url(#emberCloak)" stroke="#4b2417" stroke-width="2"/>
+  <ellipse cx="32" cy="30" rx="15" ry="12" fill="url(#emberMask)" stroke="#130806" stroke-width="2.5"/>
+  <path d="M20 36c6 4 18 4 24 0" fill="none" stroke="#b96438" stroke-width="2.2" stroke-linecap="round" opacity="0.5"/>
+  <path d="M18 46c4 5 9 7 14 7s10-2 14-7" fill="none" stroke="#ff9b55" stroke-width="2" stroke-linecap="round" opacity="0.34"/>
+  <circle cx="25" cy="31" r="2.1" fill="#170908"/>
+  <circle cx="39" cy="31" r="2.1" fill="#170908"/>
+</svg>

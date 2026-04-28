@@ -539,9 +539,32 @@
 - 这是搬移型重构，未做人眼 headful 视觉对比；当前只确认构建、同局、HUD、VFX 生命周期稳定。
 - `worldViewFactory.ts` 仍包含 hero creation/readability/local motion streak/remote hero interpolation/indicator/pickup sync 等职责，下一刀适合拆 hero readability 或 remote hero interpolation。
 
+### BattlePage remote hero interpolation helper 抽离
+
+已完成本轮第二十七刀：
+
+- 新增 `frontend/src/features/battle/renderer/entities/remoteHeroInterpolationView.ts`。
+- 从 `worldViewFactory.ts` 抽出 `RemoteHeroInterpolationBuffer`、远端 hero sample 记录、buffer cleanup、插值、fallback smoothing、render-time 解析、facing interpolation、finite vector 和 smoothing helper。
+- `WorldViewState` 仍保留 `remoteHeroInterpolationBuffers` 和 `scratchActiveRemoteHeroIds` 字段名，对外结构不变。
+- `syncHeroViews(...)` 的关键分支不变：本地玩家仍优先 `localHeroDisplayOverride`；只有 `sharedAuthoritativeRuntime && !isPlayer && remoteAuthoritativeHeroIds.has(hero.heroId)` 的远端英雄走插值。
+- cleanup 语义不变：非 shared authoritative runtime 清空 buffers；shared 时只保留 alive、非玩家、在 `remoteAuthoritativeHeroIds`、且已有 hero view 的 heroId。
+- 插值参数保持原值：snap distance `150`、smoothing `58`、interpolation delay `70`、buffer cap `10`、position epsilon `0.05`、facing epsilon `0.001`。
+- `worldViewFactory.ts` 从约 `998` LOC 降到约 `804` LOC。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD hero count 仍为 `6`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 这是搬移型重构，未做人眼 headful 视觉对比；当前确认远端 hero 基础同局显示链路未被破坏。
+- `worldViewFactory.ts` 仍包含 hero readability、local motion streak、hero health/weapon cue、pickup sync 和 indicators，下一刀适合拆 hero readability/local motion streak。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `998` LOC；下一步继续拆 `worldViewFactory.ts` 的 hero readability / remote hero interpolation 边界。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter、remote hero interpolation helper 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `804` LOC；下一步继续拆 `worldViewFactory.ts` 的 hero readability / local motion streak 边界。
 
 扩展性基础第一轮已经覆盖：
 
@@ -552,7 +575,7 @@
 
 下一阶段候选：
 
-- BattlePage hero view 边界整理：优先把 hero readability、local motion streak 或 remote hero interpolation 从 `worldViewFactory.ts` 拆成 focused helper，避免主工厂继续承载过多渲染链。
+- BattlePage hero view 边界整理：优先把 hero readability、local motion streak、hero health/weapon cue 从 `worldViewFactory.ts` 拆成 focused helper，避免主工厂继续承载过多渲染链。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
@@ -560,7 +583,7 @@
 
 1. BattlePage world view factory hero readability / interpolation 边界整理。
    预计：3-6 小时。
-   目标：把 hero readability、local motion streak 或 remote hero interpolation 从 `worldViewFactory.ts` 拆成 focused presenter/helper，不改变移动、命中、血条、武器显示或远端插值手感。
+   目标：把 hero readability、local motion streak、hero health/weapon cue 从 `worldViewFactory.ts` 拆成 focused presenter/helper，不改变移动、命中、血条、武器显示或本地/远端手感。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

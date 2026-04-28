@@ -12,6 +12,7 @@ import { getCurrentWeapon, resolveWeaponAction } from "../weapons/weaponActionCo
 import { resolveBotTactic } from "./botTactics";
 import { getFreezeSpeedMultiplier } from "../skills/freezeFieldController";
 import { getBotBehaviorProfile } from "./botBehaviorRegistry";
+import { buildBotDecisionContext, resolveBotStrategyCommand } from "./botSdk";
 
 export interface BotControllerInput {
   heroes: Hero[];
@@ -175,7 +176,7 @@ export function advanceBotActions(input: BotControllerInput): BotControllerResul
 
     const weapon = getCurrentWeapon(bot);
     const weaponDefinition = WEAPON_DEFINITIONS[weapon.weaponKind];
-    const botCommand = buildBotCommand(
+    const builtInBotCommand = buildBotCommand(
       bot,
       movementResult.velocity,
       aimTarget?.position ?? bot.position,
@@ -184,6 +185,21 @@ export function advanceBotActions(input: BotControllerInput): BotControllerResul
       tactic,
       brain,
       input.elapsedMs
+    );
+    const botCommand = resolveBotStrategyCommand(
+      buildBotDecisionContext({
+        bot,
+        heroes: input.heroes,
+        weaponPickups: input.weaponPickups,
+        itemPickups: input.itemPickups,
+        slowFields: input.slowFields,
+        worldSize: input.worldSize,
+        deltaMs,
+        elapsedMs: input.elapsedMs,
+        currentWeapon: weapon,
+        defaultCommand: builtInBotCommand
+      }),
+      builtInBotCommand
     );
     const attackPlan = resolveWeaponAction({
       player: bot,

@@ -20,18 +20,24 @@ final class FileMailRepository(storagePath: Path) extends MailRepository {
   }
 
   override def save(record: MailRecord): MailRecord = lock.synchronized {
-    records.put(record.id, record)
-    persist()
+    val key = recordKey(record.ownerHandle, record.id)
+    if (!records.containsKey(key)) {
+      records.put(key, record)
+      persist()
+    }
     record
   }
 
   override def markRead(ownerHandle: String, mailId: String): Boolean = lock.synchronized {
-    Option(records.get(mailId)).exists { record =>
-      if (normalize(record.ownerHandle) != normalize(ownerHandle) || !record.unread) {
+    val key = recordKey(ownerHandle, mailId)
+    Option(records.get(key)).exists { record =>
+      if (normalize(record.ownerHandle) != normalize(ownerHandle)) {
         false
       } else {
-        records.put(mailId, record.copy(unread = false))
-        persist()
+        if (record.unread) {
+          records.put(key, record.copy(unread = false))
+          persist()
+        }
         true
       }
     }
@@ -44,7 +50,7 @@ final class FileMailRepository(storagePath: Path) extends MailRepository {
     if (raw.isEmpty) return
 
     extractMailsSection(raw).flatMap(parseRecord).foreach { record =>
-      records.put(record.id, record)
+      records.put(recordKey(record.ownerHandle, record.id), record)
     }
   }
 
@@ -158,4 +164,7 @@ final class FileMailRepository(storagePath: Path) extends MailRepository {
       .replace("\u0000", "\\")
 
   private def normalize(handle: String): String = handle.trim.toLowerCase
+
+  private def recordKey(ownerHandle: String, mailId: String): String =
+    s"${normalize(ownerHandle)}\u0000${mailId.trim}"
 }

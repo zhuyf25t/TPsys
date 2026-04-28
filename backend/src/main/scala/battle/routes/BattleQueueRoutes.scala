@@ -4,8 +4,16 @@ import java.io.InputStream
 import java.nio.charset.StandardCharsets
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.battle.api.BattleQueueJoinRequest
-import slaydemo.backend.battle.objects.{BattleQueuePlayer, BattleQueueSnapshot}
+import slaydemo.backend.battle.api.{BattleQueueJoinRequest, RealtimeRoomHeartbeatRequest}
+import slaydemo.backend.battle.objects.{
+  BattleQueueParticipant,
+  BattleQueueSnapshot,
+  BattleSessionBootstrap,
+  BattleSessionBootstrapSeat,
+  BattleSessionDescriptor,
+  BattleSessionRosterEntry,
+  RealtimeRoomSnapshot
+}
 import slaydemo.backend.battle.services.BattleQueueService
 
 final class BattleQueueRoutes(service: BattleQueueService) {
@@ -13,13 +21,31 @@ final class BattleQueueRoutes(service: BattleQueueService) {
     addCors(exchange)
     try {
       val path = exchange.getRequestURI.getPath.stripSuffix("/")
+      val roomSnapshotPathRoomId = roomIdFromPath(path, "snapshot")
+      val roomHeartbeatPathRoomId = roomIdFromPath(path, "heartbeat")
       exchange.getRequestMethod.toUpperCase match {
         case "OPTIONS" =>
           exchange.sendResponseHeaders(204, -1)
+        case "GET" if roomSnapshotPathRoomId.nonEmpty =>
+          handleRoomSnapshot(exchange, roomSnapshotPathRoomId)
+        case "GET" if path == "/battle/rooms/snapshot" =>
+          handleRoomSnapshot(exchange, None)
+        case "POST" if roomHeartbeatPathRoomId.nonEmpty =>
+          handleRoomHeartbeat(exchange, roomHeartbeatPathRoomId)
+        case "POST" if path == "/battle/rooms/heartbeat" =>
+          handleRoomHeartbeat(exchange, None)
         case "POST" if path == "/battle/queue/join" =>
           parseBody(exchange.getRequestBody) match {
             case Right(fields) =>
-              service.join(BattleQueueJoinRequest(fields.getOrElse("handle", ""))) match {
+              service.join(
+                BattleQueueJoinRequest(
+                  handle = fields.getOrElse("handle", ""),
+                  queueRequestId = fields.get("queueRequestId"),
+                  rating = fields.get("rating").flatMap(_.toIntOption),
+                  avatar = fields.get("avatar"),
+                  skin = fields.get("skin")
+                )
+              ) match {
                 case Right(snapshot) =>
                   sendJson(exchange, 200, renderSnapshot(snapshot))
                 case Left("invalid_handle") =>
@@ -32,7 +58,7 @@ final class BattleQueueRoutes(service: BattleQueueService) {
           }
         case "GET" if path == "/battle/queue/status" =>
           val query = parseQuery(exchange.getRequestURI.getRawQuery)
-          service.status(query.getOrElse("ticket", "")) match {
+          service.status(query.getOrElse("ticketId", "")) match {
             case Some(snapshot) =>
               sendJson(exchange, 200, renderSnapshot(snapshot))
             case None =>
@@ -41,7 +67,7 @@ final class BattleQueueRoutes(service: BattleQueueService) {
         case "POST" if path == "/battle/queue/leave" =>
           parseBody(exchange.getRequestBody) match {
             case Right(fields) =>
-              val left = service.leave(fields.getOrElse("ticket", fields.getOrElse("ticketId", "")))
+              val left = service.leave(fields.getOrElse("ticketId", ""))
               sendJson(exchange, 200, s"""{"left":$left}""")
             case Left(error) =>
               sendJson(exchange, 400, s"""{"error":"${escape(error)}"}""")
@@ -53,6 +79,57 @@ final class BattleQueueRoutes(service: BattleQueueService) {
       }
     } finally {
       exchange.close()
+    }
+  }
+
+  private def handleRoomSnapshot(exchange: HttpExchange, pathRoomId: Option[String]): Unit = {
+    val query = parseQuery(exchange.getRequestURI.getRawQuery)
+    pathRoomId.orElse(query.get("roomId")).map(_.trim).filter(_.nonEmpty) match {
+      case Some(roomId) =>
+        service.roomSnapshot(roomId) match {
+          case Some(snapshot) =>
+            sendJson(exchange, 200, renderRealtimeRoomSnapshot(snapshot))
+          case None =>
+            sendJson(exchange, 404, """{"error":"room_not_found"}""")
+        }
+      case None =>
+        sendJson(exchange, 400, """{"error":"invalid_room_id"}""")
+    }
+  }
+
+  private def handleRoomHeartbeat(exchange: HttpExchange, pathRoomId: Option[String]): Unit = {
+    val query = parseQuery(exchange.getRequestURI.getRawQuery)
+    parseBody(exchange.getRequestBody) match {
+      case Right(fields) =>
+        val request = RealtimeRoomHeartbeatRequest(
+          ticketId = fields.get("ticketId").orElse(query.get("ticketId")),
+          handle = fields.get("handle").orElse(query.get("handle"))
+        )
+        val roomId = pathRoomId.orElse(fields.get("roomId")).orElse(query.get("roomId")).map(_.trim).filter(_.nonEmpty)
+        roomId match {
+          case Some(value) =>
+            service.heartbeat(value, request.ticketId, request.handle) match {
+              case Some(snapshot) =>
+                sendJson(exchange, 200, renderRealtimeRoomSnapshot(snapshot))
+              case None =>
+                sendJson(exchange, 404, """{"error":"room_not_found"}""")
+            }
+          case None =>
+            sendJson(exchange, 400, """{"error":"invalid_room_id"}""")
+        }
+      case Left(error) =>
+        sendJson(exchange, 400, s"""{"error":"${escape(error)}"}""")
+    }
+  }
+
+  private def roomIdFromPath(path: String, action: String): Option[String] = {
+    val prefix = "/battle/rooms/"
+    val suffix = s"/$action"
+    if (path.startsWith(prefix) && path.endsWith(suffix) && path.length > prefix.length + suffix.length) {
+      val rawRoomId = path.substring(prefix.length, path.length - suffix.length)
+      Some(urlDecode(rawRoomId)).map(_.trim).filter(_.nonEmpty)
+    } else {
+      None
     }
   }
 
@@ -81,19 +158,114 @@ final class BattleQueueRoutes(service: BattleQueueService) {
   }
 
   private def renderSnapshot(snapshot: BattleQueueSnapshot): String = {
-    val players = snapshot.players.map(renderPlayer).mkString(",")
+    val participants = snapshot.participants.map(renderParticipant).mkString(",")
+    val battleSession = renderBattleSession(snapshot.battleSession)
     s"""{
        |  "ticketId": "${escape(snapshot.ticketId)}",
-       |  "matchId": "${escape(snapshot.matchId)}",
+       |  "playerId": "${escape(snapshot.playerId)}",
+       |  "roomId": "${escape(snapshot.roomId)}",
+       |  "createdAt": ${snapshot.createdAt},
        |  "startsAt": ${snapshot.startsAt},
-       |  "players": [$players],
+       |  "deadline": ${snapshot.deadline},
+       |  "participants": [$participants],
        |  "capacity": ${snapshot.capacity},
-       |  "durationMs": ${snapshot.durationMs}
+       |  "durationMs": ${snapshot.durationMs},
+       |  "phase": "${escape(snapshot.phase)}",
+       |  "finishedAt": ${renderOptionalLong(snapshot.finishedAt)},
+       |  "battleSession": $battleSession
        |}""".stripMargin
   }
 
-  private def renderPlayer(player: BattleQueuePlayer): String =
-    s"""{"handle":"${escape(player.handle)}","joinedAt":${player.joinedAt}}"""
+  private def renderRealtimeRoomSnapshot(snapshot: RealtimeRoomSnapshot): String = {
+    val participants = snapshot.participants.map(renderParticipant).mkString(",")
+    val battleSession = renderBattleSession(snapshot.battleSession)
+    s"""{
+       |  "roomId": "${escape(snapshot.roomId)}",
+       |  "serverTime": ${snapshot.serverTime},
+       |  "participants": [$participants],
+       |  "capacity": ${snapshot.capacity},
+       |  "phase": "${escape(snapshot.phase)}",
+       |  "finishedAt": ${renderOptionalLong(snapshot.finishedAt)},
+       |  "battleSession": $battleSession
+       |}""".stripMargin
+  }
+
+  private def renderOptionalLong(value: Option[Long]): String =
+    value.map(_.toString).getOrElse("null")
+
+  private def renderBattleSession(battleSession: Option[BattleSessionDescriptor]): String =
+    battleSession match {
+      case Some(descriptor) =>
+        val roster = descriptor.roster.map(renderBattleRosterEntry).mkString(",")
+        val bootstrap = renderBattleBootstrap(descriptor.bootstrap)
+        s"""{
+           |  "battleId": "${escape(descriptor.battleId)}",
+           |  "startedAt": ${descriptor.startedAt},
+           |  "serverTime": ${descriptor.serverTime},
+           |  "roster": [$roster],
+           |  "capacity": ${descriptor.capacity},
+           |  "bootstrap": $bootstrap
+           |}""".stripMargin
+      case None =>
+        "null"
+    }
+
+  private def renderBattleBootstrap(bootstrap: BattleSessionBootstrap): String = {
+    val seats = bootstrap.seats.map(renderBattleBootstrapSeat).mkString(",")
+    s"""{"seats":[$seats]}"""
+  }
+
+  private def renderBattleRosterEntry(entry: BattleSessionRosterEntry): String = {
+    val requiredFields = Vector(
+      s""""seat":${entry.seat}""",
+      s""""playerId":"${escape(entry.playerId)}"""",
+      s""""handle":"${escape(entry.handle)}"""",
+      s""""joinedAt":${entry.joinedAt}"""
+    )
+    val optionalFields = Vector(
+      entry.rating.map(rating => s""""rating":$rating"""),
+      entry.avatar.map(avatar => s""""avatar":"${escape(avatar)}""""),
+      entry.skin.map(skin => s""""skin":"${escape(skin)}"""")
+    ).flatten
+
+    (requiredFields ++ optionalFields).mkString("{", ",", "}")
+  }
+
+  private def renderBattleBootstrapSeat(entry: BattleSessionBootstrapSeat): String = {
+    val requiredFields = Vector(
+      s""""seat":${entry.seat}""",
+      s""""playerId":"${escape(entry.playerId)}"""",
+      s""""heroId":"${escape(entry.heroId)}"""",
+      s""""handle":"${escape(entry.handle)}"""",
+      s""""displayName":"${escape(entry.displayName)}"""",
+      s""""joinedAt":${entry.joinedAt}""",
+      s""""isBot":${entry.isBot}""",
+      s""""spawnPointIndex":${entry.spawnPointIndex}"""
+    )
+    val optionalFields = Vector(
+      entry.rating.map(rating => s""""rating":$rating"""),
+      entry.avatar.map(avatar => s""""avatar":"${escape(avatar)}""""),
+      entry.skin.map(skin => s""""skin":"${escape(skin)}"""")
+    ).flatten
+
+    (requiredFields ++ optionalFields).mkString("{", ",", "}")
+  }
+
+  private def renderParticipant(participant: BattleQueueParticipant): String = {
+    val requiredFields = Vector(
+      s""""playerId":"${escape(participant.playerId)}"""",
+      s""""handle":"${escape(participant.handle)}"""",
+      s""""joinedAt":${participant.joinedAt}""",
+      s""""lastSeen":${participant.lastSeen}"""
+    )
+    val optionalFields = Vector(
+      participant.rating.map(rating => s""""rating":$rating"""),
+      participant.avatar.map(avatar => s""""avatar":"${escape(avatar)}""""),
+      participant.skin.map(skin => s""""skin":"${escape(skin)}"""")
+    ).flatten
+
+    (requiredFields ++ optionalFields).mkString("{", ",", "}")
+  }
 
   private def addCors(exchange: HttpExchange): Unit = {
     val headers = exchange.getResponseHeaders
@@ -131,4 +303,3 @@ final class BattleQueueRoutes(service: BattleQueueService) {
       .replace("\\\"", "\"")
       .replace("\u0000", "\\")
 }
-

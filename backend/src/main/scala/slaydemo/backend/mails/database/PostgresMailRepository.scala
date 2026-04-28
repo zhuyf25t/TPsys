@@ -29,7 +29,8 @@ final class PostgresMailRepository(config: PostgresConfig) extends MailRepositor
         connection,
         """INSERT INTO mails (
           |  id, owner_handle, kind, subject, excerpt, sender_label, unread, important, created_at
-          |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""".stripMargin
+          |) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          |ON CONFLICT (owner_handle, id) DO NOTHING""".stripMargin
       ) { statement =>
         bindRecord(statement, record)
         statement.executeUpdate()
@@ -45,7 +46,7 @@ final class PostgresMailRepository(config: PostgresConfig) extends MailRepositor
         connection,
         """UPDATE mails
           |SET unread = FALSE
-          |WHERE id = ? AND lower(owner_handle) = lower(?) AND unread = TRUE
+          |WHERE id = ? AND lower(owner_handle) = lower(?)
           |RETURNING id""".stripMargin
       ) { statement =>
         statement.setString(1, mailId)
@@ -60,7 +61,7 @@ final class PostgresMailRepository(config: PostgresConfig) extends MailRepositor
       PostgresSupport.withStatement(
         connection,
         """CREATE TABLE IF NOT EXISTS mails (
-          |  id TEXT PRIMARY KEY,
+          |  id TEXT NOT NULL,
           |  owner_handle TEXT NOT NULL,
           |  kind TEXT NOT NULL,
           |  subject TEXT NOT NULL,
@@ -68,8 +69,41 @@ final class PostgresMailRepository(config: PostgresConfig) extends MailRepositor
           |  sender_label TEXT NOT NULL,
           |  unread BOOLEAN NOT NULL,
           |  important BOOLEAN NOT NULL,
-          |  created_at BIGINT NOT NULL
+          |  created_at BIGINT NOT NULL,
+          |  PRIMARY KEY (owner_handle, id)
           |)""".stripMargin
+      )(_.executeUpdate())
+
+      PostgresSupport.withStatement(
+        connection,
+        """DO $$
+          |DECLARE
+          |  primary_key_name text;
+          |  primary_key_columns text[];
+          |BEGIN
+          |  SELECT constraint_info.conname, constraint_info.columns
+          |  INTO primary_key_name, primary_key_columns
+          |  FROM (
+          |    SELECT constraint_record.conname, array_agg(attribute.attname::text ORDER BY key_column.ordinality) AS columns
+          |    FROM pg_constraint constraint_record
+          |    JOIN unnest(constraint_record.conkey) WITH ORDINALITY AS key_column(attnum, ordinality) ON true
+          |    JOIN pg_attribute attribute
+          |      ON attribute.attrelid = constraint_record.conrelid
+          |      AND attribute.attnum = key_column.attnum
+          |    WHERE constraint_record.conrelid = 'mails'::regclass
+          |      AND constraint_record.contype = 'p'
+          |    GROUP BY constraint_record.conname
+          |  ) constraint_info;
+          |
+          |  IF primary_key_name IS NOT NULL AND primary_key_columns IS DISTINCT FROM ARRAY['owner_handle', 'id'] THEN
+          |    EXECUTE format('ALTER TABLE mails DROP CONSTRAINT %I', primary_key_name);
+          |    primary_key_name := NULL;
+          |  END IF;
+          |
+          |  IF primary_key_name IS NULL THEN
+          |    ALTER TABLE mails ADD CONSTRAINT mails_owner_id_pkey PRIMARY KEY (owner_handle, id);
+          |  END IF;
+          |END $$""".stripMargin
       )(_.executeUpdate())
 
       PostgresSupport.withStatement(

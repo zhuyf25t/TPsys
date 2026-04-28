@@ -1,13 +1,20 @@
 package slaydemo.backend.mails.routes
 
 import java.io.InputStream
+import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.mails.objects.MailRecord
 import slaydemo.backend.mails.services.MailService
+import slaydemo.backend.governance.objects.GovernanceReviewNotificationRecord
+import slaydemo.backend.social.objects.FriendRequestRecord
 
-final class MailsRoutes(service: MailService) {
+final class MailsRoutes(
+  service: MailService,
+  friendRequestById: String => Option[FriendRequestRecord] = _ => None,
+  governanceNotificationByMailId: String => Option[GovernanceReviewNotificationRecord] = _ => None
+) {
   def mails(exchange: HttpExchange): Unit = {
     addCors(exchange)
     try {
@@ -16,7 +23,7 @@ final class MailsRoutes(service: MailService) {
           exchange.sendResponseHeaders(204, -1)
         case "GET" =>
           val query = parseQuery(exchange.getRequestURI.getRawQuery)
-          query.get("owner").orElse(query.get("ownerHandle")) match {
+          query.get("ownerHandle") match {
             case Some(ownerHandle) if ownerHandle.trim.nonEmpty =>
               sendJson(exchange, 200, renderMails(service.list(ownerHandle)))
             case _ =>
@@ -67,6 +74,9 @@ final class MailsRoutes(service: MailService) {
   }
 
   private def renderMail(record: MailRecord): String = {
+    val friendRequestFields = renderFriendRequestFields(record)
+    val governanceFields = renderGovernanceFields(record)
+    val replaySourceFields = renderReplaySourceFields(record)
     s"""  {
        |    "id": "${escape(record.id)}",
        |    "ownerHandle": "${escape(record.ownerHandle)}",
@@ -76,8 +86,80 @@ final class MailsRoutes(service: MailService) {
        |    "senderLabel": "${escape(record.senderLabel)}",
        |    "unread": ${record.unread},
        |    "important": ${record.important},
-       |    "createdAt": ${record.createdAt}
+       |    "createdAt": ${record.createdAt}$friendRequestFields$governanceFields$replaySourceFields
        |  }""".stripMargin
+  }
+
+  private def renderFriendRequestFields(record: MailRecord): String = {
+    extractFriendRequestId(record.id)
+      .flatMap(friendRequestById)
+      .filter(request => request.targetHandle.equalsIgnoreCase(record.ownerHandle))
+      .map { request =>
+        s""",
+           |    "friendRequestId": "${escape(request.id)}",
+           |    "friendRequestStatus": "${escape(request.status)}",
+           |    "friendRequestSourceHandle": "${escape(request.sourceHandle)}"""".stripMargin
+      }
+      .getOrElse("")
+  }
+
+  private def renderGovernanceFields(record: MailRecord): String = {
+    if (record.kind != "governance") {
+      ""
+    } else {
+      governanceNotificationByMailId(record.id)
+        .map { notification =>
+          val targetLabel =
+            if (notification.targetTitle.trim.nonEmpty) notification.targetTitle else notification.targetId
+          s""",
+             |    "governanceActorHandle": "${escape(notification.actorHandle)}",
+             |    "governanceTargetPath": "${escape(notification.targetPath)}",
+             |    "governanceTargetLabel": "${escape(targetLabel)}",
+             |    "governanceTargetType": "${escape(notification.targetType)}",
+             |    "governanceNotificationId": "${escape(notification.id)}"""".stripMargin
+        }
+        .getOrElse("")
+    }
+  }
+
+  private def renderReplaySourceFields(record: MailRecord): String = {
+    extractBattleIdFromResultMail(record.id)
+      .map { battleId =>
+        val ownerHandle = URLEncoder.encode(record.ownerHandle.trim, StandardCharsets.UTF_8.toString)
+        s""",
+           |    "sourceBattleId": "${escape(battleId)}",
+           |    "sourcePath": "${escape(s"/replay/$battleId?handle=$ownerHandle")}",
+           |    "sourceLabel": "查看回放"""".stripMargin
+      }
+      .getOrElse("")
+  }
+
+  private def extractFriendRequestId(mailId: String): Option[String] = {
+    val prefix = "mail-friend-"
+    val responsePrefix = "mail-friend-response-"
+    val normalized = mailId.trim
+
+    if (normalized.startsWith(prefix) && !normalized.startsWith(responsePrefix)) {
+      Some(normalized.substring(prefix.length)).filter(_.nonEmpty)
+    } else {
+      None
+    }
+  }
+
+  private def extractBattleIdFromResultMail(mailId: String): Option[String] = {
+    val normalized = mailId.trim
+    val prefixes = Seq("mail-battle-", "mail-rating-")
+    prefixes
+      .find(normalized.startsWith)
+      .flatMap { prefix =>
+        val resultId = normalized.substring(prefix.length).trim
+        val resultSeparator = resultId.lastIndexOf(":")
+        val battleId =
+          if (resultSeparator >= 0) resultId.substring(0, resultSeparator).trim
+          else resultId
+
+        Option(battleId).filter(_.nonEmpty)
+      }
   }
 
   private def parseBody(input: InputStream): Either[String, Map[String, String]] = {

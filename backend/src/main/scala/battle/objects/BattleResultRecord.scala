@@ -22,5 +22,11 @@ final case class BattleResultRecord(
   playersLine: String,
   timelineHint: String,
   currentLoadout: Option[String]
-)
+) {
+  def resultId: String = BattleResultRecord.resultId(battleId.value, handle.value)
+}
 
+object BattleResultRecord {
+  def resultId(battleId: String, handle: String): String =
+    s"${battleId.trim}:${handle.trim.toLowerCase}"
+}

@@ -9,10 +9,12 @@ backend/project/.boot/
 backend/project/project/
 
 # Local runtime data
+.runtime/
 backend/data/
 logs/
 .tmp/
 /pics/
+/reference-assets/
 /queue/
 now.md
 

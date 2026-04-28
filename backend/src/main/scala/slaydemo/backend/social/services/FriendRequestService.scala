@@ -10,6 +10,14 @@ final case class FriendRequestSubmissionResult(
   mail: Option[MailRecord]
 )
 
+final case class FriendRequestResponseResult(
+  request: FriendRequestRecord,
+  mail: Option[MailRecord]
+)
+
 trait FriendRequestService {
   def create(sourceHandle: String, targetHandle: String): Either[String, FriendRequestSubmissionResult]
+  def respond(requestId: String, actorHandle: String, decision: String): Either[String, FriendRequestResponseResult]
+  def list(ownerHandle: String): Seq[FriendRequestRecord]
+  def find(requestId: String): Option[FriendRequestRecord]
 }

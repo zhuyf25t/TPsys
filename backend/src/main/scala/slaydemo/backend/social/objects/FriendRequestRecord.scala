@@ -4,5 +4,7 @@ final case class FriendRequestRecord(
   id: String,
   sourceHandle: String,
   targetHandle: String,
-  createdAt: Long
+  createdAt: Long,
+  status: String = "pending",
+  respondedAt: Option[Long] = None
 )

@@ -4,11 +4,19 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --config frontend/vite.config.ts",
     "backend:dev": "cd backend && sbt \"runMain slaydemo.backend.BackendApp\"",
     "backend:compile": "cd backend && sbt compile",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "demo:db-sanity": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo-db-sanity.ps1",
+    "demo:api-contract": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/api-contract-field-smoke.ps1",
+    "demo:authoritative-finish-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/api-contract-authoritative-finish-smoke.ps1",
+    "demo:battle-two-client": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bp14-battle-two-client-harness.ps1",
+    "demo:bp40-freshness": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bp40-battle-session-freshness-smoke.ps1",
+    "demo:bp28-render-feel-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bp28-render-feel-smoke.ps1",
+    "demo:bp44-feel-suite": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bp44-battle-feel-suite.ps1",
+    "demo:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo-smoke.ps1",
+    "build": "tsc -p frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
+    "preview": "vite preview --config frontend/vite.config.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0",

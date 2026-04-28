@@ -15,7 +15,7 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
   loadFromDisk()
 
   override def save(record: BattleResultRecord): BattleResultRecord = lock.synchronized {
-    records.put(normalize(record.battleId.value), record)
+    records.put(record.resultId, record)
     persist()
     record
   }
@@ -26,6 +26,18 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
 
   override def listByHandle(handle: String, limit: Int): Seq[BattleResultRecord] = lock.synchronized {
     list(Int.MaxValue)
+      .filter(record => record.handle.value.equalsIgnoreCase(handle.trim))
+      .take(limit.max(0))
+  }
+
+  override def listByBattleId(battleId: String, limit: Int): Seq[BattleResultRecord] = lock.synchronized {
+    list(Int.MaxValue)
+      .filter(record => normalize(record.battleId.value) == normalize(battleId))
+      .take(limit.max(0))
+  }
+
+  override def listByHandleAndBattleId(handle: String, battleId: String, limit: Int): Seq[BattleResultRecord] = lock.synchronized {
+    listByBattleId(battleId, Int.MaxValue)
       .filter(record => record.handle.value.equalsIgnoreCase(handle.trim))
       .take(limit.max(0))
   }
@@ -43,7 +55,7 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
     extractRecordsSection(raw)
       .flatMap(parseRecord)
       .foreach { record =>
-        records.put(normalize(record.battleId.value), record)
+        records.put(record.resultId, record)
       }
   }
 
@@ -88,6 +100,7 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
   private def renderRecord(record: BattleResultRecord): String = {
     s"""    {
        |      "battleId": "${escape(record.battleId.value)}",
+       |      "resultId": "${escape(record.resultId)}",
        |      "handle": "${escape(record.handle.value)}",
        |      "displayName": "${escape(record.displayName)}",
        |      "finishedAt": ${record.finishedAt},
@@ -195,7 +208,7 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
   private def extractNullableString(raw: String, field: String): Option[String] = {
     val nullPattern = s""""$field"\\s*:\\s*null""".r
     if (nullPattern.findFirstIn(raw).nonEmpty) {
-      Some(null)
+      None
     } else {
       extractString(raw, field)
     }
@@ -226,7 +239,8 @@ final class FileBattleResultRepository(storagePath: Path) extends BattleResultRe
   }
 
   private def escape(value: String): String =
-    value
+    Option(value)
+      .getOrElse("")
       .replace("\\", "\\\\")
       .replace("\"", "\\\"")
       .replace("\n", "\\n")

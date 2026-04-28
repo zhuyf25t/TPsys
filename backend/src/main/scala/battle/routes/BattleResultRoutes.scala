@@ -56,8 +56,9 @@ final class BattleResultRoutes(service: BattleResultService) {
         case "GET" =>
           val query = parseQuery(exchange.getRequestURI.getRawQuery)
           val handle = query.get("handle")
+          val battleId = query.get("battleId")
           val limit = query.get("limit").flatMap(_.toIntOption).getOrElse(25)
-          val results = service.list(handle, limit)
+          val results = service.list(handle, battleId, limit)
           sendJson(exchange, 200, renderRecords(results))
         case "HEAD" =>
           exchange.sendResponseHeaders(200, -1)
@@ -120,6 +121,7 @@ final class BattleResultRoutes(service: BattleResultService) {
     val currentLoadout = record.currentLoadout.map(value => s""""${escape(value)}"""").getOrElse("null")
     s"""{
        |  "battleId": "${escape(record.battleId.value)}",
+       |  "resultId": "${escape(record.resultId)}",
        |  "handle": "${escape(record.handle.value)}",
        |  "displayName": "${escape(record.displayName)}",
        |  "finishedAt": ${record.finishedAt},

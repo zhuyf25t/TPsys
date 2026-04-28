@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BP-14 双客户端启动器</title>
+    <style>
+      :root {
+        color: #17211f;
+        background: #f4efe5;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top left, rgba(85, 145, 122, 0.22), transparent 34rem),
+          linear-gradient(135deg, #f4efe5 0%, #dfe9dd 100%);
+      }
+
+      main {
+        width: min(34rem, calc(100vw - 2rem));
+        padding: 2rem;
+        border: 1px solid rgba(23, 33, 31, 0.18);
+        border-radius: 1.25rem;
+        background: rgba(255, 252, 245, 0.88);
+        box-shadow: 0 1.2rem 3rem rgba(23, 33, 31, 0.16);
+      }
+
+      h1 {
+        margin: 0 0 0.75rem;
+        font-size: 1.45rem;
+      }
+
+      p {
+        margin: 0.35rem 0;
+        line-height: 1.6;
+      }
+
+      code {
+        padding: 0.08rem 0.3rem;
+        border-radius: 0.35rem;
+        background: rgba(23, 33, 31, 0.08);
+      }
+
+      .error {
+        color: #9f2f20;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>BP-14 双客户端启动器</h1>
+      <p id="status">正在准备认证...</p>
+      <p>账号：<code id="handle">-</code></p>
+      <p>目标：<code id="target">/battle?new=1</code></p>
+    </main>
+
+    <script>
+      const USERS_KEY = "slay-demo.auth.users.v1";
+      const SESSION_KEY = "slay-demo.auth.session.v1";
+      const SESSION_TOKEN_KEY = "slay-demo.auth.session-token.v1";
+      const BATTLE_STORAGE_KEYS = [
+        "slay-demo.active-battle-session.v1",
+        "slay-demo.completed-battle-session.v1"
+      ];
+      const BATTLE_STORAGE_PREFIXES = [
+        "slay-demo.active-battle-session.v2.",
+        "slay-demo.completed-battle-session.v2."
+      ];
+
+      const statusNode = document.getElementById("status");
+      const handleNode = document.getElementById("handle");
+      const targetNode = document.getElementById("target");
+
+      function setStatus(message, isError) {
+        statusNode.textContent = message;
+        statusNode.className = isError ? "error" : "";
+      }
+
+      function readParams() {
+        const params = new URLSearchParams(window.location.search);
+        const handle = (params.get("handle") || "").trim();
+        const password = (params.get("password") || "").trim();
+        const skinId = (params.get("skin") || "blue").trim() || "blue";
+        const target = normalizeTarget(params.get("target") || "/battle?new=1");
+
+        if (!handle) {
+          throw new Error("缺少 handle 参数。");
+        }
+
+        if (!password) {
+          throw new Error("缺少 password 参数。");
+        }
+
+        return { handle, password, skinId, target };
+      }
+
+      function normalizeTarget(value) {
+        const trimmed = String(value || "").trim();
+        if (!trimmed || !trimmed.startsWith("/") || trimmed.startsWith("//")) {
+          return "/battle?new=1";
+        }
+
+        return trimmed;
+      }
+
+      async function postJson(path, body) {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const payload = await response.json().catch(() => null);
+        return { response, payload };
+      }
+
+      function isHandleTaken(result) {
+        return result.response.status === 409 || result.payload?.code === "handle_taken";
+      }
+
+      function requireAuthPayload(payload) {
+        if (
+          !payload ||
+          typeof payload.handle !== "string" ||
+          typeof payload.skinId !== "string" ||
+          typeof payload.session !== "string" ||
+          !payload.handle.trim() ||
+          !payload.skinId.trim() ||
+          !payload.session.trim()
+        ) {
+          throw new Error("认证返回无效。");
+        }
+
+        return {
+          handle: payload.handle.trim(),
+          skinId: payload.skinId.trim(),
+          session: payload.session.trim()
+        };
+      }
+
+      async function authenticate(input) {
+        setStatus("正在注册账号...");
+        const registerResult = await postJson("/api/identity/register", {
+          handle: input.handle,
+          password: input.password,
+          skinId: input.skinId
+        });
+
+        if (registerResult.response.ok) {
+          return requireAuthPayload(registerResult.payload);
+        }
+
+        if (!isHandleTaken(registerResult)) {
+          throw new Error(`注册失败：${readErrorCode(registerResult)}`);
+        }
+
+        setStatus("账号已存在，正在登录...");
+        const loginResult = await postJson("/api/identity/session", {
+          handle: input.handle,
+          password: input.password
+        });
+
+        if (!loginResult.response.ok) {
+          throw new Error(`登录失败：${readErrorCode(loginResult)}`);
+        }
+
+        return requireAuthPayload(loginResult.payload);
+      }
+
+      function readErrorCode(result) {
+        return result.payload?.code || result.payload?.error || `HTTP ${result.response.status}`;
+      }
+
+      function readUsers() {
+        const raw = window.localStorage.getItem(USERS_KEY);
+        if (!raw) {
+          return [];
+        }
+
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function writeAuthSession(input, authPayload) {
+        const users = readUsers();
+        const existing = users.find((user) => String(user?.handle || "").toLowerCase() === authPayload.handle.toLowerCase());
+        const user = {
+          handle: authPayload.handle,
+          password: input.password.trim(),
+          skinId: authPayload.skinId,
+          createdAt: typeof existing?.createdAt === "number" ? existing.createdAt : Date.now(),
+          sessionToken: authPayload.session
+        };
+        const nextUsers = [
+          user,
+          ...users.filter((entry) => String(entry?.handle || "").toLowerCase() !== user.handle.toLowerCase())
+        ];
+
+        window.localStorage.setItem(USERS_KEY, JSON.stringify(nextUsers));
+        window.localStorage.setItem(SESSION_KEY, user.handle);
+        window.localStorage.setItem(SESSION_TOKEN_KEY, user.sessionToken);
+      }
+
+      function clearBattleSessionStorage() {
+        for (const key of BATTLE_STORAGE_KEYS) {
+          window.localStorage.removeItem(key);
+        }
+
+        const keys = [];
+        for (let index = 0; index < window.localStorage.length; index += 1) {
+          const key = window.localStorage.key(index);
+          if (key && BATTLE_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+            keys.push(key);
+          }
+        }
+
+        for (const key of keys) {
+          window.localStorage.removeItem(key);
+        }
+      }
+
+      async function main() {
+        const input = readParams();
+        handleNode.textContent = input.handle;
+        targetNode.textContent = input.target;
+
+        const authPayload = await authenticate(input);
+        setStatus("认证成功，正在写入本地会话...");
+        writeAuthSession(input, authPayload);
+        clearBattleSessionStorage();
+        setStatus("完成，正在进入战斗...");
+        window.location.assign(input.target);
+      }
+
+      main().catch((error) => {
+        setStatus(error instanceof Error ? error.message : "启动失败。", true);
+      });
+    </script>
+  </body>
+</html>

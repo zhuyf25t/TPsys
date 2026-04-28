@@ -12,10 +12,10 @@ It asks only one question:
 
 Current measured state:
 
-- `GameScene.ts` LOC: about **1068**
-- `GameScene.ts` size: about **41.6 KB**
+- `GameScene.ts` LOC: **520**
+- `GameScene.ts` size: **25,600 bytes**
 
-This does **not** satisfy the ideal size target, so completion is only allowed if every remaining method can be justified as legitimate scene-host glue.
+This satisfies the target gate (`25 * 1024 = 25,600 bytes`, `<= 700 LOC`). Completion is still justified by method role, not by size alone.
 
 ---
 

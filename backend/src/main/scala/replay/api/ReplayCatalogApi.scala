@@ -31,9 +31,11 @@ final case class ReplaySubmissionRequest(
 final case class ReplayCatalogView(
   replayId: ReplayId,
   battleId: BattleId,
+  handle: UserId,
   title: String,
   modeLabel: String,
   resultLabel: String,
+  finishedAt: Long,
   finishedAtLabel: String,
   mapLabel: String,
   highlightLine: String,
@@ -73,6 +75,20 @@ final case class ReplayDetailView(
   frameCount: Int,
   playbackAvailable: Boolean,
   framesJson: String
+)
+
+final case class ReplayCommentSubmissionRequest(
+  replayId: ReplayId,
+  authorHandle: UserId,
+  body: String
+)
+
+final case class ReplayCommentView(
+  id: String,
+  replayId: ReplayId,
+  authorHandle: UserId,
+  body: String,
+  createdAt: Long
 )
 
 trait ReplayCatalogApi {

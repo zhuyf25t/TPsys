@@ -13,14 +13,34 @@ final class FileFriendRequestRepository(storagePath: Path) extends FriendRequest
 
   loadFromDisk()
 
+  override def findById(id: String): Option[FriendRequestRecord] = lock.synchronized {
+    records.values().asScala.find(record => record.id == id.trim)
+  }
+
   override def findByHandles(sourceHandle: String, targetHandle: String): Option[FriendRequestRecord] = lock.synchronized {
     Option(records.get(key(sourceHandle, targetHandle)))
+  }
+
+  override def listByOwner(ownerHandle: String): Seq[FriendRequestRecord] = lock.synchronized {
+    val normalized = normalize(ownerHandle)
+    records.values().asScala.toSeq
+      .filter(record => normalize(record.sourceHandle) == normalized || normalize(record.targetHandle) == normalized)
+      .sortBy(record => (-record.createdAt, record.id))
   }
 
   override def save(record: FriendRequestRecord): FriendRequestRecord = lock.synchronized {
     records.put(key(record.sourceHandle, record.targetHandle), record)
     persist()
     record
+  }
+
+  override def updateStatus(id: String, status: String, respondedAt: Long): Option[FriendRequestRecord] = lock.synchronized {
+    records.values().asScala.find(record => record.id == id.trim).map { record =>
+      val updated = record.copy(status = status, respondedAt = Some(respondedAt))
+      records.put(key(updated.sourceHandle, updated.targetHandle), updated)
+      persist()
+      updated
+    }
   }
 
   private def loadFromDisk(): Unit = lock.synchronized {
@@ -76,7 +96,9 @@ final class FileFriendRequestRepository(storagePath: Path) extends FriendRequest
        |      "id": "${escape(record.id)}",
        |      "sourceHandle": "${escape(record.sourceHandle)}",
        |      "targetHandle": "${escape(record.targetHandle)}",
-       |      "createdAt": ${record.createdAt}
+       |      "createdAt": ${record.createdAt},
+       |      "status": "${escape(record.status)}",
+       |      "respondedAt": ${record.respondedAt.map(_.toString).getOrElse("null")}
        |    }""".stripMargin
   }
 
@@ -98,7 +120,14 @@ final class FileFriendRequestRepository(storagePath: Path) extends FriendRequest
       sourceHandle <- extractString(chunk, "sourceHandle")
       targetHandle <- extractString(chunk, "targetHandle")
       createdAt <- extractLong(chunk, "createdAt")
-    } yield FriendRequestRecord(id, sourceHandle, targetHandle, createdAt)
+    } yield FriendRequestRecord(
+      id,
+      sourceHandle,
+      targetHandle,
+      createdAt,
+      extractString(chunk, "status").getOrElse("pending"),
+      extractLong(chunk, "respondedAt")
+    )
   }
 
   private def extractString(raw: String, field: String): Option[String] = {

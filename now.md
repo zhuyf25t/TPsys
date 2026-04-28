@@ -29,6 +29,7 @@
 - GameScene 硬解耦硬门已完成，报告见 `docs/GAMESCENE_HARD_GATE_COMPLETION_REPORT.md`。
 - 后端 authoritative battle 内容参数已抽到 `BattleContentCatalog`，runtime 主类不再直接承载武器、技能、pickup、出生点、bot tuning 等静态内容表。
 - 前端 battle 内容参数已抽到 `frontend/src/game/battleContentCatalog.ts`，`weapons.ts`、`skills.ts`、`spawn.ts` 保留原 public API 并从 catalog 读取。
+- 第一轮前后端内容契约审计已完成，记录见 `docs/BATTLE_CONTENT_CONTRACT_AUDIT.md`。
 - 当前 GitHub main 已保存：
   - `aaf93eb Save battle rendering and systems checkpoint`
   - `9166754 Document autonomous roadmap and visual direction`
@@ -42,26 +43,24 @@
 
 当前主线：扩展性基础。
 
-刚完成的单一 worker 票：
+刚完成的单一任务：
 
-- 把前端 `weapons.ts`、`skills.ts`、`spawn.ts` 的静态内容参数抽到 `battleContentCatalog.ts`。
-- 保留原 public API，避免大范围改 import。
-- 不改玩法数值、ID、坐标、贴图 key、tint、cooldown、damage 或 pickup 行为。
-- 目标是让后续地图、技能、武器、bot 扩展有前端内容汇入口。
+- 前后端 battle 内容契约对齐审计。
+- 修复 Dash 冷却不一致：前端从 2600ms 改为后端 authoritative 同值 5000ms。
+- 修复医疗包点不一致：后端 authoritative medkit pickup 改为和前端地图同一组两个点。
+- 记录剩余较大漂移：Gatling 前端是热量模型，后端 authoritative 仍是弹匣模型，不能作为小修强改。
 
 结果：
 
-- 新增清晰的 frontend battle content catalog。
-- `weapons.ts`、`skills.ts`、`spawn.ts` 从 catalog 读取/重导出。
-- 没有引入 `any` 或 `var`。
+- `npm run backend:compile` 通过。
 - `npm run build` 通过。
-- 审核确认无玩法漂移。
+- 审核确认 Dash 和 medkit 修复是契约对齐，不是任意平衡调整。
 
 下一票：
 
-- 前后端 battle 内容契约对齐审计。
-- 范围是 WeaponKind、ProjectileKind、SkillKind、spawn points、weapon pickup、medkit、核心武器数值和技能数值。
-- 目标是列出并修复“同名不同值 / 同义不同名 / 前后端配置漂移”的最小风险点。
+- Gatling 武器契约决策与实现。
+- 需要决定 authoritative 后端是否正式支持 heat / overheat 字段，还是把前端也改回弹匣模型。
+- 目标是消除“前端显示热量、后端实际弹匣”的模型漂移。
 
 ## 下一步计划
 

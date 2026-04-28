@@ -28,6 +28,12 @@ object BattleContentCatalog {
     position: BattleVector2
   )
 
+  final case class ItemPickupDefinition(
+    pickupId: String,
+    kind: String,
+    position: BattleVector2
+  )
+
   val DefaultBattleDurationMs: Long = BattleRules.BattleDurationMs
 
   val spawnPoints: Vector[BattleVector2] = Vector(
@@ -123,12 +129,14 @@ object BattleContentCatalog {
 
   val playerHitRadius: Double = AuthoritativeArenaGeometry.HeroRadius
 
-  val medkitPickupId: String = "pickup-medkit-1"
   val medkitPickupKind: String = "Medkit"
-  val medkitPickupPosition: BattleVector2 = BattleVector2(960.0, 608.0)
   val medkitPickupRadius: Double = 40.0
   val medkitHealAmount: Int = 25
   val medkitRespawnMs: Long = 10000L
+  val medkitPickupDefinitions: Vector[ItemPickupDefinition] = Vector(
+    ItemPickupDefinition("pickup-medkit-1", medkitPickupKind, BattleVector2(960.0, 608.0)),
+    ItemPickupDefinition("pickup-medkit-2", medkitPickupKind, BattleVector2(1600.0, 992.0))
+  )
 
   val weaponPickupKind: String = "Weapon"
   val weaponPickupRadius: Double = 40.0

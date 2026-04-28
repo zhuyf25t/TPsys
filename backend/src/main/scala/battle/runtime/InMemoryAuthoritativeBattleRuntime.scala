@@ -1345,16 +1345,16 @@ final class InMemoryAuthoritativeBattleRuntime(
       distanceSquared(player.position, pickup.position) <= math.pow(radius, 2)
 
   private def initialPickups: Vector[BattlePickupState] = {
-    val fixedPickups = Vector(
+    val fixedPickups = medkitPickupDefinitions.map { pickup =>
       BattlePickupState(
-        pickupId = medkitPickupId,
-        kind = medkitPickupKind,
+        pickupId = pickup.pickupId,
+        kind = pickup.kind,
         weaponKind = None,
-        position = medkitPickupPosition,
+        position = pickup.position,
         available = true,
         respawnMs = 0L
       )
-    )
+    }
     fixedPickups ++ weaponPickupDefinitions.map { pickup =>
       BattlePickupState(
         pickupId = pickup.pickupId,

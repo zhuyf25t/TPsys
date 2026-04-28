@@ -159,7 +159,7 @@ export const SKILL_DEFINITIONS: Readonly<Record<SkillKind, Readonly<SkillDefinit
     distance: 0
   },
   Dash: {
-    cooldownMs: 2600,
+    cooldownMs: 5000,
     range: 0,
     radius: 0,
     durationMs: 0,

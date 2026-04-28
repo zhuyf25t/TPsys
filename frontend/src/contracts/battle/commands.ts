@@ -32,6 +32,7 @@ export interface BattleCommandDto {
   secondaryJustPressed: boolean;
   sprint: boolean;
   switchWeaponDirection: -1 | 0 | 1;
+  switchWeaponIndex?: number | null;
   preparedSkill: BattlePreparedSkillDto;
   castBlink: boolean;
   castDash: boolean;

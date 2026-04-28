@@ -22,7 +22,8 @@ final case class BattleCommandRequest(
   castBlink: Boolean,
   castFreeze: Boolean,
   pointerWorld: Option[BattleCommandVector],
-  switchWeaponDirection: Int
+  switchWeaponDirection: Int,
+  switchWeaponIndex: Option[Int]
 )
 
 final case class BattleCommandAccepted(

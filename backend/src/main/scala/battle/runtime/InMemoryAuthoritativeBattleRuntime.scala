@@ -269,7 +269,7 @@ final class InMemoryAuthoritativeBattleRuntime(
         val movementIntent = normalizeVector(request.movement)
         val aim = normalizeAim(player.aim, request.aim)
         latestHumanSprints.update(playerControlKey(commandState, player), request.sprint)
-        val weaponResolvedPlayer = applyWeaponSwitchRequest(player, request.switchWeaponDirection)
+        val weaponResolvedPlayer = applyWeaponSwitchRequest(player, request.switchWeaponDirection, request.switchWeaponIndex)
         val nextPlayer = weaponResolvedPlayer.copy(
           movementIntent = movementIntent,
           aim = aim,
@@ -1145,7 +1145,7 @@ final class InMemoryAuthoritativeBattleRuntime(
     )
   }
 
-  private def applyWeaponSwitchRequest(player: BattlePlayerState, direction: Int): BattlePlayerState = {
+  private def applyWeaponSwitchRequest(player: BattlePlayerState, direction: Int, requestedIndex: Option[Int]): BattlePlayerState = {
     val switchDirection =
       if (direction < 0) {
         -1
@@ -1155,12 +1155,22 @@ final class InMemoryAuthoritativeBattleRuntime(
         0
       }
     val (weapons, currentIndex) = normalizedWeaponInventory(player)
-    if (!player.alive || switchDirection == 0 || weapons.length <= 1) {
+    val targetIndex = requestedIndex
+      .filter(index => index >= 0 && index < weapons.length)
+      .filter(_ != currentIndex)
+      .orElse {
+        if (switchDirection == 0 || weapons.length <= 1) {
+          None
+        } else {
+          Some((currentIndex + switchDirection + weapons.length) % weapons.length)
+        }
+      }
+
+    if (!player.alive || weapons.length <= 1 || targetIndex.isEmpty) {
       syncWeaponInventory(player, weapons, currentIndex)
     } else {
-      val nextIndex = (currentIndex + switchDirection + weapons.length) % weapons.length
       val cancelledReloadWeapon = weapons(currentIndex).copy(reloadRemainingMs = 0L)
-      syncWeaponInventory(player, weapons.updated(currentIndex, cancelledReloadWeapon), nextIndex)
+      syncWeaponInventory(player, weapons.updated(currentIndex, cancelledReloadWeapon), targetIndex.get)
     }
   }
 

@@ -111,7 +111,8 @@ export class LocalBattleFrameSceneBridge {
     const player = this.options.getPlayerHero();
     const switchResult = this.options.weaponSwitchStateBridge.handleWeaponSwitchAction({
       player,
-      switchDirection: command.switchWeaponDirection
+      switchDirection: command.switchWeaponDirection,
+      switchWeaponIndex: command.switchWeaponIndex
     });
 
     if (!switchResult.switched) { return; }

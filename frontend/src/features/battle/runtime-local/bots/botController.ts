@@ -256,6 +256,7 @@ function buildBotCommand(
     secondaryJustPressed: false,
     sprint: false,
     switchWeaponDirection: 0 as const,
+    switchWeaponIndex: null,
     toggleBlink: false,
     toggleFreeze: false,
     castDash: false,

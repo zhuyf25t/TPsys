@@ -135,6 +135,7 @@ export interface PlayerCommand {
   secondaryJustPressed: boolean;
   sprint: boolean;
   switchWeaponDirection: -1 | 0 | 1;
+  switchWeaponIndex: number | null;
   toggleBlink: boolean;
   toggleFreeze: boolean;
   castDash: boolean;

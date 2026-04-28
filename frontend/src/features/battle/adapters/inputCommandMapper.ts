@@ -12,6 +12,7 @@ export interface InputCommandContext {
   secondaryJustPressed: boolean;
   sprint: boolean;
   switchWeaponDirection: -1 | 0 | 1;
+  switchWeaponIndex: number | null;
   toggleBlink: boolean;
   toggleFreeze: boolean;
   castDash: boolean;
@@ -51,9 +52,14 @@ export function createPlayerCommand(input: InputCommandContext): PlayerCommand {
     secondaryJustPressed: input.secondaryJustPressed,
     sprint: input.sprint,
     switchWeaponDirection: input.switchWeaponDirection,
+    switchWeaponIndex: normalizeSwitchWeaponIndex(input.switchWeaponIndex),
     toggleBlink: input.toggleBlink,
     toggleFreeze: input.toggleFreeze,
     castDash: input.castDash,
     reloadPressed: input.reloadPressed
   };
+}
+
+function normalizeSwitchWeaponIndex(index: number | null): number | null {
+  return index === null || !Number.isFinite(index) ? null : Math.max(0, Math.trunc(index));
 }

@@ -194,6 +194,7 @@ function installPlayerCommandTap(scene: GameScene): PlayerCommandTap {
   let pendingUplinkToggleBlink = false;
   let pendingUplinkToggleFreeze = false;
   let pendingSwitchWeaponDirection: -1 | 0 | 1 = 0;
+  let pendingSwitchWeaponIndex: number | null = null;
 
   const retainCommand = (command: PlayerCommand): void => {
     latestPlayerCommand = clonePlayerCommand(command);
@@ -207,6 +208,9 @@ function installPlayerCommandTap(scene: GameScene): PlayerCommandTap {
     pendingUplinkToggleFreeze = pendingUplinkToggleFreeze || command.toggleFreeze;
     if (command.switchWeaponDirection !== 0) {
       pendingSwitchWeaponDirection = command.switchWeaponDirection;
+    }
+    if (command.switchWeaponIndex !== null) {
+      pendingSwitchWeaponIndex = command.switchWeaponIndex;
     }
   };
 
@@ -322,6 +326,7 @@ function installPlayerCommandTap(scene: GameScene): PlayerCommandTap {
       if (command.switchWeaponDirection === 0) {
         command.switchWeaponDirection = pendingSwitchWeaponDirection;
       }
+      command.switchWeaponIndex = command.switchWeaponIndex ?? pendingSwitchWeaponIndex;
 
       pendingReloadPressed = false;
       pendingPrimaryJustPressed = false;
@@ -330,6 +335,7 @@ function installPlayerCommandTap(scene: GameScene): PlayerCommandTap {
       pendingUplinkToggleBlink = false;
       pendingUplinkToggleFreeze = false;
       pendingSwitchWeaponDirection = 0;
+      pendingSwitchWeaponIndex = null;
 
       return command;
     },
@@ -366,6 +372,7 @@ function clonePlayerCommand(command: PlayerCommand): PlayerCommand {
     secondaryJustPressed: command.secondaryJustPressed,
     sprint: command.sprint,
     switchWeaponDirection: command.switchWeaponDirection,
+    switchWeaponIndex: command.switchWeaponIndex,
     toggleBlink: command.toggleBlink,
     toggleFreeze: command.toggleFreeze,
     castDash: command.castDash,

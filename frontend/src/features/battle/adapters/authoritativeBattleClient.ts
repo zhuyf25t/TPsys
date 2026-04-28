@@ -188,6 +188,7 @@ export interface AuthoritativeBattleCommand {
   castFreeze: boolean;
   pointerWorld?: AuthoritativeBattleVector | null;
   switchWeaponDirection: -1 | 0 | 1;
+  switchWeaponIndex: number | null;
 }
 
 export interface AuthoritativeBattleCommandAccepted {
@@ -310,7 +311,8 @@ export async function sendAuthoritativeBattleCommand(
         castBlink: command.castBlink,
         castFreeze: command.castFreeze,
         pointerWorld: command.pointerWorld ? normalizeVector(command.pointerWorld) : null,
-        switchWeaponDirection: normalizeSwitchDirection(command.switchWeaponDirection)
+        switchWeaponDirection: normalizeSwitchDirection(command.switchWeaponDirection),
+        switchWeaponIndex: normalizeSwitchWeaponIndex(command.switchWeaponIndex)
       }),
       signal: controller.signal
     });
@@ -1012,6 +1014,10 @@ function normalizeSwitchDirection(direction: number): -1 | 0 | 1 {
   }
 
   return 0;
+}
+
+function normalizeSwitchWeaponIndex(index: number | null): number | null {
+  return index === null || !Number.isFinite(index) ? null : Math.max(0, Math.trunc(index));
 }
 
 function readString(value: unknown): string | null {

@@ -107,6 +107,7 @@ export interface BotCommandObservation {
   readonly secondaryJustPressed: boolean;
   readonly sprint: boolean;
   readonly switchWeaponDirection: PlayerCommand["switchWeaponDirection"];
+  readonly switchWeaponIndex: PlayerCommand["switchWeaponIndex"];
   readonly toggleBlink: boolean;
   readonly toggleFreeze: boolean;
   readonly castDash: boolean;
@@ -249,6 +250,7 @@ export function normalizeBotCommand(command: BotCommandStrategyDecision, fallbac
     secondaryJustPressed: normalizeBoolean(source.secondaryJustPressed, fallback.secondaryJustPressed),
     sprint: normalizeBoolean(source.sprint, fallback.sprint),
     switchWeaponDirection: normalizeSwitchDirection(source.switchWeaponDirection, fallback.switchWeaponDirection),
+    switchWeaponIndex: normalizeSwitchWeaponIndex(source.switchWeaponIndex, fallback.switchWeaponIndex),
     toggleBlink: normalizeBoolean(source.toggleBlink, fallback.toggleBlink),
     toggleFreeze: normalizeBoolean(source.toggleFreeze, fallback.toggleFreeze),
     castDash: normalizeBoolean(source.castDash, fallback.castDash),
@@ -393,6 +395,7 @@ function commandObservationToPlayerCommand(command: BotCommandObservation): Play
     secondaryJustPressed: command.secondaryJustPressed,
     sprint: command.sprint,
     switchWeaponDirection: command.switchWeaponDirection,
+    switchWeaponIndex: command.switchWeaponIndex,
     toggleBlink: command.toggleBlink,
     toggleFreeze: command.toggleFreeze,
     castDash: command.castDash,
@@ -410,6 +413,7 @@ function copyPlayerCommand(command: PlayerCommand): PlayerCommand {
     secondaryJustPressed: command.secondaryJustPressed,
     sprint: command.sprint,
     switchWeaponDirection: command.switchWeaponDirection,
+    switchWeaponIndex: command.switchWeaponIndex,
     toggleBlink: command.toggleBlink,
     toggleFreeze: command.toggleFreeze,
     castDash: command.castDash,
@@ -462,6 +466,18 @@ function normalizeSwitchDirection(value: unknown, fallback: PlayerCommand["switc
   }
 
   return fallback;
+}
+
+function normalizeSwitchWeaponIndex(value: unknown, fallback: PlayerCommand["switchWeaponIndex"]): PlayerCommand["switchWeaponIndex"] {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return value >= 0 ? Math.trunc(value) : fallback;
 }
 
 function copyVec2(value: Vec2): Vec2 {

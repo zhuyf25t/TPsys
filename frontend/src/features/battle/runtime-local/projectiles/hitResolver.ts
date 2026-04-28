@@ -1,6 +1,7 @@
 import type { Hero, Projectile, Vec2 } from "../../../../domain/types";
 
 export type ProjectileHitRejectReason = "projectile-dead" | "invalid-target" | "self-hit" | "duplicate-hit";
+export const PROJECTILE_SHOOTER_ADVANTAGE_RADIUS = 6;
 
 export interface ProjectileHitAttemptInput {
   projectile: Projectile;
@@ -49,7 +50,7 @@ export function resolveProjectileHitAttempt(input: ProjectileHitAttemptInput): P
 
 export function resolveRocketExplosionTargets(input: RocketExplosionTargetsInput): Hero[] {
   return input.heroes.filter((hero) => {
-    if (!hero.alive) {
+    if (!hero.alive || hero.heroId === input.ownerHeroId) {
       return false;
     }
 
@@ -73,7 +74,7 @@ export function findHeroHitAlongPath(input: HeroPathHitInput): Hero | null {
       y: input.start.y + (input.end.y - input.start.y) * t
     };
     const distance = Math.hypot(closestPoint.x - hero.position.x, closestPoint.y - hero.position.y);
-    if (distance <= input.radius + hero.radius && t < closestT) {
+    if (distance <= input.radius + hero.radius + PROJECTILE_SHOOTER_ADVANTAGE_RADIUS && t < closestT) {
       closestHero = hero;
       closestT = t;
     }

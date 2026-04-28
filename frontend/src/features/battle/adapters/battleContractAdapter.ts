@@ -76,6 +76,7 @@ export function toBattleCommandDto(input: LocalBattleCommandAdapterInput): Battl
     secondaryJustPressed: input.command.secondaryJustPressed,
     sprint: input.command.sprint,
     switchWeaponDirection: input.command.switchWeaponDirection,
+    switchWeaponIndex: input.command.switchWeaponIndex,
     preparedSkill: input.preparedSkill ?? null,
     castBlink: input.command.toggleBlink,
     castDash: input.command.castDash,

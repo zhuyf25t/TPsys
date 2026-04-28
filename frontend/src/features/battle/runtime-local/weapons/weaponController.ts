@@ -45,6 +45,12 @@ export interface WeaponSwitchContext {
   weaponSwitchRemainingMs: number;
 }
 
+export interface WeaponSwitchIndexContext {
+  player: Hero;
+  switchWeaponIndex: number | null;
+  weaponSwitchRemainingMs: number;
+}
+
 export interface WeaponReloadContext {
   player: Hero;
   weapon: WeaponState;
@@ -98,22 +104,69 @@ export function requestWeaponSwitch(context: WeaponSwitchContext): WeaponSwitchR
   };
 }
 
+export function requestWeaponSwitchToIndex(context: WeaponSwitchIndexContext): WeaponSwitchResult {
+  const { player, switchWeaponIndex, weaponSwitchRemainingMs } = context;
+  const targetIndex = normalizeWeaponIndex(switchWeaponIndex, player.weapons.length);
+  if (!player.alive || targetIndex === null || player.weapons.length <= 1 || weaponSwitchRemainingMs > 0) {
+    return {
+      switched: false,
+      previousIndex: player.currentWeaponIndex,
+      nextIndex: player.currentWeaponIndex,
+      showNotice: false
+    };
+  }
+
+  const previousIndex = player.currentWeaponIndex;
+  if (targetIndex === previousIndex) {
+    return {
+      switched: false,
+      previousIndex,
+      nextIndex: previousIndex,
+      showNotice: false
+    };
+  }
+
+  return {
+    switched: true,
+    previousIndex,
+    nextIndex: targetIndex,
+    showNotice: true
+  };
+}
+
 export interface BeginWeaponSwitchTransactionContext extends WeaponSwitchContext {
   weaponSwitchMs: number;
 }
 
 export function beginWeaponSwitchTransaction(context: BeginWeaponSwitchTransactionContext): WeaponSwitchTransactionResult {
   const switchResult = requestWeaponSwitch(context);
+  return beginWeaponSwitchFromResult(context.player, context.weaponSwitchRemainingMs, context.weaponSwitchMs, switchResult);
+}
+
+export interface BeginWeaponSwitchIndexTransactionContext extends WeaponSwitchIndexContext {
+  weaponSwitchMs: number;
+}
+
+export function beginWeaponSwitchIndexTransaction(context: BeginWeaponSwitchIndexTransactionContext): WeaponSwitchTransactionResult {
+  const switchResult = requestWeaponSwitchToIndex(context);
+  return beginWeaponSwitchFromResult(context.player, context.weaponSwitchRemainingMs, context.weaponSwitchMs, switchResult);
+}
+
+function beginWeaponSwitchFromResult(
+  player: Hero,
+  weaponSwitchRemainingMs: number,
+  weaponSwitchMs: number,
+  switchResult: WeaponSwitchResult
+): WeaponSwitchTransactionResult {
   if (!switchResult.switched) {
     return {
       ...switchResult,
       pendingWeaponIndex: null,
-      weaponSwitchRemainingMs: context.weaponSwitchRemainingMs,
-      weaponSwitchTotalMs: context.weaponSwitchRemainingMs
+      weaponSwitchRemainingMs,
+      weaponSwitchTotalMs: weaponSwitchRemainingMs
     };
   }
 
-  const { player, weaponSwitchMs } = context;
   const currentWeapon = player.weapons[player.currentWeaponIndex];
   if (!currentWeapon) {
     return {
@@ -122,8 +175,8 @@ export function beginWeaponSwitchTransaction(context: BeginWeaponSwitchTransacti
       nextIndex: player.currentWeaponIndex,
       showNotice: false,
       pendingWeaponIndex: null,
-      weaponSwitchRemainingMs: context.weaponSwitchRemainingMs,
-      weaponSwitchTotalMs: context.weaponSwitchRemainingMs
+      weaponSwitchRemainingMs,
+      weaponSwitchTotalMs: weaponSwitchRemainingMs
     };
   }
 
@@ -137,6 +190,15 @@ export function beginWeaponSwitchTransaction(context: BeginWeaponSwitchTransacti
     weaponSwitchRemainingMs: weaponSwitchMs,
     weaponSwitchTotalMs: weaponSwitchMs
   };
+}
+
+function normalizeWeaponIndex(index: number | null, weaponCount: number): number | null {
+  if (index === null || !Number.isFinite(index) || weaponCount <= 0) {
+    return null;
+  }
+
+  const normalized = Math.trunc(index);
+  return normalized >= 0 && normalized < weaponCount ? normalized : null;
 }
 
 export function pruneDepletedDisposableWeapon(player: Hero, previousIndex: number): boolean {

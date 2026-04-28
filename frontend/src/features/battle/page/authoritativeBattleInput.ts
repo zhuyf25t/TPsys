@@ -13,6 +13,7 @@ export interface AuthoritativeBattleInputSnapshot {
   castBlink: boolean;
   castFreeze: boolean;
   switchWeaponDirection: -1 | 0 | 1;
+  switchWeaponIndex: number | null;
 }
 
 export interface AuthoritativeBattleInputCapture {
@@ -36,6 +37,7 @@ export function createAuthoritativeBattleInputCapture({
   let castBlink = false;
   let castFreeze = false;
   let switchWeaponDirection: -1 | 0 | 1 = 0;
+  let switchWeaponIndex: number | null = null;
   let pointerClientX = typeof window !== "undefined" ? window.innerWidth / 2 : 0;
   let pointerClientY = typeof window !== "undefined" ? window.innerHeight / 2 : 0;
 
@@ -54,6 +56,10 @@ export function createAuthoritativeBattleInputCapture({
       E: key === "e" && !event.repeat,
       R: key === "r" && !event.repeat
     });
+    const numericWeaponIndex = readNumericWeaponIndex(event.key, event.code);
+    if (numericWeaponIndex !== null && !event.repeat) {
+      switchWeaponIndex = numericWeaponIndex;
+    }
     castDash = castDash || skillPresses.Dash;
     castBlink = castBlink || skillPresses.Blink;
     castFreeze = castFreeze || skillPresses.Freeze;
@@ -138,7 +144,8 @@ export function createAuthoritativeBattleInputCapture({
         castDash,
         castBlink,
         castFreeze,
-        switchWeaponDirection
+        switchWeaponDirection,
+        switchWeaponIndex
       };
 
       reloadPressed = false;
@@ -146,6 +153,7 @@ export function createAuthoritativeBattleInputCapture({
       castBlink = false;
       castFreeze = false;
       switchWeaponDirection = 0;
+      switchWeaponIndex = null;
 
       return snapshot;
     },
@@ -158,6 +166,38 @@ export function createAuthoritativeBattleInputCapture({
       window.removeEventListener("wheel", handleWheel);
     }
   };
+}
+
+function readNumericWeaponIndex(key: string, code?: string): number | null {
+  const normalizedCode = code?.trim().toLowerCase();
+  if (normalizedCode === "digit1" || normalizedCode === "numpad1") {
+    return 0;
+  }
+  if (normalizedCode === "digit2" || normalizedCode === "numpad2") {
+    return 1;
+  }
+  if (normalizedCode === "digit3" || normalizedCode === "numpad3") {
+    return 2;
+  }
+  if (normalizedCode === "digit4" || normalizedCode === "numpad4") {
+    return 3;
+  }
+
+  const normalized = key.trim();
+  if (normalized === "1") {
+    return 0;
+  }
+  if (normalized === "2") {
+    return 1;
+  }
+  if (normalized === "3") {
+    return 2;
+  }
+  if (normalized === "4") {
+    return 3;
+  }
+
+  return null;
 }
 
 function normalizeVector(vector: Vec2): Vec2 {

@@ -618,7 +618,8 @@ export function useBattlePageRuntime() {
         castBlink: command.input.castBlink,
         castFreeze: command.input.castFreeze,
         pointerWorld: command.confirmedTarget ?? command.input.pointerWorld,
-        switchWeaponDirection: command.input.switchWeaponDirection
+        switchWeaponDirection: command.input.switchWeaponDirection,
+        switchWeaponIndex: command.input.switchWeaponIndex
       };
       authoritativeCommandHistoryRef.current.record(outboundCommand);
       authoritativeCommandRequestInFlightRef.current = true;
@@ -1773,7 +1774,8 @@ function toAuthoritativeInputSnapshot(
     castBlink: false,
     castFreeze: false,
     switchWeaponDirection:
-      command.switchWeaponDirection !== 0 ? command.switchWeaponDirection : fallback.switchWeaponDirection
+      command.switchWeaponDirection !== 0 ? command.switchWeaponDirection : fallback.switchWeaponDirection,
+    switchWeaponIndex: command.switchWeaponIndex ?? fallback.switchWeaponIndex
   };
 }
 
@@ -1783,7 +1785,8 @@ function toFallbackAuthoritativeInputSnapshot(
   return {
     ...fallback,
     castBlink: false,
-    castFreeze: false
+    castFreeze: false,
+    switchWeaponIndex: fallback.switchWeaponIndex
   };
 }
 

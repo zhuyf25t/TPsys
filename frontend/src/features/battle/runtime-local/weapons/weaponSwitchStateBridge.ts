@@ -1,6 +1,10 @@
 import type { Hero } from "../../../../domain/types";
 import { WEAPON_SWITCH_MS } from "../../../../game/constants";
-import { beginWeaponSwitchTransaction, type WeaponSwitchTransactionResult } from "./weaponController";
+import {
+  beginWeaponSwitchIndexTransaction,
+  beginWeaponSwitchTransaction,
+  type WeaponSwitchTransactionResult
+} from "./weaponController";
 
 export interface WeaponSwitchStateSnapshot {
   pendingWeaponIndex: number | null;
@@ -18,6 +22,7 @@ export interface WeaponSwitchWheelRequestContext {
 export interface WeaponSwitchCommandRequestContext {
   player: Hero;
   switchDirection: -1 | 0 | 1;
+  switchWeaponIndex: number | null;
 }
 
 export class WeaponSwitchStateBridge {
@@ -70,6 +75,10 @@ export class WeaponSwitchStateBridge {
   }
 
   public handleWeaponSwitchAction(context: WeaponSwitchCommandRequestContext): WeaponSwitchTransactionResult {
+    if (context.switchWeaponIndex !== null) {
+      return this.beginSwitchIndexTransaction(context.player, context.switchWeaponIndex);
+    }
+
     return this.beginSwitchTransaction(context.player, context.switchDirection);
   }
 
@@ -77,6 +86,24 @@ export class WeaponSwitchStateBridge {
     const switchResult = beginWeaponSwitchTransaction({
       player,
       switchDirection,
+      weaponSwitchRemainingMs: this.weaponSwitchRemainingMs,
+      weaponSwitchMs: WEAPON_SWITCH_MS
+    });
+
+    if (!switchResult.switched) {
+      return switchResult;
+    }
+
+    this.pendingWeaponIndex = switchResult.nextIndex;
+    this.weaponSwitchRemainingMs = switchResult.weaponSwitchRemainingMs;
+    this.weaponSwitchTotalMs = switchResult.weaponSwitchTotalMs;
+    return switchResult;
+  }
+
+  private beginSwitchIndexTransaction(player: Hero, switchWeaponIndex: number): WeaponSwitchTransactionResult {
+    const switchResult = beginWeaponSwitchIndexTransaction({
+      player,
+      switchWeaponIndex,
       weaponSwitchRemainingMs: this.weaponSwitchRemainingMs,
       weaponSwitchMs: WEAPON_SWITCH_MS
     });

@@ -405,6 +405,7 @@ final class BattleRoutes(service: BattleService) {
       castFreeze = readJsonBoolean(body, "castFreeze").getOrElse(false)
       pointerWorld = readVector(body, "pointerWorld")
       switchWeaponDirection <- readJsonInt(body, "switchWeaponDirection").toRight("missing_switch_weapon_direction")
+      switchWeaponIndex = readJsonInt(body, "switchWeaponIndex")
     } yield BattleCommandRequest(
       battleId = BattleId(battleId),
       playerId = UserId(playerId),
@@ -420,7 +421,8 @@ final class BattleRoutes(service: BattleService) {
       castBlink = castBlink,
       castFreeze = castFreeze,
       pointerWorld = pointerWorld,
-      switchWeaponDirection = switchWeaponDirection
+      switchWeaponDirection = switchWeaponDirection,
+      switchWeaponIndex = switchWeaponIndex
     )
 
   private def readVector(body: String, field: String): Option[BattleCommandVector] =

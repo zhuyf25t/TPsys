@@ -40,9 +40,27 @@ export function readPhaserPlayerCommand({
     secondaryJustPressed,
     sprint: controls.sprint.isDown,
     switchWeaponDirection: pendingWeaponSwitchDirection,
+    switchWeaponIndex: readWeaponSlotPress(controls),
     toggleBlink: skillPresses.Blink,
     toggleFreeze: skillPresses.Freeze,
     castDash: skillPresses.Dash,
     reloadPressed: Phaser.Input.Keyboard.JustDown(controls.reload)
   });
+}
+
+function readWeaponSlotPress(controls: ControlKeys): number | null {
+  if (Phaser.Input.Keyboard.JustDown(controls.weapon1)) {
+    return 0;
+  }
+  if (Phaser.Input.Keyboard.JustDown(controls.weapon2)) {
+    return 1;
+  }
+  if (Phaser.Input.Keyboard.JustDown(controls.weapon3)) {
+    return 2;
+  }
+  if (Phaser.Input.Keyboard.JustDown(controls.weapon4)) {
+    return 3;
+  }
+
+  return null;
 }

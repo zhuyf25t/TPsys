@@ -1,4 +1,5 @@
 import type { Hero, Projectile, Vec2 } from "../../../../domain/types";
+import { PROJECTILE_SHOOTER_ADVANTAGE_RADIUS } from "./hitResolver";
 
 export type ProjectileRuntimeRoute = "dead" | "expired" | "wall-hit" | "hero-hit" | "rocket-explode" | "keep";
 
@@ -64,8 +65,23 @@ function advanceProjectile(
   const hitWall = context.collidesWithObstacles(nextPosition, projectile.radius);
   const hitHero = context.findHeroHitAlongPath(projectile.position, nextPosition, projectile.radius, projectile.ownerHeroId);
 
-  if (projectile.kind === "rocket" && (hitWall || hitHero !== null)) {
-    return buildTerminalOutcome(projectile, emitRocketTrail, "rocket-explode", nextPosition, hitHero);
+  if (projectile.kind === "rocket" && hitHero !== null) {
+    return buildTerminalOutcome(
+      projectile,
+      emitRocketTrail,
+      "rocket-explode",
+      resolveHeroImpactPosition(
+        projectile.position,
+        nextPosition,
+        hitHero.position,
+        projectile.radius + hitHero.radius + PROJECTILE_SHOOTER_ADVANTAGE_RADIUS
+      ),
+      hitHero
+    );
+  }
+
+  if (projectile.kind === "rocket" && hitWall) {
+    return buildTerminalOutcome(projectile, emitRocketTrail, "rocket-explode", nextPosition);
   }
 
   if (hitWall) {
@@ -114,4 +130,29 @@ function isInsideWorld(position: Vec2, radius: number, worldSize: Vec2): boolean
     position.y >= radius &&
     position.y <= worldSize.y - radius
   );
+}
+
+function resolveHeroImpactPosition(start: Vec2, end: Vec2, heroPosition: Vec2, hitRadius: number): Vec2 {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSq = dx * dx + dy * dy;
+  if (lengthSq <= 0.0001) {
+    return { x: start.x, y: start.y };
+  }
+
+  const offsetX = start.x - heroPosition.x;
+  const offsetY = start.y - heroPosition.y;
+  const b = 2 * (offsetX * dx + offsetY * dy);
+  const c = offsetX * offsetX + offsetY * offsetY - hitRadius * hitRadius;
+  const discriminant = b * b - 4 * lengthSq * c;
+  const projectedT = Math.max(0, Math.min(1, ((heroPosition.x - start.x) * dx + (heroPosition.y - start.y) * dy) / lengthSq));
+  const hitT =
+    discriminant >= 0
+      ? Math.max(0, Math.min(1, (-b - Math.sqrt(discriminant)) / (2 * lengthSq)))
+      : projectedT;
+
+  return {
+    x: start.x + dx * hitT,
+    y: start.y + dy * hitT
+  };
 }

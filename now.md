@@ -324,9 +324,32 @@
 - 这仍是 CSS/布局第一轮，没有新增真正的高质量背景资产、角色立绘或按钮贴图。
 - 后续若继续贴近参考图，需要做可复用大厅组件层、真实背景素材/动效资产、以及邮件/好友/配装入口的视觉联动。
 
+### Battle content 契约审计脚本第一轮
+
+已完成本轮第十七刀：
+
+- 新增 `npm run audit:battle-content`。
+- 脚本只读前后端 catalog，不执行 TS/Scala 业务代码，不写数据文件。
+- 审计默认地图：`mapId`、`themeId`、`worldSize`、`heroSpawnPoints`、`innerObstacles`、weapon/item pickup definitions。
+- 审计四种武器定义：projectile、cooldown、reload、damage、radius、splash、ammo、heat、recoil 等关键字段。
+- 审计三种技能定义：`skillKind`、`activationKind`、`effectType`、`cooldownMs`、`activeMs`、`range/radius/duration/distance/speedMultiplier`。
+- 失败时会输出具体 path 和 frontend/backend 值；成功时输出地图、障碍、pickup、weapon、skill 摘要。
+
+验证：
+
+- `npm run audit:battle-content` 通过。
+- `npm run build` 通过。
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 脚本是轻量静态解析，不是完整 TS/Scala AST parser；当前 catalog 写法受控时足够有效。
+- 长期最稳方案仍是共享 JSON/生成器或正式 schema/codegen。
+
 ## 当前正在做
 
-当前主线：主界面视觉第一轮已完成，准备进入下一阶段选择。
+当前主线：扩展性基础第一轮和主界面视觉第一轮已完成，准备转入 BattlePage 美术资产第一轮。
 
 扩展性基础第一轮已经覆盖：
 
@@ -337,23 +360,23 @@
 
 下一阶段候选：
 
-- 继续主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
-- 回到 BattlePage 美术资产第一轮：统一自然 + 金属战争 + 空洞骑士剪影的战斗视觉。
-- 做契约 audit：为地图、武器、技能前后端 catalog 增加自动 diff，减少双源维护风险。
+- BattlePage 美术资产第一轮：统一自然 + 金属战争 + 空洞骑士剪影的战斗视觉。
+- 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
+- Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. 扩展性第二轮。
-   预计：0.5-1.5 天。
-   目标：继续小票据推进内容契约，对齐武器字段名和技能 profile，尽量不改玩法数值。
-
-2. 主界面视觉重构第一轮。
-   预计：1-2 天。
-   目标：按参考图做金属大厅结构、核心 CTA、排行/档案/配装/邮件入口、背景机械动效和粒子层。
-
-3. BattlePage 美术资产第一轮。
+1. BattlePage 美术资产第一轮。
    预计：2-4 天。
    目标：建立“自然 + 金属战争 + 空洞骑士剪影”的统一战斗视觉语言，同时保持命中判定可读、弹道可读、技能范围可读。
+
+2. 主界面视觉重构第二轮。
+   预计：0.5-1.5 天。
+   目标：组件化大厅面板、收束 CSS 叠层、强化邮件/好友/配装入口。
+
+3. Bot 社区化第二轮。
+   预计：0.5-1 天。
+   目标：补一个可复制的外部 bot 策略模板和离线 harness。
 
 4. 启动、验收、交付脚本。
    预计：0.5-1 天。
@@ -373,4 +396,4 @@
 - 扩展性、数据闭环、主界面和基础美术统一到较完整状态：约 5-10 天。
 - 接近商业级 polish：10 天以上，主要消耗在素材、动画、音效、平衡、稳定在线服务和反复试玩。
 
-当前执行策略：继续推进数据闭环和扩展性，不切换到聊天系统，不做课程风格大改。
+当前执行策略：继续推进 BattlePage 美术资产，不切换到聊天系统，不做课程风格大改。

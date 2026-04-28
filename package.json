@@ -7,6 +7,7 @@
     "dev": "vite --config frontend/vite.config.ts",
     "backend:dev": "cd backend && sbt \"runMain slaydemo.backend.BackendApp\"",
     "backend:compile": "cd backend && sbt compile",
+    "audit:battle-content": "node scripts/audit-battle-content-contract.mjs",
     "audit:data-closure": "node scripts/audit-data-closure.mjs",
     "audit:bot-plugins": "node scripts/audit-bot-plugin-manifests.mjs",
     "demo:db-sanity": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo-db-sanity.ps1",

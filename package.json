@@ -8,6 +8,7 @@
     "backend:dev": "cd backend && sbt \"runMain slaydemo.backend.BackendApp\"",
     "backend:compile": "cd backend && sbt compile",
     "audit:data-closure": "node scripts/audit-data-closure.mjs",
+    "audit:bot-plugins": "node scripts/audit-bot-plugin-manifests.mjs",
     "demo:db-sanity": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo-db-sanity.ps1",
     "demo:api-contract": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/api-contract-field-smoke.ps1",
     "demo:authoritative-finish-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/api-contract-authoritative-finish-smoke.ps1",

@@ -283,6 +283,27 @@
 - 技能 profile 仍未完全驱动后端 runtime 分支；后端 cast 逻辑仍按 Dash/Blink/Freeze 三个方法执行，但数值来源已经收束到 profile。
 - 前后端技能 profile 仍是双源维护；后续适合加契约 diff/audit，或引入共享 JSON 生成。
 
+### Bot 插件 manifest 第一轮
+
+已完成本轮第十五刀：
+
+- 新增 `BotPluginManifest`，固定 `apiVersion = bot-sdk/v1`，声明 `pluginId`、`displayName`、`version`、`author`、`description`、`strategyIds`、`botIds`、`permissions`。
+- 新增内置本地机器人 manifest：`builtin-local-bots`，覆盖当前五个 bot profile 和五个策略标签。
+- 新增 manifest discovery helper：按 strategy id 或 bot id 查询插件来源，并提供重复 id 校验 helper。
+- `botRegistry` 只新增只读 `getBotPluginManifestForProfile`，不参与 bot 决策。
+- 新增 `npm run audit:bot-plugins`，静态检查 manifest apiVersion、pluginId、strategyIds、botIds 和重复 id。
+
+验证：
+
+- `npm run build` 通过。
+- `npm run audit:bot-plugins` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 目前只是 manifest/discovery/test harness 第一轮，还没有动态加载外部 bot 包。
+- 社区 bot 仍需要后续定义目录结构、提交格式、示例策略、沙箱限制和离线对战测试。
+
 ## 当前正在做
 
 当前主线：扩展性第二轮。
@@ -292,7 +313,7 @@
 - 地图：已完成后端默认 map catalog 和前后端 pickup id 字段同名第一轮。
 - 武器：已完成字段同名和 recoil 单源第一轮；下一步考虑契约 diff/audit，而不是继续手工比对。
 - 技能：已完成 `activationKind/effectType/activeMs` profile 第一轮；后续考虑契约 diff/audit，暂不直接重写 cast runtime。
-- Bot：下一步进入社区 bot 插件边界第一轮，优先做 manifest/discovery/test harness，而不是一次性做完整平台。
+- Bot：已完成 manifest/discovery/test harness 第一轮；下一步可做示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 

@@ -1,4 +1,5 @@
 import { fetchBotProfiles, type RemoteBotProfile } from "./botProfileApi";
+import { findBotPluginManifestByBotId, type BotPluginManifest } from "./botPluginManifest";
 
 export interface BotSkinMetadata {
   avatarKey: string;
@@ -99,6 +100,10 @@ export function getBotProfileById(botId: string): BotProfile | undefined {
 
 export function getBotProfileBySlot(slotIndex: number): BotProfile | undefined {
   return botRegistryCache[slotIndex];
+}
+
+export function getBotPluginManifestForProfile(botId: string): BotPluginManifest | undefined {
+  return findBotPluginManifestByBotId(botId);
 }
 
 export function refreshBotProfiles(): Promise<void> {

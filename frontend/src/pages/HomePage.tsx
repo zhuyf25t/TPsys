@@ -111,9 +111,9 @@ export function HomePage() {
   return (
     <>
       <LobbyShell
-        brand="SLAY"
-        title="SLAY DEMO"
-        subtitle={`${BATTLE_ARENA_PLAYER_CAPACITY} 人竞技场`}
+        brand="OMEGALOMANIA"
+        title="OMEGALOMANIA"
+        subtitle={`快节奏 3v3 竞技场 · ${BATTLE_ARENA_PLAYER_CAPACITY} 人钢铁大厅待命`}
         playerName={playerName}
         playerBadge={authUser ? buildHandleBadge(resolvedHandle) : "P1"}
         playerAvatarSrc={loadout.skinImageSrc}
@@ -129,8 +129,8 @@ export function HomePage() {
           ratingEntries,
           mailOwnerHandle
         )}
-        primaryAction={{ label: "开始", to: "/battle?new=1", variant: "primary" }}
-        secondaryAction={{ label: "配装", to: "/loadout" }}
+        primaryAction={{ label: "开始游戏", to: "/battle?new=1", variant: "primary" }}
+        secondaryAction={{ label: "调整配装", to: "/loadout" }}
         tertiaryAction={
           authUser
             ? {
@@ -143,24 +143,33 @@ export function HomePage() {
             : { label: "登录", onClick: () => setAuthMode("login"), variant: "ghost" }
         }
         railItems={[
-          { label: "ARENA", value: `${BATTLE_ARENA_PLAYER_CAPACITY} 人` },
-          { label: "ROUND", value: BATTLE_MATCH_DURATION_LABEL },
-          { label: "RATING", value: currentRatingLabel }
+          { label: "竞技场", value: `${BATTLE_ARENA_PLAYER_CAPACITY} 人` },
+          { label: "回合", value: BATTLE_MATCH_DURATION_LABEL },
+          { label: "评级", value: currentRatingLabel }
         ]}
         leftDock={<ContributionTopCard entries={contributionEntries} />}
         rightDock={<RatingTopCard entries={ratingEntries} />}
         menuBody={
           <div className="home-menu">
-            <div className="home-menu__logo" aria-hidden="true">
-              SLAY<span>DEMO</span>
+            <div className="home-menu__brandplate">
+              <span className="home-menu__kicker">SLAY DEMO / 钢铁战备大厅</span>
+              <div className="home-menu__logo" aria-hidden="true">
+                OMEGA<span>LOMANIA</span>
+              </div>
+              <p>快节奏 3v3 竞技场 · 武装同步完成，等待投放</p>
             </div>
-            <div className="home-menu__kit">
-              <span>{loadout.primary}</span>
-              <span>{loadout.skills.join(" / ")}</span>
+            <div className="home-menu__kit" aria-label="当前战备">
+              <span>主武器：{loadout.primary}</span>
+              <span>战术模块：{loadout.skills.join(" / ")}</span>
+            </div>
+            <div className="home-menu__status-strip" aria-hidden="true">
+              <span>核心在线</span>
+              <span>装甲锁定</span>
+              <span>投放就绪</span>
             </div>
             {!authUser ? (
               <button type="button" className="home-menu__register" onClick={() => setAuthMode("register")}>
-                注册
+                创建指挥员
               </button>
             ) : null}
           </div>
@@ -196,8 +205,8 @@ function ContributionTopCard({
       <div className="lobby-side-card__list">
         <div className="lobby-side-card__table-head">
           <span>#</span>
-          <span>User</span>
-          <span>Contrib.</span>
+          <span>指挥员</span>
+          <span>贡献</span>
         </div>
         {rows.map((row, index) =>
           row ? (
@@ -231,8 +240,8 @@ function RatingTopCard({ entries }: { entries: ReturnType<typeof getRatingEntrie
       <div className="lobby-side-card__list">
         <div className="lobby-side-card__table-head">
           <span>#</span>
-          <span>User</span>
-          <span>Rating</span>
+          <span>指挥员</span>
+          <span>评级</span>
         </div>
         {rows.map((entry, index) =>
           entry ? (
@@ -264,7 +273,7 @@ function buildPreviewSets(
   return {
     replay: {
       title: "最近回放",
-      eyebrow: "Replay",
+      eyebrow: "战报回放",
       detail: "只显示已经产生的本地战报。",
       emptyTitle: "暂无回放",
       emptyDetail: "完成一局后，这里会出现真实战报。",
@@ -278,7 +287,7 @@ function buildPreviewSets(
     },
     discussion: {
       title: "论坛",
-      eyebrow: "Forum",
+      eyebrow: "战术论坛",
       detail: "最近的本地讨论。",
       emptyTitle: "暂无讨论",
       emptyDetail: "还没有帖子。",
@@ -292,7 +301,7 @@ function buildPreviewSets(
     },
     ranking: {
       title: "排行",
-      eyebrow: "Ranking",
+      eyebrow: "评级排行",
       detail: "当前已有评分记录。",
       emptyTitle: "暂无排行",
       emptyDetail: "完成对局后才会生成排行。",
@@ -306,7 +315,7 @@ function buildPreviewSets(
     },
     mails: {
       title: "邮件",
-      eyebrow: "Mails",
+      eyebrow: "战备邮件",
       detail: "最近通知。",
       emptyTitle: "暂无邮件",
       emptyDetail: "完成一局后，这里会出现通知。",
@@ -326,7 +335,7 @@ function buildPreviewSets(
     },
     social: {
       title: "好友",
-      eyebrow: "Social",
+      eyebrow: "好友联络",
       detail: "好友请求会出现在这里。",
       emptyTitle: "暂无好友请求",
       emptyDetail: "没有真实请求时保持空状态。",

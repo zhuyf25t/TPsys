@@ -3,6 +3,11 @@ import type { ReplayFrame } from "../../replay/replayTypes";
 import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../../replay/localReplayStore";
 import { compactReplayFrames, hasMeaningfulReplayFrames } from "../../replay/replayRecorder";
 import { getCurrentAuthHandle, getCurrentAuthUser } from "../../auth/authGateway";
+import {
+  isPlayableIdentityHandle,
+  normalizePlayableIdentityHandle,
+  normalizePlayerHandleKey
+} from "../../identity/identityHandlePolicy";
 import { syncBattleResultToBackend } from "./battleResultSync";
 import { syncReplayToBackend } from "../../replay/replayApi";
 import { finalizeBattleReplayFrames } from "../runtime-local/session/battleFinalizationReplay";
@@ -231,27 +236,37 @@ export function finalizeBattleAndPersist(input: FinalizeBattleInput): FinalizeBa
 
   const state = readState();
   const syncBackend = input.syncBackend ?? true;
-  const activeHandle = getResolvedProfileHandle(state);
+  const activeHandle = normalizePlayableIdentityHandle(getCurrentAuthHandle());
+  const recordHandle = activeHandle ?? normalizeHandle(getCurrentAuthHandle() || player.displayName || "Player-1");
   const existingRecordId = normalizeBattleRecordId(input.battleId);
-  const existingRecord = existingRecordId
-    ? state.records.find((storedRecord) => storedRecord.id === existingRecordId) ?? null
+  const existingRecord = activeHandle && existingRecordId
+    ? state.records.find((storedRecord) => storedRecord.id === existingRecordId && isPlayableStoredBattleRecord(storedRecord)) ?? null
     : null;
-  const ratingBefore = existingRecord?.ratingBefore ?? getCurrentRatingFromState(state, activeHandle);
+  const ratingBefore = activeHandle
+    ? existingRecord?.ratingBefore ?? getCurrentRatingFromState(state, activeHandle)
+    : DEFAULT_RATING;
   const record = createBattleRecord(
     authoritativeFinalSnapshot,
     player,
     input.finishedAt,
     ratingBefore,
     input.thumbnailDataUrl,
-    activeHandle,
+    recordHandle,
     input.battleId,
-    !syncBackend
+    !syncBackend || !activeHandle
   );
   const replayFrames = finalizeBattleReplayFrames(
     input.replayFrames,
     authoritativeFinalSnapshot,
     resolvedBotOnlyClosure
   );
+  if (!activeHandle) {
+    return {
+      returnSummary: buildReturnSummary(record),
+      replay: toReplayEntry(record, replayFrames)
+    };
+  }
+
   if (existingRecord) {
     const playback = getLocalReplayPlaybackById(existingRecord.id);
     const existingReplayFrames = playback?.frames ?? [];
@@ -397,15 +412,17 @@ export function backfillLocalBattleTruthToBackend(): Promise<void> {
 }
 
 export function getLatestBattleReturnSummary(): LocalBattleReturnSummary | null {
-  const latest = readState().records[0];
+  const latest = readState().records.find(isPlayableStoredBattleRecord);
   return latest ? buildReturnSummary(latest) : null;
 }
 
 export function getReplayEntries(): LocalReplayEntry[] {
-  return readState().records.map((record) => {
-    const playback = getLocalReplayPlaybackById(record.id);
-    return toReplayEntry(record, playback?.frames ?? []);
-  });
+  return readState().records
+    .filter(isPlayableStoredBattleRecord)
+    .map((record) => {
+      const playback = getLocalReplayPlaybackById(record.id);
+      return toReplayEntry(record, playback?.frames ?? []);
+    });
 }
 
 export function getReplayEntryById(id: string): LocalReplayEntry | undefined {
@@ -424,7 +441,11 @@ export function isReplayEntryBackendSyncDisabled(id: string): boolean {
 export function getMailEntries(): LocalMailEntry[] {
   const state = readState();
   const visibleMails = filterVisibleMails(state.mails);
-  const recordById = new Map(state.records.map((record) => [record.id, record]));
+  const recordById = new Map(
+    state.records
+      .filter(isPlayableStoredBattleRecord)
+      .map((record) => [record.id, record])
+  );
 
   return visibleMails.map((mail) => ({
     id: mail.id,
@@ -451,12 +472,13 @@ export function markMailRead(mailId: string): boolean {
   }
 
   const currentUser = getCurrentAuthUser();
-  if (!currentUser) {
+  const normalizedHandle = normalizePlayableIdentityHandle(currentUser?.handle);
+  if (!normalizedHandle) {
     return false;
   }
 
   const state = readState();
-  const normalizedHandle = normalizeHandle(currentUser.handle);
+  const normalizedHandleKey = normalizePlayerHandleKey(normalizedHandle);
   let found = false;
   let changed = false;
 
@@ -465,8 +487,9 @@ export function markMailRead(mailId: string): boolean {
       return mail;
     }
 
-    if (!mail.ownerHandle || normalizeHandle(mail.ownerHandle) !== normalizedHandle || !mail.unread) {
-      if (mail.ownerHandle && normalizeHandle(mail.ownerHandle) === normalizedHandle) {
+    const ownerHandleKey = normalizePlayableMailOwnerKey(mail);
+    if (!ownerHandleKey || ownerHandleKey !== normalizedHandleKey || !mail.unread) {
+      if (ownerHandleKey && ownerHandleKey === normalizedHandleKey) {
         found = true;
       }
       return mail;
@@ -519,13 +542,25 @@ export function getRatingEntries(): LocalRatingEntry[] {
 }
 
 export function getRatingEntryByHandle(handle: string): LocalRatingEntry | undefined {
-  const normalizedHandle = normalizeHandle(handle);
-  return getRatingEntries().find((entry) => entry.handle.toLowerCase() === normalizedHandle.toLowerCase());
+  const normalizedHandle = normalizePlayableIdentityHandle(handle);
+  if (!normalizedHandle) {
+    return undefined;
+  }
+
+  const normalizedHandleKey = normalizePlayerHandleKey(normalizedHandle);
+  return getRatingEntries().find((entry) => normalizePlayerHandleKey(entry.handle) === normalizedHandleKey);
 }
 
 export function getProfileSummary(handle: string): LocalProfileSummary | undefined {
   const state = readState();
-  const resolvedHandle = normalizeHandle(handle || getResolvedProfileHandle(state));
+  const requestedHandle = handle.trim();
+  const resolvedHandle = requestedHandle
+    ? normalizePlayableIdentityHandle(requestedHandle)
+    : getResolvedProfileHandle(state);
+  if (!resolvedHandle) {
+    return undefined;
+  }
+
   const records = getRecordsForHandle(state.records, resolvedHandle);
   const latest = records[0];
   const ratingEntry = buildRatingEntryForRecords(resolvedHandle, records);
@@ -936,26 +971,42 @@ function getCurrentRatingFromState(state: BattleTruthState, handle: string): num
   return latest ? latest.ratingAfter : DEFAULT_RATING;
 }
 
-function getResolvedProfileHandle(state: BattleTruthState): string {
-  return normalizeHandle(getCurrentAuthHandle() || state.records[0]?.handle || state.records[0]?.playerName || "Player-1");
+function getResolvedProfileHandle(state: BattleTruthState): string | null {
+  const authHandle = normalizePlayableIdentityHandle(getCurrentAuthHandle());
+  if (authHandle) {
+    return authHandle;
+  }
+
+  const latestPlayableRecord = state.records.find(isPlayableStoredBattleRecord);
+  return latestPlayableRecord ? getRecordHandle(latestPlayableRecord) : null;
 }
 
 function filterVisibleMails(mails: StoredBattleMail[]): StoredBattleMail[] {
   const currentUser = getCurrentAuthUser();
 
   if (!currentUser) {
-    return mails.filter((mail) => !mail.ownerHandle);
+    return mails.filter((mail) => !mail.ownerHandle?.trim());
   }
 
-  const normalizedHandle = normalizeHandle(currentUser.handle);
+  const normalizedHandle = normalizePlayableIdentityHandle(currentUser.handle);
+  if (!normalizedHandle) {
+    return [];
+  }
+
+  const normalizedHandleKey = normalizePlayerHandleKey(normalizedHandle);
   return mails.filter((mail) => {
-    const ownerHandle = mail.ownerHandle?.trim();
-    if (!ownerHandle) {
+    const ownerHandleKey = normalizePlayableMailOwnerKey(mail);
+    if (!ownerHandleKey) {
       return false;
     }
 
-    return normalizeHandle(ownerHandle) === normalizedHandle;
+    return ownerHandleKey === normalizedHandleKey;
   });
+}
+
+function normalizePlayableMailOwnerKey(mail: StoredBattleMail): string | null {
+  const ownerHandle = normalizePlayableIdentityHandle(mail.ownerHandle);
+  return ownerHandle ? normalizePlayerHandleKey(ownerHandle) : null;
 }
 
 function getStoredMailBattleId(mail: StoredBattleMail): string | null {
@@ -989,18 +1040,34 @@ function groupRecordsByHandle(records: StoredBattleRecord[]): Map<string, Stored
   const grouped = new Map<string, StoredBattleRecord[]>();
 
   records.forEach((record) => {
+    if (!isPlayableStoredBattleRecord(record)) {
+      return;
+    }
+
     const handle = getRecordHandle(record);
-    const bucket = grouped.get(handle) ?? [];
+    const handleKey = normalizePlayerHandleKey(handle);
+    const bucket = grouped.get(handleKey) ?? [];
     bucket.push(record);
-    grouped.set(handle, bucket);
+    grouped.set(handleKey, bucket);
   });
 
   return grouped;
 }
 
 function getRecordsForHandle(records: StoredBattleRecord[], handle: string): StoredBattleRecord[] {
-  const normalizedHandle = normalizeHandle(handle).toLowerCase();
-  return records.filter((record) => getRecordHandle(record).toLowerCase() === normalizedHandle);
+  const normalizedHandle = normalizePlayableIdentityHandle(handle);
+  if (!normalizedHandle) {
+    return [];
+  }
+
+  const normalizedHandleKey = normalizePlayerHandleKey(normalizedHandle);
+  return records.filter((record) => {
+    if (!isPlayableStoredBattleRecord(record)) {
+      return false;
+    }
+
+    return normalizePlayerHandleKey(getRecordHandle(record)) === normalizedHandleKey;
+  });
 }
 
 function buildRatingEntryForRecords(handle: string, records: StoredBattleRecord[]): LocalRatingEntry | null {
@@ -1009,6 +1076,11 @@ function buildRatingEntryForRecords(handle: string, records: StoredBattleRecord[
   }
 
   const latest = records[0];
+  const displayHandle = normalizePlayableIdentityHandle(latest.handle) ?? normalizePlayableIdentityHandle(handle);
+  if (!displayHandle) {
+    return null;
+  }
+
   const wins = records.filter((record) => record.placement === 1).length;
   const winRate = Math.round((wins / records.length) * 100);
   const recentForm = records
@@ -1018,7 +1090,7 @@ function buildRatingEntryForRecords(handle: string, records: StoredBattleRecord[
 
   return {
     rank: 0,
-    handle: normalizeHandle(handle),
+    handle: displayHandle,
     score: latest.ratingAfter,
     winRate: `${winRate}%`,
     title: getRatingTitle(latest.ratingAfter),
@@ -1029,7 +1101,11 @@ function buildRatingEntryForRecords(handle: string, records: StoredBattleRecord[
 }
 
 function getRecordHandle(record: StoredBattleRecord): string {
-  return normalizeHandle(record.handle || record.playerName || "Player-1");
+  return normalizePlayableIdentityHandle(record.handle) ?? normalizeHandle(record.handle || "Player-1");
+}
+
+function isPlayableStoredBattleRecord(record: StoredBattleRecord): boolean {
+  return isPlayableIdentityHandle(record.handle);
 }
 
 function normalizeHandle(handle: string): string {
@@ -1227,7 +1303,7 @@ function stripBattleRecordPreview(record: StoredBattleRecord): StoredBattleRecor
 function normalizeStoredBattleRecord(record: Partial<StoredBattleRecord> & { replayFrames?: ReplayFrame[] }): StoredBattleRecord {
   return {
     id: record.id ?? `replay-${Date.now()}`,
-    handle: normalizeHandle(record.handle ?? record.playerName ?? getCurrentAuthHandle()),
+    handle: normalizeStoredBattleRecordHandle(record.handle),
     finishedAt: record.finishedAt ?? Date.now(),
     finishedAtLabel: record.finishedAtLabel ?? formatFinishedAt(record.finishedAt ?? Date.now()),
     durationMs: record.durationMs ?? 0,
@@ -1251,6 +1327,10 @@ function normalizeStoredBattleRecord(record: Partial<StoredBattleRecord> & { rep
   };
 }
 
+function normalizeStoredBattleRecordHandle(handle: string | null | undefined): string {
+  return (handle ?? "").trim();
+}
+
 async function runLocalBattleTruthBackfill(): Promise<void> {
   const state = readState();
   if (state.records.length === 0) {
@@ -1260,7 +1340,7 @@ async function runLocalBattleTruthBackfill(): Promise<void> {
   const backfillState = readBattleTruthBackfillState();
 
   for (const record of state.records) {
-    if (record.backendSyncDisabled) {
+    if (record.backendSyncDisabled || !isPlayableStoredBattleRecord(record)) {
       markBattleTruthBackfillAttempt(record.id);
       continue;
     }
@@ -1272,7 +1352,7 @@ async function runLocalBattleTruthBackfill(): Promise<void> {
     const playback = await loadLocalReplayPlaybackById(record.id).catch(() => undefined);
     const frames = playback?.frames ?? [];
     const replayFrames = hasMeaningfulReplayFrames(frames) ? frames : [];
-    const activeHandle = record.handle;
+    const activeHandle = getRecordHandle(record);
 
     const synced = await syncStoredBattleTruthToBackend(record, activeHandle, replayFrames);
     if (synced) {
@@ -1326,9 +1406,14 @@ async function syncStoredBattleTruthToBackend(
     return false;
   }
 
+  const playableHandle = normalizePlayableIdentityHandle(handle);
+  if (!playableHandle || !isPlayableStoredBattleRecord(record)) {
+    return false;
+  }
+
   const resultSynced = await syncBattleResultToBackend({
     battleId: record.id,
-    handle,
+    handle: playableHandle,
     displayName: record.playerName,
     finishedAt: record.finishedAt,
     finishedAtLabel: record.finishedAtLabel,
@@ -1348,7 +1433,7 @@ async function syncStoredBattleTruthToBackend(
     currentLoadout: record.currentLoadout
   });
 
-  const replaySynced = syncReplay ? await syncStoredBattleReplayToBackend(record, handle, replayFrames) : true;
+  const replaySynced = syncReplay ? await syncStoredBattleReplayToBackend(record, playableHandle, replayFrames) : true;
 
   return resultSynced && replaySynced;
 }
@@ -1362,10 +1447,15 @@ async function syncStoredBattleReplayToBackend(
     return false;
   }
 
+  const playableHandle = normalizePlayableIdentityHandle(handle);
+  if (!playableHandle || !isPlayableStoredBattleRecord(record)) {
+    return false;
+  }
+
   return await syncReplayToBackend({
     replayId: record.id,
     battleId: record.id,
-    handle,
+    handle: playableHandle,
     displayName: record.playerName,
     finishedAt: record.finishedAt,
     finishedAtLabel: record.finishedAtLabel,

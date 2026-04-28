@@ -584,9 +584,32 @@
 - 这是本地表现层搬移，headless smoke 不能确认拖影审美，只确认移动输入、同局、HUD、VFX 生命周期未被破坏。
 - `worldViewFactory.ts` 仍包含 hero readability、hero health/weapon cue、pickup sync 和 indicators；下一刀适合拆 hero readability/health/cue presenter。
 
+### BattlePage hero readability/health/cue presenter 抽离
+
+已完成本轮第二十九刀：
+
+- 新增 `frontend/src/features/battle/renderer/entities/heroReadabilityView.ts`。
+- 从 `worldViewFactory.ts` 抽出 hero readability constants、weapon cue readability styles、readability primitive 创建、weapon cue 同步、slow-field 判断、health ratio/fill 同步和 finite vector helper。
+- `HeroView` 外部字段名保留：`shadow/bodyDisc/silhouetteRing/hitRing/statusRing/weaponStock/weaponCue/weaponMuzzle/marker/healthBackground/healthFill` 仍通过类型组合存在。
+- alive/dead visibility 分支保持原样；`setHeroWeaponOverlayVisible(...)` 行为不变。
+- `syncHeroWeaponOverlayVisuals(...)` 仍在 hero readability sync 内被调用，`weaponKind/displayPosition/displayFacing/radius/cueOriginOffset/cueLength/alpha/strokeAlpha` 参数语义不变。
+- radius/depth/color/alpha/stroke、weapon cue formula、health fill formula、slow-field 判断公式保持原值。
+- `worldViewFactory.ts` 从约 `718` LOC 降到约 `431` LOC。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD hero count 仍为 `6`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 这是表现层搬移，headless smoke 不能替代人工 headful 审美验收；当前确认 hero 显示链路和基础指标未被破坏。
+- `worldViewFactory.ts` 现在主要剩 pickup sync、indicator sync、hero wrapper/visibility orchestration；下一刀适合拆 pickup sync 或 indicator sync，之后再转向 `battleFeedbackSceneBridge.ts` / `sceneVfxController.ts`。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter、remote hero interpolation helper、local hero motion streak helper 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `718` LOC；下一步继续拆 `worldViewFactory.ts` 的 hero readability / health / weapon cue 边界。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter、remote hero interpolation helper、local hero motion streak helper、hero readability/health/cue presenter 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `431` LOC；下一步拆 `worldViewFactory.ts` 的 pickup sync / indicator sync 小职责，随后转向 VFX bridge 大文件。
 
 扩展性基础第一轮已经覆盖：
 
@@ -597,15 +620,15 @@
 
 下一阶段候选：
 
-- BattlePage hero view 边界整理：优先把 hero readability、hero health/weapon cue 从 `worldViewFactory.ts` 拆成 focused helper，避免主工厂继续承载过多渲染链。
+- BattlePage world view 剩余边界整理：把 pickup sync 或 indicator sync 从 `worldViewFactory.ts` 拆成 focused helper，让主工厂只保留 view state 装配和顶层同步编排。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage world view factory hero readability / interpolation 边界整理。
-   预计：3-6 小时。
-   目标：把 hero readability、hero health、weapon cue 从 `worldViewFactory.ts` 拆成 focused presenter/helper，不改变移动、命中、血条、武器显示或本地/远端手感。
+1. BattlePage world view factory pickup / indicator 边界整理。
+   预计：1-3 小时。
+   目标：把 pickup sync 或 indicator sync 从 `worldViewFactory.ts` 拆成 focused helper，不改变拾取显示、技能范围指示、Blink/Freeze 目标合法性或本地/远端手感。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

@@ -453,9 +453,30 @@
 - pickup 的 label 底板/glint 亮度仍需要人工 headful 审美验收，尤其要确认不会遮挡角色脚下状态圈。
 - `worldViewFactory.ts` 仍直接包含 projectile view、slow field view、hero interpolation 等逻辑，后续仍可继续拆。
 
+### BattlePage arena obstacle skin helper 与封闭轮廓增强
+
+已完成本轮第二十三刀：
+
+- 新增 `frontend/src/features/battle/renderer/arena/obstacleSkinPresenter.ts`。
+- 从 `arenaBuilder.ts` 抽出 static obstacle metal skin、corner plates、footprint cues 和 border 判断。
+- `arenaBuilder.ts` 现在更集中于 arena/world construction、physics static body、`obstacleBounds` 和 occludables 注册。
+- crate/wall 的视觉轮廓补强了闭合顶边、底边、四角和箱体封闭感，降低 “N 型开口” 误读。
+- 本轮没有改 `setDisplaySize`、`wallBodies.add`、`obstacleBounds.push`、`registerOccludable`、`INNER_OBSTACLES`、`WORLD_SIZE`、map catalog、backend、`GameScene.ts`、hitbox、碰撞或移动边界。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD obstacle count 仍为 `170`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 每个 obstacle 增加了少量视觉 primitive，当前 smoke 未显示问题，但低端设备上仍需后续真实试玩观察。
+- `arenaBuilder.ts` 中 floor/boundary/decorations 仍可进一步拆成 presenter/helper，但本轮先只处理 obstacle skin。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation 已接入并通过 headless smoke。下一步进入障碍/arena 可读性第二轮打磨。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin 已接入并通过 headless smoke。下一步进入 arena floor/boundary/decorations 边界整理或主界面第二轮。
 
 扩展性基础第一轮已经覆盖：
 
@@ -466,15 +487,15 @@
 
 下一阶段候选：
 
-- BattlePage 障碍/arena 可读性第二轮：继续优化封闭轮廓、遮挡层级、边界提示和弹道/技能层级。
+- BattlePage arena floor/boundary/decorations 边界整理：继续把 floor、boundary、decorations 从 `arenaBuilder.ts` 拆成 presenter/helper，避免 arena builder 继续膨胀。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage 障碍/arena 可读性第二轮。
+1. BattlePage arena floor/boundary/decorations 边界整理。
    预计：0.5-1.5 天。
-   目标：继续提升障碍封闭轮廓、遮挡层级、边界提示、弹道/技能层级，不改变 gameplay 语义。
+   目标：继续拆清 arena floor、boundary、decorations 的表现层边界，不改变 gameplay 语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

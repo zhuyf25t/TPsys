@@ -16,6 +16,7 @@ import {
   type ArenaObstacle
 } from "../../../../game/constants";
 import { ITEM_PICKUP_SPAWN_POINTS, WEAPON_PICKUP_SPAWN_POINTS } from "../../../../game/spawn";
+import { createStaticObstacleMetalSkin } from "./obstacleSkinPresenter";
 
 export type OccludableSprite = Phaser.GameObjects.Image | Phaser.Physics.Arcade.Image;
 
@@ -516,87 +517,6 @@ function createStaticObstacle(
   if (obstacle.kind === "wall") {
     registerOccludable(staticImage, 1, occludables);
   }
-}
-
-function createStaticObstacleMetalSkin(scene: Phaser.Scene, obstacle: ArenaObstacle, imageDepth: number): void {
-  const { position, size } = obstacle;
-  const shadowAlpha = obstacle.kind === "wall" ? 0.34 : 0.26;
-  const rimColor = obstacle.kind === "wall" ? BORDER_ENERGY_COLOR : 0xd99a34;
-  const braceColor = obstacle.kind === "wall" ? 0x0c151a : 0x151819;
-  const edgeInset = 7;
-  const edgeWidth = Math.max(size.x - 20, 24);
-  const edgeHeight = Math.max(size.y - 20, 24);
-  const cornerSize = obstacle.kind === "wall" ? 12 : 10;
-  const bottomAlpha = obstacle.kind === "wall" ? 0.4 : 0.34;
-  const sideAlpha = obstacle.kind === "wall" ? 0.28 : 0.22;
-
-  if (!isBorderObstacle(obstacle)) {
-    createCoverFootprintCues(scene, obstacle, imageDepth);
-  }
-
-  scene.add
-    .rectangle(position.x + 7, position.y + 9, size.x + 10, size.y + 10, 0x020405, shadowAlpha)
-    .setDepth(imageDepth - 2);
-  scene.add
-    .rectangle(position.x, position.y, size.x - 8, size.y - 8, 0x000000, 0)
-    .setStrokeStyle(2, rimColor, obstacle.kind === "wall" ? 0.2 : 0.28)
-    .setDepth(imageDepth + 1);
-
-  scene.add.rectangle(position.x, position.y + size.y / 2 - edgeInset, edgeWidth, 6, rimColor, bottomAlpha).setDepth(imageDepth + 2);
-  scene.add.rectangle(position.x - size.x / 2 + edgeInset, position.y, 5, edgeHeight, braceColor, sideAlpha).setDepth(imageDepth + 2);
-  scene.add.rectangle(position.x + size.x / 2 - edgeInset, position.y, 5, edgeHeight, braceColor, sideAlpha).setDepth(imageDepth + 2);
-  createObstacleCornerPlates(scene, position, size, cornerSize, rimColor, imageDepth + 3, obstacle.kind === "wall" ? 0.34 : 0.28);
-
-  if (obstacle.kind === "crate") {
-    scene.add.rectangle(position.x, position.y - size.y / 2 + edgeInset, edgeWidth, 5, rimColor, 0.24).setDepth(imageDepth + 2);
-    return;
-  }
-
-  scene.add.rectangle(position.x, position.y + size.y * 0.22, size.x - 16, 6, braceColor, 0.42).setDepth(imageDepth + 2);
-}
-
-function createObstacleCornerPlates(
-  scene: Phaser.Scene,
-  position: Vec2,
-  size: Vec2,
-  cornerSize: number,
-  color: number,
-  depth: number,
-  alpha: number
-): void {
-  const left = position.x - size.x / 2 + cornerSize / 2 + 4;
-  const right = position.x + size.x / 2 - cornerSize / 2 - 4;
-  const top = position.y - size.y / 2 + cornerSize / 2 + 4;
-  const bottom = position.y + size.y / 2 - cornerSize / 2 - 4;
-
-  scene.add.rectangle(left, top, cornerSize, cornerSize, color, alpha).setDepth(depth);
-  scene.add.rectangle(right, top, cornerSize, cornerSize, color, alpha).setDepth(depth);
-  scene.add.rectangle(left, bottom, cornerSize, cornerSize, color, alpha).setDepth(depth);
-  scene.add.rectangle(right, bottom, cornerSize, cornerSize, color, alpha).setDepth(depth);
-}
-
-function isBorderObstacle(obstacle: ArenaObstacle): boolean {
-  return obstacle.obstacleId.startsWith("border-");
-}
-
-function createCoverFootprintCues(scene: Phaser.Scene, obstacle: ArenaObstacle, imageDepth: number): void {
-  const { position, size } = obstacle;
-  const isWall = obstacle.kind === "wall";
-  const accentColor = isWall ? BORDER_ENERGY_COLOR : 0xd99a34;
-  const footprintWidth = size.x + (isWall ? 34 : 26);
-  const footprintHeight = size.y + (isWall ? 28 : 22);
-  const shadowAlpha = isWall ? 0.2 : 0.16;
-
-  scene.add.rectangle(position.x + 5, position.y + 7, footprintWidth, footprintHeight, 0x020405, shadowAlpha).setDepth(imageDepth - 4);
-  scene.add
-    .rectangle(position.x, position.y, footprintWidth - 10, footprintHeight - 10, 0x000000, 0)
-    .setStrokeStyle(2, 0x52656b, isWall ? 0.14 : 0.1)
-    .setDepth(imageDepth - 3);
-
-  scene.add.rectangle(position.x, position.y - size.y / 2 - 5, Math.max(size.x - 18, 24), 3, accentColor, isWall ? 0.2 : 0.24).setDepth(imageDepth - 1);
-  scene.add.rectangle(position.x, position.y + size.y / 2 + 5, Math.max(size.x - 18, 24), 4, accentColor, isWall ? 0.28 : 0.24).setDepth(imageDepth - 1);
-  scene.add.rectangle(position.x - size.x / 2 - 5, position.y, 3, Math.max(size.y - 18, 24), 0xe8f8ff, isWall ? 0.08 : 0.06).setDepth(imageDepth - 1);
-  scene.add.rectangle(position.x + size.x / 2 + 5, position.y, 3, Math.max(size.y - 18, 24), accentColor, isWall ? 0.12 : 0.16).setDepth(imageDepth - 1);
 }
 
 function registerOccludable(sprite: OccludableSprite, baseAlpha: number, occludables: OccludableView[]): void {

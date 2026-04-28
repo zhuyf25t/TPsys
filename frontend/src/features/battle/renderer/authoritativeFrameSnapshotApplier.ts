@@ -521,9 +521,9 @@ function applyAuthoritativeWeaponState(weaponState: WeaponState, weapon: Authori
   weaponState.reserveAmmo = reserveAmmo;
   weaponState.cooldownRemaining = Math.max(0, Math.round(weapon.fireCooldownMs));
   weaponState.reloadRemaining = Math.max(0, Math.round(weapon.reloadRemainingMs));
-  weaponState.heat = 0;
-  weaponState.overheated = false;
-  weaponState.overheatRemaining = 0;
+  weaponState.heat = Math.max(0, weapon.heat);
+  weaponState.overheated = weapon.overheated;
+  weaponState.overheatRemaining = Math.max(0, Math.round(weapon.overheatRemainingMs));
 }
 
 function clampAuthoritativeWeaponIndex(currentWeaponIndex: number, weaponCount: number): number {

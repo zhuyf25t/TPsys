@@ -19,7 +19,12 @@ object BattleContentCatalog {
     magazineSize: Int,
     reserveAmmo: Int,
     pickupAmmo: Int,
-    recoilStrength: Double
+    recoilStrength: Double,
+    usesHeat: Boolean = false,
+    maxHeat: Double = 0.0,
+    heatPerShot: Double = 0.0,
+    coolRatePerSecond: Double = 0.0,
+    overheatLockMs: Long = 0L
   )
 
   final case class WeaponPickupDefinition(
@@ -103,10 +108,15 @@ object BattleContentCatalog {
       splashRadius = 0.0,
       pellets = 1,
       spreadRadians = 0.06,
-      magazineSize = 100,
+      magazineSize = 0,
       reserveAmmo = 0,
       pickupAmmo = 0,
-      recoilStrength = 8.0
+      recoilStrength = 8.0,
+      usesHeat = true,
+      maxHeat = 100.0,
+      heatPerShot = 8.0,
+      coolRatePerSecond = 32.0,
+      overheatLockMs = 1400L
     ),
     shotgunWeaponKind -> WeaponDefinition(
       weaponKind = shotgunWeaponKind,

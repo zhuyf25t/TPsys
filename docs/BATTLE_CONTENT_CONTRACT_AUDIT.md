@@ -26,14 +26,16 @@ Scope: first audit after extracting backend and frontend battle content catalogs
   - `pickup-medkit-1` at `(960, 608)`
   - `pickup-medkit-2` at `(1600, 992)`
 
-## Known Remaining Drift
+## Follow-Up Fix
 
-- Gatling is still modeled differently across layers.
-- Frontend local/runtime presentation uses heat semantics: `usesHeat`, `heat`, `overheated`, `overheatRemaining`.
-- Backend authoritative runtime currently models Gatling as a high-capacity magazine with `magazineSize = 100`, `reserveAmmo = 0`, and no explicit heat state in the battle API.
-- This is not a display-only mismatch. A correct fix needs a weapon-state contract decision, backend API fields, frontend adapter mapping, HUD behavior, and smoke coverage.
+Gatling contract drift was fixed after this audit:
 
-Decision: do not fold Gatling heat into this small audit patch. Treat it as the next weapon-contract task.
+- Backend authoritative runtime now stores and outputs `heat`, `overheated`, and `overheatRemainingMs`.
+- Backend Gatling now uses `magazineSize = 0`, `reserveAmmo = 0`, `usesHeat = true`, `maxHeat = 100`, `heatPerShot = 8`, `coolRatePerSecond = 32`, and `overheatLockMs = 1400`.
+- Gatling no longer consumes ammo in authoritative runtime. It fires while `primaryHeld`, cooldown is ready, and the weapon is not overheated.
+- Frontend authoritative client, frame bridge, and snapshot applier now carry the heat fields into `WeaponState`.
+
+Remaining note: this intentionally changes old backend behavior from a high-capacity magazine approximation to the heat model already used by the frontend HUD and local runtime.
 
 ## Verification
 

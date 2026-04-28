@@ -38,6 +38,9 @@ export interface AuthoritativeBattleWeaponState {
   reserveAmmo: number | null;
   fireCooldownMs: number;
   reloadRemainingMs: number;
+  heat: number;
+  overheated: boolean;
+  overheatRemainingMs: number;
 }
 
 export interface AuthoritativeBattlePlayerState {
@@ -61,6 +64,9 @@ export interface AuthoritativeBattlePlayerState {
   reserveAmmo: number | null;
   fireCooldownMs: number;
   reloadRemainingMs: number;
+  heat: number;
+  overheated: boolean;
+  overheatRemainingMs: number;
   hp: number;
   maxHp: number;
   stamina: number;
@@ -506,6 +512,9 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
   const reserveAmmo = readOptionalNumber(value.reserveAmmo);
   const fireCooldownMs = readNumber(value.fireCooldownMs);
   const reloadRemainingMs = readNumber(value.reloadRemainingMs);
+  const heat = readOptionalNumber(value.heat);
+  const overheated = typeof value.overheated === "boolean" ? value.overheated : false;
+  const overheatRemainingMs = readOptionalNumber(value.overheatRemainingMs);
   const weapons = (Array.isArray(value.weapons) ? value.weapons : [])
     .map((entry) => normalizeAuthoritativeBattleWeaponState(entry))
     .filter((entry): entry is AuthoritativeBattleWeaponState => entry !== null);
@@ -556,7 +565,10 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
     magazineSize: Math.max(0, Math.round(magazineSize)),
     reserveAmmo: reserveAmmo === null ? null : Math.max(0, Math.round(reserveAmmo)),
     fireCooldownMs: Math.max(0, Math.round(fireCooldownMs)),
-    reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs))
+    reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs)),
+    heat: Math.max(0, heat ?? 0),
+    overheated,
+    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs ?? 0))
   };
   const normalizedWeapons = weapons.length > 0 ? weapons : [scalarWeapon];
   const safeMaxStamina = Math.max(1, maxStamina);
@@ -582,6 +594,9 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
     reserveAmmo: reserveAmmo === null ? null : Math.max(0, Math.round(reserveAmmo)),
     fireCooldownMs: Math.max(0, Math.round(fireCooldownMs)),
     reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs)),
+    heat: Math.max(0, heat ?? 0),
+    overheated,
+    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs ?? 0)),
     hp: Math.max(0, hp),
     maxHp: Math.max(1, maxHp),
     stamina: Math.max(0, Math.min(stamina, safeMaxStamina)),
@@ -608,6 +623,9 @@ function normalizeAuthoritativeBattleWeaponState(payload: unknown): Authoritativ
   const reserveAmmo = readOptionalNumber(value.reserveAmmo);
   const fireCooldownMs = readNumber(value.fireCooldownMs);
   const reloadRemainingMs = readNumber(value.reloadRemainingMs);
+  const heat = readOptionalNumber(value.heat);
+  const overheated = typeof value.overheated === "boolean" ? value.overheated : false;
+  const overheatRemainingMs = readOptionalNumber(value.overheatRemainingMs);
 
   if (
     weaponKind === null ||
@@ -626,7 +644,10 @@ function normalizeAuthoritativeBattleWeaponState(payload: unknown): Authoritativ
     magazineSize: Math.max(0, Math.round(magazineSize)),
     reserveAmmo: reserveAmmo === null ? null : Math.max(0, Math.round(reserveAmmo)),
     fireCooldownMs: Math.max(0, Math.round(fireCooldownMs)),
-    reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs))
+    reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs)),
+    heat: Math.max(0, heat ?? 0),
+    overheated,
+    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs ?? 0))
   };
 }
 

@@ -13,7 +13,10 @@ final case class BattleWeaponState(
   magazineSize: Int,
   reserveAmmo: Int,
   fireCooldownMs: Long,
-  reloadRemainingMs: Long
+  reloadRemainingMs: Long,
+  heat: Double = 0.0,
+  overheated: Boolean = false,
+  overheatRemainingMs: Long = 0L
 )
 
 final case class BattlePlayerState(
@@ -40,6 +43,9 @@ final case class BattlePlayerState(
   reserveAmmo: Int,
   fireCooldownMs: Long,
   reloadRemainingMs: Long,
+  heat: Double = 0.0,
+  overheated: Boolean = false,
+  overheatRemainingMs: Long = 0L,
   hp: Int,
   maxHp: Int,
   stamina: Double,

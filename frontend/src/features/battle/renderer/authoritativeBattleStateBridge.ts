@@ -14,6 +14,9 @@ export interface BattleRuntimeAuthoritativeHeroFrame {
   reserveAmmo: number | null;
   fireCooldownMs: number;
   reloadRemainingMs: number;
+  heat: number;
+  overheated: boolean;
+  overheatRemainingMs: number;
   hp: number;
   maxHp: number;
   stamina: number;
@@ -33,6 +36,9 @@ export interface BattleRuntimeAuthoritativeWeaponFrame {
   reserveAmmo: number | null;
   fireCooldownMs: number;
   reloadRemainingMs: number;
+  heat: number;
+  overheated: boolean;
+  overheatRemainingMs: number;
 }
 
 export interface BattleRuntimeAuthoritativeProjectileFrame {
@@ -180,7 +186,10 @@ export function buildBattleRuntimeAuthoritativeFrame(
       magazineSize: weapon.magazineSize,
       reserveAmmo: weapon.reserveAmmo,
       fireCooldownMs: Math.max(0, Math.round(weapon.fireCooldownMs)),
-      reloadRemainingMs: Math.max(0, Math.round(weapon.reloadRemainingMs))
+      reloadRemainingMs: Math.max(0, Math.round(weapon.reloadRemainingMs)),
+      heat: Math.max(0, weapon.heat),
+      overheated: weapon.overheated,
+      overheatRemainingMs: Math.max(0, Math.round(weapon.overheatRemainingMs))
     }));
     heroFrames.push({
       heroId: matchedHero.heroId,
@@ -195,6 +204,9 @@ export function buildBattleRuntimeAuthoritativeFrame(
       reserveAmmo: player.reserveAmmo,
       fireCooldownMs: Math.max(0, Math.round(player.fireCooldownMs)),
       reloadRemainingMs: Math.max(0, Math.round(player.reloadRemainingMs)),
+      heat: Math.max(0, player.heat),
+      overheated: player.overheated,
+      overheatRemainingMs: Math.max(0, Math.round(player.overheatRemainingMs)),
       hp: clampHp(player.hp, player.maxHp),
       maxHp: Math.max(1, Math.round(player.maxHp)),
       stamina: clampStamina(player.stamina, player.maxStamina),

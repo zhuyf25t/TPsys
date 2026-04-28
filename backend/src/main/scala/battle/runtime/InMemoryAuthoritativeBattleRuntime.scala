@@ -322,26 +322,38 @@ final class InMemoryAuthoritativeBattleRuntime(
     slowFields: Vector[BattleSlowFieldState]
   ): BattlePlayerState =
     if (!player.alive) {
-      clearWeaponRuntime(player.copy(
-        velocity = zeroVector,
-        movementIntent = zeroVector,
-        primaryHeld = false,
-        reloadPressed = false,
-        respawnMs = 0L,
-        skills = advanceEliminatedSkills(player.skills, deltaMs)
+      val (weapons, currentWeaponIndex) = normalizedWeaponInventory(player)
+      clearWeaponRuntime(syncWeaponInventory(
+        player.copy(
+          velocity = zeroVector,
+          movementIntent = zeroVector,
+          primaryHeld = false,
+          reloadPressed = false,
+          respawnMs = 0L,
+          skills = advanceEliminatedSkills(player.skills, deltaMs)
+        ),
+        weapons.map(weapon => advanceWeaponHeat(weapon, deltaMs, elapsedSeconds)),
+        currentWeaponIndex
       ))
     } else {
-      val currentWeapon = primaryWeapon(player)
-      val timedWeapon = currentWeapon.copy(
-        fireCooldownMs = math.max(0L, currentWeapon.fireCooldownMs - deltaMs),
-        reloadRemainingMs = math.max(0L, currentWeapon.reloadRemainingMs - deltaMs)
-      )
+      val (weapons, currentWeaponIndex) = normalizedWeaponInventory(player)
+      val currentWeapon = weapons(currentWeaponIndex)
+      val timedWeapons = weapons.zipWithIndex.map {
+        case (weapon, index) if index == currentWeaponIndex =>
+          advanceWeaponHeat(weapon, deltaMs, elapsedSeconds).copy(
+            fireCooldownMs = math.max(0L, weapon.fireCooldownMs - deltaMs),
+            reloadRemainingMs = math.max(0L, weapon.reloadRemainingMs - deltaMs)
+          )
+        case (weapon, _) =>
+          advanceWeaponHeat(weapon, deltaMs, elapsedSeconds)
+      }
       val timedPlayer = finishReloadIfReady(
-        withPrimaryWeapon(
+        syncWeaponInventory(
           player.copy(
-          skills = advanceSkills(player.skills, deltaMs)
+            skills = advanceSkills(player.skills, deltaMs)
           ),
-          timedWeapon
+          timedWeapons,
+          currentWeaponIndex
         ),
         currentWeapon.reloadRemainingMs
       )
@@ -414,7 +426,8 @@ final class InMemoryAuthoritativeBattleRuntime(
         player.primaryHeld &&
         weapon.fireCooldownMs <= 0L &&
         weapon.reloadRemainingMs <= 0L &&
-        weapon.ammoInMagazine > 0
+        !weapon.overheated &&
+        (weaponDefinition.usesHeat || weapon.ammoInMagazine > 0)
       ) {
         val facing = normalizeAim(BattleVector2(1.0, 0.0), player.aim)
         val projectileCount = math.max(1, weaponDefinition.pellets)
@@ -442,14 +455,25 @@ final class InMemoryAuthoritativeBattleRuntime(
             splashRadius = weaponDefinition.splashRadius
           )
         }
+        val heatAfterShot = math.min(weaponDefinition.maxHeat, weapon.heat + weaponDefinition.heatPerShot)
+        val shotOverheated = weaponDefinition.usesHeat && heatAfterShot >= weaponDefinition.maxHeat
+        val firedWeapon =
+          if (weaponDefinition.usesHeat) {
+            weapon.copy(
+              fireCooldownMs = weaponDefinition.cooldownMs,
+              heat = heatAfterShot,
+              overheated = shotOverheated,
+              overheatRemainingMs = if (shotOverheated) weaponDefinition.overheatLockMs else weapon.overheatRemainingMs
+            )
+          } else {
+            weapon.copy(
+              ammoInMagazine = math.max(0, weapon.ammoInMagazine - 1),
+              fireCooldownMs = weaponDefinition.cooldownMs
+            )
+          }
         val firedPlayer = withPrimaryWeapon(
-          player.copy(
-          reloadPressed = false
-          ),
-          weapon.copy(
-            ammoInMagazine = math.max(0, weapon.ammoInMagazine - 1),
-            fireCooldownMs = weaponDefinition.cooldownMs
-          )
+          player.copy(reloadPressed = false),
+          firedWeapon
         )
         nextPlayers(index) = startReloadIfRequested(applyWeaponRecoil(firedPlayer, facing, weaponDefinition))
       } else {
@@ -1047,7 +1071,10 @@ final class InMemoryAuthoritativeBattleRuntime(
             magazineSize = player.magazineSize,
             reserveAmmo = player.reserveAmmo,
             fireCooldownMs = player.fireCooldownMs,
-            reloadRemainingMs = player.reloadRemainingMs
+            reloadRemainingMs = player.reloadRemainingMs,
+            heat = player.heat,
+            overheated = player.overheated,
+            overheatRemainingMs = player.overheatRemainingMs
           )
         )
       }
@@ -1059,14 +1086,40 @@ final class InMemoryAuthoritativeBattleRuntime(
 
   private def normalizeWeaponState(weapon: BattleWeaponState): BattleWeaponState = {
     val definition = weaponDefinitionFor(weapon.weaponKind)
+    val safeHeat = if (definition.usesHeat) clamp(weapon.heat, 0.0, definition.maxHeat) else 0.0
+    val safeOverheatRemainingMs = if (definition.usesHeat) math.max(0L, weapon.overheatRemainingMs) else 0L
     weapon.copy(
       weaponKind = definition.weaponKind,
-      ammoInMagazine = math.max(0, math.min(weapon.ammoInMagazine, math.max(1, definition.magazineSize))),
+      ammoInMagazine =
+        if (definition.usesHeat) 0
+        else math.max(0, math.min(weapon.ammoInMagazine, definition.magazineSize)),
       magazineSize = definition.magazineSize,
-      reserveAmmo = math.max(0, weapon.reserveAmmo),
+      reserveAmmo = if (definition.usesHeat) 0 else math.max(0, weapon.reserveAmmo),
       fireCooldownMs = math.max(0L, weapon.fireCooldownMs),
-      reloadRemainingMs = math.max(0L, weapon.reloadRemainingMs)
+      reloadRemainingMs = if (definition.usesHeat) 0L else math.max(0L, weapon.reloadRemainingMs),
+      heat = safeHeat,
+      overheated = definition.usesHeat && weapon.overheated && safeOverheatRemainingMs > 0L,
+      overheatRemainingMs = safeOverheatRemainingMs
     )
+  }
+
+  private def advanceWeaponHeat(
+    weapon: BattleWeaponState,
+    deltaMs: Long,
+    elapsedSeconds: Double
+  ): BattleWeaponState = {
+    val definition = weaponDefinitionFor(weapon.weaponKind)
+    if (!definition.usesHeat) {
+      weapon.copy(heat = 0.0, overheated = false, overheatRemainingMs = 0L)
+    } else {
+      val nextOverheatRemainingMs = math.max(0L, weapon.overheatRemainingMs - deltaMs)
+      val nextHeat = math.max(0.0, weapon.heat - definition.coolRatePerSecond * elapsedSeconds)
+      weapon.copy(
+        heat = math.min(definition.maxHeat, nextHeat),
+        overheated = weapon.overheated && nextOverheatRemainingMs > 0L,
+        overheatRemainingMs = nextOverheatRemainingMs
+      )
+    }
   }
 
   private def syncWeaponInventory(
@@ -1085,7 +1138,10 @@ final class InMemoryAuthoritativeBattleRuntime(
       magazineSize = currentWeapon.magazineSize,
       reserveAmmo = currentWeapon.reserveAmmo,
       fireCooldownMs = currentWeapon.fireCooldownMs,
-      reloadRemainingMs = currentWeapon.reloadRemainingMs
+      reloadRemainingMs = currentWeapon.reloadRemainingMs,
+      heat = currentWeapon.heat,
+      overheated = currentWeapon.overheated,
+      overheatRemainingMs = currentWeapon.overheatRemainingMs
     )
   }
 

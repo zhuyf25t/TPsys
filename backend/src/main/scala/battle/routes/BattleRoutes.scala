@@ -236,6 +236,9 @@ final class BattleRoutes(service: BattleService) {
       "\"reserveAmmo\":" + player.reserveAmmo,
       "\"fireCooldownMs\":" + player.fireCooldownMs,
       "\"reloadRemainingMs\":" + player.reloadRemainingMs,
+      "\"heat\":" + player.heat,
+      "\"overheated\":" + player.overheated,
+      "\"overheatRemainingMs\":" + player.overheatRemainingMs,
       "\"hp\":" + player.hp,
       "\"maxHp\":" + player.maxHp,
       "\"stamina\":" + player.stamina,
@@ -258,7 +261,10 @@ final class BattleRoutes(service: BattleService) {
       "\"magazineSize\":" + weapon.magazineSize,
       "\"reserveAmmo\":" + weapon.reserveAmmo,
       "\"fireCooldownMs\":" + weapon.fireCooldownMs,
-      "\"reloadRemainingMs\":" + weapon.reloadRemainingMs
+      "\"reloadRemainingMs\":" + weapon.reloadRemainingMs,
+      "\"heat\":" + weapon.heat,
+      "\"overheated\":" + weapon.overheated,
+      "\"overheatRemainingMs\":" + weapon.overheatRemainingMs
     )
 
     fields.mkString("{", ",", "}")

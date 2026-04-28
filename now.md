@@ -516,9 +516,32 @@
 - `arenaBuilder.ts` 已经收敛到很小，后续 BattlePage 渲染边界的主要大文件变成 `worldViewFactory.ts`、`battleFeedbackSceneBridge.ts`、`sceneVfxController.ts`。
 - decorative presenter 仍是程序化美术，真实审美还需要后续 headful 人工验收和资产替换。
 
+### BattlePage projectile/slow-field view presenter 抽离
+
+已完成本轮第二十六刀：
+
+- 新增 `frontend/src/features/battle/renderer/entities/projectileAndFieldViewPresentation.ts`。
+- 从 `worldViewFactory.ts` 抽出 `ProjectileView`、`SlowFieldView`、`ProjectileInterpolationBuffer`、projectile view 创建/同步/销毁、remote authoritative projectile interpolation、slow-field view 创建/同步。
+- `worldViewFactory.ts` 继续保留 `WorldViewState` 字段名和 `getProjectileDisplayPosition(...)` wrapper，对外 API 不变。
+- 本地 projectile 仍不走 authoritative interpolation；远端 projectile 仍使用原 buffer/delay/snap/smoothing 参数。
+- projectile 渲染参数保持原值：bullet/rocket texture、scale、tint、trail/glow style、TTL alpha、destroy 流程未改。
+- slow-field 渲染参数保持原值：fill/rim depth、alpha、stroke、TTL alpha 语义未改。
+- `worldViewFactory.ts` 从约 `1312` LOC 降到约 `998` LOC。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD obstacle count 仍为 `170`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 这是搬移型重构，未做人眼 headful 视觉对比；当前只确认构建、同局、HUD、VFX 生命周期稳定。
+- `worldViewFactory.ts` 仍包含 hero creation/readability/local motion streak/remote hero interpolation/indicator/pickup sync 等职责，下一刀适合拆 hero readability 或 remote hero interpolation。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC；下一步转向 `worldViewFactory.ts` 的 projectile / slow-field / interpolation 边界拆分，继续降低渲染主工厂膨胀。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `998` LOC；下一步继续拆 `worldViewFactory.ts` 的 hero readability / remote hero interpolation 边界。
 
 扩展性基础第一轮已经覆盖：
 
@@ -529,15 +552,15 @@
 
 下一阶段候选：
 
-- BattlePage world view factory 边界整理：优先把 projectile view、slow-field view、projectile interpolation 从 `worldViewFactory.ts` 拆成 focused helper，避免主工厂继续承载过多渲染链。
+- BattlePage hero view 边界整理：优先把 hero readability、local motion streak 或 remote hero interpolation 从 `worldViewFactory.ts` 拆成 focused helper，避免主工厂继续承载过多渲染链。
 - 主界面视觉第二轮：拆出更清晰的大厅面板组件、压缩 CSS 叠层、做邮件/好友/配装入口的细化。
 - Bot 社区第二轮：示例外部策略模板和离线 bot 对战 harness。
 
 ## 下一步计划
 
-1. BattlePage world view factory projectile/slow-field 边界整理。
-   预计：2-5 小时。
-   目标：把 projectile view、slow-field view、projectile interpolation 从 `worldViewFactory.ts` 拆成 focused presenter/helper，不改变弹道、伤害、射程、命中或同步语义。
+1. BattlePage world view factory hero readability / interpolation 边界整理。
+   预计：3-6 小时。
+   目标：把 hero readability、local motion streak 或 remote hero interpolation 从 `worldViewFactory.ts` 拆成 focused presenter/helper，不改变移动、命中、血条、武器显示或远端插值手感。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

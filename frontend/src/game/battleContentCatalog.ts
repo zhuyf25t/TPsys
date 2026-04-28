@@ -31,14 +31,42 @@ export interface WeaponDefinition {
   recoilStrength: number;
 }
 
-export interface SkillDefinition {
+export type SkillActivationKind = "instant" | "prepared-target";
+export type SkillEffectType = "dash" | "teleport" | "slow-field";
+
+interface SkillDefinitionBase {
+  skillKind: SkillKind;
+  activationKind: SkillActivationKind;
+  effectType: SkillEffectType;
   cooldownMs: number;
+  activeMs: number;
+}
+
+export interface BlinkSkillDefinition extends SkillDefinitionBase {
+  skillKind: "Blink";
+  activationKind: "prepared-target";
+  effectType: "teleport";
+  range: number;
+}
+
+export interface DashSkillDefinition extends SkillDefinitionBase {
+  skillKind: "Dash";
+  activationKind: "instant";
+  effectType: "dash";
+  distance: number;
+}
+
+export interface FreezeSkillDefinition extends SkillDefinitionBase {
+  skillKind: "Freeze";
+  activationKind: "prepared-target";
+  effectType: "slow-field";
   range: number;
   radius: number;
   durationMs: number;
-  healAmount: number;
-  distance: number;
+  speedMultiplier: number;
 }
+
+export type SkillDefinition = BlinkSkillDefinition | DashSkillDefinition | FreezeSkillDefinition;
 
 export interface HeroVisualDefinition {
   textureKey: string;
@@ -136,32 +164,35 @@ export const WEAPON_DEFINITIONS: Readonly<Record<WeaponKind, Readonly<WeaponDefi
   }
 };
 
-export const SKILL_DEFINITIONS: Readonly<Record<SkillKind, Readonly<SkillDefinition>>> = {
+export const SKILL_DEFINITIONS = {
   Blink: {
+    skillKind: "Blink",
+    activationKind: "prepared-target",
+    effectType: "teleport",
     cooldownMs: 2200,
-    range: 250,
-    radius: 0,
-    durationMs: 0,
-    healAmount: 0,
-    distance: 0
+    activeMs: 240,
+    range: 250
   },
   Dash: {
+    skillKind: "Dash",
+    activationKind: "instant",
+    effectType: "dash",
     cooldownMs: 5000,
-    range: 0,
-    radius: 0,
-    durationMs: 0,
-    healAmount: 0,
+    activeMs: 180,
     distance: 180
   },
   Freeze: {
+    skillKind: "Freeze",
+    activationKind: "prepared-target",
+    effectType: "slow-field",
     cooldownMs: 12000,
+    activeMs: 10000,
     range: 520,
     radius: 150,
     durationMs: 10000,
-    healAmount: 0,
-    distance: 0
+    speedMultiplier: 0.5
   }
-};
+} as const satisfies Readonly<Record<SkillKind, Readonly<SkillDefinition>>>;
 
 export const HERO_DEFINITIONS: ReadonlyArray<Readonly<HeroDefinition>> = DEFAULT_BATTLE_MAP.heroDefinitions;
 

@@ -70,18 +70,19 @@ export function applySkillInputs(input: ApplySkillInputs): void {
   }
 
   if (isSkillCommandPressed(input.command, "Dash") && dash.cooldownMs <= 0) {
+    const definition = SKILL_DEFINITIONS.Dash;
     const direction = input.command.movement.x === 0 && input.command.movement.y === 0 ? input.command.aim : input.command.movement;
     if (direction.x !== 0 || direction.y !== 0) {
       const destination = findDashDestination({
         position: input.player.position,
         direction,
-        distance: SKILL_DEFINITIONS.Dash.distance,
+        distance: definition.distance,
         radius: input.player.radius,
         worldSize: input.worldSize,
         obstacleBounds: input.obstacleBounds
       });
-      dash.cooldownMs = SKILL_DEFINITIONS.Dash.cooldownMs;
-      dash.activeMs = 220;
+      dash.cooldownMs = definition.cooldownMs;
+      dash.activeMs = definition.activeMs;
       input.callbacks.createPulse(input.player.position, 18, 0xb8d8ff);
       input.callbacks.startPlayerMotion(destination, 140, "dash");
     }
@@ -97,8 +98,9 @@ export function applySkillInputs(input: ApplySkillInputs): void {
         obstacleBounds: input.obstacleBounds
       });
     if (canBlink) {
-      blink.cooldownMs = SKILL_DEFINITIONS.Blink.cooldownMs;
-      blink.activeMs = 240;
+      const definition = SKILL_DEFINITIONS.Blink;
+      blink.cooldownMs = definition.cooldownMs;
+      blink.activeMs = definition.activeMs;
       input.player.preparedSkill = null;
       input.callbacks.createAfterimage(
         input.player.position,
@@ -123,7 +125,7 @@ export function applySkillInputs(input: ApplySkillInputs): void {
 
     if (canFreeze) {
       freeze.cooldownMs = definition.cooldownMs;
-      freeze.activeMs = definition.durationMs;
+      freeze.activeMs = definition.activeMs;
       input.player.preparedSkill = null;
       input.callbacks.addFreezeField(input.player.heroId, input.command.pointerWorld, definition.radius, definition.durationMs);
       input.callbacks.createPulse(input.command.pointerWorld, definition.radius, 0x86f4ff);

@@ -33,6 +33,19 @@ object BattleContentCatalog {
     overheatLockMs: Long = 0L
   )
 
+  final case class SkillDefinition(
+    skillKind: String,
+    activationKind: String,
+    effectType: String,
+    cooldownMs: Long,
+    activeMs: Long,
+    range: Option[Double] = None,
+    radius: Option[Double] = None,
+    durationMs: Option[Long] = None,
+    distance: Option[Double] = None,
+    speedMultiplier: Option[Double] = None
+  )
+
   val DefaultBattleDurationMs: Long = BattleRules.BattleDurationMs
 
   val spawnPoints: Vector[BattleVector2] = BattleMapCatalog.defaultMap.heroSpawnPoints
@@ -137,22 +150,66 @@ object BattleContentCatalog {
   val weaponPickupRespawnMs: Long = 10000L
   val weaponPickupDefinitions: Vector[WeaponPickupDefinition] = BattleMapCatalog.defaultMap.weaponPickupDefinitions
 
-  val dashSkillKind: String = "Dash"
-  val dashDistance: Double = 180.0
-  val dashCooldownMs: Long = 5000L
-  val dashActiveMs: Long = 180L
-
   val blinkSkillKind: String = "Blink"
-  val blinkRange: Double = 250.0
-  val blinkCooldownMs: Long = 2200L
-  val blinkActiveMs: Long = 240L
-
+  val dashSkillKind: String = "Dash"
   val freezeSkillKind: String = "Freeze"
-  val freezeRange: Double = 520.0
-  val freezeRadius: Double = 150.0
-  val freezeDurationMs: Long = 10000L
-  val freezeCooldownMs: Long = 12000L
-  val freezeSpeedMultiplier: Double = 0.5
+
+  val skillDefinitions: Map[String, SkillDefinition] = Map(
+    blinkSkillKind -> SkillDefinition(
+      skillKind = blinkSkillKind,
+      activationKind = "prepared-target",
+      effectType = "teleport",
+      cooldownMs = 2200L,
+      activeMs = 240L,
+      range = Some(250.0)
+    ),
+    dashSkillKind -> SkillDefinition(
+      skillKind = dashSkillKind,
+      activationKind = "instant",
+      effectType = "dash",
+      cooldownMs = 5000L,
+      activeMs = 180L,
+      distance = Some(180.0)
+    ),
+    freezeSkillKind -> SkillDefinition(
+      skillKind = freezeSkillKind,
+      activationKind = "prepared-target",
+      effectType = "slow-field",
+      cooldownMs = 12000L,
+      activeMs = 10000L,
+      range = Some(520.0),
+      radius = Some(150.0),
+      durationMs = Some(10000L),
+      speedMultiplier = Some(0.5)
+    )
+  )
+
+  private def getSkillDefinition(kind: String): SkillDefinition =
+    skillDefinitions.getOrElse(kind, throw new IllegalStateException(s"Missing skill definition for $kind"))
+
+  private def requireSkillDouble(kind: String, fieldName: String, value: Option[Double]): Double =
+    value.getOrElse(throw new IllegalStateException(s"Missing $fieldName for $kind skill definition"))
+
+  private def requireSkillLong(kind: String, fieldName: String, value: Option[Long]): Long =
+    value.getOrElse(throw new IllegalStateException(s"Missing $fieldName for $kind skill definition"))
+
+  private val dashSkillDefinition: SkillDefinition = getSkillDefinition(dashSkillKind)
+  val dashDistance: Double = requireSkillDouble(dashSkillKind, "distance", dashSkillDefinition.distance)
+  val dashCooldownMs: Long = dashSkillDefinition.cooldownMs
+  val dashActiveMs: Long = dashSkillDefinition.activeMs
+
+  private val blinkSkillDefinition: SkillDefinition = getSkillDefinition(blinkSkillKind)
+  val blinkRange: Double = requireSkillDouble(blinkSkillKind, "range", blinkSkillDefinition.range)
+  val blinkCooldownMs: Long = blinkSkillDefinition.cooldownMs
+  val blinkActiveMs: Long = blinkSkillDefinition.activeMs
+
+  private val freezeSkillDefinition: SkillDefinition = getSkillDefinition(freezeSkillKind)
+  val freezeRange: Double = requireSkillDouble(freezeSkillKind, "range", freezeSkillDefinition.range)
+  val freezeRadius: Double = requireSkillDouble(freezeSkillKind, "radius", freezeSkillDefinition.radius)
+  val freezeDurationMs: Long = requireSkillLong(freezeSkillKind, "durationMs", freezeSkillDefinition.durationMs)
+  val freezeCooldownMs: Long = freezeSkillDefinition.cooldownMs
+  val freezeSpeedMultiplier: Double =
+    requireSkillDouble(freezeSkillKind, "speedMultiplier", freezeSkillDefinition.speedMultiplier)
 
   val botPreferredRange: Double = 260.0
   val botFireRange: Double = 520.0

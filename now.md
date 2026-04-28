@@ -262,6 +262,27 @@
 - 前后端 weapon catalog 仍是双源维护；本轮先消除字段名不一致和 recoil 双源，后续可加契约 diff/audit 脚本或共享 JSON 生成。
 - 本轮未改后端 weapon 数值，也未做真实多人局浏览器 smoke。
 
+### 技能 definition/profile schema 第一轮
+
+已完成本轮第十四刀：
+
+- 前端 `SkillDefinition` 从“所有技能共享一堆隐式 0 字段”改为显式 union profile。
+- 技能 profile 现在包含 `skillKind`、`activationKind`、`effectType`、`cooldownMs`、`activeMs`，并按技能类型显式声明 `range`、`radius`、`durationMs`、`distance`、`speedMultiplier`。
+- 后端 `BattleContentCatalog` 新增 `SkillDefinition` 与 `skillDefinitions` map；原有 `dashDistance`、`dashCooldownMs`、`blinkRange`、`freezeRadius` 等公开 val 保持不变，但改为从 profile 派生。
+- 前端 Dash/Blink/Freeze active 状态计时不再硬编码，改从 `SKILL_DEFINITIONS` 读取。
+- 前端 Dash `activeMs` 从旧硬编码 `220` 对齐到后端 `180`；实际 dash 位移播放时长仍保持原 `140ms`，本轮不改手感。
+
+验证：
+
+- `npm run build` 通过。
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 技能 profile 仍未完全驱动后端 runtime 分支；后端 cast 逻辑仍按 Dash/Blink/Freeze 三个方法执行，但数值来源已经收束到 profile。
+- 前后端技能 profile 仍是双源维护；后续适合加契约 diff/audit，或引入共享 JSON 生成。
+
 ## 当前正在做
 
 当前主线：扩展性第二轮。
@@ -270,8 +291,8 @@
 
 - 地图：已完成后端默认 map catalog 和前后端 pickup id 字段同名第一轮。
 - 武器：已完成字段同名和 recoil 单源第一轮；下一步考虑契约 diff/audit，而不是继续手工比对。
-- 技能：后续对齐 `activationKind/effectType/activeMs` 等前后端语义，避免技能继续靠 hardcoded 分支散落。
-- Bot：在地图、武器、技能 profile 更稳定之后，再定义社区 bot manifest/discovery/test harness。
+- 技能：已完成 `activationKind/effectType/activeMs` profile 第一轮；后续考虑契约 diff/audit，暂不直接重写 cast runtime。
+- Bot：下一步进入社区 bot 插件边界第一轮，优先做 manifest/discovery/test harness，而不是一次性做完整平台。
 
 ## 下一步计划
 

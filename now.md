@@ -27,6 +27,7 @@
 
 - BattlePage 渲染专项已阶段性完成，报告见 `docs/BATTLEPAGE_RENDERING_COMPLETION_REPORT.md`。
 - GameScene 硬解耦硬门已完成，报告见 `docs/GAMESCENE_HARD_GATE_COMPLETION_REPORT.md`。
+- 后端 authoritative battle 内容参数已抽到 `BattleContentCatalog`，runtime 主类不再直接承载武器、技能、pickup、出生点、bot tuning 等静态内容表。
 - 当前 GitHub main 已保存：
   - `aaf93eb Save battle rendering and systems checkpoint`
   - `9166754 Document autonomous roadmap and visual direction`
@@ -40,20 +41,26 @@
 
 当前主线：扩展性基础。
 
-当前单一 worker 票：
+刚完成的单一 worker 票：
 
 - 把后端 `InMemoryAuthoritativeBattleRuntime.scala` 中的静态内容参数抽到不可变 content catalog。
 - 范围只包括后端 authoritative runtime 的内容表：spawn points、weapon definitions、weapon pickups、medkit、skill 参数、bot tuning、movement/stamina 基础参数。
 - 不改玩法数值，不改语义，不碰前端，不碰聊天系统，不碰课程风格大重构。
 - 目标是让后续地图、技能、武器、bot 扩展不继续堆在 runtime 主类中。
 
-这一步完成标准：
+结果：
 
 - 新增清晰的 backend battle content catalog。
 - `InMemoryAuthoritativeBattleRuntime.scala` 从 catalog 读取内容参数。
 - 不引入 `var`。
 - `npm run backend:compile` 通过。
 - 审核确认无玩法漂移。
+
+下一票：
+
+- 前端内容 catalog 对齐。
+- 范围预计是 `frontend/src/game/weapons.ts`、`skills.ts`、`spawn.ts`、`constants.ts` 以及它们的 battle content 汇入口。
+- 目标是让前端也有清楚的内容表入口，为地图、技能、武器和 bot 扩展做准备。
 
 ## 下一步计划
 

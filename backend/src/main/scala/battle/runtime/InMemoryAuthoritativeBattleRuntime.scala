@@ -2,6 +2,7 @@ package slaydemo.backend.battle.runtime
 
 import scala.collection.mutable
 
+import slaydemo.backend.battle.runtime.BattleContentCatalog._
 import slaydemo.backend.battle.api.{BattleCommandRequest, BattleCommandSkillOutcome, BattleCommandVector}
 import slaydemo.backend.battle.objects.{
   BattleAggregateState,
@@ -21,7 +22,6 @@ import slaydemo.backend.battle.objects.{
   BattleSessionDescriptor,
   BattleVector2
 }
-import slaydemo.backend.battle.rules.BattleRules
 import slaydemo.backend.shared.objects.UserId
 
 final class InMemoryAuthoritativeBattleRuntime(
@@ -58,164 +58,7 @@ final class InMemoryAuthoritativeBattleRuntime(
     slowFields: Vector[BattleSlowFieldState],
     outcome: BattleCommandSkillOutcome
   )
-  private final case class WeaponDefinition(
-    weaponKind: String,
-    projectileKind: String,
-    cooldownMs: Long,
-    reloadMs: Long,
-    projectileSpeedPerSecond: Double,
-    projectileDamage: Int,
-    projectileLifetimeMs: Long,
-    projectileRadius: Double,
-    splashRadius: Double,
-    pellets: Int,
-    spreadRadians: Double,
-    magazineSize: Int,
-    reserveAmmo: Int,
-    pickupAmmo: Int,
-    recoilStrength: Double
-  )
-  private final case class WeaponPickupDefinition(
-    pickupId: String,
-    weaponKind: String,
-    position: BattleVector2
-  )
-
-  private val spawnPoints = Vector(
-    BattleVector2(704.0, 800.0),
-    BattleVector2(512.0, 544.0),
-    BattleVector2(512.0, 1056.0),
-    BattleVector2(1600.0, 320.0),
-    BattleVector2(1600.0, 1280.0),
-    BattleVector2(2048.0, 800.0)
-  )
-  private val playerMoveSpeedPerSecond = 255.0
-  private val playerSprintMultiplier = 1.75
-  private val botMoveSpeedPerSecond = 108.0
-  private val defaultProjectileRadius = AuthoritativeArenaGeometry.ProjectileRadius
-  private val projectileShooterAdvantageRadius = 6.0
-  private val pistolWeaponKind = "Pistol"
-  private val rocketLauncherWeaponKind = "RocketLauncher"
-  private val gatlingWeaponKind = "Gatling"
-  private val shotgunWeaponKind = "Shotgun"
-  private val weaponDefinitions = Map(
-    pistolWeaponKind -> WeaponDefinition(
-      weaponKind = pistolWeaponKind,
-      projectileKind = "pistol-bullet",
-      cooldownMs = 260L,
-      reloadMs = 1000L,
-      projectileSpeedPerSecond = 920.0,
-      projectileDamage = 12,
-      projectileLifetimeMs = 900L,
-      projectileRadius = defaultProjectileRadius,
-      splashRadius = 0.0,
-      pellets = 1,
-      spreadRadians = 0.0,
-      magazineSize = 12,
-      reserveAmmo = 48,
-      pickupAmmo = 24,
-      recoilStrength = 20.0
-    ),
-    rocketLauncherWeaponKind -> WeaponDefinition(
-      weaponKind = rocketLauncherWeaponKind,
-      projectileKind = "rocket",
-      cooldownMs = 160L,
-      reloadMs = 2500L,
-      projectileSpeedPerSecond = 340.0,
-      projectileDamage = 60,
-      projectileLifetimeMs = 2200L,
-      projectileRadius = 14.0,
-      splashRadius = 132.0,
-      pellets = 1,
-      spreadRadians = 0.0,
-      magazineSize = 1,
-      reserveAmmo = 3,
-      pickupAmmo = 1,
-      recoilStrength = 120.0
-    ),
-    gatlingWeaponKind -> WeaponDefinition(
-      weaponKind = gatlingWeaponKind,
-      projectileKind = "gatling-bullet",
-      cooldownMs = 72L,
-      reloadMs = 0L,
-      projectileSpeedPerSecond = 980.0,
-      projectileDamage = 5,
-      projectileLifetimeMs = 620L,
-      projectileRadius = 7.0,
-      splashRadius = 0.0,
-      pellets = 1,
-      spreadRadians = 0.06,
-      magazineSize = 100,
-      reserveAmmo = 0,
-      pickupAmmo = 0,
-      recoilStrength = 8.0
-    ),
-    shotgunWeaponKind -> WeaponDefinition(
-      weaponKind = shotgunWeaponKind,
-      projectileKind = "shotgun-pellet",
-      cooldownMs = 760L,
-      reloadMs = 1200L,
-      projectileSpeedPerSecond = 720.0,
-      projectileDamage = 8,
-      projectileLifetimeMs = 330L,
-      projectileRadius = 7.0,
-      splashRadius = 0.0,
-      pellets = 5,
-      spreadRadians = 0.42,
-      magazineSize = 6,
-      reserveAmmo = 18,
-      pickupAmmo = 6,
-      recoilStrength = 80.0
-    )
-  )
-  private val playerHitRadius = AuthoritativeArenaGeometry.HeroRadius
-  private val medkitPickupId = "pickup-medkit-1"
-  private val medkitPickupKind = "Medkit"
-  private val medkitPickupPosition = BattleVector2(960.0, 608.0)
-  private val medkitPickupRadius = 40.0
-  private val medkitHealAmount = 25
-  private val medkitRespawnMs = 10000L
-  private val weaponPickupKind = "Weapon"
-  private val weaponPickupRadius = 40.0
-  private val weaponPickupRespawnMs = 10000L
-  private val weaponPickupDefinitions = Vector(
-    WeaponPickupDefinition("pickup-rocket-1", rocketLauncherWeaponKind, BattleVector2(1280.0, 256.0)),
-    WeaponPickupDefinition("pickup-gatling-1", gatlingWeaponKind, BattleVector2(704.0, 800.0)),
-    WeaponPickupDefinition("pickup-shotgun-1", shotgunWeaponKind, BattleVector2(1856.0, 800.0)),
-    WeaponPickupDefinition("pickup-rocket-2", rocketLauncherWeaponKind, BattleVector2(1280.0, 1344.0)),
-    WeaponPickupDefinition("pickup-gatling-2", gatlingWeaponKind, BattleVector2(448.0, 800.0)),
-    WeaponPickupDefinition("pickup-shotgun-2", shotgunWeaponKind, BattleVector2(2112.0, 800.0))
-  )
-  private val dashSkillKind = "Dash"
-  private val dashDistance = 180.0
-  private val dashCooldownMs = 5000L
-  private val dashActiveMs = 180L
-  private val blinkSkillKind = "Blink"
-  private val blinkRange = 250.0
-  private val blinkCooldownMs = 2200L
-  private val blinkActiveMs = 240L
-  private val freezeSkillKind = "Freeze"
-  private val freezeRange = 520.0
-  private val freezeRadius = 150.0
-  private val freezeDurationMs = 10000L
-  private val freezeCooldownMs = 12000L
-  private val freezeSpeedMultiplier = 0.5
-  private val botPreferredRange = 260.0
-  private val botFireRange = 520.0
-  private val botHumanFireRange = 360.0
-  private val botHumanOpeningFireDelayMs = 15000L
-  private val authoritativeWorldSize = AuthoritativeArenaGeometry.WorldSize
-  private val maxWorldX = authoritativeWorldSize.x
-  private val maxWorldY = authoritativeWorldSize.y
-  private val defaultMaxHp = 100
-  private val playerMaxStamina = 100.0
-  private val staminaDrainPerSecond = 38.0
-  private val staminaRecoverPerSecond = 24.0
   private val battleDurationMs = math.max(1L, configuredBattleDurationMs)
-  private val retainedEventCount = 12
-  private val retainedProjectileTerminalCount = 64
-  private val replayFrameSampleIntervalMs = 1000L
-  private val retainedReplayFrameCount = 32
   private val latestHumanSprints = mutable.Map.empty[(String, String), Boolean]
 
   override def createBattle(roomId: String, descriptor: BattleSessionDescriptor, now: Long): BattleAggregateState = {
@@ -1837,5 +1680,5 @@ final class InMemoryAuthoritativeBattleRuntime(
 }
 
 object InMemoryAuthoritativeBattleRuntime {
-  val DefaultBattleDurationMs: Long = BattleRules.BattleDurationMs
+  val DefaultBattleDurationMs: Long = BattleContentCatalog.DefaultBattleDurationMs
 }

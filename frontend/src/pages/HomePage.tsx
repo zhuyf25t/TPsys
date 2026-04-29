@@ -132,6 +132,28 @@ export function HomePage() {
     ? (leaderboardRating ?? profile?.score ?? null)
     : (profile?.score ?? leaderboardRating ?? loadout.rating ?? 1200);
   const currentRatingLabel = currentRating === null ? "—" : String(currentRating);
+  const pendingFriendRequestCount = friendRequestPreview.badgeCount;
+  const recentReplayCount = Math.min(replaySummaries.length, 3);
+  const operationDeckStats = [
+    {
+      label: "未读邮件",
+      value: String(unreadMailCount),
+      detail: unreadMailCount > 0 ? "战备通知待确认" : "通讯清空",
+      tone: unreadMailCount > 0 ? "alert" : "ready"
+    },
+    {
+      label: "好友待处理",
+      value: String(pendingFriendRequestCount),
+      detail: pendingFriendRequestCount > 0 ? "联络请求待处理" : "联络稳定",
+      tone: pendingFriendRequestCount > 0 ? "alert" : "ready"
+    },
+    {
+      label: "最近回放",
+      value: String(recentReplayCount),
+      detail: replaySummaries.length > 0 ? `战报库 ${replaySummaries.length} 条` : "完赛后生成",
+      tone: replaySummaries.length > 0 ? "data" : "idle"
+    }
+  ];
   const homeMenuIntelCards = [
     {
       eyebrow: "战斗模式",
@@ -212,6 +234,45 @@ export function HomePage() {
               <span>主武器：{loadout.primary}</span>
               <span>战术模块：{loadout.skills.join(" / ")}</span>
             </div>
+            <section className="home-menu__operation-deck" aria-label="战备指挥台">
+              <header className="home-menu__deck-header">
+                <div>
+                  <span>OPERATION DECK</span>
+                  <strong>战备指挥台</strong>
+                </div>
+                <p className={`home-menu__deck-state${authUser ? " home-menu__deck-state--online" : ""}`}>
+                  <i aria-hidden="true" />
+                  {authUser ? "账号在线" : "访客接入"}
+                </p>
+              </header>
+              <div className="home-menu__deck-core">
+                <article className="home-menu__deck-identity">
+                  <small>当前指挥员</small>
+                  <strong>{playerName}</strong>
+                  <span>{authUser ? `认证编号 ${buildHandleBadge(resolvedHandle)}` : "登录后同步邮件与好友"}</span>
+                </article>
+                <article className="home-menu__deck-rating">
+                  <small>{profile?.title ?? "当前评级"}</small>
+                  <strong>{currentRatingLabel}</strong>
+                  <span>战斗评分 / Profile Score</span>
+                </article>
+              </div>
+              <div className="home-menu__deck-metrics">
+                {operationDeckStats.map((stat) => (
+                  <article key={stat.label} className={`home-menu__deck-metric home-menu__deck-metric--${stat.tone}`}>
+                    <i aria-hidden="true" />
+                    <small>{stat.label}</small>
+                    <strong>{stat.value}</strong>
+                    <span>{stat.detail}</span>
+                  </article>
+                ))}
+              </div>
+              <div className="home-menu__deck-bars" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            </section>
             <div className="home-menu__intel-grid" aria-label="大厅战情摘要">
               {homeMenuIntelCards.map((card) => (
                 <article key={card.eyebrow} className="home-menu__intel-card">

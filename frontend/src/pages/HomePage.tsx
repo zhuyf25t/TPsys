@@ -44,7 +44,8 @@ import {
   LobbyShell,
   type LobbyPreviewSet,
   type LobbyQuickAction,
-  type LobbyQuickKey
+  type LobbyQuickKey,
+  type LobbyTopStatusItem
 } from "../shared/ui/LobbyShell";
 import { useLobbyData } from "../shared/ui/useLobbyData";
 
@@ -176,8 +177,28 @@ export function HomePage() {
       detail: `当前评级 ${currentRatingLabel} · 赛季榜`
     }
   ];
+  const warzoneStatusItems: LobbyTopStatusItem[] = [
+    {
+      label: "战区状态",
+      value: "竞技场在线",
+      detail: `${BATTLE_ARENA_PLAYER_CAPACITY} 人容量 · ${BATTLE_MATCH_DURATION_LABEL}`,
+      tone: "ready"
+    },
+    {
+      label: "赛季状态",
+      value: currentRatingLabel === "—" ? "等待定级" : `评级 ${currentRatingLabel}`,
+      detail: remoteRatingSource ? "远端榜单同步" : "本地评分通道",
+      tone: currentRatingLabel === "—" ? "idle" : "data"
+    },
+    {
+      label: "在线区域",
+      value: authUser ? "账号在线" : "未登录",
+      detail: unreadMailCount > 0 ? `${unreadMailCount} 封未读战备邮件` : "通讯链路清空",
+      tone: unreadMailCount > 0 ? "alert" : "ready"
+    }
+  ];
 
-  const playerName = authUser ? resolvedHandle : "访客";
+  const playerName = authUser ? resolvedHandle : "未登录";
 
   return (
     <>
@@ -201,7 +222,11 @@ export function HomePage() {
           friendRequestPreview,
           mailOwnerHandle
         )}
-        primaryAction={{ label: "开始游戏", to: "/battle?new=1", variant: "primary" }}
+        primaryAction={
+          authUser
+            ? { label: "开始游戏", to: "/battle?new=1", variant: "primary" }
+            : { label: "登录后开战", onClick: () => setAuthMode("login"), variant: "primary" }
+        }
         secondaryAction={{ label: "调整配装", to: "/loadout" }}
         tertiaryAction={
           authUser
@@ -219,16 +244,28 @@ export function HomePage() {
           { label: "回合", value: BATTLE_MATCH_DURATION_LABEL },
           { label: "评级", value: currentRatingLabel }
         ]}
+        topStatusItems={warzoneStatusItems}
         leftDock={<ContributionTopCard entries={contributionEntries} />}
         rightDock={<RatingTopCard entries={ratingEntries} />}
         menuBody={
           <div className="home-menu">
             <div className="home-menu__brandplate">
               <span className="home-menu__kicker">SLAY DEMO / 钢铁战备大厅</span>
+              <div className="home-menu__emblem" aria-hidden="true">
+                <span className="home-menu__emblem-ring home-menu__emblem-ring--outer" />
+                <span className="home-menu__emblem-ring home-menu__emblem-ring--inner" />
+                <b>OM</b>
+              </div>
               <div className="home-menu__logo" aria-hidden="true">
                 OMEGA<span>LOMANIA</span>
               </div>
+              <strong className="home-menu__campaign-title">金属战役中枢</strong>
               <p>快节奏 3v3 竞技场 · 武装同步完成，等待投放</p>
+              <div className="home-menu__brand-lines" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
             </div>
             <div className="home-menu__kit" aria-label="当前战备">
               <span>主武器：{loadout.primary}</span>
@@ -242,7 +279,7 @@ export function HomePage() {
                 </div>
                 <p className={`home-menu__deck-state${authUser ? " home-menu__deck-state--online" : ""}`}>
                   <i aria-hidden="true" />
-                  {authUser ? "账号在线" : "访客接入"}
+                  {authUser ? "账号在线" : "未登录"}
                 </p>
               </header>
               <div className="home-menu__deck-core">
@@ -315,13 +352,22 @@ function ContributionTopCard({
   entries: ReturnType<typeof getContributionEntries>;
 }) {
   const rows = Array.from({ length: 10 }, (_, index) => entries[index] ?? null);
+  const occupiedSlots = Math.min(entries.length, rows.length);
 
   return (
     <aside className="lobby-side-card lobby-side-card--contribution" aria-label="贡献榜">
       <header>
-        <small>贡献 Top 10</small>
-        <strong>贡献榜</strong>
+        <div>
+          <small>贡献 Top 10</small>
+          <strong>贡献榜</strong>
+        </div>
+        <span className="lobby-side-card__signal">{occupiedSlots}/10</span>
       </header>
+      <div className="lobby-side-card__summary" aria-label="贡献榜状态">
+        <span>真实记录</span>
+        <strong>{occupiedSlots}</strong>
+        <b>{occupiedSlots > 0 ? "榜单接入" : "等待战报"}</b>
+      </div>
       <div className="lobby-side-card__list">
         <div className="lobby-side-card__table-head">
           <span>#</span>
@@ -330,8 +376,8 @@ function ContributionTopCard({
         </div>
         {rows.map((row, index) =>
           row ? (
-            <article key={row.handle}>
-              <span>{row.rank}</span>
+            <article key={row.handle} className={row.rank <= 3 ? "lobby-side-card__row--podium" : undefined}>
+              <span className="lobby-side-card__rank">{row.rank}</span>
               <strong>{row.handle}</strong>
               <b>{row.totalActions}</b>
             </article>
@@ -350,13 +396,22 @@ function ContributionTopCard({
 
 function RatingTopCard({ entries }: { entries: ReturnType<typeof getRatingEntries> }) {
   const rows = Array.from({ length: 10 }, (_, index) => entries[index] ?? null);
+  const occupiedSlots = Math.min(entries.length, rows.length);
 
   return (
     <aside className="lobby-side-card lobby-side-card--rating" aria-label="评分榜">
       <header>
-        <small>评分 Top 10</small>
-        <strong>评分榜</strong>
+        <div>
+          <small>评分 Top 10</small>
+          <strong>评分榜</strong>
+        </div>
+        <span className="lobby-side-card__signal">{occupiedSlots}/10</span>
       </header>
+      <div className="lobby-side-card__summary" aria-label="评分榜状态">
+        <span>真实记录</span>
+        <strong>{occupiedSlots}</strong>
+        <b>{occupiedSlots > 0 ? "赛季同步" : "等待对局"}</b>
+      </div>
       <div className="lobby-side-card__list">
         <div className="lobby-side-card__table-head">
           <span>#</span>
@@ -365,8 +420,8 @@ function RatingTopCard({ entries }: { entries: ReturnType<typeof getRatingEntrie
         </div>
         {rows.map((entry, index) =>
           entry ? (
-            <article key={entry.handle}>
-              <span>{entry.rank}</span>
+            <article key={entry.handle} className={entry.rank <= 3 ? "lobby-side-card__row--podium" : undefined}>
+              <span className="lobby-side-card__rank">{entry.rank}</span>
               <strong>{entry.handle}</strong>
               <b>{entry.score}</b>
             </article>

@@ -33,6 +33,7 @@
 - 扩展性第三轮完成：`audit:battle-contracts` 现在会校验地图边界、ID 唯一性、拾取物引用、武器数值范围、热量武器字段、技能 key/effect/activation 必填字段，并在失败时输出明确路径。
 - 数据闭环第二轮完成：`audit:data-closure` 现在不仅检查 Visitor-like/non-playable 和 duplicate battle result，还会检查 rating 算术、按 handle 的 rating 连续性、replay/result 关联、battle mail 覆盖，并且保持只读。
 - 数据闭环第三轮完成：新增 `npm run data:closure-repair-plan`，把历史问题转成 dry-run 修复计划。它不会写 `backend/data`，只分类输出：rating continuity 为 `unsafe_auto_repair`，缺 result 的 replay 分成 `likely_system_or_bot` 与 `needs_result_decision`，缺 battle mail 的 result 生成 `suggested_mail` 样例。
+- 大厅视觉结构第三轮完成：新增顶部战区状态条、中心金属徽章/战役中枢、底部主操作台、榜单真实记录摘要和移动端降级。未登录用户不再显示为“访客接入”，首页主按钮会先打开登录弹窗，符合 Visitor 禁止正式开战方向。
 
 ## 当前数据风险
 
@@ -66,8 +67,8 @@
 1. 数据闭环第四轮：预计 2-4 小时。
    目标：决定是否把 `suggested_mail` 升级成带备份的 apply 脚本。rating continuity 和 replay missing result 继续保持人工决策，不自动生成历史评分或战绩。若进入 apply 版，必须小写面、可回滚、先备份，并跑 `audit:data-closure` 验证缺口变化。
 
-2. 大厅视觉结构第三轮：预计 3-6 小时。
-   目标：继续靠近参考图的金属战争大厅结构，强化榜单、玩家卡、邮件/好友入口和中心开始区的版面密度。只使用程序化 CSS 与现有资源，不触碰 BattlePage 素材。
+2. 大厅视觉结构第四轮：预计 2-5 小时。
+   目标：在浏览器目测基础上继续微调大厅密度、按钮层级、顶部状态条和侧栏榜单。只使用程序化 CSS 与现有资源，不触碰 BattlePage 素材。
 
 3. 地图/武器/技能扩展协议第三轮：预计 4-8 小时。
    目标：把地图、武器、技能、bot package 的贡献边界继续文档化和脚本化，形成更清楚的社区扩展接口，减少外部贡献者误改核心 runtime 的风险。
@@ -80,4 +81,4 @@
 
 ## 当前执行策略
 
-下一张票有两个合理方向：如果继续数据闭环，就只把 battle mail 缺口做成可回滚 apply；如果不写历史数据，就切到大厅视觉结构第三轮。两者都不触碰 BattlePage 素材。
+下一张票优先做地图/武器/技能扩展协议第三轮，因为它不会触碰 BattlePage 素材，也能让未来地图、技能、bot 社区贡献更清楚。数据侧如果继续前进，只适合做 battle mail 缺口的可回滚 apply，rating continuity 与 missing result 仍不自动修。

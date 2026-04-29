@@ -37,6 +37,11 @@ interface LobbyRailItem {
   value: string;
 }
 
+export interface LobbyTopStatusItem extends LobbyRailItem {
+  detail?: string;
+  tone?: "ready" | "alert" | "data" | "idle";
+}
+
 export interface LobbyShellProps {
   brand?: string;
   layoutMode?: "lobby" | "solo";
@@ -55,6 +60,7 @@ export interface LobbyShellProps {
   secondaryAction: LobbyAction;
   tertiaryAction?: LobbyAction;
   railItems?: LobbyRailItem[];
+  topStatusItems?: LobbyTopStatusItem[];
   menuBody?: ReactNode;
   leftDock?: ReactNode;
   rightDock?: ReactNode;
@@ -80,6 +86,7 @@ export function LobbyShell({
   secondaryAction,
   tertiaryAction,
   railItems = [],
+  topStatusItems = [],
   menuBody,
   leftDock,
   rightDock
@@ -144,6 +151,21 @@ export function LobbyShell({
 
       <div className="game-lobby__background-mark" aria-hidden="true" />
 
+      {topStatusItems.length > 0 ? (
+        <section className="game-lobby__top-status" aria-label="顶部战区状态">
+          {topStatusItems.map((item) => (
+            <article
+              key={`${item.label}:${item.value}`}
+              className={`game-lobby__top-status-item game-lobby__top-status-item--${item.tone ?? "data"}`}
+            >
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              {item.detail ? <small>{item.detail}</small> : null}
+            </article>
+          ))}
+        </section>
+      ) : null}
+
       <section className={stageClassName} aria-label="游戏大厅">
         {leftDock ? <aside className="game-lobby__dock game-lobby__dock--left">{leftDock}</aside> : null}
 
@@ -182,10 +204,16 @@ export function LobbyShell({
 
             {menuBody ? <div className="game-lobby__body">{menuBody}</div> : null}
 
-            <div className="game-lobby__actions">
-              {tertiaryAction ? renderAction({ ...tertiaryAction, variant: tertiaryAction.variant ?? "ghost" }) : <span />}
-              {renderAction({ ...primaryAction, variant: primaryAction.variant ?? "primary" })}
-              {renderAction({ ...secondaryAction, variant: secondaryAction.variant ?? "default" })}
+            <div className="game-lobby__control-deck" aria-label="主操作区">
+              <div className="game-lobby__control-label" aria-hidden="true">
+                <span>COMMAND INPUT</span>
+                <b>主操作台</b>
+              </div>
+              <div className="game-lobby__actions">
+                {tertiaryAction ? renderAction({ ...tertiaryAction, variant: tertiaryAction.variant ?? "ghost" }) : <span />}
+                {renderAction({ ...primaryAction, variant: primaryAction.variant ?? "primary" })}
+                {renderAction({ ...secondaryAction, variant: secondaryAction.variant ?? "default" })}
+              </div>
             </div>
           </section>
 

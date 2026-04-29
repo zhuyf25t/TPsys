@@ -1,7 +1,9 @@
 import Phaser from "phaser";
 import type { Vec2 } from "../../../../domain/types";
 import { SKILL_DEFINITIONS } from "../../../../game/skills";
-import { getBattleDiagnosticsRoot, isBattleDiagnosticsEnabled } from "../battleDiagnosticsGate";
+import { TransientVfxLifecycle } from "./transientVfxLifecycle";
+
+export type { SceneVfxDiagnosticsSnapshot } from "./transientVfxLifecycle";
 
 export type FloatingTone = "neutral" | "success" | "warning" | "error";
 
@@ -9,25 +11,6 @@ interface RingEffect {
   circle: Phaser.GameObjects.Arc;
   ttlMs: number;
   maxTtlMs: number;
-}
-
-interface TransientEffectRecord {
-  object: Phaser.GameObjects.GameObject;
-  active: boolean;
-}
-
-export interface SceneVfxDiagnosticsSnapshot {
-  activeTransientCount: number;
-  trackedTransientSlotCount: number;
-  activeRingCount: number;
-  createdCount: number;
-  destroyedCount: number;
-  peakActiveTransientCount: number;
-}
-
-interface SlayDemoBattleDiagnosticsRoot {
-  vfx?: SceneVfxDiagnosticsSnapshot;
-  [key: string]: unknown;
 }
 
 export interface ProjectileTracerOptions {
@@ -47,8 +30,6 @@ export interface ProjectileTracerOptions {
 
 export type SkillFeedbackIntent = "prepare" | "release";
 
-const MAX_TRANSIENT_VFX = 120;
-const TRANSIENT_COMPACTION_LIMIT = MAX_TRANSIENT_VFX * 2;
 const DEFAULT_TRACER_DURATION_MS = 120;
 const TRACER_GHOST_RADIUS_SCALE = 1.35;
 const DEFAULT_MUZZLE_DIRECTION: Vec2 = { x: 1, y: 0 };
@@ -64,34 +45,25 @@ const SKILL_REJECT_COLOR = 0xff5a64;
 
 export class SceneVfxController {
   private visualEffects: RingEffect[] = [];
-  private transientEffects: TransientEffectRecord[] = [];
-  private transientEffectRecords = new Map<Phaser.GameObjects.GameObject, TransientEffectRecord>();
-  private transientActiveCount = 0;
-  private transientHeadIndex = 0;
-  private readonly diagnosticsEnabled = isBattleDiagnosticsEnabled();
-  private diagnosticsCreatedCount = 0;
-  private diagnosticsDestroyedCount = 0;
-  private diagnosticsPeakActiveTransientCount = 0;
+  private readonly transientVfx: TransientVfxLifecycle;
 
   public constructor(private readonly scene: Phaser.Scene) {
-    if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
-    }
+    this.transientVfx = new TransientVfxLifecycle({
+      getActiveRingCount: () => this.countActiveRings()
+    });
   }
 
   public createPulse = (position: Vec2, radius: number, color: number): void => {
-    const circle = this.trackTransient(
+    const circle = this.transientVfx.track(
       this.scene.add.circle(position.x, position.y, radius, color, 0.18).setDepth(45)
     );
     circle.setStrokeStyle(2, color, 0.78);
     this.visualEffects.push({ circle, ttlMs: 220, maxTtlMs: 220 });
-    if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
-    }
+    this.transientVfx.publishDiagnostics();
   };
 
   public createImpactSpark = (position: Vec2, color: number): void => {
-    const burst = this.trackTransient(
+    const burst = this.transientVfx.track(
       this.scene.add
         .circle(position.x, position.y, 5, color, 0.84)
         .setDepth(67)
@@ -104,13 +76,13 @@ export class SceneVfxController {
       scale: 1.8,
       duration: 105,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(burst)
+      onComplete: () => this.transientVfx.destroyObject(burst)
     });
 
     for (let index = 0; index < 5; index += 1) {
       const angle = (Math.PI * 2 * index) / 5 + Phaser.Math.FloatBetween(-0.2, 0.2);
       const sparkLength = Phaser.Math.Between(7, 12);
-      const spark = this.trackTransient(
+      const spark = this.transientVfx.track(
         this.scene.add
           .rectangle(position.x, position.y, sparkLength, 2, color, 0.92)
           .setOrigin(0, 0.5)
@@ -127,13 +99,13 @@ export class SceneVfxController {
         scaleY: 0.7,
         duration: 125,
         ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(spark)
+        onComplete: () => this.transientVfx.destroyObject(spark)
       });
     }
   };
 
   public createProjectileDissipate = (position: Vec2, color: number): void => {
-    const ring = this.trackTransient(
+    const ring = this.transientVfx.track(
       this.scene.add
         .circle(position.x, position.y, 6, color, 0)
         .setDepth(65)
@@ -146,10 +118,10 @@ export class SceneVfxController {
       scale: 1.75,
       duration: 130,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(ring)
+      onComplete: () => this.transientVfx.destroyObject(ring)
     });
 
-    const mote = this.trackTransient(
+    const mote = this.transientVfx.track(
       this.scene.add
         .circle(position.x, position.y, 2, color, 0.42)
         .setDepth(66)
@@ -161,12 +133,12 @@ export class SceneVfxController {
       scale: 0.3,
       duration: 95,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(mote)
+      onComplete: () => this.transientVfx.destroyObject(mote)
     });
   };
 
   public createHitConfirm = (position: Vec2, color: number): void => {
-    const marker = this.trackTransient(this.scene.add.graphics().setDepth(82));
+    const marker = this.transientVfx.track(this.scene.add.graphics().setDepth(82));
     marker.setPosition(position.x, position.y);
     marker.setBlendMode(Phaser.BlendModes.ADD);
     marker.lineStyle(2, color, 0.92);
@@ -192,7 +164,7 @@ export class SceneVfxController {
       scale: 1.35,
       duration: 155,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(marker)
+      onComplete: () => this.transientVfx.destroyObject(marker)
     });
   };
 
@@ -205,7 +177,7 @@ export class SceneVfxController {
     const radius = release ? 31 : 24;
     const facing = normalizeDirection(direction);
     const perpendicular = perpendicularDirection(facing);
-    const marker = this.trackTransient(this.scene.add.graphics().setDepth(84));
+    const marker = this.transientVfx.track(this.scene.add.graphics().setDepth(84));
 
     marker.setPosition(position.x, position.y);
     marker.setBlendMode(Phaser.BlendModes.ADD);
@@ -240,7 +212,7 @@ export class SceneVfxController {
       scale: release ? 1.34 : 1.18,
       duration: release ? 230 : 180,
       ease: "Cubic.Out",
-      onComplete: () => this.destroyTransient(marker)
+      onComplete: () => this.transientVfx.destroyObject(marker)
     });
   };
 
@@ -251,7 +223,7 @@ export class SceneVfxController {
     const release = intent === "release";
     const radius = release ? FREEZE_RELEASE_FEEDBACK_RADIUS : FREEZE_PREPARE_FEEDBACK_RADIUS;
     const shardCount = release ? 10 : 8;
-    const marker = this.trackTransient(this.scene.add.graphics().setDepth(83));
+    const marker = this.transientVfx.track(this.scene.add.graphics().setDepth(83));
 
     marker.setPosition(position.x, position.y);
     marker.setBlendMode(Phaser.BlendModes.ADD);
@@ -286,7 +258,7 @@ export class SceneVfxController {
       rotation: release ? 0.12 : 0.04,
       duration: release ? 260 : 210,
       ease: "Cubic.Out",
-      onComplete: () => this.destroyTransient(marker)
+      onComplete: () => this.transientVfx.destroyObject(marker)
     });
   };
 
@@ -297,7 +269,7 @@ export class SceneVfxController {
     const facing = normalizeDirection(direction);
     const perpendicular = perpendicularDirection(facing);
     const rotation = Math.atan2(facing.y, facing.x);
-    const ring = this.trackTransient(this.scene.add.graphics().setDepth(82));
+    const ring = this.transientVfx.track(this.scene.add.graphics().setDepth(82));
 
     ring.setPosition(position.x, position.y);
     ring.setBlendMode(Phaser.BlendModes.ADD);
@@ -327,12 +299,12 @@ export class SceneVfxController {
       scale: 1.22,
       duration: 160,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(ring)
+      onComplete: () => this.transientVfx.destroyObject(ring)
     });
 
     [-8, 0, 8].forEach((offset, index) => {
       const length = index === 1 ? 34 : 24;
-      const streak = this.trackTransient(
+      const streak = this.transientVfx.track(
         this.scene.add
           .rectangle(
             position.x - facing.x * 6 + perpendicular.x * offset,
@@ -356,14 +328,14 @@ export class SceneVfxController {
         scaleY: 1.35,
         duration: 155 + index * 18,
         ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(streak)
+        onComplete: () => this.transientVfx.destroyObject(streak)
       });
     });
   };
 
   public createSkillRejectionFeedback = (position: Vec2, radius: number): void => {
     const size = Math.max(16, radius * 0.62);
-    const marker = this.trackTransient(this.scene.add.graphics().setDepth(85));
+    const marker = this.transientVfx.track(this.scene.add.graphics().setDepth(85));
 
     marker.setPosition(position.x, position.y);
     marker.setBlendMode(Phaser.BlendModes.ADD);
@@ -388,7 +360,7 @@ export class SceneVfxController {
       scale: 1.14,
       duration: 150,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(marker)
+      onComplete: () => this.transientVfx.destroyObject(marker)
     });
   };
 
@@ -404,7 +376,7 @@ export class SceneVfxController {
     const rotation = Math.atan2(facing.y, facing.x);
     this.createPulse(position, radius, color);
 
-    const core = this.trackTransient(
+    const core = this.transientVfx.track(
       this.scene.add
         .circle(
           position.x + facing.x * 3,
@@ -423,10 +395,10 @@ export class SceneVfxController {
       scale: 1.75,
       duration: 95,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(core)
+      onComplete: () => this.transientVfx.destroyObject(core)
     });
 
-    const flash = this.trackTransient(
+    const flash = this.transientVfx.track(
       this.scene.add
         .rectangle(
           position.x,
@@ -448,7 +420,7 @@ export class SceneVfxController {
       scaleY: 1.6,
       duration: 110,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(flash)
+      onComplete: () => this.transientVfx.destroyObject(flash)
     });
 
     const sparkCount = Math.min(Math.max(0, sparks), MAX_MUZZLE_SPARKS);
@@ -461,7 +433,7 @@ export class SceneVfxController {
       const sparkAngle = Math.atan2(sparkDirection.y, sparkDirection.x);
       const distance = Phaser.Math.Between(18, 34) + Math.round(radius * 0.15);
       const lateralDrift = Phaser.Math.FloatBetween(-radius * 0.28, radius * 0.28);
-      const spark = this.trackTransient(
+      const spark = this.transientVfx.track(
         this.scene.add
           .rectangle(
             position.x + facing.x * 4,
@@ -485,13 +457,13 @@ export class SceneVfxController {
         scaleY: 0.76,
         duration: 150 + Phaser.Math.Between(0, 45),
         ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(spark)
+        onComplete: () => this.transientVfx.destroyObject(spark)
       });
     }
   };
 
   public createShockwave = (position: Vec2, startRadius: number, endRadius: number, color: number, duration: number): void => {
-    const wave = this.trackTransient(
+    const wave = this.transientVfx.track(
       this.scene.add.circle(position.x, position.y, startRadius, color, 0.16).setDepth(46)
     );
     wave.setStrokeStyle(3, color, 0.84);
@@ -502,7 +474,7 @@ export class SceneVfxController {
       alpha: 0,
       duration,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(wave)
+      onComplete: () => this.transientVfx.destroyObject(wave)
     });
   };
 
@@ -525,7 +497,7 @@ export class SceneVfxController {
     const perpendicular = perpendicularDirection(direction);
     const underglow =
       underglowAlphaScale > 0
-        ? this.trackTransient(
+        ? this.transientVfx.track(
             this.scene.add
               .rectangle(
                 options.start.x,
@@ -541,7 +513,7 @@ export class SceneVfxController {
               .setBlendMode(Phaser.BlendModes.ADD)
           )
         : null;
-    const tracer = this.trackTransient(
+    const tracer = this.transientVfx.track(
       this.scene.add
         .rectangle(options.start.x, options.start.y, length, thickness, options.color, alpha)
         .setOrigin(0, 0.5)
@@ -551,7 +523,7 @@ export class SceneVfxController {
     );
     const core =
       coreAlphaScale > 0
-        ? this.trackTransient(
+        ? this.transientVfx.track(
             this.scene.add
               .rectangle(
                 options.start.x + direction.x * (length * 0.12),
@@ -569,7 +541,7 @@ export class SceneVfxController {
         : null;
     const ghost =
       ghostAlphaScale > 0
-        ? this.trackTransient(
+        ? this.transientVfx.track(
             this.scene.add
               .circle(end.x, end.y, thickness * ghostScale, options.color, alpha * 0.8 * ghostAlphaScale)
               .setDepth(64)
@@ -585,7 +557,7 @@ export class SceneVfxController {
         scaleY: 1.25,
         duration: durationMs + 30,
         ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(underglow)
+        onComplete: () => this.transientVfx.destroyObject(underglow)
       });
     }
     this.scene.tweens.add({
@@ -594,7 +566,7 @@ export class SceneVfxController {
       scaleX: 0.72,
       duration: durationMs,
       ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(tracer)
+      onComplete: () => this.transientVfx.destroyObject(tracer)
     });
     if (core) {
       this.scene.tweens.add({
@@ -603,13 +575,13 @@ export class SceneVfxController {
         scaleX: 0.52,
         duration: Math.max(70, durationMs - 25),
         ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(core)
+        onComplete: () => this.transientVfx.destroyObject(core)
       });
     }
     if (glintAlphaScale > 0) {
       const glintLength = Math.min(24, Math.max(8, length * 0.26));
       const glintOffset = (Phaser.Math.Between(0, 1) === 0 ? -1 : 1) * Math.max(2, thickness * 1.25);
-      const glint = this.trackTransient(
+      const glint = this.transientVfx.track(
         this.scene.add
           .rectangle(
             end.x - direction.x * glintLength + perpendicular.x * glintOffset,
@@ -630,7 +602,7 @@ export class SceneVfxController {
         scaleX: 0.35,
         duration: Math.max(60, durationMs - 40),
         ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(glint)
+        onComplete: () => this.transientVfx.destroyObject(glint)
       });
     }
     if (ghost) {
@@ -640,13 +612,13 @@ export class SceneVfxController {
         scale: 0.45,
         duration: Math.max(80, durationMs - 20),
         ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(ghost)
+        onComplete: () => this.transientVfx.destroyObject(ghost)
       });
     }
   };
 
   public createFloatingText = (position: Vec2, text: string, color: string): void => {
-    const label = this.trackTransient(
+    const label = this.transientVfx.track(
       this.scene.add
         .text(position.x, position.y - 10, text, {
           fontFamily: "Consolas",
@@ -664,7 +636,7 @@ export class SceneVfxController {
       alpha: 0,
       duration: 620,
       ease: "Cubic.Out",
-      onComplete: () => this.destroyTransient(label)
+      onComplete: () => this.transientVfx.destroyObject(label)
     });
   };
 
@@ -690,7 +662,7 @@ export class SceneVfxController {
 
       const nextTtl = effect.ttlMs - deltaMs;
       if (nextTtl <= 0) {
-        this.destroyTransient(effect.circle);
+        this.transientVfx.destroyObject(effect.circle);
         continue;
       }
 
@@ -704,169 +676,13 @@ export class SceneVfxController {
     }
 
     this.visualEffects.length = writeIndex;
-    if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
-    }
+    this.transientVfx.publishDiagnostics();
   };
 
   public destroy(): void {
-    if (this.diagnosticsEnabled) {
-      this.diagnosticsDestroyedCount += this.transientActiveCount;
-    }
-    this.transientEffects.forEach((effect) => effect.object.destroy());
+    this.transientVfx.destroyAll({ publishDiagnostics: false });
     this.visualEffects = [];
-    this.transientEffects = [];
-    this.transientEffectRecords.clear();
-    this.transientActiveCount = 0;
-    this.transientHeadIndex = 0;
-    if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
-    }
-  }
-
-  private trackTransient<TObject extends Phaser.GameObjects.GameObject>(object: TObject): TObject {
-    const record: TransientEffectRecord = { object, active: true };
-    this.transientEffects.push(record);
-    this.transientEffectRecords.set(object, record);
-    this.transientActiveCount += 1;
-    if (this.diagnosticsEnabled) {
-      this.diagnosticsCreatedCount += 1;
-    }
-
-    while (this.transientActiveCount > MAX_TRANSIENT_VFX) {
-      this.destroyOldestTransient();
-    }
-
-    this.maybeCompactTransientEffects();
-    this.updatePeakActiveTransientDiagnostics();
-    if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
-    }
-    return object;
-  }
-
-  private destroyTransient(object: Phaser.GameObjects.GameObject): void {
-    const record = this.transientEffectRecords.get(object);
-    if (!record) {
-      return;
-    }
-
-    this.releaseTransient(record);
-    this.trimTransientHead();
-    this.maybeCompactTransientEffects();
-    if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
-    }
-  }
-
-  private destroyOldestTransient(): void {
-    while (this.transientHeadIndex < this.transientEffects.length) {
-      const record = this.transientEffects[this.transientHeadIndex];
-      this.transientHeadIndex += 1;
-
-      if (!record.active) {
-        continue;
-      }
-
-      this.releaseTransient(record);
-      this.trimTransientHead();
-      return;
-    }
-
-    this.transientEffects = [];
-    this.transientEffectRecords.clear();
-    this.transientActiveCount = 0;
-    this.transientHeadIndex = 0;
-    if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
-    }
-  }
-
-  private releaseTransient(record: TransientEffectRecord): void {
-    if (!record.active) {
-      return;
-    }
-
-    record.active = false;
-    this.transientEffectRecords.delete(record.object);
-    this.transientActiveCount -= 1;
-    if (this.diagnosticsEnabled) {
-      this.diagnosticsDestroyedCount += 1;
-    }
-    record.object.destroy();
-  }
-
-  private trimTransientHead(): void {
-    if (this.transientActiveCount <= 0) {
-      this.transientEffects = [];
-      this.transientEffectRecords.clear();
-      this.transientActiveCount = 0;
-      this.transientHeadIndex = 0;
-      return;
-    }
-
-    while (
-      this.transientHeadIndex < this.transientEffects.length &&
-      !this.transientEffects[this.transientHeadIndex].active
-    ) {
-      this.transientHeadIndex += 1;
-    }
-  }
-
-  private maybeCompactTransientEffects(): void {
-    if (this.transientEffects.length <= TRANSIENT_COMPACTION_LIMIT) {
-      return;
-    }
-
-    const compacted: TransientEffectRecord[] = [];
-
-    for (let index = this.transientHeadIndex; index < this.transientEffects.length; index += 1) {
-      const record = this.transientEffects[index];
-      if (!record.active) {
-        continue;
-      }
-
-      if (!record.object.active) {
-        this.releaseTransient(record);
-        continue;
-      }
-
-      compacted.push(record);
-    }
-
-    this.transientEffects = compacted;
-    this.transientHeadIndex = 0;
-  }
-
-  private updatePeakActiveTransientDiagnostics(): void {
-    if (!this.diagnosticsEnabled) {
-      return;
-    }
-
-    this.diagnosticsPeakActiveTransientCount = Math.max(
-      this.diagnosticsPeakActiveTransientCount,
-      this.transientActiveCount
-    );
-  }
-
-  private publishDiagnostics(): void {
-    if (!this.diagnosticsEnabled) {
-      return;
-    }
-
-    const diagnosticsRoot = getBattleDiagnosticsRoot<SlayDemoBattleDiagnosticsRoot>();
-    if (!diagnosticsRoot) {
-      return;
-    }
-
-    diagnosticsRoot.vfx = {
-      activeTransientCount: this.transientActiveCount,
-      trackedTransientSlotCount: this.transientEffects.length,
-      activeRingCount: this.countActiveRings(),
-      createdCount: this.diagnosticsCreatedCount,
-      destroyedCount: this.diagnosticsDestroyedCount,
-      peakActiveTransientCount: this.diagnosticsPeakActiveTransientCount
-    };
+    this.transientVfx.publishDiagnostics();
   }
 
   private countActiveRings(): number {

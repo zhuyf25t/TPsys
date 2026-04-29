@@ -938,9 +938,27 @@
 
 - 这仍是离线模板和 smoke，不等于真实社区插件热加载，也不验证实战强度；下一步如果继续做 bot 社区化，应当增加注册桥接或 sandboxed loader 的明确边界。
 
+### Dev 端口/进程诊断脚本第一轮
+
+已完成本轮第四十五刀：
+
+- 新增 `scripts/dev-port-status.ps1` 和 `npm run dev:status`。
+- 脚本是只读诊断：不调用 `Stop-Process`，不杀 java/node/sbt/codex 进程。
+- 输出 5173 / 8080 的监听状态、PID、进程名、角色和命令行摘要。
+- 汇总 java/sbt/node/Codex/Vite 相关进程，能区分 BackendApp、`npm run backend:dev` wrapper、Vite dev server、前端 build/check process、Codex tooling。
+- 给出明确建议：8080 未监听时提示启动后端；8080 是 BackendApp 时提示后端已运行、不要重复 `sbt run`；5173 是 Vite 时提示前端已运行。
+- 这解决了之前经常出现的误判：`Address already in use` 或 sbt named-pipe lock 往往是旧后端/旧 sbt 进程仍在，不等于后端代码坏了。
+- 本轮没有改业务代码、BattlePage、后端逻辑或素材。
+
+验证：
+
+- `npm run dev:status` 通过；当前环境显示 5173 有 Vite listener，8080 未监听。
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令，以及 bot 外部策略模板/离线 smoke。下一步更适合做启动/端口冲突脚本或继续做 bot 注册桥接边界，而不是继续拆收益很低的 BattlePage 状态机细枝。
+当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令、bot 外部策略模板/离线 smoke，以及 dev 端口诊断脚本。下一步更适合做数据闭环历史清理的 dry-run/apply 工具，或继续做 bot 注册桥接边界，而不是继续拆收益很低的 BattlePage 状态机细枝。
 
 扩展性基础第一轮已经覆盖：
 
@@ -971,7 +989,7 @@
 
 4. 启动、验收、交付脚本。
    预计：0.5-1 天。
-   目标：一键关闭旧进程、一键启动前后端、一键 build/backend compile/smoke，减少端口占用和 sbt pipe 误解。
+   目标：端口状态诊断已完成第一步；后续可继续做一键关闭旧进程、一键启动前后端、一键 build/backend compile/smoke，但任何杀进程脚本都必须显式 opt-in。
 
 ## 暂缓事项
 

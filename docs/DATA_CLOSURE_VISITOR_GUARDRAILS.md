@@ -19,3 +19,11 @@ Current boundaries:
 `npm run audit:data-closure` runs `scripts/audit-data-closure.mjs` against `backend/data/*.json` and only prints a dry-run report. It does not delete, rewrite, or migrate data files.
 
 The report counts visitor-like/non-playable battle results, mails, replay records, identity accounts, and battle-result duplicate groups keyed by `lower(trim(battleId)) + lower(trim(handle))`.
+
+## Data cleanup
+
+`npm run data:closure-cleanup` runs `scripts/cleanup-data-closure.mjs` in dry-run mode by default and only prints the cleanup plan. It does not write data files unless the script is run directly with `--apply`.
+
+With `--apply`, the cleanup removes visitor-like/non-playable owners from battle results, mails, replay records, replay comments, and identity accounts. It also deduplicates battle results by `lower(trim(battleId)) + lower(trim(handle))`, keeping the latest `finishedAt`, then rows with `resultId`, then original order.
+
+Before writing each changed JSON file, `--apply` creates a sibling `.bak-YYYYMMDD-HHMMSS` backup.

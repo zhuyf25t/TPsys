@@ -956,9 +956,30 @@
 - `npm run build` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### 数据闭环历史清理工具与本地清理
+
+已完成本轮第四十六刀：
+
+- 新增 `scripts/cleanup-data-closure.mjs` 和 `npm run data:closure-cleanup`。
+- 脚本默认 dry-run，只输出计划；只有显式 `--apply` 才会写入 `backend/data`。
+- 写入前会校验目标 JSON 和数组 key，先准备所有临时文件，再为每个变更文件创建 `.bak-YYYYMMDD-HHMMSS` 备份，最后替换目标文件。
+- 清理范围：Visitor-like battle results、mails、replay records、replay comments、identity accounts，以及 battle result logical duplicate groups。
+- battle result 去重规则：按 `lower(trim(battleId)) + lower(trim(handle))` 分组，保留 latest `finishedAt`，再优先有 `resultId`，再保留原始顺序。
+- `docs/DATA_CLOSURE_VISITOR_GUARDRAILS.md` 已补充 cleanup 命令和 `--apply` 行为说明。
+- 主控已执行一次真实本地 `--apply`：移除 6 条 Visitor battle results、16 条 Visitor mails、4 条 Visitor replay records；identity accounts 移除 0；duplicate groups 0。
+- 本地备份已生成在 `backend/data/*.bak-20260429-185303`。`backend/data/` 是 `.gitignore` 本地运行数据，不进入 Git。
+
+验证：
+
+- `npm run data:closure-cleanup` dry-run 通过。
+- `node scripts/cleanup-data-closure.mjs --apply` 通过。
+- `npm run audit:data-closure` 在 apply 后通过，Visitor-like/non-playable rows 全部为 0，battle result duplicate groups 为 0。
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令、bot 外部策略模板/离线 smoke，以及 dev 端口诊断脚本。下一步更适合做数据闭环历史清理的 dry-run/apply 工具，或继续做 bot 注册桥接边界，而不是继续拆收益很低的 BattlePage 状态机细枝。
+当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令、bot 外部策略模板/离线 smoke、dev 端口诊断脚本，以及本地历史数据闭环清理。下一步更适合继续做 bot 注册桥接边界或启动/验收脚本，而不是继续拆收益很低的 BattlePage 状态机细枝。
 
 扩展性基础第一轮已经覆盖：
 

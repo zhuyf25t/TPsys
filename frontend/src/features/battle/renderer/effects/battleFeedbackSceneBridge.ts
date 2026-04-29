@@ -1,6 +1,5 @@
 import type { GameSnapshot, Vec2 } from "../../../../domain/types";
 import type { BattleRuntimeAuthoritativeFrame } from "../authoritativeBattleStateBridge";
-import { recordRemoteProjectileBirthDiagnostics } from "../remoteViewDiagnostics";
 import {
   createHeroFeedbackState,
   createItemPickupFeedbackState,
@@ -29,13 +28,11 @@ import {
   createAuthoritativeProjectileTerminalFeedbackState,
   createAuthoritativeProjectileTerminalKey,
   createProjectileFeedbackState,
-  createRemoteGatlingProjectileBirthTracerOptions,
   isLocalAuthoritativeProjectileTerminal,
   isLocalProjectileTerminal,
   resolveAuthoritativeFrameElapsedWatermark,
   resolveAuthoritativeProjectileTerminalQueueDropKey,
   resolveProjectileDirection,
-  resolveRemoteProjectileBirthFeedbackPosition,
   selectAuthoritativeProjectileTerminalVfxKeys,
   shouldQueueAuthoritativeProjectileTerminal,
   type AuthoritativeProjectileTerminalFeedbackState,
@@ -47,6 +44,7 @@ import {
   recordProjectileTerminalDiagnostics,
   shouldRecordProjectileTerminalDiagnostics
 } from "./projectileTerminalDiagnosticsRecorder";
+import { presentAuthoritativeRemoteProjectileBirthFeedback } from "./remoteProjectileBirthFeedbackPresenter";
 
 export interface BattleFeedbackSceneBridgeOptions extends ProjectileTerminalVfxPresenterCallbacks {
   getSnapshot(): GameSnapshot;
@@ -135,43 +133,18 @@ export class BattleFeedbackSceneBridge {
         showFloatingText: (position, text, tone) => this.options.showFloatingText(position, text, tone),
         createPulse: (position, radius, color) => this.options.createPulse(position, radius, color)
       });
-      this.presentAuthoritativeRemoteProjectileBirthFeedback(snapshot);
+      presentAuthoritativeRemoteProjectileBirthFeedback({
+        snapshot,
+        previousProjectileStates: this.projectileStates,
+        getHeroDisplayPosition: (heroId) => this.options.getHeroDisplayPosition(heroId),
+        callbacks: this.options
+      });
       if (this.previousSharedAuthoritativeRuntime) {
         this.presentAuthoritativeProjectileTerminalFeedback(snapshot);
       }
     }
     this.capture(snapshot);
     this.previousSharedAuthoritativeRuntime = sharedAuthoritativeRuntime;
-  }
-
-  private presentAuthoritativeRemoteProjectileBirthFeedback(snapshot: GameSnapshot): void {
-    snapshot.projectiles.forEach((projectile) => {
-      if (this.projectileStates.has(projectile.projectileId) || projectile.ownerHeroId === snapshot.playerHeroId) {
-        return;
-      }
-
-      const owner = snapshot.heroes.find((hero) => hero.heroId === projectile.ownerHeroId);
-      const ownerDisplayPosition = owner ? this.options.getHeroDisplayPosition(owner.heroId) : null;
-      const position = resolveRemoteProjectileBirthFeedbackPosition(projectile, owner, ownerDisplayPosition);
-      const color = PROJECTILE_SPARK_COLORS[projectile.kind];
-      recordRemoteProjectileBirthDiagnostics({
-        projectile,
-        ownerDisplayName: owner?.displayName,
-        position
-      });
-      if (projectile.kind === "gatling-bullet") {
-        this.options.createProjectileTracer(
-          createRemoteGatlingProjectileBirthTracerOptions(projectile, position, color)
-        );
-        return;
-      }
-
-      this.options.createImpactSpark(position, color);
-
-      if (projectile.kind === "rocket") {
-        this.options.createPulse(position, 16, color);
-      }
-    });
   }
 
   private presentAuthoritativeProjectileTerminalFeedback(snapshot: GameSnapshot): void {

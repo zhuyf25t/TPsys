@@ -11,7 +11,6 @@ const PATHS = {
   backendGeometry: join(ROOT_DIR, "backend", "src", "main", "scala", "battle", "runtime", "AuthoritativeArenaGeometry.scala"),
 };
 
-const WEAPON_KINDS = ["Pistol", "RocketLauncher", "Gatling", "Shotgun"];
 const WEAPON_FIELDS = [
   "projectileKind",
   "cooldownMs",
@@ -59,6 +58,10 @@ const backend = {
 };
 
 const failures = [];
+pushNonEmptyRecordFailure("frontend weaponDefinitions", frontend.weaponDefinitions, failures);
+pushNonEmptyRecordFailure("backend weaponDefinitions", backend.weaponDefinitions, failures);
+pushNonEmptyRecordFailure("frontend skillDefinitions", frontend.skillDefinitions, failures);
+pushNonEmptyRecordFailure("backend skillDefinitions", backend.skillDefinitions, failures);
 compareValues("defaultMap", frontend.defaultMap, backend.defaultMap, failures);
 compareValues("weaponDefinitions", frontend.weaponDefinitions, backend.weaponDefinitions, failures);
 compareValues("skillDefinitions", frontend.skillDefinitions, backend.skillDefinitions, failures);
@@ -76,8 +79,14 @@ if (failures.length > 0) {
   console.log(`Inner obstacles: ${frontend.defaultMap.innerObstacles.length}`);
   console.log(`Weapon pickups: ${frontend.defaultMap.weaponPickupDefinitions.length}`);
   console.log(`Item pickups: ${frontend.defaultMap.itemPickupDefinitions.length}`);
-  console.log(`Weapon definitions: ${Object.keys(frontend.weaponDefinitions).length} (${WEAPON_KINDS.join(", ")})`);
+  console.log(`Weapon definitions: ${Object.keys(frontend.weaponDefinitions).length} (${Object.keys(frontend.weaponDefinitions).sort().join(", ")})`);
   console.log(`Skill definitions: ${Object.keys(frontend.skillDefinitions).length}`);
+}
+
+function pushNonEmptyRecordFailure(label, record, target) {
+  if (Object.keys(record).length === 0) {
+    target.push(`${label} must not be empty.`);
+  }
 }
 
 function parseFrontendMapCatalog(source) {
@@ -119,12 +128,7 @@ function parseFrontendWeaponDefinitions(source) {
   const record = extractTsObjectRecord(extractTsConstObject(source, "WEAPON_DEFINITIONS"));
   const definitions = {};
 
-  for (const weaponKind of WEAPON_KINDS) {
-    const block = record.get(weaponKind);
-    if (!block) {
-      throw new Error(`Missing frontend weapon definition for ${weaponKind}.`);
-    }
-
+  for (const [weaponKind, block] of record.entries()) {
     definitions[weaponKind] = Object.fromEntries(
       WEAPON_FIELDS.map((fieldName) => [fieldName, readTsScalarField(block, fieldName)])
     );
@@ -206,12 +210,7 @@ function parseBackendWeaponDefinitions(source, geometrySource) {
     overheatLockMs: 0,
   };
 
-  for (const weaponKind of WEAPON_KINDS) {
-    const args = entries.get(weaponKind);
-    if (!args) {
-      throw new Error(`Missing backend weapon definition for ${weaponKind}.`);
-    }
-
+  for (const [weaponKind, args] of entries.entries()) {
     definitions[weaponKind] = {};
     for (const fieldName of WEAPON_FIELDS) {
       definitions[weaponKind][fieldName] =

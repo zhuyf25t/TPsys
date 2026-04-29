@@ -893,9 +893,31 @@
 - 本轮是结构和 CSS 层调整，尚未做真实浏览器 headful 视觉截屏验收；构建能证明类型和打包通过，但不能替代肉眼审美验收。
 - 主界面现在仍是程序化 CSS + 现有视频背景，距离参考图那种商业级金属大厅仍需要后续做更完整的背景资产、模块层次、入口状态和动效节奏。
 
+### Battle catalog 契约审计脚本第二轮
+
+已完成本轮第四十三刀：
+
+- 复用已有 `scripts/audit-battle-content-contract.mjs`，没有新增平行审计体系。
+- `package.json` 新增 `audit:battle-contracts` alias，指向现有 battle content contract audit，后续验收命令更贴近“前后端 battle contract”语义。
+- weapon catalog 审计从固定 `Pistol/RocketLauncher/Gatling/Shotgun` 列表改为动态读取前后端实际 weapon id 集合；新增或删除武器时，脚本会通过 key 集合比较发现 drift。
+- 新增非空防假通过：前后端 weaponDefinitions / skillDefinitions 如果解析为空会直接失败。
+- 审计仍覆盖 default map/world size/spawn points/inner obstacles/weapon pickups/item pickups、weapon 字段、skill 字段。
+- 本轮没有改 battle runtime、GameScene、BattlePage renderer、BattlePage 角色/地图素材、后端业务语义或 catalog 数值。
+
+验证：
+
+- `npm run audit:battle-contracts` 通过。
+- `npm run build` 通过。
+- `npm run backend:compile` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+说明：
+
+- worker 初次验证时 `backend:compile` 被本机已运行的 `sbt runMain slaydemo.backend.BackendApp` 后端进程占用 sbt named-pipe/boot server 卡住；关闭该后端 dev 进程后编译正常通过，确认不是源码问题。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，刚完成大厅中心信息密度与 CSS 重复覆盖清理。下一步更适合做地图/技能/武器/bot 的契约审计与示例模板，而不是继续拆收益很低的 BattlePage 状态机细枝。
+当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，刚完成大厅中心信息密度、CSS 重复覆盖清理，以及 battle catalog 前后端契约审计命令。下一步更适合做 bot 外部策略模板和离线 harness，而不是继续拆收益很低的 BattlePage 状态机细枝。
 
 扩展性基础第一轮已经覆盖：
 
@@ -917,8 +939,8 @@
    目标：在不碰 BattlePage 角色/地图素材的前提下，清理大厅 CSS 重复段、强化金属战争大厅层次、提高菜单/榜单/邮件/好友入口的信息密度和可读性。
 
 2. 扩展性脚手架第二轮。
-   预计：0.5-1 天。
-   目标：地图、技能、武器、bot catalog 的契约审计继续前进，补示例内容包或 bot 策略模板，让外部贡献更容易接入。
+   预计：0.5 天。
+   目标：地图、技能、武器契约审计命令已经完成第一步；接下来补示例内容包或 bot 策略模板，让外部贡献更容易接入。
 
 3. Bot 社区化第二轮。
    预计：0.5-1 天。

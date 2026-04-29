@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { Vec2 } from "../../../../domain/types";
+import { FloatingTextVfxPresenter, type FloatingTone } from "./floatingTextVfxPresenter";
 import { MuzzleAndHitVfxPresenter } from "./muzzleAndHitVfxPresenter";
 import {
   createProjectileTracer as renderProjectileTracer,
@@ -11,8 +12,7 @@ import { TransientVfxLifecycle } from "./transientVfxLifecycle";
 export type { SceneVfxDiagnosticsSnapshot } from "./transientVfxLifecycle";
 export type { ProjectileTracerOptions } from "./projectileTracerVfxRenderer";
 export type { SkillFeedbackIntent } from "./skillFeedbackVfxPresenter";
-
-export type FloatingTone = "neutral" | "success" | "warning" | "error";
+export type { FloatingTone } from "./floatingTextVfxPresenter";
 
 interface RingEffect {
   circle: Phaser.GameObjects.Arc;
@@ -27,6 +27,7 @@ export class SceneVfxController {
   private readonly transientVfx: TransientVfxLifecycle;
   private readonly muzzleAndHitVfxPresenter: MuzzleAndHitVfxPresenter;
   private readonly skillFeedbackPresenter: SkillFeedbackVfxPresenter;
+  private readonly floatingTextPresenter: FloatingTextVfxPresenter;
 
   public constructor(private readonly scene: Phaser.Scene) {
     this.transientVfx = new TransientVfxLifecycle({
@@ -39,6 +40,11 @@ export class SceneVfxController {
       createRingPulse: (position, radius, color) => this.createPulse(position, radius, color)
     });
     this.skillFeedbackPresenter = new SkillFeedbackVfxPresenter({
+      scene: this.scene,
+      trackTransient: (object) => this.transientVfx.track(object),
+      destroyTransient: (object) => this.transientVfx.destroyObject(object)
+    });
+    this.floatingTextPresenter = new FloatingTextVfxPresenter({
       scene: this.scene,
       trackTransient: (object) => this.transientVfx.track(object),
       destroyTransient: (object) => this.transientVfx.destroyObject(object)
@@ -118,37 +124,11 @@ export class SceneVfxController {
   };
 
   public createFloatingText = (position: Vec2, text: string, color: string): void => {
-    const label = this.transientVfx.track(
-      this.scene.add
-        .text(position.x, position.y - 10, text, {
-          fontFamily: "Consolas",
-          fontSize: "18px",
-          color
-        })
-        .setOrigin(0.5, 1)
-        .setDepth(80)
-        .setStroke("#12212b", 3)
-    );
-
-    this.scene.tweens.add({
-      targets: label,
-      y: position.y - 42,
-      alpha: 0,
-      duration: 620,
-      ease: "Cubic.Out",
-      onComplete: () => this.transientVfx.destroyObject(label)
-    });
+    this.floatingTextPresenter.createFloatingText(position, text, color);
   };
 
   public showFloatingText = (position: Vec2, text: string, tone: FloatingTone = "neutral"): void => {
-    const palette: Record<FloatingTone, string> = {
-      neutral: "#c4ccd6",
-      success: "#7dff9d",
-      warning: "#ffd36e",
-      error: "#ff9a9a"
-    };
-
-    this.createFloatingText(position, text, palette[tone]);
+    this.floatingTextPresenter.showFloatingText(position, text, tone);
   };
 
   public updateVisualEffects = (deltaMs: number): void => {

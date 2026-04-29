@@ -1,10 +1,19 @@
-import type { GameSnapshot, Hero, ItemPickup, Vec2, WeaponPickup } from "../../../../domain/types";
+import type { GameSnapshot, Vec2 } from "../../../../domain/types";
 import type { BattleRuntimeAuthoritativeFrame } from "../authoritativeBattleStateBridge";
 import {
   recordRemoteProjectileBirthDiagnostics,
   recordRemoteProjectileTerminalDiagnostics,
   shouldRecordRemoteProjectileTerminalDiagnostics
 } from "../remoteViewDiagnostics";
+import {
+  createHeroFeedbackState,
+  createItemPickupFeedbackState,
+  createWeaponPickupFeedbackState,
+  presentAuthoritativePickupFeedback,
+  presentHeroFeedback,
+  type HeroFeedbackState,
+  type PickupFeedbackState
+} from "./heroAndPickupFeedbackPresenter";
 import {
   AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_PER_UPDATE_LIMIT,
   AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_QUEUE_LIMIT,
@@ -37,22 +46,6 @@ import {
   type AuthoritativeProjectileTerminalVfxBudgetReason,
   type ProjectileFeedbackState
 } from "./projectileTerminalFeedbackPolicy";
-
-interface HeroFeedbackState {
-  hp: number;
-  alive: boolean;
-  score: number;
-  currentWeaponAmmoTotal: number | null;
-  position: Vec2;
-}
-
-interface PickupFeedbackState {
-  available: boolean;
-  position: Vec2;
-}
-
-const AMMO_PICKUP_PULSE_RADIUS = 30;
-const AMMO_PICKUP_PULSE_COLOR = 0xffd86d;
 
 export interface BattleFeedbackSceneBridgeOptions {
   getSnapshot(): GameSnapshot;
@@ -139,9 +132,26 @@ export class BattleFeedbackSceneBridge {
       return;
     }
 
-    this.presentHeroFeedback(snapshot, sharedAuthoritativeRuntime);
+    presentHeroFeedback({
+      snapshot,
+      previousHeroStates: this.heroStates,
+      sharedAuthoritativeRuntime,
+      getHeroDisplayPosition: (heroId) => this.options.getHeroDisplayPosition(heroId),
+      flashHero: (heroId, color) => this.options.flashHero(heroId, color),
+      showFloatingText: (position, text, tone) => this.options.showFloatingText(position, text, tone),
+      createPulse: (position, radius, color) => this.options.createPulse(position, radius, color),
+      createImpactSpark: (position, color) => this.options.createImpactSpark(position, color),
+      createHitConfirm: (position, color) => this.options.createHitConfirm(position, color),
+      shakeCamera: (duration, intensity) => this.options.shakeCamera(duration, intensity)
+    });
     if (sharedAuthoritativeRuntime) {
-      this.presentAuthoritativePickupFeedback(snapshot);
+      presentAuthoritativePickupFeedback({
+        snapshot,
+        previousWeaponPickupStates: this.weaponPickupStates,
+        previousItemPickupStates: this.itemPickupStates,
+        showFloatingText: (position, text, tone) => this.options.showFloatingText(position, text, tone),
+        createPulse: (position, radius, color) => this.options.createPulse(position, radius, color)
+      });
       this.presentAuthoritativeRemoteProjectileBirthFeedback(snapshot);
       if (this.previousSharedAuthoritativeRuntime) {
         this.presentAuthoritativeProjectileTerminalFeedback(snapshot);
@@ -149,106 +159,6 @@ export class BattleFeedbackSceneBridge {
     }
     this.capture(snapshot);
     this.previousSharedAuthoritativeRuntime = sharedAuthoritativeRuntime;
-  }
-
-  private presentHeroFeedback(snapshot: GameSnapshot, sharedAuthoritativeRuntime: boolean): void {
-    snapshot.heroes.forEach((hero) => {
-      const previous = this.heroStates.get(hero.heroId);
-      if (!previous) {
-        return;
-      }
-
-      if (sharedAuthoritativeRuntime) {
-        this.presentAuthoritativeHealthDelta(hero, previous, snapshot.playerHeroId);
-        this.presentAuthoritativeAmmoDelta(hero, previous);
-      }
-
-      if (previous.alive && !hero.alive) {
-        this.options.showFloatingText(previous.position, "出局", "error");
-        this.options.createPulse(previous.position, 42, 0xff6b6b);
-        if (hero.heroId === snapshot.playerHeroId) {
-          this.options.shakeCamera(140, 0.0024);
-        }
-      }
-
-      if (!sharedAuthoritativeRuntime && !previous.alive && hero.alive) {
-        const feedbackPosition = this.options.getHeroDisplayPosition(hero.heroId) ?? hero.position;
-        // Legacy snapshot compatibility: one-life mode must not present this as player return.
-        this.options.createPulse(feedbackPosition, 42, 0xffb36f);
-      }
-
-      if (hero.heroId === snapshot.playerHeroId && hero.score > previous.score) {
-        const feedbackPosition = this.options.getHeroDisplayPosition(hero.heroId) ?? hero.position;
-        this.options.showFloatingText(feedbackPosition, `击败 +${hero.score - previous.score}`, "success");
-      }
-    });
-  }
-
-  private presentAuthoritativeHealthDelta(hero: Hero, previous: HeroFeedbackState, playerHeroId: string): void {
-    if (!hero.alive && !previous.alive) {
-      return;
-    }
-
-    const hpDelta = hero.hp - previous.hp;
-    const displayPosition = this.options.getHeroDisplayPosition(hero.heroId);
-    const feedbackPosition = displayPosition ?? (previous.alive && !hero.alive ? previous.position : hero.position);
-    if (hpDelta < 0) {
-      const damage = Math.round(Math.abs(hpDelta));
-      const isPlayerDamage = hero.heroId === playerHeroId;
-      this.options.flashHero(hero.heroId, 0xffffff);
-      this.options.createImpactSpark(feedbackPosition, 0xffe2ba);
-      this.options.createHitConfirm(feedbackPosition, isPlayerDamage ? 0xff6b6b : 0xfff0c6);
-      this.options.showFloatingText(feedbackPosition, `-${damage}`, "error");
-      if (isPlayerDamage && previous.alive && hero.alive) {
-        const shakeScale = Math.min(1, damage / Math.max(1, hero.maxHp * 0.35));
-        this.options.createPulse(feedbackPosition, 28, 0xff5c5c);
-        this.options.shakeCamera(70 + Math.round(shakeScale * 40), 0.0012 + shakeScale * 0.0008);
-      }
-      return;
-    }
-
-    if (hpDelta > 0 && hero.alive) {
-      this.options.showFloatingText(feedbackPosition, `+${Math.round(hpDelta)}`, "success");
-      this.options.createPulse(feedbackPosition, 36, 0x7dff9d);
-    }
-  }
-
-  private presentAuthoritativeAmmoDelta(hero: Hero, previous: HeroFeedbackState): void {
-    if (!previous.alive || !hero.alive) {
-      return;
-    }
-
-    const currentWeaponAmmoTotal = resolveCurrentWeaponAmmoTotal(hero);
-    if (currentWeaponAmmoTotal === null || previous.currentWeaponAmmoTotal === null) {
-      return;
-    }
-
-    const ammoDelta = currentWeaponAmmoTotal - previous.currentWeaponAmmoTotal;
-    if (ammoDelta <= 0) {
-      return;
-    }
-
-    const feedbackPosition = this.options.getHeroDisplayPosition(hero.heroId) ?? hero.position;
-    this.options.showFloatingText(feedbackPosition, `弹药 +${ammoDelta}`, "success");
-    this.options.createPulse(feedbackPosition, AMMO_PICKUP_PULSE_RADIUS, AMMO_PICKUP_PULSE_COLOR);
-  }
-
-  private presentAuthoritativePickupFeedback(snapshot: GameSnapshot): void {
-    snapshot.weaponPickups.forEach((pickup) => {
-      const previous = this.weaponPickupStates.get(pickup.weaponId);
-      if (previous?.available && !pickup.available) {
-        this.options.showFloatingText(previous.position, "拾取武器", "success");
-        this.options.createPulse(previous.position, 34, 0x9dffb4);
-      }
-    });
-
-    snapshot.itemPickups.forEach((pickup) => {
-      const previous = this.itemPickupStates.get(pickup.pickupId);
-      if (previous?.available && !pickup.available) {
-        this.options.showFloatingText(previous.position, "拾取补给", "success");
-        this.options.createPulse(previous.position, 34, 0x7dff9d);
-      }
-    });
   }
 
   private presentAuthoritativeRemoteProjectileBirthFeedback(snapshot: GameSnapshot): void {
@@ -664,41 +574,4 @@ export class BattleFeedbackSceneBridge {
 
     return this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs;
   }
-}
-
-function createHeroFeedbackState(hero: Hero, position: Vec2): HeroFeedbackState {
-  return {
-    hp: hero.hp,
-    alive: hero.alive,
-    score: hero.score,
-    currentWeaponAmmoTotal: resolveCurrentWeaponAmmoTotal(hero),
-    position: { x: position.x, y: position.y }
-  };
-}
-
-function resolveCurrentWeaponAmmoTotal(hero: Hero): number | null {
-  const weapon = hero.weapons[hero.currentWeaponIndex];
-  if (!weapon) {
-    return null;
-  }
-
-  return toSafeAmmoCount(weapon.ammoInMagazine) + toSafeAmmoCount(weapon.reserveAmmo);
-}
-
-function toSafeAmmoCount(value: number | null | undefined): number {
-  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-}
-
-function createWeaponPickupFeedbackState(pickup: WeaponPickup): PickupFeedbackState {
-  return {
-    available: pickup.available,
-    position: { x: pickup.position.x, y: pickup.position.y }
-  };
-}
-
-function createItemPickupFeedbackState(pickup: ItemPickup): PickupFeedbackState {
-  return {
-    available: pickup.available,
-    position: { x: pickup.position.x, y: pickup.position.y }
-  };
 }

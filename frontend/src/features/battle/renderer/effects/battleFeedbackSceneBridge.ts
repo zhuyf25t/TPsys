@@ -1,10 +1,6 @@
 import type { GameSnapshot, Vec2 } from "../../../../domain/types";
 import type { BattleRuntimeAuthoritativeFrame } from "../authoritativeBattleStateBridge";
-import {
-  recordRemoteProjectileBirthDiagnostics,
-  recordRemoteProjectileTerminalDiagnostics,
-  shouldRecordRemoteProjectileTerminalDiagnostics
-} from "../remoteViewDiagnostics";
+import { recordRemoteProjectileBirthDiagnostics } from "../remoteViewDiagnostics";
 import {
   createHeroFeedbackState,
   createItemPickupFeedbackState,
@@ -34,12 +30,10 @@ import {
   createAuthoritativeProjectileTerminalKey,
   createProjectileFeedbackState,
   createRemoteGatlingProjectileBirthTracerOptions,
-  createTerminalDiagnosticProjectileState,
   isLocalAuthoritativeProjectileTerminal,
   isLocalProjectileTerminal,
   resolveAuthoritativeFrameElapsedWatermark,
   resolveAuthoritativeProjectileTerminalQueueDropKey,
-  resolveNearestTerminalHero,
   resolveProjectileDirection,
   resolveRemoteProjectileBirthFeedbackPosition,
   selectAuthoritativeProjectileTerminalVfxKeys,
@@ -48,6 +42,11 @@ import {
   type AuthoritativeProjectileTerminalVfxBudgetReason,
   type ProjectileFeedbackState
 } from "./projectileTerminalFeedbackPolicy";
+import {
+  recordAuthoritativeProjectileTerminalDiagnostics,
+  recordProjectileTerminalDiagnostics,
+  shouldRecordProjectileTerminalDiagnostics
+} from "./projectileTerminalDiagnosticsRecorder";
 
 export interface BattleFeedbackSceneBridgeOptions extends ProjectileTerminalVfxPresenterCallbacks {
   getSnapshot(): GameSnapshot;
@@ -195,7 +194,12 @@ export class BattleFeedbackSceneBridge {
         presentProjectileTerminalCorrectionTracer({ previous, color, callbacks: this.options });
       }
       presentProjectileTerminalDissipateVfx({ previous, color, callbacks: this.options });
-      this.recordProjectileTerminalDiagnostics(previous, projectileId, snapshot);
+      recordProjectileTerminalDiagnostics({
+        previous,
+        projectileId,
+        snapshot,
+        getHeroDisplayPosition: (heroId) => this.options.getHeroDisplayPosition(heroId)
+      });
       presentProjectileTerminalRocketImpactVfx({ previous, color, callbacks: this.options });
     });
   }
@@ -231,12 +235,13 @@ export class BattleFeedbackSceneBridge {
 
     readyTerminals.forEach(({ terminalKey, terminal, previous }) => {
       const shouldPlayVfx = vfxTerminalKeys.has(terminalKey);
-      this.recordAuthoritativeProjectileTerminalDiagnostics(
+      recordAuthoritativeProjectileTerminalDiagnostics({
         terminal,
         previous,
         snapshot,
-        shouldPlayVfx ? null : "per-update-limit"
-      );
+        getHeroDisplayPosition: (heroId) => this.options.getHeroDisplayPosition(heroId),
+        vfxBudgetReason: shouldPlayVfx ? null : "per-update-limit"
+      });
 
       if (shouldPlayVfx) {
         const color = PROJECTILE_SPARK_COLORS[terminal.kind];
@@ -249,76 +254,6 @@ export class BattleFeedbackSceneBridge {
 
       this.rememberPlayedAuthoritativeProjectileTerminal(terminalKey);
       this.authoritativeProjectileTerminals.delete(terminalKey);
-    });
-  }
-
-  private recordProjectileTerminalDiagnostics(
-    previous: ProjectileFeedbackState,
-    projectileId: string,
-    snapshot: GameSnapshot
-  ): void {
-    if (!shouldRecordRemoteProjectileTerminalDiagnostics()) {
-      return;
-    }
-
-    const nearestHero = resolveNearestTerminalHero(
-      previous,
-      snapshot.heroes,
-      (heroId) => this.options.getHeroDisplayPosition(heroId)
-    );
-    recordRemoteProjectileTerminalDiagnostics({
-      projectileId,
-      kind: previous.kind,
-      source: "snapshot-diff",
-      reason: previous.ttlMs <= 0 ? "ttl" : null,
-      terminalPosition: previous.authoritativePosition,
-      displayPosition: previous.displayPosition,
-      authoritativePosition: previous.authoritativePosition,
-      ttlMs: previous.ttlMs,
-      maxLifetimeMs: previous.maxLifetimeMs,
-      nearestHeroId: nearestHero?.heroId ?? null,
-      nearestHeroDisplayName: nearestHero?.displayName ?? null,
-      nearestHeroAuthoritativeEdgeDistance: nearestHero?.authoritativeEdgeDistance ?? null,
-      nearestHeroDisplayEdgeDistance: nearestHero?.displayEdgeDistance ?? null
-    });
-  }
-
-  private recordAuthoritativeProjectileTerminalDiagnostics(
-    terminal: AuthoritativeProjectileTerminalFeedbackState,
-    previous: ProjectileFeedbackState | undefined,
-    snapshot: GameSnapshot,
-    vfxBudgetReason: AuthoritativeProjectileTerminalVfxBudgetReason | null = null
-  ): void {
-    if (!shouldRecordRemoteProjectileTerminalDiagnostics()) {
-      return;
-    }
-
-    const terminalProjectile = createTerminalDiagnosticProjectileState(terminal, previous);
-    const nearestHero = resolveNearestTerminalHero(
-      terminalProjectile,
-      snapshot.heroes,
-      (heroId) => this.options.getHeroDisplayPosition(heroId)
-    );
-    recordRemoteProjectileTerminalDiagnostics({
-      projectileId: terminal.projectileId,
-      kind: terminal.kind,
-      source: "server",
-      reason: terminal.reason,
-      terminalPosition: terminal.terminalPosition,
-      displayPosition: terminalProjectile.displayPosition,
-      authoritativePosition: terminal.terminalPosition,
-      ttlMs: terminal.ttlAfter,
-      maxLifetimeMs: previous?.maxLifetimeMs ?? Math.max(terminal.ttlBefore, terminal.ttlAfter),
-      targetPlayerId: terminal.targetPlayerId,
-      targetHeroId: terminal.targetHeroId,
-      hpBefore: terminal.hpBefore,
-      hpAfter: terminal.hpAfter,
-      damage: terminal.damage,
-      nearestHeroId: nearestHero?.heroId ?? null,
-      nearestHeroDisplayName: nearestHero?.displayName ?? null,
-      nearestHeroAuthoritativeEdgeDistance: nearestHero?.authoritativeEdgeDistance ?? null,
-      nearestHeroDisplayEdgeDistance: nearestHero?.displayEdgeDistance ?? null,
-      ...(vfxBudgetReason ? { vfxSkipped: true, vfxBudgetReason } : {})
     });
   }
 
@@ -438,16 +373,17 @@ export class BattleFeedbackSceneBridge {
     terminal: AuthoritativeProjectileTerminalFeedbackState,
     vfxBudgetReason: AuthoritativeProjectileTerminalVfxBudgetReason
   ): void {
-    if (!shouldRecordRemoteProjectileTerminalDiagnostics()) {
+    if (!shouldRecordProjectileTerminalDiagnostics()) {
       return;
     }
 
-    this.recordAuthoritativeProjectileTerminalDiagnostics(
+    recordAuthoritativeProjectileTerminalDiagnostics({
       terminal,
-      this.projectileStates.get(terminal.projectileId),
-      this.options.getSnapshot(),
+      previous: this.projectileStates.get(terminal.projectileId),
+      snapshot: this.options.getSnapshot(),
+      getHeroDisplayPosition: (heroId) => this.options.getHeroDisplayPosition(heroId),
       vfxBudgetReason
-    );
+    });
   }
 
   private hasPlayedAuthoritativeProjectileTerminalForProjectile(projectileId: string): boolean {

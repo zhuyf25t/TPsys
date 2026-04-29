@@ -15,63 +15,47 @@ import {
   type PickupFeedbackState
 } from "./heroAndPickupFeedbackPresenter";
 import {
+  presentAuthoritativeProjectileTerminalCorrectionTracer,
+  presentAuthoritativeProjectileTerminalReasonVfx,
+  presentAuthoritativeProjectileTerminalTracer,
+  presentProjectileTerminalCorrectionTracer,
+  presentProjectileTerminalDissipateVfx,
+  presentProjectileTerminalRocketImpactVfx,
+  presentProjectileTerminalTracer,
+  type ProjectileTerminalVfxPresenterCallbacks
+} from "./projectileTerminalVfxPresenter";
+import {
   AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_PER_UPDATE_LIMIT,
   AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_QUEUE_LIMIT,
   PLAYED_AUTHORITATIVE_PROJECTILE_TERMINAL_LIMIT,
   PROJECTILE_SPARK_COLORS,
   REMEMBERED_LIVE_PROJECTILE_ID_LIMIT,
-  ROCKET_SPLASH_VISUAL_RADIUS,
-  createAuthoritativeProjectileTerminalCorrectionTracerOptions,
   createAuthoritativeProjectileTerminalFeedbackState,
   createAuthoritativeProjectileTerminalKey,
-  createAuthoritativeProjectileTerminalTracerOptions,
   createProjectileFeedbackState,
-  createProjectileTerminalCorrectionTracerOptions,
-  createProjectileTerminalTracerOptions,
   createRemoteGatlingProjectileBirthTracerOptions,
   createTerminalDiagnosticProjectileState,
   isLocalAuthoritativeProjectileTerminal,
   isLocalProjectileTerminal,
   resolveAuthoritativeFrameElapsedWatermark,
   resolveAuthoritativeProjectileTerminalQueueDropKey,
-  resolveAuthoritativeTerminalVfxStrategy,
   resolveNearestTerminalHero,
   resolveProjectileDirection,
   resolveRemoteProjectileBirthFeedbackPosition,
-  resolveRocketShockwaveStartRadius,
   selectAuthoritativeProjectileTerminalVfxKeys,
   shouldQueueAuthoritativeProjectileTerminal,
-  softenColor,
   type AuthoritativeProjectileTerminalFeedbackState,
   type AuthoritativeProjectileTerminalVfxBudgetReason,
   type ProjectileFeedbackState
 } from "./projectileTerminalFeedbackPolicy";
 
-export interface BattleFeedbackSceneBridgeOptions {
+export interface BattleFeedbackSceneBridgeOptions extends ProjectileTerminalVfxPresenterCallbacks {
   getSnapshot(): GameSnapshot;
   getHeroDisplayPosition(heroId: string): Vec2 | null;
   getProjectileDisplayPosition(projectileId: string): Vec2 | null;
   flashHero(heroId: string, color: number): void;
   showFloatingText(position: Vec2, text: string, tone: "neutral" | "success" | "warning" | "error"): void;
-  createPulse(position: Vec2, radius: number, color: number): void;
-  createImpactSpark(position: Vec2, color: number): void;
-  createProjectileDissipate(position: Vec2, color: number): void;
   createHitConfirm(position: Vec2, color: number): void;
-  createShockwave(position: Vec2, startRadius: number, endRadius: number, color: number, duration: number): void;
-  createProjectileTracer(options: {
-    start: Vec2;
-    direction: Vec2;
-    length: number;
-    color: number;
-    thickness: number;
-    durationMs: number;
-    alpha?: number;
-    ghostScale?: number;
-    glintAlphaScale?: number;
-    underglowAlphaScale?: number;
-    coreAlphaScale?: number;
-    ghostAlphaScale?: number;
-  }): void;
   shakeCamera(duration: number, intensity: number): void;
 }
 
@@ -207,23 +191,12 @@ export class BattleFeedbackSceneBridge {
 
       const color = PROJECTILE_SPARK_COLORS[previous.kind];
       if (!isLocalProjectileTerminal(previous, snapshot.playerHeroId)) {
-        this.presentProjectileTerminalTracer(previous, color);
-        this.presentProjectileTerminalCorrectionTracer(previous, color);
+        presentProjectileTerminalTracer({ previous, color, callbacks: this.options });
+        presentProjectileTerminalCorrectionTracer({ previous, color, callbacks: this.options });
       }
-      if (previous.ttlMs <= 0) {
-        this.options.createProjectileDissipate(previous.authoritativePosition, softenColor(color));
-      }
+      presentProjectileTerminalDissipateVfx({ previous, color, callbacks: this.options });
       this.recordProjectileTerminalDiagnostics(previous, projectileId, snapshot);
-      if (previous.kind === "rocket") {
-        this.options.createImpactSpark(previous.authoritativePosition, color);
-        this.options.createShockwave(
-          previous.authoritativePosition,
-          resolveRocketShockwaveStartRadius(),
-          ROCKET_SPLASH_VISUAL_RADIUS,
-          color,
-          240
-        );
-      }
+      presentProjectileTerminalRocketImpactVfx({ previous, color, callbacks: this.options });
     });
   }
 
@@ -268,82 +241,15 @@ export class BattleFeedbackSceneBridge {
       if (shouldPlayVfx) {
         const color = PROJECTILE_SPARK_COLORS[terminal.kind];
         if (!isLocalAuthoritativeProjectileTerminal(terminal, snapshot.playerHeroId)) {
-          this.presentAuthoritativeProjectileTerminalTracer(terminal, previous, color);
-          this.presentAuthoritativeProjectileTerminalCorrectionTracer(terminal, previous, color);
+          presentAuthoritativeProjectileTerminalTracer({ terminal, previous, color, callbacks: this.options });
+          presentAuthoritativeProjectileTerminalCorrectionTracer({ terminal, previous, color, callbacks: this.options });
         }
-        this.presentAuthoritativeProjectileTerminalReasonVfx(terminal, color);
+        presentAuthoritativeProjectileTerminalReasonVfx({ terminal, color, callbacks: this.options });
       }
 
       this.rememberPlayedAuthoritativeProjectileTerminal(terminalKey);
       this.authoritativeProjectileTerminals.delete(terminalKey);
     });
-  }
-
-  private presentAuthoritativeProjectileTerminalReasonVfx(
-    terminal: AuthoritativeProjectileTerminalFeedbackState,
-    color: number
-  ): void {
-    const strategy = resolveAuthoritativeTerminalVfxStrategy(terminal);
-    if (strategy.impactSpark !== "none") {
-      this.options.createImpactSpark(
-        terminal.terminalPosition,
-        strategy.impactSpark === "weak" ? softenColor(color) : color
-      );
-    }
-
-    if (strategy.pulseRadius !== null) {
-      this.options.createPulse(terminal.terminalPosition, strategy.pulseRadius, color);
-    }
-
-    if (strategy.shockwaveRadius !== null) {
-      this.options.createShockwave(
-        terminal.terminalPosition,
-        resolveRocketShockwaveStartRadius(),
-        strategy.shockwaveRadius,
-        color,
-        240
-      );
-    }
-
-    if (strategy.dissipate) {
-      this.options.createProjectileDissipate(terminal.terminalPosition, softenColor(color));
-    }
-  }
-
-  private presentProjectileTerminalTracer(previous: ProjectileFeedbackState, color: number): void {
-    this.options.createProjectileTracer(createProjectileTerminalTracerOptions(previous, color));
-  }
-
-  private presentAuthoritativeProjectileTerminalTracer(
-    terminal: AuthoritativeProjectileTerminalFeedbackState,
-    previous: ProjectileFeedbackState | undefined,
-    color: number
-  ): void {
-    this.options.createProjectileTracer(
-      createAuthoritativeProjectileTerminalTracerOptions(terminal, previous, color)
-    );
-  }
-
-  private presentProjectileTerminalCorrectionTracer(previous: ProjectileFeedbackState, color: number): void {
-    const tracerOptions = createProjectileTerminalCorrectionTracerOptions(previous, color);
-    if (!tracerOptions) {
-      return;
-    }
-
-    this.options.createProjectileTracer(tracerOptions);
-  }
-
-  private presentAuthoritativeProjectileTerminalCorrectionTracer(
-    terminal: AuthoritativeProjectileTerminalFeedbackState,
-    previous: ProjectileFeedbackState | undefined,
-    color: number
-  ): void {
-    const tracerOptions = createAuthoritativeProjectileTerminalCorrectionTracerOptions(terminal, previous, color);
-    if (!tracerOptions) {
-      return;
-    }
-
-    this.options.createProjectileTracer(tracerOptions);
   }
 
   private recordProjectileTerminalDiagnostics(

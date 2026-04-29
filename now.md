@@ -1000,9 +1000,31 @@
 
 - 这不是安全沙箱；显式加载的外部模块会在页面上下文执行。真正社区插件仍需要权限、隔离/沙箱、审核和分发策略。
 
+### 站内信页面排版/已读交互第一轮
+
+已完成本轮第四十八刀：
+
+- `MailsPage` 邮件卡片改为横向 `main + side` 结构：左侧放状态、标题、摘要，右侧放来源、时间、查看来源/查看回放和操作按钮。
+- `sourcePath` 动作继续保持内部 path 用 `Link`、外部地址用 `a`，但现在统一靠右显示，减少大面积空白。
+- 未读邮件右侧新增“标为已读”按钮，复用现有已读同步逻辑。
+- 保留点击卡片主体标为已读；右侧动作区会阻止 click/key 冒泡，避免点击“查看回放/查看来源”时误触整卡已读。
+- 筛选 chip 的 active 状态加强：更明显的边框、背景、浮起和 focus feedback。
+- 窄屏下邮件卡片自动变为单列，右侧动作区左对齐并换行，避免溢出。
+- 本轮没有改 `mailsGateway.ts`、没有改后端、没有改 BattlePage。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 仍未做真实浏览器人工视觉验收；当前验收覆盖类型、打包、whitespace 和交互边界审查。
+- 邮件卡片仍沿用“整卡 role=button + 内嵌动作”的既有结构；这次只把冒泡问题收紧，没有做更大范围 a11y 重构。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令、bot 外部策略模板/离线 smoke、bot 显式注册桥接、dev 端口诊断脚本，以及本地历史数据闭环清理。下一步更适合修邮件页面交互/排版或继续做启动/验收脚本，而不是继续拆收益很低的 BattlePage 状态机细枝。
+当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令、bot 外部策略模板/离线 smoke、bot 显式注册桥接、dev 端口诊断脚本、本地历史数据闭环清理，以及站内信页面排版/已读交互第一轮。下一步更适合继续做启动/验收脚本、邮件 a11y 深化或好友聊天系统的边界设计，而不是继续拆收益很低的 BattlePage 状态机细枝。
 
 扩展性基础第一轮已经覆盖：
 

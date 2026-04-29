@@ -268,6 +268,11 @@ export function MailsPage() {
     }
   };
 
+  const handleMarkReadClick = (event: MouseEvent<HTMLButtonElement>, mail: MailSummary): void => {
+    event.stopPropagation();
+    void handleMailClick(mail);
+  };
+
   const handleFriendRequestDecision = async (
     event: MouseEvent<HTMLButtonElement>,
     mail: MailSummary,
@@ -397,89 +402,112 @@ export function MailsPage() {
                 }}
                 aria-label={`${mail.subject}${mail.unread ? "，未读" : "，已读"}`}
               >
-                <div className="mail-card__meta">
-                  <span className={`mail-card__flag mail-card__flag--${mail.kind}`}>{getMailKindLabel(mail)}</span>
-                  {mail.unread ? <span className="mail-card__dot" aria-label="未读邮件" /> : null}
-                  {mail.unread ? <span className="mail-card__status mail-card__status--unread">未读</span> : null}
-                  {!mail.unread ? <span className="mail-card__status mail-card__status--read">已读</span> : null}
-                  {mail.important ? <span className="mail-card__status">重要</span> : null}
-                  <small>{mail.senderLabel}</small>
-                  <small>{mail.receivedLabel}</small>
-                </div>
-                <strong>{mail.subject}</strong>
-                <span>{mail.excerpt}</span>
-                {mailSourcePath && !isGovernancePendingMail ? (
-                  <div className="mail-card__actions">
-                    {mailSourcePath.startsWith("/") ? (
-                      <Link className="mail-card__action mail-card__action--accept" to={mailSourcePath}>
-                        {mailSourceLabel}
-                      </Link>
-                    ) : (
-                      <a className="mail-card__action mail-card__action--accept" href={mailSourcePath}>
-                        {mailSourceLabel}
-                      </a>
-                    )}
+                <div className="mail-card__main">
+                  <div className="mail-card__meta">
+                    <span className={`mail-card__flag mail-card__flag--${mail.kind}`}>{getMailKindLabel(mail)}</span>
+                    {mail.unread ? <span className="mail-card__dot" aria-label="未读邮件" /> : null}
+                    {mail.unread ? <span className="mail-card__status mail-card__status--unread">未读</span> : null}
+                    {!mail.unread ? <span className="mail-card__status mail-card__status--read">已读</span> : null}
+                    {mail.important ? <span className="mail-card__status">重要</span> : null}
                   </div>
-                ) : null}
-                {isGovernancePendingMail ? (
-                  <div className="mail-card__actions">
-                    {governanceTargetPath ? (
-                      governanceTargetPath.startsWith("/") ? (
-                        <Link className="mail-card__action mail-card__action--accept" to={governanceTargetPath}>
-                          打开来源
+                  <strong>{mail.subject}</strong>
+                  <span className="mail-card__excerpt">{mail.excerpt}</span>
+                </div>
+                <div
+                  className="mail-card__side"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                >
+                  <div className="mail-card__source">
+                    <small>{mail.senderLabel}</small>
+                    <small>{mail.receivedLabel}</small>
+                  </div>
+                  {mail.unread ? (
+                    <button
+                      type="button"
+                      className="mail-card__action mail-card__action--mark-read"
+                      onClick={(event) => handleMarkReadClick(event, mail)}
+                    >
+                      标为已读
+                    </button>
+                  ) : null}
+                  {mailSourcePath && !isGovernancePendingMail ? (
+                    <div className="mail-card__actions">
+                      {mailSourcePath.startsWith("/") ? (
+                        <Link className="mail-card__action mail-card__action--accept" to={mailSourcePath}>
+                          {mailSourceLabel}
                         </Link>
                       ) : (
-                        <a className="mail-card__action mail-card__action--accept" href={governanceTargetPath}>
-                          打开来源
+                        <a className="mail-card__action mail-card__action--accept" href={mailSourcePath}>
+                          {mailSourceLabel}
                         </a>
-                      )
-                    ) : null}
-                    {governanceActorHandle ? <small className="mail-card__action-status">处理 @{governanceActorHandle}</small> : null}
-                    {matchedContributionAdjustment ? (
-                      <small className="mail-card__action-status">
-                        已处理，已有裁决 {formatDelta(matchedContributionAdjustment.delta)}
-                      </small>
-                    ) : null}
-                    {governanceActorHandle ? (
-                      <UserActionDot
-                        handle={governanceActorHandle}
-                        sourceLabel={mail.subject}
-                        sourcePath={governanceTargetPath}
-                      />
-                    ) : null}
-                  </div>
-                ) : null}
-                {canRespondToFriendRequest ? (
-                  <span className="mail-card__actions">
-                    <button
-                      type="button"
-                      className="mail-card__action mail-card__action--accept"
-                      disabled={isProcessing}
-                      onClick={(event) => {
-                        void handleFriendRequestDecision(event, mail, "accepted");
-                      }}
-                    >
-                      同意
-                    </button>
-                    <button
-                      type="button"
-                      className="mail-card__action"
-                      disabled={isProcessing}
-                      onClick={(event) => {
-                        void handleFriendRequestDecision(event, mail, "rejected");
-                      }}
-                    >
-                      拒绝
-                    </button>
-                    {friendRequestStatusLabel ? (
-                      <small className="mail-card__action-status">{friendRequestStatusLabel}</small>
-                    ) : null}
-                  </span>
-                ) : null}
-                {!canRespondToFriendRequest && friendRequestStatusLabel ? (
-                  <small className="mail-card__action-status">{friendRequestStatusLabel}</small>
-                ) : null}
-                {readFailure ? <small className="mail-card__action-status mail-card__action-status--failed">{readFailure}</small> : null}
+                      )}
+                    </div>
+                  ) : null}
+                  {isGovernancePendingMail ? (
+                    <div className="mail-card__actions">
+                      {governanceTargetPath ? (
+                        governanceTargetPath.startsWith("/") ? (
+                          <Link className="mail-card__action mail-card__action--accept" to={governanceTargetPath}>
+                            打开来源
+                          </Link>
+                        ) : (
+                          <a className="mail-card__action mail-card__action--accept" href={governanceTargetPath}>
+                            打开来源
+                          </a>
+                        )
+                      ) : null}
+                      {governanceActorHandle ? <small className="mail-card__action-status">处理 @{governanceActorHandle}</small> : null}
+                      {matchedContributionAdjustment ? (
+                        <small className="mail-card__action-status">
+                          已处理，已有裁决 {formatDelta(matchedContributionAdjustment.delta)}
+                        </small>
+                      ) : null}
+                      {governanceActorHandle ? (
+                        <UserActionDot
+                          handle={governanceActorHandle}
+                          sourceLabel={mail.subject}
+                          sourcePath={governanceTargetPath}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {canRespondToFriendRequest ? (
+                    <span className="mail-card__actions">
+                      <button
+                        type="button"
+                        className="mail-card__action mail-card__action--accept"
+                        disabled={isProcessing}
+                        onClick={(event) => {
+                          void handleFriendRequestDecision(event, mail, "accepted");
+                        }}
+                      >
+                        同意
+                      </button>
+                      <button
+                        type="button"
+                        className="mail-card__action"
+                        disabled={isProcessing}
+                        onClick={(event) => {
+                          void handleFriendRequestDecision(event, mail, "rejected");
+                        }}
+                      >
+                        拒绝
+                      </button>
+                      {friendRequestStatusLabel ? (
+                        <small className="mail-card__action-status">{friendRequestStatusLabel}</small>
+                      ) : null}
+                    </span>
+                  ) : null}
+                  {!canRespondToFriendRequest && friendRequestStatusLabel ? (
+                    <small className="mail-card__action-status">{friendRequestStatusLabel}</small>
+                  ) : null}
+                  {readFailure ? <small className="mail-card__action-status mail-card__action-status--failed">{readFailure}</small> : null}
+                </div>
               </article>
             );
           })}

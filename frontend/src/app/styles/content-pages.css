@@ -201,6 +201,16 @@ body:has(.text-shell) #app {
   color: var(--cyan-1);
 }
 
+.mail-filter-chip--active {
+  border-color: rgba(117, 232, 255, 0.68);
+  background:
+    linear-gradient(180deg, rgba(117, 232, 255, 0.2) 0%, rgba(117, 232, 255, 0.1) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(117, 232, 255, 0.16);
+  transform: translateY(-1px);
+}
+
 .mail-filter-chip:focus-visible {
   outline: 2px solid rgba(117, 232, 255, 0.34);
   outline-offset: 2px;
@@ -209,9 +219,9 @@ body:has(.text-shell) #app {
 .mail-card {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, max-content);
-  gap: 10px;
-  column-gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 28%);
+  align-items: start;
+  gap: 16px;
   text-align: left;
   appearance: none;
   -webkit-appearance: none;
@@ -253,10 +263,16 @@ body:has(.text-shell) #app {
   background: rgba(255, 255, 255, 0.018);
 }
 
+.mail-card__main {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
 .mail-card__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   color: var(--text-2);
   font-size: 12px;
@@ -331,23 +347,48 @@ body:has(.text-shell) #app {
   word-break: break-word;
 }
 
-.mail-card > .mail-card__meta,
-.mail-card > strong,
-.mail-card > span:not(.mail-card__actions) {
-  grid-column: 1;
+.mail-card__excerpt {
+  display: block;
+  color: var(--text-2);
+}
+
+.mail-card__side {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-self: end;
+  gap: 8px;
+}
+
+.mail-card__source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: flex-end;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.mail-card__source small {
+  white-space: nowrap;
 }
 
 .mail-card__actions {
-  grid-column: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   justify-content: flex-end;
-  align-self: start;
 }
 
 .mail-card__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 30px;
   padding: 0 12px;
   border-radius: 10px;
@@ -355,6 +396,8 @@ body:has(.text-shell) #app {
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-1);
   font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .mail-card__action--accept {
@@ -362,11 +405,20 @@ body:has(.text-shell) #app {
   color: var(--cyan-1);
 }
 
+.mail-card__action--mark-read {
+  border-color: rgba(255, 214, 112, 0.32);
+  background: rgba(255, 214, 112, 0.08);
+  color: var(--gold-0);
+}
+
 .mail-card__action-status {
-  grid-column: 2;
   justify-self: end;
   color: var(--text-2);
   text-align: right;
+}
+
+.mail-card__action-status--failed {
+  color: #ffd1d8;
 }
 
 .cf-board {
@@ -1012,9 +1064,22 @@ body:has(.text-shell) #app {
     grid-template-columns: 1fr;
   }
 
+  .mail-card__side {
+    align-items: flex-start;
+    justify-self: stretch;
+  }
+
+  .mail-card__source {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .mail-card__source small {
+    white-space: normal;
+  }
+
   .mail-card__actions,
   .mail-card__action-status {
-    grid-column: 1;
     justify-self: start;
     justify-content: flex-start;
     text-align: left;

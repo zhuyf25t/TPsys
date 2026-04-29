@@ -1,0 +1,11 @@
+{
+  "pluginId": "community-distance-keeper",
+  "displayName": "Community Distance Keeper",
+  "version": "1.0.0",
+  "apiVersion": "bot-sdk/v1",
+  "entry": "./community-distance-keeper.mjs",
+  "exportName": "communityDistanceKeeperStrategy",
+  "strategyIds": ["community-distance-keeper"],
+  "botIds": ["community-distance-keeper-demo"],
+  "permissions": ["bot:read-context", "bot:issue-command"]
+}

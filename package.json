@@ -12,6 +12,7 @@
     "audit:data-closure": "node scripts/audit-data-closure.mjs",
     "data:closure-cleanup": "node scripts/cleanup-data-closure.mjs",
     "audit:bot-plugins": "node scripts/audit-bot-plugin-manifests.mjs",
+    "audit:community-bot-package": "node scripts/audit-community-bot-package.mjs",
     "audit:bot-strategy-template": "node scripts/smoke-bot-strategy-template.mjs",
     "dev:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-port-status.ps1",
     "dev:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-start.ps1",

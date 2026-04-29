@@ -104,6 +104,39 @@ npm run audit:bot-strategy-template
 
 The smoke harness imports the template with a frozen mock `BotDecisionContext`, verifies the strategy id and command shape, checks finite `movement` / `aim` vectors and boolean command fields, and confirms the strategy does not mutate the provided context.
 
+## Community Bot Package Boundary
+
+External contributors should submit a local bot package instead of editing core battle code. A package contains:
+
+- a plain ESM strategy module, for example `examples/bots/community-distance-keeper.mjs`
+- a sibling `*.plugin.json` manifest, for example `examples/bots/community-distance-keeper.plugin.json`
+
+The manifest contract is:
+
+```json
+{
+  "pluginId": "community-distance-keeper",
+  "displayName": "Community Distance Keeper",
+  "version": "1.0.0",
+  "apiVersion": "bot-sdk/v1",
+  "entry": "./community-distance-keeper.mjs",
+  "exportName": "communityDistanceKeeperStrategy",
+  "strategyIds": ["community-distance-keeper"],
+  "botIds": ["community-distance-keeper-demo"],
+  "permissions": ["bot:read-context", "bot:issue-command"]
+}
+```
+
+Offline package audit command:
+
+```sh
+npm run audit:community-bot-package
+```
+
+The package audit strictly validates required fields, requires `apiVersion` to be `bot-sdk/v1`, rejects remote or package-specifier entries, imports only the local relative `.mjs` entry, confirms the named export is a strategy object, confirms `decide` is a function, confirms the exported `strategyId` is declared in `strategyIds`, and allows only `bot:read-context` / `bot:issue-command` permissions.
+
+This is an offline contribution review boundary. It is not a production security sandbox and it does not automatically load remote code or grant runtime isolation. Production distribution still requires explicit review, sandboxing/isolation policy, and an integration decision.
+
 ## Explicit Registration Bridge
 
 Developer tooling can explicitly bridge an external ESM strategy module into the existing SDK through:

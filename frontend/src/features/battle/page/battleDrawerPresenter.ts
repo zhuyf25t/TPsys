@@ -2,6 +2,7 @@ import type { getDiscussionSummaries } from "../../forum/forumGateway";
 import { markMailAsReadRemote, type MailSummary } from "../../mails/mailsGateway";
 import type { getRatingEntries } from "../../rating/ratingGateway";
 import type { getReplaySummaries } from "../../replay/replayGateway";
+import type { FriendRequestPreviewModel } from "../../social/friendRequestPreviewPresenter";
 import type { QuickPreviewOverlayProps } from "../../../shared/ui/QuickPreviewOverlay";
 import type { BattleDrawerId } from "./battlePageTypes";
 
@@ -11,6 +12,7 @@ export function buildBattleDrawer(
   discussionSummaries: ReturnType<typeof getDiscussionSummaries>,
   mailSummaries: MailSummary[],
   ratingEntries: ReturnType<typeof getRatingEntries>,
+  friendRequestPreview: FriendRequestPreviewModel,
   mailOwnerHandle?: string | null
 ): Omit<QuickPreviewOverlayProps, "onClose"> {
   switch (activeDrawer) {
@@ -84,12 +86,12 @@ export function buildBattleDrawer(
       return {
         title: "好友通知",
         eyebrow: "Social",
-        detail: "当前还没有独立好友系统。",
-        emptyTitle: "暂无好友申请",
-        emptyDetail: "真实社交通知出现后，这里才会显示内容。",
+        detail: friendRequestPreview.detail,
+        emptyTitle: friendRequestPreview.emptyTitle,
+        emptyDetail: friendRequestPreview.emptyDetail,
         viewAllPath: "/mails",
         anchor: "right",
-        items: []
+        items: friendRequestPreview.items
       };
   }
 }

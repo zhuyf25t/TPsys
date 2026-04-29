@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { buildBattleDrawer } from "../features/battle/page/battleDrawerPresenter";
 import { BattleSettlementOverlay } from "../features/battle/page/BattleSettlementOverlay";
 import { MatchingOverlay } from "../features/battle/page/MatchingOverlay";
+import { QUICK_LEFT, QUICK_RIGHT } from "../features/battle/page/battlePageTypes";
 import { useBattlePageRuntime } from "../features/battle/page/useBattlePageRuntime";
 import { BattleChrome } from "../shared/ui/BattleChrome";
 import { QuickPreviewOverlay } from "../shared/ui/QuickPreviewOverlay";
@@ -26,17 +27,35 @@ export function BattlePage() {
         runtime.discussionSummaries,
         runtime.mailSummaries,
         runtime.ratingEntries,
+        runtime.friendRequestPreview,
         runtime.currentUser?.handle
       )}
       onClose={runtime.closeDrawer}
     />
   ) : null;
+  const shouldShowDrawerButtons = runtime.matchPhase !== "playing" && !runtime.entryBlockNotice;
+  const leftButtons = shouldShowDrawerButtons ? QUICK_LEFT.map((item) => ({
+    label: item.label,
+    iconKey: item.iconKey,
+    onClick: () => runtime.openDrawer(item.id)
+  })) : [];
+  const rightButtons = shouldShowDrawerButtons ? QUICK_RIGHT.map((item) => ({
+    label: item.label,
+    iconKey: item.iconKey,
+    onClick: () => runtime.openDrawer(item.id),
+    badgeCount:
+      item.id === "mails"
+        ? runtime.unreadMailCount
+        : item.id === "social"
+          ? runtime.friendRequestPreview.badgeCount
+          : undefined
+  })) : [];
 
   return (
     <BattleChrome
       phase={runtime.matchPhase}
-      leftButtons={[]}
-      rightButtons={[]}
+      leftButtons={leftButtons}
+      rightButtons={rightButtons}
       matchingOverlay={
         runtime.entryBlockNotice ? (
           <BattleEntryBlockedOverlay message={runtime.entryBlockNotice} />

@@ -83,6 +83,16 @@ export function getFriendRequestStatus(sourceHandle: string, targetHandle: strin
   return remoteFriendRequestStatus.get(key) ?? null;
 }
 
+export function getCachedFriendRequests(ownerHandle?: string | null): FriendRequestRecord[] {
+  const resolvedOwner = resolveVisibleOwner(ownerHandle);
+  const cached = remoteFriendRequestCache;
+  if (!resolvedOwner || !cached || normalizeHandle(cached.ownerHandle) !== normalizeHandle(resolvedOwner)) {
+    return [];
+  }
+
+  return cached.requests.map((request) => ({ ...request }));
+}
+
 export async function loadRemoteFriendRequests(ownerHandle?: string | null): Promise<FriendRequestRecord[] | null> {
   const resolvedOwner = resolveVisibleOwner(ownerHandle);
   if (!resolvedOwner) {

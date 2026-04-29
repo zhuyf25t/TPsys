@@ -17,6 +17,13 @@ import {
 } from "../../mails/mailsGateway";
 import { getRatingEntries, loadRatingEntries } from "../../rating/ratingGateway";
 import { getReplaySummaries, loadReplaySummaries } from "../../replay/replayGateway";
+import {
+  FRIEND_REQUESTS_CHANGED_EVENT,
+  getCachedFriendRequests,
+  loadRemoteFriendRequests,
+  REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS
+} from "../../social/friendRequestGateway";
+import { buildFriendRequestPreview } from "../../social/friendRequestPreviewPresenter";
 import { useLobbyData } from "../../../shared/ui/useLobbyData";
 import type { MatchPhase } from "./battlePageTypes";
 
@@ -45,6 +52,20 @@ export function useBattlePageData({ matchPhase, matchNonce }: UseBattlePageDataO
     }
   );
   const unreadMailCount = mailSummaries.filter((mail) => mail.unread).length;
+  const friendRequestOwnerHandle = currentUser?.handle;
+  const friendRequestAuthKey = currentUser ? `${currentUser.handle}:${currentUser.sessionToken ?? ""}` : "guest";
+  const friendRequests = useLobbyData(
+    () => getCachedFriendRequests(friendRequestOwnerHandle),
+    () => loadRemoteFriendRequests(friendRequestOwnerHandle),
+    [friendRequestOwnerHandle, friendRequestAuthKey, matchPhase, matchNonce],
+    {
+      enabled: Boolean(friendRequestOwnerHandle?.trim()),
+      refreshIntervalMs: friendRequestOwnerHandle?.trim() ? REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS : 0,
+      refreshOnFocus: Boolean(friendRequestOwnerHandle?.trim()),
+      refreshEvents: [FRIEND_REQUESTS_CHANGED_EVENT]
+    }
+  );
+  const friendRequestPreview = buildFriendRequestPreview(friendRequests, friendRequestOwnerHandle);
   const ratingEntries = useLobbyData(() => getRatingEntries(), loadRatingEntries, [matchPhase, matchNonce]);
 
   return {
@@ -56,6 +77,8 @@ export function useBattlePageData({ matchPhase, matchNonce }: UseBattlePageDataO
     mailSummaries,
     ratingEntries,
     unreadMailCount,
+    friendRequests,
+    friendRequestPreview,
     onPresetChange: setLoadoutPreset
   };
 }

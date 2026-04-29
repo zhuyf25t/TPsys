@@ -90,6 +90,8 @@ export function LobbyShell({
   const activePreviewSet = activePreview ? previewSets[activePreview] : null;
   const hasSideDocks = Boolean(leftDock || rightDock);
   const isSolo = layoutMode === "solo";
+  const hasLeftActions = leftActions.length > 0;
+  const hasRightActions = rightActions.length > 0;
   const stageClassName = [
     "game-lobby__stage",
     hasSideDocks || !isSolo ? "" : "game-lobby__stage--solo",
@@ -106,33 +108,37 @@ export function LobbyShell({
       <div className="game-lobby__veil" aria-hidden="true" />
       <div className="game-lobby__noise" aria-hidden="true" />
 
-      {!isSolo ? (
+      {hasLeftActions || hasRightActions ? (
         <>
-          <div className="game-lobby__corner game-lobby__corner--left" aria-label="左上功能入口">
-            {leftActions.map((action) => (
-              <GameCornerButton
-                key={action.key}
-                iconKey={action.iconKey}
-                onClick={() => setActivePreview(action.key)}
-                label={action.label}
-                tooltipPlacement="bottom"
-                badgeCount={action.badgeCount}
-              />
-            ))}
-          </div>
+          {hasLeftActions ? (
+            <div className="game-lobby__corner game-lobby__corner--left" aria-label="左上功能入口">
+              {leftActions.map((action) => (
+                <GameCornerButton
+                  key={action.key}
+                  iconKey={action.iconKey}
+                  onClick={() => setActivePreview(action.key)}
+                  label={action.label}
+                  tooltipPlacement="bottom"
+                  badgeCount={action.badgeCount}
+                />
+              ))}
+            </div>
+          ) : null}
 
-          <div className="game-lobby__corner game-lobby__corner--right" aria-label="右下功能入口">
-            {rightActions.map((action) => (
-              <GameCornerButton
-                key={action.key}
-                iconKey={action.iconKey}
-                onClick={() => setActivePreview(action.key)}
-                label={action.label}
-                tooltipPlacement="top"
-                badgeCount={action.badgeCount}
-              />
-            ))}
-          </div>
+          {hasRightActions ? (
+            <div className="game-lobby__corner game-lobby__corner--right" aria-label="右下功能入口">
+              {rightActions.map((action) => (
+                <GameCornerButton
+                  key={action.key}
+                  iconKey={action.iconKey}
+                  onClick={() => setActivePreview(action.key)}
+                  label={action.label}
+                  tooltipPlacement="top"
+                  badgeCount={action.badgeCount}
+                />
+              ))}
+            </div>
+          ) : null}
         </>
       ) : null}
 

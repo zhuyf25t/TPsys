@@ -31,6 +31,16 @@ import {
 } from "../features/mails/mailsGateway";
 import { getRatingEntries, loadRatingEntries } from "../features/rating/ratingGateway";
 import { getReplaySummaries, loadReplaySummaries } from "../features/replay/replayGateway";
+import {
+  FRIEND_REQUESTS_CHANGED_EVENT,
+  getCachedFriendRequests,
+  loadRemoteFriendRequests,
+  REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS
+} from "../features/social/friendRequestGateway";
+import {
+  buildFriendRequestPreview,
+  type FriendRequestPreviewModel
+} from "../features/social/friendRequestPreviewPresenter";
 import { AuthOverlay } from "../shared/ui/AuthOverlay";
 import {
   LobbyShell,
@@ -78,8 +88,26 @@ export function LoadoutPage() {
     }
   );
   const unreadMailCount = mailSummaries.filter((mail) => mail.unread).length;
+  const friendRequestOwnerHandle = authUser?.handle;
+  const friendRequestAuthKey = authUser ? `${authUser.handle}:${authUser.sessionToken ?? ""}` : "guest";
+  const friendRequests = useLobbyData(
+    () => getCachedFriendRequests(friendRequestOwnerHandle),
+    () => loadRemoteFriendRequests(friendRequestOwnerHandle),
+    [friendRequestOwnerHandle, friendRequestAuthKey],
+    {
+      enabled: Boolean(friendRequestOwnerHandle?.trim()),
+      refreshIntervalMs: friendRequestOwnerHandle?.trim() ? REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS : 0,
+      refreshOnFocus: Boolean(friendRequestOwnerHandle?.trim()),
+      refreshEvents: [FRIEND_REQUESTS_CHANGED_EVENT]
+    }
+  );
+  const friendRequestPreview = buildFriendRequestPreview(friendRequests, friendRequestOwnerHandle);
   const quickActionsWithBadges = quickActions.map((action) =>
-    action.key === "mails" ? { ...action, badgeCount: unreadMailCount } : action
+    action.key === "mails"
+      ? { ...action, badgeCount: unreadMailCount }
+      : action.key === "social"
+        ? { ...action, badgeCount: friendRequestPreview.badgeCount }
+        : action
   );
   const ratingEntries = useLobbyData(() => getRatingEntries(), loadRatingEntries, [authUser?.handle]);
 
@@ -116,6 +144,7 @@ export function LoadoutPage() {
     discussionSummaries,
     mailSummaries,
     ratingEntries,
+    friendRequestPreview,
     authUser?.handle
   );
 
@@ -314,6 +343,7 @@ function buildPreviewSets(
   discussionSummaries: ReturnType<typeof getDiscussionSummaries>,
   mailSummaries: ReturnType<typeof getMailSummaries>,
   ratingEntries: ReturnType<typeof getRatingEntries>,
+  friendRequestPreview: FriendRequestPreviewModel,
   mailOwnerHandle?: string | null
 ): Record<LobbyQuickKey, LobbyPreviewSet> {
   return {
@@ -382,12 +412,12 @@ function buildPreviewSets(
     social: {
       title: "好友",
       eyebrow: "Social",
-      detail: "好友申请和社交通知。",
-      emptyTitle: "暂无好友申请",
-      emptyDetail: "没有真实社交通知时保持空状态。",
+      detail: friendRequestPreview.detail,
+      emptyTitle: friendRequestPreview.emptyTitle,
+      emptyDetail: friendRequestPreview.emptyDetail,
       viewAllPath: "/mails",
       anchor: "right",
-      items: []
+      items: friendRequestPreview.items
     }
   };
 }

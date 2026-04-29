@@ -65,6 +65,8 @@ pushNonEmptyRecordFailure("backend skillDefinitions", backend.skillDefinitions, 
 compareValues("defaultMap", frontend.defaultMap, backend.defaultMap, failures);
 compareValues("weaponDefinitions", frontend.weaponDefinitions, backend.weaponDefinitions, failures);
 compareValues("skillDefinitions", frontend.skillDefinitions, backend.skillDefinitions, failures);
+validateBattleContent("frontend", frontend, failures);
+validateBattleContent("backend", backend, failures);
 
 if (failures.length > 0) {
   console.error("Battle content contract audit failed:");
@@ -87,6 +89,224 @@ function pushNonEmptyRecordFailure(label, record, target) {
   if (Object.keys(record).length === 0) {
     target.push(`${label} must not be empty.`);
   }
+}
+
+function validateBattleContent(prefix, content, target) {
+  validateMap(`${prefix}.defaultMap`, content.defaultMap, content.weaponDefinitions, target);
+  validateWeaponDefinitions(`${prefix}.weaponDefinitions`, content.weaponDefinitions, target);
+  validateSkillDefinitions(`${prefix}.skillDefinitions`, content.skillDefinitions, target);
+}
+
+function validateMap(path, map, weaponDefinitions, target) {
+  assertNonEmptyString(`${path}.mapId`, map.mapId, target);
+  assertNonEmptyString(`${path}.themeId`, map.themeId, target);
+  assertPositiveNumber(`${path}.worldSize.x`, map.worldSize?.x, target);
+  assertPositiveNumber(`${path}.worldSize.y`, map.worldSize?.y, target);
+
+  if (map.heroSpawnPoints.length < 2) {
+    target.push(`${path}.heroSpawnPoints.length: expected at least 2, got ${map.heroSpawnPoints.length}`);
+  }
+  map.heroSpawnPoints.forEach((spawnPoint, index) => {
+    assertPointInWorld(`${path}.heroSpawnPoints[${index}]`, spawnPoint, map.worldSize, target);
+  });
+
+  assertUniqueNonEmptyStrings(
+    `${path}.innerObstacles`,
+    map.innerObstacles.map((obstacle) => obstacle.obstacleId),
+    "obstacleId",
+    target
+  );
+  map.innerObstacles.forEach((obstacle, index) => {
+    const obstaclePath = `${path}.innerObstacles[${index}]`;
+    assertPositiveNumber(`${obstaclePath}.size.x`, obstacle.size?.x, target);
+    assertPositiveNumber(`${obstaclePath}.size.y`, obstacle.size?.y, target);
+    assertRectInWorld(obstaclePath, obstacle.position, obstacle.size, map.worldSize, target);
+  });
+
+  assertUniqueNonEmptyStrings(
+    `${path}.weaponPickupDefinitions`,
+    map.weaponPickupDefinitions.map((pickup) => pickup.pickupId),
+    "pickupId",
+    target
+  );
+  map.weaponPickupDefinitions.forEach((pickup, index) => {
+    const pickupPath = `${path}.weaponPickupDefinitions[${index}]`;
+    assertPointInWorld(`${pickupPath}.position`, pickup.position, map.worldSize, target);
+    assertNonEmptyString(`${pickupPath}.weaponKind`, pickup.weaponKind, target);
+    if (!Object.hasOwn(weaponDefinitions, pickup.weaponKind)) {
+      target.push(`${pickupPath}.weaponKind: missing weapon definition for ${formatValue(pickup.weaponKind)}`);
+    }
+  });
+
+  assertUniqueNonEmptyStrings(
+    `${path}.itemPickupDefinitions`,
+    map.itemPickupDefinitions.map((pickup) => pickup.pickupId),
+    "pickupId",
+    target
+  );
+  map.itemPickupDefinitions.forEach((pickup, index) => {
+    const pickupPath = `${path}.itemPickupDefinitions[${index}]`;
+    assertPointInWorld(`${pickupPath}.position`, pickup.position, map.worldSize, target);
+    assertNonEmptyString(`${pickupPath}.kind`, pickup.kind, target);
+    if (pickup.kind !== "Medkit") {
+      target.push(`${pickupPath}.kind: unsupported item pickup kind ${formatValue(pickup.kind)}`);
+    }
+  });
+}
+
+function validateWeaponDefinitions(path, weaponDefinitions, target) {
+  for (const [weaponKind, definition] of Object.entries(weaponDefinitions)) {
+    const definitionPath = `${path}.${weaponKind}`;
+    assertNonEmptyString(`${definitionPath}.projectileKind`, definition.projectileKind, target);
+    assertNonNegativeNumber(`${definitionPath}.cooldownMs`, definition.cooldownMs, target);
+    assertNonNegativeNumber(`${definitionPath}.reloadMs`, definition.reloadMs, target);
+    assertPositiveNumber(`${definitionPath}.projectileSpeedPerSecond`, definition.projectileSpeedPerSecond, target);
+    assertPositiveNumber(`${definitionPath}.projectileDamage`, definition.projectileDamage, target);
+    assertPositiveNumber(`${definitionPath}.projectileLifetimeMs`, definition.projectileLifetimeMs, target);
+    assertPositiveNumber(`${definitionPath}.projectileRadius`, definition.projectileRadius, target);
+    assertNonNegativeNumber(`${definitionPath}.splashRadius`, definition.splashRadius, target);
+    assertPositiveNumber(`${definitionPath}.pellets`, definition.pellets, target);
+    assertNonNegativeNumber(`${definitionPath}.spreadRadians`, definition.spreadRadians, target);
+    assertNonNegativeNumber(`${definitionPath}.magazineSize`, definition.magazineSize, target);
+    assertNonNegativeNumber(`${definitionPath}.reserveAmmo`, definition.reserveAmmo, target);
+    assertNonNegativeNumber(`${definitionPath}.pickupAmmo`, definition.pickupAmmo, target);
+    assertNonNegativeNumber(`${definitionPath}.recoilStrength`, definition.recoilStrength, target);
+    assertBoolean(`${definitionPath}.usesHeat`, definition.usesHeat, target);
+    assertNonNegativeNumber(`${definitionPath}.maxHeat`, definition.maxHeat, target);
+    assertNonNegativeNumber(`${definitionPath}.heatPerShot`, definition.heatPerShot, target);
+    assertNonNegativeNumber(`${definitionPath}.coolRatePerSecond`, definition.coolRatePerSecond, target);
+    assertNonNegativeNumber(`${definitionPath}.overheatLockMs`, definition.overheatLockMs, target);
+
+    if (definition.usesHeat) {
+      assertPositiveNumber(`${definitionPath}.maxHeat`, definition.maxHeat, target);
+      assertPositiveNumber(`${definitionPath}.heatPerShot`, definition.heatPerShot, target);
+      assertPositiveNumber(`${definitionPath}.coolRatePerSecond`, definition.coolRatePerSecond, target);
+      assertPositiveNumber(`${definitionPath}.overheatLockMs`, definition.overheatLockMs, target);
+    }
+  }
+}
+
+function validateSkillDefinitions(path, skillDefinitions, target) {
+  for (const [skillKind, definition] of Object.entries(skillDefinitions)) {
+    const definitionPath = `${path}.${skillKind}`;
+    if (definition.skillKind !== skillKind) {
+      target.push(`${definitionPath}.skillKind: expected ${formatValue(skillKind)}, got ${formatValue(definition.skillKind)}`);
+    }
+    assertNonEmptyString(`${definitionPath}.activationKind`, definition.activationKind, target);
+    assertNonEmptyString(`${definitionPath}.effectType`, definition.effectType, target);
+    assertNonNegativeNumber(`${definitionPath}.cooldownMs`, definition.cooldownMs, target);
+    assertNonNegativeNumber(`${definitionPath}.activeMs`, definition.activeMs, target);
+
+    if (definition.effectType === "teleport") {
+      assertEquals(`${definitionPath}.activationKind`, definition.activationKind, "prepared-target", target);
+      assertPositiveNumber(`${definitionPath}.range`, definition.range, target);
+    } else if (definition.effectType === "dash") {
+      assertEquals(`${definitionPath}.activationKind`, definition.activationKind, "instant", target);
+      assertPositiveNumber(`${definitionPath}.distance`, definition.distance, target);
+    } else if (definition.effectType === "slow-field") {
+      assertEquals(`${definitionPath}.activationKind`, definition.activationKind, "prepared-target", target);
+      assertPositiveNumber(`${definitionPath}.range`, definition.range, target);
+      assertPositiveNumber(`${definitionPath}.radius`, definition.radius, target);
+      assertPositiveNumber(`${definitionPath}.durationMs`, definition.durationMs, target);
+      assertPositiveNumber(`${definitionPath}.speedMultiplier`, definition.speedMultiplier, target);
+    } else {
+      target.push(`${definitionPath}.effectType: unsupported effect type ${formatValue(definition.effectType)}`);
+    }
+  }
+}
+
+function assertUniqueNonEmptyStrings(path, values, fieldName, target) {
+  const seen = new Map();
+  values.forEach((value, index) => {
+    const valuePath = `${path}[${index}].${fieldName}`;
+    assertNonEmptyString(valuePath, value, target);
+    if (typeof value !== "string" || value.trim() === "") {
+      return;
+    }
+    if (seen.has(value)) {
+      target.push(`${valuePath}: duplicate value ${formatValue(value)} first seen at ${path}[${seen.get(value)}].${fieldName}`);
+    } else {
+      seen.set(value, index);
+    }
+  });
+}
+
+function assertRectInWorld(path, position, size, worldSize, target) {
+  assertPointInWorld(`${path}.position`, position, worldSize, target);
+  if (
+    !isFiniteNumber(position?.x) ||
+    !isFiniteNumber(position?.y) ||
+    !isFiniteNumber(size?.x) ||
+    !isFiniteNumber(size?.y) ||
+    !isFiniteNumber(worldSize?.x) ||
+    !isFiniteNumber(worldSize?.y)
+  ) {
+    return;
+  }
+
+  const minX = position.x - size.x / 2;
+  const maxX = position.x + size.x / 2;
+  const minY = position.y - size.y / 2;
+  const maxY = position.y + size.y / 2;
+  if (minX < 0 || maxX > worldSize.x || minY < 0 || maxY > worldSize.y) {
+    target.push(`${path}: obstacle bounds ${formatValue({ minX, maxX, minY, maxY })} exceed worldSize ${formatValue(worldSize)}`);
+  }
+}
+
+function assertPointInWorld(path, point, worldSize, target) {
+  assertFiniteNumber(`${path}.x`, point?.x, target);
+  assertFiniteNumber(`${path}.y`, point?.y, target);
+  if (!isFiniteNumber(point?.x) || !isFiniteNumber(point?.y) || !isFiniteNumber(worldSize?.x) || !isFiniteNumber(worldSize?.y)) {
+    return;
+  }
+  if (point.x < 0 || point.x > worldSize.x) {
+    target.push(`${path}.x: expected within [0, ${worldSize.x}], got ${formatValue(point.x)}`);
+  }
+  if (point.y < 0 || point.y > worldSize.y) {
+    target.push(`${path}.y: expected within [0, ${worldSize.y}], got ${formatValue(point.y)}`);
+  }
+}
+
+function assertEquals(path, actual, expected, target) {
+  if (!scalarEquals(actual, expected)) {
+    target.push(`${path}: expected ${formatValue(expected)}, got ${formatValue(actual)}`);
+  }
+}
+
+function assertBoolean(path, value, target) {
+  if (typeof value !== "boolean") {
+    target.push(`${path}: expected boolean, got ${formatValue(value)}`);
+  }
+}
+
+function assertNonEmptyString(path, value, target) {
+  if (typeof value !== "string" || value.trim() === "") {
+    target.push(`${path}: expected non-empty string, got ${formatValue(value)}`);
+  }
+}
+
+function assertPositiveNumber(path, value, target) {
+  assertFiniteNumber(path, value, target);
+  if (isFiniteNumber(value) && value <= 0) {
+    target.push(`${path}: expected positive number, got ${formatValue(value)}`);
+  }
+}
+
+function assertNonNegativeNumber(path, value, target) {
+  assertFiniteNumber(path, value, target);
+  if (isFiniteNumber(value) && value < 0) {
+    target.push(`${path}: expected non-negative number, got ${formatValue(value)}`);
+  }
+}
+
+function assertFiniteNumber(path, value, target) {
+  if (!isFiniteNumber(value)) {
+    target.push(`${path}: expected finite number, got ${formatValue(value)}`);
+  }
+}
+
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function parseFrontendMapCatalog(source) {

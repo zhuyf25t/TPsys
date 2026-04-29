@@ -45,3 +45,38 @@ Passed after fixes:
 npm run backend:compile
 npm run build
 ```
+
+## Extension Boundary Audit
+
+Current state: battle map, weapon, and skill content still exists as duplicated frontend TypeScript and backend Scala catalogs. The audit is a drift guard and invariant gate for that duplicated state. It is not yet a generated single-source content system.
+
+The offline audit script is:
+
+```powershell
+npm run audit:battle-contracts
+```
+
+It compares parsed frontend and backend values for:
+
+- default map identity, world size, spawn points, obstacles, weapon pickups, and item pickups
+- weapon definitions and projectile/combat numeric fields
+- skill definitions and skill effect fields
+
+It also validates extension safety invariants with explicit failure paths such as `frontend.defaultMap.innerObstacles[3].size.x`:
+
+- `mapId`, `themeId`, and `worldSize` must be present, with positive world dimensions.
+- hero spawn points must have at least two entries and remain inside world bounds.
+- obstacle IDs, weapon pickup IDs, and item pickup IDs must be non-empty and unique within their own catalogs.
+- obstacles and pickups must remain inside world bounds, and obstacle sizes must be positive.
+- weapon pickup `weaponKind` values must reference an existing weapon definition.
+- item pickup kinds must be non-empty; the current whitelist is `Medkit`.
+- weapon numeric fields are checked for positive or non-negative ranges according to field semantics.
+- heat weapons must define positive heat capacity, heat cost, cooling rate, and overheat lock duration.
+- skill map keys must match `definition.skillKind`.
+- skill cooldown and active durations must be non-negative.
+- skill `effectType` / `activationKind` combinations must provide their required fields:
+  - `teleport` requires `prepared-target` and positive `range`.
+  - `dash` requires `instant` and positive `distance`.
+  - `slow-field` requires `prepared-target` plus positive `range`, `radius`, `durationMs`, and `speedMultiplier`.
+
+Future direction: replace the duplicated frontend/backend catalogs with a single source content file that generates TypeScript and Scala definitions. Until then, new maps, weapons, and skills must pass this offline audit before being accepted.

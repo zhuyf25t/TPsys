@@ -872,9 +872,30 @@
 - 这是 birth feedback presenter 搬移，headless smoke 覆盖基础运行和 VFX 生命周期，但不逐帧确认每种 projectile birth 的肉眼效果。
 - `battleFeedbackSceneBridge.ts` 现在主要是状态队列、capture、freshness baseline 和 bridge orchestration；继续拆会进入收益较低的状态机拆分，当前更适合切到大厅视觉结构、扩展性脚手架或数据闭环。
 
+### 主界面视觉结构第二轮
+
+已完成本轮第四十二刀：
+
+- `HomePage` 中央主菜单新增 4 个紧凑信息块：战斗模式、同步协议、战报链路、赛季系统。
+- 大厅中心不再只靠大 logo 和少量状态字撑版面，当前进入大厅时能直接看到 3v3、权威同步、回放入库、评分结算这些核心闭环信息。
+- 清理 `lobby-shell.css` 早期 `Focused lobby/loadout visual regression overrides` 中重复的 lobby 主题覆盖，把背景、视频滤镜、veil、文本色统一并入后期 metal-war 视觉区块。
+- 保留大厅 ring spin、particle drift、scanline 动效，保留榜单/贡献 dock 的金属战争面板风格。
+- 响应式规则已补齐：980px 以下信息块改为两列，620px 以下改为单列并允许文字换行。
+- 本轮没有触碰 BattlePage 角色/地图素材，没有改 battle start、auth、routing、gateway 或后端。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 本轮是结构和 CSS 层调整，尚未做真实浏览器 headful 视觉截屏验收；构建能证明类型和打包通过，但不能替代肉眼审美验收。
+- 主界面现在仍是程序化 CSS + 现有视频背景，距离参考图那种商业级金属大厅仍需要后续做更完整的背景资产、模块层次、入口状态和动效节奏。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。下一步更适合转向大厅视觉结构、地图/技能/bot 扩展性脚手架和数据闭环，而不是继续拆收益很低的状态机细枝。
+当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，刚完成大厅中心信息密度与 CSS 重复覆盖清理。下一步更适合做地图/技能/武器/bot 的契约审计与示例模板，而不是继续拆收益很低的 BattlePage 状态机细枝。
 
 扩展性基础第一轮已经覆盖：
 

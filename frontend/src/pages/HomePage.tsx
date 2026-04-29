@@ -105,6 +105,28 @@ export function HomePage() {
     ? (leaderboardRating ?? profile?.score ?? null)
     : (profile?.score ?? leaderboardRating ?? loadout.rating ?? 1200);
   const currentRatingLabel = currentRating === null ? "—" : String(currentRating);
+  const homeMenuIntelCards = [
+    {
+      eyebrow: "战斗模式",
+      value: "3v3",
+      detail: `${BATTLE_ARENA_PLAYER_CAPACITY} 人竞技场 / ${BATTLE_MATCH_DURATION_LABEL}`
+    },
+    {
+      eyebrow: "同步协议",
+      value: "权威同步",
+      detail: "输入校验 · 状态回滚"
+    },
+    {
+      eyebrow: "战报链路",
+      value: "回放入库",
+      detail: "完赛后生成本地战报"
+    },
+    {
+      eyebrow: "赛季系统",
+      value: "评分结算",
+      detail: `当前评级 ${currentRatingLabel} · 赛季榜`
+    }
+  ];
 
   const playerName = authUser ? resolvedHandle : "访客";
 
@@ -161,6 +183,15 @@ export function HomePage() {
             <div className="home-menu__kit" aria-label="当前战备">
               <span>主武器：{loadout.primary}</span>
               <span>战术模块：{loadout.skills.join(" / ")}</span>
+            </div>
+            <div className="home-menu__intel-grid" aria-label="大厅战情摘要">
+              {homeMenuIntelCards.map((card) => (
+                <article key={card.eyebrow} className="home-menu__intel-card">
+                  <small>{card.eyebrow}</small>
+                  <strong>{card.value}</strong>
+                  <span>{card.detail}</span>
+                </article>
+              ))}
             </div>
             <div className="home-menu__status-strip" aria-hidden="true">
               <span>核心在线</span>

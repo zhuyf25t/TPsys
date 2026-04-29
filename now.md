@@ -32,6 +32,7 @@
 - 扩展性第二轮完成：新增社区 bot package manifest 示例、离线 package audit、README/SDK 文档。外部贡献者可以按 `*.plugin.json + .mjs strategy` 格式提交 bot，不需要改核心战斗代码。
 - 扩展性第三轮完成：`audit:battle-contracts` 现在会校验地图边界、ID 唯一性、拾取物引用、武器数值范围、热量武器字段、技能 key/effect/activation 必填字段，并在失败时输出明确路径。
 - 数据闭环第二轮完成：`audit:data-closure` 现在不仅检查 Visitor-like/non-playable 和 duplicate battle result，还会检查 rating 算术、按 handle 的 rating 连续性、replay/result 关联、battle mail 覆盖，并且保持只读。
+- 数据闭环第三轮完成：新增 `npm run data:closure-repair-plan`，把历史问题转成 dry-run 修复计划。它不会写 `backend/data`，只分类输出：rating continuity 为 `unsafe_auto_repair`，缺 result 的 replay 分成 `likely_system_or_bot` 与 `needs_result_decision`，缺 battle mail 的 result 生成 `suggested_mail` 样例。
 
 ## 当前数据风险
 
@@ -44,6 +45,13 @@
 - Replay/result association：54 条 replay 找不到对应 result，样例里包含旧 bot/contract smoke 数据。
 - Battle mail coverage：22 条历史 result 找不到 battle mail，主要是旧 `replay-*` 结果。
 
+`npm run data:closure-repair-plan` 已进一步分类这些问题：
+
+- `blocked_by_critical_audit_findings: false`，说明当前没有 Visitor-like 或 duplicate battle result 阻塞后续计划。
+- Rating continuity 10 处全部是 `unsafe_auto_repair`，不能自动改，因为历史评分会级联影响后续记录。
+- Replay 缺 result 54 条，其中 53 条是 bot/system/contract-smoke 类历史产物，1 条是 `server` handle，需要明确数据决策。
+- Battle mail 缺口 22 条可以生成 `suggested_mail` dry-run 样例，但 apply 版必须先确认 mails schema，到底只写当前 `subject/excerpt/unread`，还是扩展 `title/body/read/source*`。
+
 这些问题下一步应分成“历史数据迁移/清理”和“线上写入硬防护”两类处理，不能在审计脚本里偷偷修。
 
 ## 当前风险与注意事项
@@ -55,8 +63,8 @@
 
 ## 下一步计划
 
-1. 数据闭环第三轮：预计 2-4 小时。
-   目标：把第二轮审计暴露的问题转成明确修复策略。优先做只读报告和可回滚 migration 脚本，不直接静默改 `backend/data`；重点处理 rating continuity 断点、旧 replay/result 缺口、旧 battle mail 缺口。
+1. 数据闭环第四轮：预计 2-4 小时。
+   目标：决定是否把 `suggested_mail` 升级成带备份的 apply 脚本。rating continuity 和 replay missing result 继续保持人工决策，不自动生成历史评分或战绩。若进入 apply 版，必须小写面、可回滚、先备份，并跑 `audit:data-closure` 验证缺口变化。
 
 2. 大厅视觉结构第三轮：预计 3-6 小时。
    目标：继续靠近参考图的金属战争大厅结构，强化榜单、玩家卡、邮件/好友入口和中心开始区的版面密度。只使用程序化 CSS 与现有资源，不触碰 BattlePage 素材。
@@ -72,4 +80,4 @@
 
 ## 当前执行策略
 
-下一张票优先做数据闭环第三轮，因为第二轮审计已经给出可量化风险，继续推进可以提高 battle result、replay、mail、rating/profile 的可信度。完成并审查后，再切到大厅视觉第三轮或扩展协议第三轮。
+下一张票有两个合理方向：如果继续数据闭环，就只把 battle mail 缺口做成可回滚 apply；如果不写历史数据，就切到大厅视觉结构第三轮。两者都不触碰 BattlePage 素材。

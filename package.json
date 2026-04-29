@@ -10,6 +10,7 @@
     "audit:battle-content": "node scripts/audit-battle-content-contract.mjs",
     "audit:battle-contracts": "npm run audit:battle-content",
     "audit:data-closure": "node scripts/audit-data-closure.mjs",
+    "data:closure-repair-plan": "node scripts/plan-data-closure-repair.mjs",
     "data:closure-cleanup": "node scripts/cleanup-data-closure.mjs",
     "audit:bot-plugins": "node scripts/audit-bot-plugin-manifests.mjs",
     "audit:community-bot-package": "node scripts/audit-community-bot-package.mjs",

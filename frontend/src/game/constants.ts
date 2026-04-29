@@ -78,15 +78,15 @@ export const ASSET_PATHS = {
   pickupGatling: "/assets/battle/pickups/gatling_icon.svg",
   pickupShotgun: "/assets/battle/pickups/shotgun_icon.svg",
   pickupRocket: "/assets/battle/pickups/rocket_icon.svg",
-  player: "/assets/battle/actors/hero_body_dark_knight.svg",
-  survivor: "/assets/battle/actors/hero_body_moss_knight.svg",
-  soldier: "/assets/battle/actors/hero_body_gold_lancer.svg",
-  brown: "/assets/battle/actors/hero_body_ember_brute.svg",
-  old: "/assets/battle/actors/hero_body_violet_shade.svg",
-  woman: "/assets/battle/actors/hero_body_cyan_scout.svg",
-  hitman: "/assets/battle/actors/hero_body_red_wraith.svg",
-  robot: "/assets/battle/actors/hero_body_steel_sentinel.svg",
-  zombie: "/assets/battle/actors/hero_body_bone_rover.svg"
+  player: "/assets/kenney-top-down-shooter/PNG/Man Blue/manBlue_gun.png",
+  survivor: "/assets/kenney-top-down-shooter/PNG/Survivor 1/survivor1_gun.png",
+  soldier: "/assets/kenney-top-down-shooter/PNG/Soldier 1/soldier1_gun.png",
+  brown: "/assets/kenney-top-down-shooter/PNG/Man Brown/manBrown_gun.png",
+  old: "/assets/kenney-top-down-shooter/PNG/Man Old/manOld_gun.png",
+  woman: "/assets/kenney-top-down-shooter/PNG/Woman Green/womanGreen_gun.png",
+  hitman: "/assets/kenney-top-down-shooter/PNG/Hitman 1/hitman1_gun.png",
+  robot: "/assets/kenney-top-down-shooter/PNG/Robot 1/robot1_gun.png",
+  zombie: "/assets/kenney-top-down-shooter/PNG/Zombie 1/zoimbie1_gun.png"
 } as const;
 
 export const HERO_TEXTURE_KEYS = {

@@ -141,7 +141,9 @@ export function MailsPage() {
   const unreadCount = mailSummaries.filter((mail) => mail.unread).length;
   const readCount = mailSummaries.length - unreadCount;
   const importantCount = mailSummaries.filter((mail) => mail.important).length;
+  const battleCount = mailSummaries.filter((mail) => mail.kind === "battle").length;
   const friendCount = mailSummaries.filter((mail) => mail.kind === "friend").length;
+  const mergedBattleCount = mailSummaries.filter(isMergedBattleMail).length;
   const filteredMailSummaries = mailSummaries.filter((mail) => {
     switch (mailFilter) {
       case "unread":
@@ -150,12 +152,16 @@ export function MailsPage() {
         return !mail.unread;
       case "important":
         return mail.important;
+      case "battle":
+        return mail.kind === "battle";
       case "friend":
         return mail.kind === "friend";
       case "all":
         return true;
     }
   });
+  const visibleUnreadMails = filteredMailSummaries.filter((mail) => mail.unread);
+  const markFilteredReadLabel = mailFilter === "all" ? "全部标为已读" : "当前筛选标为已读";
 
   const setMailReadOptimistically = (mailIds: readonly string[]): void => {
     const targetIds = new Set(mailIds);
@@ -168,13 +174,35 @@ export function MailsPage() {
     );
   };
 
-  const clearMailReadFailure = (mailId: string): void => {
+  const restoreMailReadState = (previousMailSummaries: readonly MailSummary[], failedMails: readonly MailSummary[]): void => {
+    const previousById = new Map(previousMailSummaries.map((mail) => [mail.id, mail]));
+    const failedTargetIds = new Set(failedMails.flatMap(getMailReadTargetIds));
+    setMailSummaries((current) =>
+      current.map((mail) =>
+        failedTargetIds.has(mail.id) || mail.relatedMailIds?.some((relatedMailId) => failedTargetIds.has(relatedMailId))
+          ? previousById.get(mail.id) ?? mail
+          : mail
+      )
+    );
+  };
+
+  const clearMailReadFailures = (mailIds: readonly string[]): void => {
+    const targetIds = new Set(mailIds);
     setMailReadFailures((current) => {
-      if (!current[mailId]) {
+      let changed = false;
+      const next = { ...current };
+
+      targetIds.forEach((mailId) => {
+        if (next[mailId]) {
+          delete next[mailId];
+          changed = true;
+        }
+      });
+
+      if (!changed) {
         return current;
       }
 
-      const { [mailId]: _ignored, ...next } = current;
       return next;
     });
   };
@@ -218,6 +246,32 @@ export function MailsPage() {
     setMailLoadFailed(false);
   };
 
+  const syncMailReadState = async (mail: MailSummary, ownerHandle: string): Promise<MailReadSyncResult> => {
+    const mailIds = getMailReadTargetIds(mail);
+    if (mailIds.every((mailId) => mailId.startsWith("battle:"))) {
+      return {
+        ok: mailIds.map((mailId) => markMailAsRead(mailId, ownerHandle)).every(Boolean),
+        requiresRemoteRefresh: false
+      };
+    }
+
+    if (remoteMailSource) {
+      if (!ownerHandle) {
+        return { ok: false, requiresRemoteRefresh: true };
+      }
+
+      const readSynced = (
+        await Promise.all(mailIds.map((relatedMailId) => markMailAsReadRemote(ownerHandle, relatedMailId).catch(() => false)))
+      ).every(Boolean);
+      return { ok: readSynced, requiresRemoteRefresh: true };
+    }
+
+    return {
+      ok: mailIds.map((relatedMailId) => markMailAsRead(relatedMailId, ownerHandle)).every(Boolean),
+      requiresRemoteRefresh: false
+    };
+  };
+
   const handleMailClick = async (mail: MailSummary): Promise<void> => {
     if (!mail.unread) {
       return;
@@ -226,51 +280,71 @@ export function MailsPage() {
     const mailIds = getMailReadTargetIds(mail);
     const mailId = mail.id;
     const previousMailSummaries = mailSummaries;
-    clearMailReadFailure(mail.id);
+    clearMailReadFailures([mail.id]);
     setMailReadOptimistically(mailIds);
 
     const ownerHandle = currentUser?.handle?.trim() ?? "";
-    if (mailIds.every((mailId) => mailId.startsWith("battle:"))) {
-      const localRead = mailIds.map((mailId) => markMailAsRead(mailId, ownerHandle)).every(Boolean);
-      if (!localRead) {
-        setMailSummaries(previousMailSummaries);
-        setMailReadFailures((current) => ({ ...current, [mailId]: "已读同步失败，请重试" }));
+    const result = await syncMailReadState(mail, ownerHandle);
+    if (!result.ok) {
+      restoreMailReadState(previousMailSummaries, [mail]);
+      setMailReadFailures((current) => ({ ...current, [mailId]: "已读同步失败，请重试" }));
+      if (result.requiresRemoteRefresh) {
+        setMailLoadFailed(true);
       }
       return;
     }
 
-    if (remoteMailSource) {
-      if (!ownerHandle) {
-        setMailSummaries(previousMailSummaries);
-        return;
-      }
-
-      const readSynced = (
-        await Promise.all(mailIds.map((relatedMailId) => markMailAsReadRemote(ownerHandle, relatedMailId).catch(() => false)))
-      ).every(Boolean);
-      if (!readSynced) {
-        setMailSummaries(previousMailSummaries);
-        setMailReadFailures((current) => ({ ...current, [mailId]: "已读同步失败，请重试" }));
-        setMailLoadFailed(true);
-        return;
-      }
-
-      clearMailReadFailure(mailId);
+    clearMailReadFailures([mailId]);
+    if (result.requiresRemoteRefresh) {
       setMailLoadFailed(false);
       await refreshRemoteMails();
-      return;
-    }
-
-    const localRead = mailIds.map((relatedMailId) => markMailAsRead(relatedMailId, ownerHandle)).every(Boolean);
-    if (!localRead) {
-      setMailSummaries(previousMailSummaries);
-      setMailReadFailures((current) => ({ ...current, [mailId]: "已读同步失败，请重试" }));
     }
   };
 
   const handleMarkReadClick = (event: MouseEvent<HTMLButtonElement>, mail: MailSummary): void => {
     event.stopPropagation();
     void handleMailClick(mail);
+  };
+
+  const handleMarkFilteredReadClick = async (): Promise<void> => {
+    if (visibleUnreadMails.length === 0) {
+      return;
+    }
+
+    const ownerHandle = currentUser?.handle?.trim() ?? "";
+    const previousMailSummaries = mailSummaries;
+    const mailIds = uniqueStrings(visibleUnreadMails.flatMap(getMailReadTargetIds));
+    clearMailReadFailures(visibleUnreadMails.map((mail) => mail.id));
+    setMailReadOptimistically(mailIds);
+
+    const results = await Promise.all(
+      visibleUnreadMails.map(async (mail) => ({
+        mail,
+        result: await syncMailReadState(mail, ownerHandle)
+      }))
+    );
+    const failedResults = results.filter(({ result }) => !result.ok);
+    if (failedResults.length > 0) {
+      const failedMails = failedResults.map(({ mail }) => mail);
+      restoreMailReadState(previousMailSummaries, failedMails);
+      setMailReadFailures((current) => {
+        const next = { ...current };
+        failedMails.forEach((mail) => {
+          next[mail.id] = "已读同步失败，请重试";
+        });
+        return next;
+      });
+      if (failedResults.some(({ result }) => result.requiresRemoteRefresh)) {
+        setMailLoadFailed(true);
+      }
+      return;
+    }
+
+    clearMailReadFailures(visibleUnreadMails.map((mail) => mail.id));
+    if (results.some(({ result }) => result.requiresRemoteRefresh)) {
+      setMailLoadFailed(false);
+      await refreshRemoteMails();
+    }
   };
 
   const handleFriendRequestDecision = async (
@@ -329,21 +403,65 @@ export function MailsPage() {
         <p className="mails-overview__copy">
           战报、评分更新与好友消息会在这里同步；旧版战报和评分邮件会合并显示成一条。
         </p>
-        <div className="pill-row mail-filter-row" aria-label="邮件筛选">
-          <button type="button" className={getMailFilterChipClass(mailFilter, "all")} onClick={() => setMailFilter("all")}>
-            总计 {mailSummaries.length}
-          </button>
-          <button type="button" className={getMailFilterChipClass(mailFilter, "unread")} onClick={() => setMailFilter("unread")}>
-            未读 {unreadCount}
-          </button>
-          <button type="button" className={getMailFilterChipClass(mailFilter, "read")} onClick={() => setMailFilter("read")}>
-            已读 {readCount}
-          </button>
-          <button type="button" className={getMailFilterChipClass(mailFilter, "important")} onClick={() => setMailFilter("important")}>
-            重要 {importantCount}
-          </button>
-          <button type="button" className={getMailFilterChipClass(mailFilter, "friend")} onClick={() => setMailFilter("friend")}>
-            好友申请 {friendCount}
+        <div className="mails-overview__stats" aria-label="站内信统计">
+          <article className="mails-overview__tile">
+            <span>总计</span>
+            <strong>{mailSummaries.length}</strong>
+            <small>当前账号可见</small>
+          </article>
+          <article className="mails-overview__tile mails-overview__tile--hot">
+            <span>未读</span>
+            <strong>{unreadCount}</strong>
+            <small>需要处理</small>
+          </article>
+          <article className="mails-overview__tile">
+            <span>战报</span>
+            <strong>{battleCount}</strong>
+            <small>含回放入口</small>
+          </article>
+          <article className="mails-overview__tile">
+            <span>好友</span>
+            <strong>{friendCount}</strong>
+            <small>申请与回执</small>
+          </article>
+          <article className="mails-overview__tile mails-overview__tile--merged">
+            <span>已合并</span>
+            <strong>{mergedBattleCount}</strong>
+            <small>战报+评分</small>
+          </article>
+        </div>
+        <div className="mails-overview__toolbar">
+          <div className="pill-row mail-filter-row" aria-label="邮件筛选">
+            <button type="button" className={getMailFilterChipClass(mailFilter, "all")} onClick={() => setMailFilter("all")}>
+              总计 {mailSummaries.length}
+            </button>
+            <button type="button" className={getMailFilterChipClass(mailFilter, "unread")} onClick={() => setMailFilter("unread")}>
+              未读 {unreadCount}
+            </button>
+            <button type="button" className={getMailFilterChipClass(mailFilter, "read")} onClick={() => setMailFilter("read")}>
+              已读 {readCount}
+            </button>
+            <button type="button" className={getMailFilterChipClass(mailFilter, "important")} onClick={() => setMailFilter("important")}>
+              重要 {importantCount}
+            </button>
+            <button type="button" className={getMailFilterChipClass(mailFilter, "battle")} onClick={() => setMailFilter("battle")}>
+              战报 {battleCount}
+            </button>
+            <button type="button" className={getMailFilterChipClass(mailFilter, "friend")} onClick={() => setMailFilter("friend")}>
+              好友申请 {friendCount}
+            </button>
+          </div>
+          <button
+            type="button"
+            className="mail-bulk-read-button"
+            disabled={visibleUnreadMails.length === 0}
+            onClick={() => {
+              void handleMarkFilteredReadClick();
+            }}
+          >
+            {visibleUnreadMails.length > 0
+              ? `${markFilteredReadLabel} ${visibleUnreadMails.length}`
+              : "当前筛选无未读"}
           </button>
         </div>
       </section>
@@ -384,6 +502,7 @@ export function MailsPage() {
             const matchedContributionAdjustment = isAdminUser
               ? findMatchingContributionAdjustment(mail, contributionAdjustments)
               : null;
+            const mergedBattleLabel = getMergedBattleMailLabel(mail);
 
             return (
               <article
@@ -409,6 +528,9 @@ export function MailsPage() {
                     {mail.unread ? <span className="mail-card__status mail-card__status--unread">未读</span> : null}
                     {!mail.unread ? <span className="mail-card__status mail-card__status--read">已读</span> : null}
                     {mail.important ? <span className="mail-card__status">重要</span> : null}
+                    {mergedBattleLabel ? (
+                      <span className="mail-card__status mail-card__status--merged">{mergedBattleLabel}</span>
+                    ) : null}
                   </div>
                   <strong>{mail.subject}</strong>
                   <span className="mail-card__excerpt">{mail.excerpt}</span>
@@ -518,11 +640,32 @@ export function MailsPage() {
 }
 
 type FriendRequestActionState = FriendRequestMailStatus | "processing" | "failed";
-type MailFilter = "all" | "unread" | "read" | "important" | "friend";
+type MailFilter = "all" | "unread" | "read" | "important" | "battle" | "friend";
+interface MailReadSyncResult {
+  ok: boolean;
+  requiresRemoteRefresh: boolean;
+}
 type ContributionAdjustmentRecords = NonNullable<Awaited<ReturnType<typeof loadContributionAdjustments>>>;
 
 function getMailReadTargetIds(mail: MailSummary): string[] {
   return uniqueStrings([mail.id, ...(mail.relatedMailIds ?? [])]);
+}
+
+function isMergedBattleMail(mail: MailSummary): boolean {
+  return getMergedBattleMailSourceCount(mail) > 1;
+}
+
+function getMergedBattleMailLabel(mail: MailSummary): string | null {
+  const mergedSourceCount = getMergedBattleMailSourceCount(mail);
+  return mergedSourceCount > 1 ? `合并 ${mergedSourceCount} 条` : null;
+}
+
+function getMergedBattleMailSourceCount(mail: MailSummary): number {
+  if (mail.kind !== "battle") {
+    return 0;
+  }
+
+  return uniqueStrings(mail.relatedMailIds ?? []).length;
 }
 
 function getMailFilterChipClass(activeFilter: MailFilter, filter: MailFilter): string {

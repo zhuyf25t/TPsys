@@ -103,3 +103,23 @@ npm run audit:bot-strategy-template
 ```
 
 The smoke harness imports the template with a frozen mock `BotDecisionContext`, verifies the strategy id and command shape, checks finite `movement` / `aim` vectors and boolean command fields, and confirms the strategy does not mutate the provided context.
+
+## Explicit Registration Bridge
+
+Developer tooling can explicitly bridge an external ESM strategy module into the existing SDK through:
+
+- `frontend/src/features/battle/runtime-local/bots/botStrategyModuleLoader.ts`
+
+API shape:
+
+```ts
+resolveBotStrategyFromModule(moduleNamespace, { exportName });
+registerBotStrategyFromModule(moduleNamespace, { exportName });
+loadAndRegisterBotStrategyModule(moduleUrl, { exportName });
+```
+
+The resolver accepts a direct strategy object, a `default` export, or a named export. A valid strategy must expose a non-empty `strategyId` string and a `decide(context)` function. Registration delegates to the existing `registerBotStrategy(strategy)` API, so command normalization, candidate lookup, and built-in fallback behavior stay owned by `botSdk.ts`.
+
+`loadAndRegisterBotStrategyModule(moduleUrl)` is explicit and opt-in only. Nothing imports `examples/bots/*` automatically, and the default bot registry/controller behavior is unchanged.
+
+This bridge is for developer/community integration experiments, not a security sandbox. Do not load untrusted remote code. Production community plugins still need explicit permissions, isolation/sandboxing, review, and distribution policy before accepting arbitrary third-party strategy modules.

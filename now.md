@@ -977,9 +977,32 @@
 - `npm run build` 通过。
 - `git diff --check` 通过，仅有既有 LF/CRLF 提示。
 
+### Bot 显式外部策略注册桥接
+
+已完成本轮第四十七刀：
+
+- 新增 `frontend/src/features/battle/runtime-local/bots/botStrategyModuleLoader.ts`。
+- 提供显式 API：`resolveBotStrategyFromModule`、`registerBotStrategyFromModule`、`loadAndRegisterBotStrategyModule`。
+- 支持直接 strategy object、`default` export 和具名 export；有效策略必须有非空 `strategyId` 和 `decide(context)` function。
+- 错误返回 typed result：`BotStrategyModuleLoaderError` 携带 `MODULE_NOT_OBJECT`、`EXPORT_NOT_FOUND`、`STRATEGY_EXPORT_INVALID`、`MODULE_URL_INVALID`、`MODULE_LOAD_FAILED`、`REGISTRATION_FAILED` 等 code。
+- dynamic import 使用 `/* @vite-ignore */`，并在代码和文档中声明仅接受可信本地开发/审核输入。
+- 本轮没有改 `botController.ts`、没有改 `botRegistry.ts`、没有自动 import `examples/bots/*`、没有改变内置 bot 默认行为。
+- `docs/BOT_SDK_FOUNDATION.md` 已补充显式注册桥接说明和安全边界。
+
+验证：
+
+- `npm run audit:bot-strategy-template` 通过。
+- `npm run audit:bot-plugins` 通过。
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 这不是安全沙箱；显式加载的外部模块会在页面上下文执行。真正社区插件仍需要权限、隔离/沙箱、审核和分发策略。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令、bot 外部策略模板/离线 smoke、dev 端口诊断脚本，以及本地历史数据闭环清理。下一步更适合继续做 bot 注册桥接边界或启动/验收脚本，而不是继续拆收益很低的 BattlePage 状态机细枝。
+当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令、bot 外部策略模板/离线 smoke、bot 显式注册桥接、dev 端口诊断脚本，以及本地历史数据闭环清理。下一步更适合修邮件页面交互/排版或继续做启动/验收脚本，而不是继续拆收益很低的 BattlePage 状态机细枝。
 
 扩展性基础第一轮已经覆盖：
 

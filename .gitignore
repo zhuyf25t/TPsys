@@ -7,10 +7,15 @@ backend/target/
 backend/project/target/
 backend/project/.boot/
 backend/project/project/
+backend-legacy/target/
+backend-legacy/project/target/
+backend-legacy/project/.boot/
+backend-legacy/project/project/
 
 # Local runtime data
 .runtime/
 backend/data/
+backend-legacy/data/
 logs/
 .tmp/
 /pics/

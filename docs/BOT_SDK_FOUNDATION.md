@@ -86,3 +86,20 @@ The SDK does not allow a strategy to own:
 The first SDK slice only lets a strategy override the command used for weapon action resolution. Bot navigation, pickup handling, and movement simulation still run through the built-in controller. This is intentional for the first version because it keeps battle feel stable while opening a safe contribution point.
 
 Future slices can add explicit strategy hooks for target choice and movement, but those should be separate tickets with their own semantic review.
+
+## External Strategy Template
+
+Community contributors can start from:
+
+- `examples/bots/community-distance-keeper.mjs`
+- `examples/bots/README.md`
+
+The template is plain ESM JavaScript and intentionally does not import internal TypeScript runtime types. It demonstrates a readable, conservative command strategy that keeps distance, aims at the nearest living enemy, looks for health when low, and fires only when the copied weapon observation appears ready.
+
+Offline smoke command:
+
+```sh
+npm run audit:bot-strategy-template
+```
+
+The smoke harness imports the template with a frozen mock `BotDecisionContext`, verifies the strategy id and command shape, checks finite `movement` / `aim` vectors and boolean command fields, and confirms the strategy does not mutate the provided context.

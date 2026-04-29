@@ -915,9 +915,32 @@
 
 - worker 初次验证时 `backend:compile` 被本机已运行的 `sbt runMain slaydemo.backend.BackendApp` 后端进程占用 sbt named-pipe/boot server 卡住；关闭该后端 dev 进程后编译正常通过，确认不是源码问题。
 
+### Bot 外部策略模板与离线 smoke
+
+已完成本轮第四十四刀：
+
+- 新增 `examples/bots/community-distance-keeper.mjs`，作为朋友或社区贡献 bot 的 plain ESM 策略模板。
+- 新增 `examples/bots/README.md`，说明如何复制模板、修改 `strategyId`、保持 `context` 只读、返回有限向量和布尔字段。
+- 新增 `scripts/smoke-bot-strategy-template.mjs` 与 `npm run audit:bot-strategy-template`，离线 import 模板并用 frozen mock context 验证策略输出。
+- 模板策略只演示安全、保守行为：保持距离、瞄准最近存活敌人、低血量寻找医疗包、武器 ready 且距离合适时开火。
+- smoke 覆盖常规交战、低血量医疗包、无敌人三种场景，验证 `strategyId`、`decide`、`movement/aim/pointerWorld` 有限、movement 归一化、布尔字段类型、切枪字段形状和不修改 context。
+- `docs/BOT_SDK_FOUNDATION.md` 补充了外部策略模板和 smoke 命令入口。
+- 本轮没有改现有 botController 行为，没有接热加载，没有改 BattlePage 素材，没有调数值，没有改后端。
+
+验证：
+
+- `npm run audit:bot-strategy-template` 通过。
+- `npm run audit:bot-plugins` 通过。
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+
+残留风险：
+
+- 这仍是离线模板和 smoke，不等于真实社区插件热加载，也不验证实战强度；下一步如果继续做 bot 社区化，应当增加注册桥接或 sandboxed loader 的明确边界。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，刚完成大厅中心信息密度、CSS 重复覆盖清理，以及 battle catalog 前后端契约审计命令。下一步更适合做 bot 外部策略模板和离线 harness，而不是继续拆收益很低的 BattlePage 状态机细枝。
+当前主线：BattlePage renderer host 边界本轮已经收口到可接受状态。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层已经完成大幅瘦身：`arenaBuilder.ts` 约 `117` LOC，`worldViewFactory.ts` 从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 从约 `1060` LOC 降到约 `349` LOC，`sceneVfxController.ts` 从约 `833` LOC 降到约 `152` LOC。当前已切到 BattlePage 之外的主界面视觉结构和扩展性脚手架，已完成大厅中心信息密度、CSS 重复覆盖清理、battle catalog 前后端契约审计命令，以及 bot 外部策略模板/离线 smoke。下一步更适合做启动/端口冲突脚本或继续做 bot 注册桥接边界，而不是继续拆收益很低的 BattlePage 状态机细枝。
 
 扩展性基础第一轮已经覆盖：
 
@@ -944,7 +967,7 @@
 
 3. Bot 社区化第二轮。
    预计：0.5-1 天。
-   目标：补一个可复制的外部 bot 策略模板和离线 harness。
+   目标：外部 bot 策略模板和离线 harness 已完成；下一步可做 sandboxed loader/注册桥接，但必须保持不影响当前内置 bot 行为。
 
 4. 启动、验收、交付脚本。
    预计：0.5-1 天。

@@ -739,9 +739,32 @@
 - 这是 skill feedback renderer 搬移，headless smoke 确认基础运行和 transient 回收，但不能替代人工 headful 对 Blink/Freeze/Dash/Reject 瞬时观感的审查。
 - `sceneVfxController.ts` 现在主要剩 muzzle burst、impact/dissipate/hit confirm、floating text 和 ring TTL；下一刀适合拆 muzzle/hit presenter 或 floating text presenter。
 
+### BattlePage muzzle/hit VFX presenter 抽离
+
+已完成本轮第三十六刀：
+
+- 新增 `frontend/src/features/battle/renderer/effects/muzzleAndHitVfxPresenter.ts`。
+- 从 `sceneVfxController.ts` 抽出 `createImpactSpark`、`createProjectileDissipate`、`createHitConfirm`、`createMuzzleBurst`、`createShockwave`、`MAX_MUZZLE_SPARKS` 和方向几何 helper。
+- `sceneVfxController.ts` 保留五个同名 public facade，外部 `GameScene`、feedback bridge、weapon action presenter 的调用边界不变。
+- `createMuzzleBurst` 原有 `createPulse(position, radius, color)` 行为通过 `createRingPulse` callback 保留，ring TTL 和 diagnostics 仍由 `sceneVfxController.ts` 管。
+- transient 对象仍统一走 `TransientVfxLifecycle.track/destroyObject`，没有直接持久持有 Phaser 临时对象。
+- 本轮没有改 BattlePage 角色/地图/素材，没有改枪口、命中、弹道消散、冲击波的 depth、alpha、color、duration、scale、blend mode、stroke 或随机范围。
+- `sceneVfxController.ts` 从约 `366` LOC 降到约 `169` LOC。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD hero count 仍为 `6`、小地图静态层重绘 delta `0`、VFX created/destroyed delta 对齐、active transient count `0`、active ring count `0`。
+
+残留风险：
+
+- 这是 muzzle/hit renderer 搬移，headless smoke 确认基础运行和 transient 回收，但不能替代人工 headful 对枪口和命中瞬时观感的逐帧审查。
+- `sceneVfxController.ts` 现在只剩 ring pulse TTL、projectile tracer facade、skill feedback facade、muzzle/hit facade、floating text 和 diagnostics glue；后续如果继续拆，应优先抽 floating text presenter 或转向 `battleFeedbackSceneBridge.ts` 的编排边界。
+
 ## 当前正在做
 
-当前主线：BattlePage renderer host 边界继续收口。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层继续推进。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 已从约 `1060` LOC 降到约 `620` LOC，`sceneVfxController.ts` 已从约 `833` LOC 降到约 `366` LOC；下一步继续拆 `sceneVfxController.ts` 的 muzzle/hit presenter 或 floating text presenter，保持视觉参数不变。
+当前主线：BattlePage renderer host 边界继续收口。BattlePage 角色素材已按用户要求恢复旧 Kenney top-down PNG，后续暂不再碰 BattlePage 角色/地图等素材方向；结构层继续推进。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `324` LOC，`battleFeedbackSceneBridge.ts` 已从约 `1060` LOC 降到约 `620` LOC，`sceneVfxController.ts` 已从约 `833` LOC 降到约 `169` LOC；下一步在不改素材和视觉参数的前提下，继续处理 `sceneVfxController.ts` 的 floating text 小尾巴，或转向 `battleFeedbackSceneBridge.ts` 的反馈编排边界。
 
 扩展性基础第一轮已经覆盖：
 
@@ -760,7 +783,7 @@
 
 1. BattlePage VFX controller 边界整理第二轮。
    预计：2-5 小时。
-   目标：从 `sceneVfxController.ts` 中拆出 muzzle/hit presenter 或 floating text presenter 的 focused helper/controller，不改变枪口、弹道、命中、火箭 AoE、技能反馈或 transient 回收语义。
+   目标：收掉 `sceneVfxController.ts` 的 floating text 小尾巴，或继续拆 `battleFeedbackSceneBridge.ts` 的 focused feedback orchestration helper；不改变枪口、弹道、命中、火箭 AoE、技能反馈或 transient 回收语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

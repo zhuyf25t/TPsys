@@ -629,9 +629,31 @@
 - 这是 pickup 显示同步搬移，未改变 pickup spawn、radius、auto pickup、respawn、weapon ammo、item effect、map/backend/domain。
 - `worldViewFactory.ts` 现在主要剩 indicator sync 和 hero visibility/action orchestration；下一刀适合拆 indicator sync。
 
+### BattlePage prepared skill indicator sync helper 抽离
+
+已完成本轮第三十一刀：
+
+- 新增 `frontend/src/features/battle/renderer/entities/preparedSkillIndicatorViewSync.ts`。
+- 从 `worldViewFactory.ts` 抽出 `syncIndicators(...)` 主体、prepared target skill profile 读取、Blink/Freeze 目标合法性判断、range/target indicator 显隐和颜色同步。
+- `worldViewFactory.ts` 继续保留同名 `syncIndicators(...)` wrapper，`syncWorldViews(context)` 调用语义保持不变。
+- `WorldViewState` 仍保留 `rangeIndicator` 和 `targetIndicator` 字段名；Arc 对象仍由 world view factory 创建。
+- 本轮没有改 prepared skill、Blink、Freeze、cooldown、range、indicator radius、valid/invalid color、local hero display override、shared authoritative runtime 或任何 battle rule。
+- `worldViewFactory.ts` 从约 `392` LOC 降到约 `324` LOC，已经基本收敛为 view state 装配、hero wrapper/visibility orchestration 和顶层 sync host。
+
+验证：
+
+- `npm run build` 通过。
+- `git diff --check` 通过，仅有既有 LF/CRLF 提示。
+- `bp28-render-feel-smoke` headless `MixedMovement` 通过：`ok=true`、`sameBattle=true`、两端进入 playing、warnings `0`、HUD hero count 仍为 `6`、小地图静态层重绘 delta `0`、VFX active transient count `0`。
+
+残留风险：
+
+- 这是 prepared skill 指示器显示同步搬移，headless smoke 覆盖基础加载和同步，但没有专门模拟长时间 prepared-target 瞄准；后续需要 targeted skill smoke 或人工 headful 验证 Blink/Freeze 指示器审美。
+- BattlePage 渲染边界的主要大文件已从 `worldViewFactory.ts` 转移到 `battleFeedbackSceneBridge.ts` 和 `sceneVfxController.ts`。
+
 ## 当前正在做
 
-当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter、remote hero interpolation helper、local hero motion streak helper、hero readability/health/cue presenter、pickup sync helper 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `392` LOC；下一步拆 `worldViewFactory.ts` 的 indicator sync 小职责，随后转向 VFX bridge 大文件。
+当前主线：BattlePage SVG 美术资产、hero variants、weapon overlay、pickup presentation、arena obstacle skin、arena background/boundary presenter、arena decoration/pickup presenter、projectile/slow-field presenter、remote hero interpolation helper、local hero motion streak helper、hero readability/health/cue presenter、pickup sync helper、prepared skill indicator sync helper 已接入并通过 headless smoke。`arenaBuilder.ts` 已收敛到约 `117` LOC，`worldViewFactory.ts` 已从约 `1312` LOC 降到约 `324` LOC；下一步转向 `battleFeedbackSceneBridge.ts` / `sceneVfxController.ts`，继续把 VFX bridge 中的弹道终端反馈、枪口/命中/爆炸表现和 transient 管理拆成 focused presenter/controller。
 
 扩展性基础第一轮已经覆盖：
 
@@ -648,9 +670,9 @@
 
 ## 下一步计划
 
-1. BattlePage world view factory pickup / indicator 边界整理。
-   预计：1-3 小时。
-   目标：把 indicator sync 从 `worldViewFactory.ts` 拆成 focused helper，不改变技能范围指示、Blink/Freeze 目标合法性或本地/远端手感。
+1. BattlePage VFX bridge 边界整理第一轮。
+   预计：2-5 小时。
+   目标：从 `battleFeedbackSceneBridge.ts` / `sceneVfxController.ts` 中优先拆出 projectile terminal feedback / muzzle-hit feedback 的 focused presenter，不改变枪口、弹道、命中、火箭 AoE 或 transient 回收语义。
 
 2. 主界面视觉重构第二轮。
    预计：0.5-1.5 天。

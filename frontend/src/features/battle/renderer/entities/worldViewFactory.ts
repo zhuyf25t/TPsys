@@ -2,11 +2,6 @@ import Phaser from "phaser";
 import type { GameSnapshot, Hero, PreparedSkill, Vec2 } from "../../../../domain/types";
 import { resolveHeroVisual } from "../../../../game/spawn";
 import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
-import {
-  getPreparedTargetSkillRuntimeProfile,
-  isPreparedTargetSkillKind,
-  type PreparedTargetSkillKind
-} from "../../runtime-local/skills/skillRuntimeProfiles";
 import { recordRemoteHeroViewDiagnostics } from "../remoteViewDiagnostics";
 import {
   createHeroWeaponOverlayView,
@@ -45,6 +40,7 @@ import {
   resolveRemoteHeroDisplayState,
   type RemoteHeroInterpolationBuffer
 } from "./remoteHeroInterpolationView";
+import { syncPreparedSkillIndicatorViews } from "./preparedSkillIndicatorViewSync";
 
 export interface HeroView extends HeroReadabilitySyncView, HeroHealthView {
   localMotionStreaks: LocalHeroMotionStreakView | null;
@@ -341,87 +337,15 @@ export function syncIndicators({
   sharedAuthoritativeRuntime = false,
   localHeroDisplayOverride
 }: WorldViewSyncContext): void {
-  const player = snapshot.heroes.find((hero) => hero.heroId === snapshot.playerHeroId);
-  const preparedSkill = player?.preparedSkill ?? null;
-
-  if (!player || !player.alive || !isPreparedTargetSkillKind(preparedSkill)) {
-    worldViews.rangeIndicator.setVisible(false);
-    worldViews.targetIndicator.setVisible(false);
-    return;
-  }
-
-  const displayPosition = sharedAuthoritativeRuntime ? player.position : localHeroDisplayOverride?.position ?? player.position;
-  const profile = getPreparedTargetSkillRuntimeProfile(preparedSkill);
-  const skill = player.skills.find((entry) => entry.kind === preparedSkill) ?? null;
-  const valid = Boolean(
-    skill &&
-      skill.cooldownMs <= 0 &&
-      isPreparedIndicatorTargetValid(
-        player,
-        preparedSkill,
-        pointerWorld,
-        displayPosition,
-        localHeroDisplayOverride,
-        isBlinkTargetValid,
-        isPreparedTargetValid
-      )
-  );
-  const color = valid ? 0x69ff9f : 0xff6b6b;
-
-  worldViews.rangeIndicator.setVisible(true);
-  worldViews.rangeIndicator.setPosition(displayPosition.x, displayPosition.y);
-  worldViews.rangeIndicator.setRadius(profile.target.range);
-  worldViews.rangeIndicator.setFillStyle(color, 0.05);
-  worldViews.rangeIndicator.setStrokeStyle(2, color, 0.88);
-
-  worldViews.targetIndicator.setVisible(true);
-  worldViews.targetIndicator.setPosition(pointerWorld.x, pointerWorld.y);
-  worldViews.targetIndicator.setRadius(profile.target.indicatorRadius);
-  worldViews.targetIndicator.setFillStyle(color, 0.16);
-  worldViews.targetIndicator.setStrokeStyle(2, color, 0.88);
-}
-
-function isPreparedIndicatorTargetValid(
-  player: Hero,
-  preparedSkill: PreparedTargetSkillKind,
-  target: Vec2,
-  displayPosition: Vec2,
-  localHeroDisplayOverride: LocalHeroDisplayOverride | undefined,
-  isBlinkTargetValid: WorldViewSyncContext["isBlinkTargetValid"],
-  isPreparedTargetValid: WorldViewSyncContext["isPreparedTargetValid"]
-): boolean {
-  if (isPreparedTargetValid) {
-    return isPreparedTargetValid(player, preparedSkill, target);
-  }
-
-  switch (preparedSkill) {
-    case "Blink":
-      return isBlinkIndicatorTargetValid(player, target, localHeroDisplayOverride, isBlinkTargetValid);
-    case "Freeze":
-      return isFreezeIndicatorTargetValid(target, displayPosition);
-  }
-}
-
-function isFreezeIndicatorTargetValid(
-  target: Vec2,
-  displayPosition: Vec2
-): boolean {
-  const profile = getPreparedTargetSkillRuntimeProfile("Freeze");
-  return Phaser.Math.Distance.Between(displayPosition.x, displayPosition.y, target.x, target.y) <= profile.target.range;
-}
-
-function isBlinkIndicatorTargetValid(
-  player: Hero,
-  target: Vec2,
-  localHeroDisplayOverride: LocalHeroDisplayOverride | undefined,
-  isBlinkTargetValid: WorldViewSyncContext["isBlinkTargetValid"]
-): boolean {
-  return isBlinkTargetValid(
+  syncPreparedSkillIndicatorViews({
+    snapshot,
+    worldViews,
+    pointerWorld,
+    isBlinkTargetValid,
+    isPreparedTargetValid,
+    sharedAuthoritativeRuntime,
     localHeroDisplayOverride
-      ? { ...player, position: localHeroDisplayOverride.position, facing: localHeroDisplayOverride.facing }
-      : player,
-    target
-  );
+  });
 }
 
 export function syncWorldViews(context: WorldViewSyncContext): void {

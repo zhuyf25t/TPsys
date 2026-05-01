@@ -1,4 +1,5 @@
 import type { Hero, PlayerCommand, SkillKind, Vec2, WeaponKind, WeaponState } from "../../../../domain/types";
+import { resolveProjectileBirthPosition } from "../../../../game/projectileBirth";
 import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
 import type { SceneGeometryObstacleBounds } from "../../runtime-local/geometry/sceneGeometry";
 import {
@@ -75,7 +76,6 @@ export interface SharedAuthoritativeLocalFeedbackSceneBridgeOptions {
 const PRIMARY_FEEDBACK_MIN_MS = 120;
 const SKILL_REJECT_FEEDBACK_MIN_MS = 160;
 const RELOAD_INTENT_FEEDBACK_MIN_MS = 520;
-const AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE = 4;
 const PISTOL_SHORT_MUZZLE_TRACER: MuzzleFeedbackStyle["tracer"] = {
   length: 22,
   thickness: 2,
@@ -152,7 +152,7 @@ export class SharedAuthoritativeLocalFeedbackSceneBridge {
     const displayPose = this.options.localHeroDisplay.read();
     const targetedSkillRequest = resolveTargetedSkillFeedbackRequest(player, command, primaryPressStarted);
     this.presentReloadIntentFeedback(player, command, displayPose.position);
-    this.presentPrimaryFeedback(player, command, displayPose.position, targetedSkillRequest?.intent === "release");
+    this.presentPrimaryFeedback(player, command, targetedSkillRequest?.intent === "release");
     this.presentSkillFeedback(player, command, displayPose.position, targetedSkillRequest);
   }
 
@@ -178,7 +178,6 @@ export class SharedAuthoritativeLocalFeedbackSceneBridge {
   private presentPrimaryFeedback(
     player: Hero,
     command: PlayerCommand,
-    displayPosition: Vec2,
     suppressForTargetedRelease: boolean
   ): void {
     if (!command.primaryHeld || player.preparedSkill !== null || suppressForTargetedRelease) {
@@ -203,12 +202,13 @@ export class SharedAuthoritativeLocalFeedbackSceneBridge {
 
     const direction = resolveAimDirection(command.aim);
     const style = MUZZLE_FEEDBACK_STYLES[weapon.weaponKind];
-    const muzzleForwardDistance = resolveMuzzleForwardDistance(player, weapon.weaponKind);
-    // Pistol feedback stays display-anchored for immediate feel; its tracer is short/subtle so it does not compete with the authoritative projectile path.
-    const muzzlePosition = {
-      x: displayPosition.x + direction.x * muzzleForwardDistance,
-      y: displayPosition.y + direction.y * muzzleForwardDistance
-    };
+    // Authoritative projectiles render from the server player position, so muzzle feedback uses the same base.
+    const muzzlePosition = resolveProjectileBirthPosition({
+      ownerPosition: player.position,
+      direction,
+      ownerRadius: player.radius,
+      projectileRadius: WEAPON_DEFINITIONS[weapon.weaponKind].projectileRadius
+    });
 
     this.options.createMuzzleBurst(muzzlePosition, style.color, style.radius, style.sparks, direction);
     this.options.createProjectileTracer({
@@ -311,11 +311,6 @@ export class SharedAuthoritativeLocalFeedbackSceneBridge {
 function getPrimaryFeedbackIntervalMs(weaponKind: WeaponKind): number {
   const cooldownMs = WEAPON_DEFINITIONS[weaponKind].cooldownMs;
   return Math.max(PRIMARY_FEEDBACK_MIN_MS, cooldownMs);
-}
-
-function resolveMuzzleForwardDistance(player: Hero, weaponKind: WeaponKind): number {
-  // Mirrors authoritative projectile birth: hero radius + projectile radius + 4px clearance.
-  return player.radius + WEAPON_DEFINITIONS[weaponKind].projectileRadius + AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE;
 }
 
 function canPresentPrimaryFeedback(weapon: WeaponState): boolean {

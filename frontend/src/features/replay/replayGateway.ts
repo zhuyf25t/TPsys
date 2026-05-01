@@ -170,7 +170,7 @@ export async function loadReplayPlaybackById(
     return normalizeReplayPlaybackRatings(localPlayback);
   }
 
-  const remote = await loadReplayPlaybackFromBackend(normalizedId).catch(() => undefined);
+  const remote = await loadReplayPlaybackFromBackend(normalizedId, { ratingHandle: options.ratingHandle }).catch(() => undefined);
   if (remote) {
     const playback = await toReplayPlaybackFromBackend(remote, options);
     if (remote.playbackAvailable && hasMeaningfulReplayFrameList(playback.frames)) {

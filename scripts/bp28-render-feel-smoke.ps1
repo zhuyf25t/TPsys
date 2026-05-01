@@ -5474,7 +5474,7 @@ function Test-HitDisputeReasonExplainsNoDamage {
   param($Reason)
 
   $normalizedReason = ("" + $Reason).Trim().ToLowerInvariant()
-  return @("obstacle", "world", "ttl") -contains $normalizedReason
+  return @("blocked", "obstacle", "world", "ttl") -contains $normalizedReason
 }
 
 function Test-HitDisputeHitDamageObserved {

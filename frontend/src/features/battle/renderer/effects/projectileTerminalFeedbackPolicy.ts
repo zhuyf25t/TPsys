@@ -1,4 +1,5 @@
 import type { Hero, Projectile, Vec2 } from "../../../../domain/types";
+import { resolveProjectileBirthPosition } from "../../../../game/projectileBirth";
 import { WEAPON_DEFINITIONS } from "../../../../game/weapons";
 import type { BattleRuntimeAuthoritativeFrame } from "../authoritativeBattleStateBridge";
 
@@ -116,7 +117,6 @@ const PROJECTILE_TERMINAL_TRACER_GHOST_SCALE: Record<Projectile["kind"], number>
 const PROJECTILE_CORRECTION_TRACER_MIN_DISTANCE = 18;
 const PROJECTILE_CORRECTION_TRACER_MAX_DISTANCE = 140;
 const PROJECTILE_CORRECTION_TRACER_DURATION_MS = 140;
-const AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE = 4;
 const REMOTE_PROJECTILE_BIRTH_FALLBACK_BACKSTEP = 10;
 
 export function createProjectileFeedbackState(
@@ -497,18 +497,17 @@ export function createTerminalDiagnosticProjectileState(
 
 export function resolveRemoteProjectileBirthFeedbackPosition(
   projectile: Projectile,
-  owner?: Hero,
-  ownerDisplayPosition?: Vec2 | null
+  owner?: Hero
 ): Vec2 {
   const direction = resolveProjectileDirection(projectile);
 
   if (owner) {
-    const basePosition = ownerDisplayPosition ?? owner.position;
-    const forwardDistance = owner.radius + projectile.radius + AUTHORITATIVE_PROJECTILE_BIRTH_CLEARANCE;
-    return {
-      x: basePosition.x + direction.x * forwardDistance,
-      y: basePosition.y + direction.y * forwardDistance
-    };
+    return resolveProjectileBirthPosition({
+      ownerPosition: owner.position,
+      direction,
+      ownerRadius: owner.radius,
+      projectileRadius: projectile.radius
+    });
   }
 
   return {

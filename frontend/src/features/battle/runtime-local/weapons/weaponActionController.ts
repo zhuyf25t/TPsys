@@ -1,4 +1,5 @@
 import type { Hero, PlayerCommand, Projectile, Vec2, WeaponState } from "../../../../domain/types";
+import { resolveProjectileBirthPosition } from "../../../../game/projectileBirth";
 import type { WeaponDefinition } from "../../../../game/weapons";
 import { createProjectileSpawn } from "../projectiles/projectileFactory";
 import { requestWeaponReload, resolveWeaponFire, type WeaponBlockReason } from "./weaponController";
@@ -122,10 +123,12 @@ export function resolveWeaponAction(context: WeaponActionContext): WeaponActionP
     x: Math.cos(aimAngle),
     y: Math.sin(aimAngle)
   };
-  const muzzle = {
-    x: context.player.position.x + direction.x * (context.player.radius + 14),
-    y: context.player.position.y + direction.y * (context.player.radius + 14)
-  };
+  const muzzle = resolveProjectileBirthPosition({
+    ownerPosition: context.player.position,
+    direction,
+    ownerRadius: context.player.radius,
+    projectileRadius: context.weaponDefinition.projectileRadius
+  });
   const projectileSpawn = createWeaponProjectiles({
     context,
     runtimeProfile,

@@ -40,6 +40,9 @@ yarn-error.log*
 tmp*.png
 tmp_*.png
 
+# Local Codex verification artifacts
+.codex/*.json
+
 # OS / editor noise
 Thumbs.db
 Desktop.ini

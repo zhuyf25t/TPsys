@@ -185,6 +185,39 @@ function Assert-ReplaySourceMail {
   }
 }
 
+function Assert-ReplaySettlementMatchesResult {
+  param(
+    [object]$Replay,
+    [object]$Result,
+    [string]$OwnerHandle,
+    [string]$Label,
+    [bool]$ExpectHandleField
+  )
+
+  if ($ExpectHandleField) {
+    $missingHandleFields = Test-Fields $Replay @("handle", "displayName")
+    if ($missingHandleFields.Count -gt 0) {
+      throw "$Label replay missing handle fields: $($missingHandleFields -join ', ')."
+    }
+    if ($Replay.handle -ne $OwnerHandle) {
+      throw "$Label replay handle mismatch: handle=$($Replay.handle), expected=$OwnerHandle."
+    }
+  }
+  if ([Int32]$Replay.score -ne [Int32]$Result.score) {
+    throw "$Label replay score mismatch: replay=$($Replay.score), result=$($Result.score), handle=$OwnerHandle."
+  }
+  if ([Int32]$Replay.placement -ne [Int32]$Result.placement) {
+    throw "$Label replay placement mismatch: replay=$($Replay.placement), result=$($Result.placement), handle=$OwnerHandle."
+  }
+  if (
+    $Replay.ratingBefore -ne $Result.ratingBefore -or
+    $Replay.ratingDelta -ne $Result.ratingDelta -or
+    $Replay.ratingAfter -ne $Result.ratingAfter
+  ) {
+    throw "$Label replay rating mismatch for handle=${OwnerHandle}: replay=($($Replay.ratingBefore), $($Replay.ratingDelta), $($Replay.ratingAfter)); result=($($Result.ratingBefore), $($Result.ratingDelta), $($Result.ratingAfter))."
+  }
+}
+
 function Test-Endpoint {
   param(
     [string]$Name,
@@ -200,7 +233,10 @@ function Test-Endpoint {
 }
 
 $RunId = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-$SmokeHandle = "finish-smoke-player-$RunId"
+$RunSuffix = [string]$RunId
+$RunSuffix = $RunSuffix.Substring([Math]::Max(0, $RunSuffix.Length - 8))
+$SmokeHandle = "fs$RunSuffix"
+$SmokePassword = "pass1234"
 
 Write-Host "Authoritative finish/result/replay smoke"
 Write-Host "Base URL: $BaseUrl"
@@ -208,25 +244,47 @@ Write-Host "Note: backend must already be running with a short SLAY_DEMO_AUTHORI
 Write-Host ""
 
 Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating input" {
-  $join = $null
+  $joins = @()
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = $SmokeHandle
-      rating = "1200"
-      skin = "blue"
-    }
-    $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
-    if ($missingJoin.Count -gt 0) {
-      throw "Queue join missing fields: $($missingJoin -join ', ')"
+    $participants = @($SmokeHandle)
+    for ($participantIndex = 2; $participantIndex -le 6; $participantIndex++) {
+      $participants += "fs$RunSuffix$participantIndex"
     }
 
-    $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-    $waitMs = [Math]::Max(0, [Int64]$join.startsAt - $nowMs + 250)
-    if ($waitMs -gt 0) {
-      Start-Sleep -Milliseconds ([Int32][Math]::Min($waitMs, 15000))
+    $sessionsByHandle = @{}
+    foreach ($handle in $participants) {
+      $registration = Invoke-ContractJson "POST" "/identity/register" @{
+        handle = $handle
+        password = $SmokePassword
+        skinId = "blue"
+      }
+      $missingRegistration = Test-Fields $registration @("handle", "session")
+      if ($missingRegistration.Count -gt 0) {
+        throw "Registration missing fields for handle=${handle}: $($missingRegistration -join ', ')"
+      }
+      if ([string]::IsNullOrWhiteSpace([string]$registration.session)) {
+        throw "Registration returned an empty session for handle=$handle."
+      }
+      $sessionsByHandle[$handle] = [string]$registration.session
     }
 
+    foreach ($handle in $participants) {
+      $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
+        handle = $handle
+        sessionToken = $sessionsByHandle[$handle]
+        queueRequestId = "$RunSuffix-$handle"
+        rating = "1200"
+        skin = "blue"
+      }
+      $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
+      if ($missingJoin.Count -gt 0) {
+        throw "Queue join missing fields for handle=${handle}: $($missingJoin -join ', ')"
+      }
+      $joins += $join
+    }
+
+    $join = $joins[0]
     $status = $null
     for ($i = 0; $i -lt 40; $i++) {
       $status = Invoke-ContractJson "GET" "/battle/queue/status?ticketId=$([uri]::EscapeDataString($join.ticketId))"
@@ -300,6 +358,21 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
       }
     }
 
+    $secondaryHandle = $participants[1]
+    $secondaryResult = @(
+      $results |
+        Where-Object { $_.battleId -ceq $battleId -and $_.handle -ceq $secondaryHandle } |
+        Select-Object -First 1
+    )
+    if ($secondaryResult.Count -lt 1) {
+      $resultHandles = @($results | ForEach-Object { $_.handle })
+      throw "No secondary result for handle=$secondaryHandle in battleId=$battleId. Returned handles=$($resultHandles -join ', ')."
+    }
+    $invalidSecondaryRatingFields = Test-NumberOrNullFields $secondaryResult[0] @("ratingBefore", "ratingDelta", "ratingAfter")
+    if ($invalidSecondaryRatingFields.Count -gt 0) {
+      throw "Secondary result rating fields must be number/null values: $($invalidSecondaryRatingFields -join ', ')."
+    }
+
     $handleResultsPayload = Invoke-ContractJson "GET" "/battle/results?handle=$([uri]::EscapeDataString($SmokeHandle))&limit=10"
     $handleResults = Test-ArrayEnvelope $handleResultsPayload "results"
     $handleResult = @(
@@ -323,7 +396,7 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
       throw "Handle-filtered result rating mismatch for resultId=$($currentResult.resultId)."
     }
 
-    $replayPayload = Invoke-ContractJson "GET" "/replay/catalog/$([uri]::EscapeDataString($battleId))"
+    $replayPayload = Invoke-ContractJson "GET" "/replay/catalog/$([uri]::EscapeDataString($battleId))?handle=$([uri]::EscapeDataString($SmokeHandle))"
     if (-not (Test-HasField $replayPayload "replay") -or $null -eq $replayPayload.replay) {
       throw "Replay catalog did not return replay for battleId=$battleId."
     }
@@ -355,6 +428,21 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
     ) {
       throw "Replay rating mismatch: replay=($($replay.ratingBefore), $($replay.ratingDelta), $($replay.ratingAfter)); currentResult=($($currentResult.ratingBefore), $($currentResult.ratingDelta), $($currentResult.ratingAfter))."
     }
+    Assert-ReplaySettlementMatchesResult $replay $currentResult $SmokeHandle "Primary replay detail" $true
+
+    $secondaryReplayPayload = Invoke-ContractJson "GET" "/replay/catalog/$([uri]::EscapeDataString($battleId))?handle=$([uri]::EscapeDataString($secondaryHandle))"
+    if (-not (Test-HasField $secondaryReplayPayload "replay") -or $null -eq $secondaryReplayPayload.replay) {
+      throw "Secondary replay catalog did not return replay for battleId=$battleId."
+    }
+    $secondaryReplay = $secondaryReplayPayload.replay
+    $missingSecondaryReplay = Test-Fields $secondaryReplay @("replayId", "battleId", "handle", "score", "placement", "ratingBefore", "ratingDelta", "ratingAfter")
+    if ($missingSecondaryReplay.Count -gt 0) {
+      throw "Secondary replay missing fields: $($missingSecondaryReplay -join ', ')"
+    }
+    if ($secondaryReplay.battleId -ne $battleId -or $secondaryReplay.replayId -ne $battleId) {
+      throw "Secondary replay identity mismatch: battleId=$($secondaryReplay.battleId), replayId=$($secondaryReplay.replayId), expected=$battleId."
+    }
+    Assert-ReplaySettlementMatchesResult $secondaryReplay $secondaryResult[0] $secondaryHandle "Secondary replay detail" $true
 
     $replayCatalogPayload = Invoke-ContractJson "GET" "/replay/catalog?limit=10"
     $replayCatalog = Test-ArrayEnvelope $replayCatalogPayload "replays"
@@ -378,6 +466,19 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
     ) {
       throw "Replay catalog item rating mismatch for replayId=$battleId."
     }
+
+    $secondaryReplayCatalogPayload = Invoke-ContractJson "GET" "/replay/catalog?limit=10&handle=$([uri]::EscapeDataString($secondaryHandle))"
+    $secondaryReplayCatalog = Test-ArrayEnvelope $secondaryReplayCatalogPayload "replays"
+    $secondaryCatalogReplay = @($secondaryReplayCatalog | Where-Object { $_.replayId -ceq $battleId -and $_.battleId -ceq $battleId } | Select-Object -First 1)
+    if ($secondaryCatalogReplay.Count -lt 1) {
+      $catalogReplayIds = @($secondaryReplayCatalog | ForEach-Object { $_.replayId })
+      throw "Secondary replay catalog list did not include replayId=$battleId. Returned replay ids=$($catalogReplayIds -join ', ')."
+    }
+    $missingSecondaryCatalogReplay = Test-Fields $secondaryCatalogReplay[0] @("replayId", "battleId", "score", "placement", "ratingBefore", "ratingDelta", "ratingAfter")
+    if ($missingSecondaryCatalogReplay.Count -gt 0) {
+      throw "Secondary replay catalog item missing fields: $($missingSecondaryCatalogReplay -join ', ')."
+    }
+    Assert-ReplaySettlementMatchesResult $secondaryCatalogReplay[0] $secondaryResult[0] $secondaryHandle "Secondary replay catalog item" $false
 
     $frameArrayCount = if ($null -eq $replay.frames) {
       0
@@ -430,10 +531,12 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
       $ratingMailChecked = "present"
     }
 
-    "battleId=$battleId; resultId=$($currentResult.resultId); resultCount=$($relatedResults.Count); handleResultCount=$($handleResults.Count); score=$($currentResult.score); replayScore=$($replay.score); frames=$frameArrayCount; frameCount=$frameCount; playbackAvailable=$($replay.playbackAvailable); catalogRating=$($catalogReplay[0].ratingDelta); mails=$($mails.Count); battleMail=$battleMailId; ratingDelta=$($currentResult.ratingDelta); ratingMail=$ratingMailChecked"
+    "battleId=$battleId; resultId=$($currentResult.resultId); resultCount=$($relatedResults.Count); handleResultCount=$($handleResults.Count); score=$($currentResult.score); replayScore=$($replay.score); secondaryHandle=$secondaryHandle; secondaryReplayScore=$($secondaryReplay.score); frames=$frameArrayCount; frameCount=$frameCount; playbackAvailable=$($replay.playbackAvailable); catalogRating=$($catalogReplay[0].ratingDelta); secondaryCatalogRating=$($secondaryCatalogReplay[0].ratingDelta); mails=$($mails.Count); battleMail=$battleMailId; ratingDelta=$($currentResult.ratingDelta); ratingMail=$ratingMailChecked"
   } finally {
-    if ($null -ne $join -and (Test-HasField $join "ticketId")) {
-      try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $join.ticketId } | Out-Null } catch {}
+    foreach ($queuedJoin in @($joins)) {
+      if ($null -ne $queuedJoin -and (Test-HasField $queuedJoin "ticketId")) {
+        try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $queuedJoin.ticketId } | Out-Null } catch {}
+      }
     }
   }
 }

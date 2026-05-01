@@ -45,6 +45,67 @@ function Invoke-ContractJson {
   }
 }
 
+function Invoke-ContractJsonExpectError {
+  param(
+    [string]$Method,
+    [string]$Path,
+    [object]$Body = $null
+  )
+
+  $uri = "$BaseUrl$Path"
+  $parameters = @{
+    Method = $Method
+    Uri = $uri
+    Headers = @{ "Accept" = "application/json" }
+    TimeoutSec = 8
+  }
+
+  if ($null -ne $Body) {
+    $parameters.ContentType = "application/json"
+    $parameters.Body = ($Body | ConvertTo-Json -Depth 8 -Compress)
+  }
+
+  try {
+    Invoke-RestMethod @parameters | Out-Null
+    throw "Expected request to fail: $Method $uri"
+  } catch {
+    $response = $_.Exception.Response
+    if ($null -eq $response) {
+      throw
+    }
+
+    $statusCode = [int]$response.StatusCode
+    $payload = $null
+
+    try {
+      $bodyText = $_.ErrorDetails.Message
+      if ($null -ne $response.Content) {
+        $contentText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        if (-not [string]::IsNullOrWhiteSpace($contentText)) {
+          $bodyText = $contentText
+        }
+      } elseif ([string]::IsNullOrWhiteSpace($bodyText) -and $response.PSObject.Methods.Name -contains "GetResponseStream") {
+        $stream = $response.GetResponseStream()
+        if ($null -ne $stream) {
+          $reader = New-Object System.IO.StreamReader($stream)
+          $bodyText = $reader.ReadToEnd()
+        }
+      }
+
+      if (-not [string]::IsNullOrWhiteSpace($bodyText)) {
+        $payload = $bodyText | ConvertFrom-Json
+      }
+    } catch {
+      $payload = $null
+    }
+
+    return [pscustomobject]@{
+      StatusCode = $statusCode
+      Payload = $payload
+    }
+  }
+}
+
 function Test-HasField {
   param(
     [object]$Value,
@@ -150,39 +211,149 @@ function Test-PlayerPistolWeaponSync {
     throw "$Context weapons field is not an array."
   }
   $weapons = @($Player.weapons | ForEach-Object { $_ })
-  if ($weapons.Count -ne 1) {
-    throw "$Context expected exactly one server weapon, got $($weapons.Count)."
+  if ($weapons.Count -lt 1) {
+    throw "$Context expected at least one server weapon."
   }
 
-  $weapon = $weapons[0]
+  $missingPlayerWeaponFields = Test-Fields $Player @("currentWeaponIndex", "currentWeaponKind", "ammoInMagazine", "magazineSize", "reserveAmmo", "fireCooldownMs", "reloadRemainingMs")
+  if ($missingPlayerWeaponFields.Count -gt 0) {
+    throw "$Context player missing current weapon fields: $($missingPlayerWeaponFields -join ', ')"
+  }
+
+  $currentWeaponIndex = [int]$Player.currentWeaponIndex
+  if ($currentWeaponIndex -lt 0 -or $currentWeaponIndex -ge $weapons.Count) {
+    throw "$Context currentWeaponIndex out of range: index=$currentWeaponIndex, weapons=$($weapons.Count)."
+  }
+
+  $currentWeapon = $weapons[$currentWeaponIndex]
+  $missingCurrentWeaponFields = Test-Fields $currentWeapon @("weaponKind", "ammoInMagazine", "magazineSize", "reserveAmmo", "fireCooldownMs", "reloadRemainingMs")
+  if ($missingCurrentWeaponFields.Count -gt 0) {
+    throw "$Context current weapon missing fields: $($missingCurrentWeaponFields -join ', ')"
+  }
+  if (
+    $currentWeapon.weaponKind -ne $Player.currentWeaponKind -or
+    $currentWeapon.ammoInMagazine -ne $Player.ammoInMagazine -or
+    $currentWeapon.magazineSize -ne $Player.magazineSize -or
+    $currentWeapon.reserveAmmo -ne $Player.reserveAmmo -or
+    $currentWeapon.fireCooldownMs -ne $Player.fireCooldownMs -or
+    $currentWeapon.reloadRemainingMs -ne $Player.reloadRemainingMs
+  ) {
+    throw "$Context current weapon/scalar mismatch: weapon[$currentWeaponIndex]=$($currentWeapon.weaponKind) $($currentWeapon.ammoInMagazine)/$($currentWeapon.magazineSize)/$($currentWeapon.reserveAmmo) cooldown=$($currentWeapon.fireCooldownMs) reload=$($currentWeapon.reloadRemainingMs); scalar=$($Player.currentWeaponKind) $($Player.ammoInMagazine)/$($Player.magazineSize)/$($Player.reserveAmmo) cooldown=$($Player.fireCooldownMs) reload=$($Player.reloadRemainingMs)"
+  }
+
+  $pistol = @($weapons | Where-Object { $_.weaponKind -ceq "Pistol" } | Select-Object -First 1)
+  if ($pistol.Count -lt 1) {
+    throw "$Context expected a Pistol weapon in inventory, got $($weapons.Count) weapons."
+  }
+
+  $weapon = $pistol[0]
   $missingWeaponFields = Test-Fields $weapon @("weaponKind", "ammoInMagazine", "magazineSize", "reserveAmmo", "fireCooldownMs", "reloadRemainingMs")
   if ($missingWeaponFields.Count -gt 0) {
-    throw "$Context weapon missing fields: $($missingWeaponFields -join ', ')"
+    throw "$Context pistol weapon missing fields: $($missingWeaponFields -join ', ')"
   }
 
   if ($weapon.weaponKind -ne "Pistol") {
-    throw "$Context expected weapon[0] Pistol, got $($weapon.weaponKind)."
-  }
-  if (
-    $weapon.weaponKind -ne $Player.currentWeaponKind -or
-    $weapon.ammoInMagazine -ne $Player.ammoInMagazine -or
-    $weapon.magazineSize -ne $Player.magazineSize -or
-    $weapon.reserveAmmo -ne $Player.reserveAmmo -or
-    $weapon.fireCooldownMs -ne $Player.fireCooldownMs -or
-    $weapon.reloadRemainingMs -ne $Player.reloadRemainingMs
-  ) {
-    throw "$Context weapon/scalar mismatch: weapon=$($weapon.weaponKind) $($weapon.ammoInMagazine)/$($weapon.magazineSize)/$($weapon.reserveAmmo) cooldown=$($weapon.fireCooldownMs) reload=$($weapon.reloadRemainingMs); scalar=$($Player.currentWeaponKind) $($Player.ammoInMagazine)/$($Player.magazineSize)/$($Player.reserveAmmo) cooldown=$($Player.fireCooldownMs) reload=$($Player.reloadRemainingMs)"
+    throw "$Context expected Pistol weapon, got $($weapon.weaponKind)."
   }
 
   if ($ExpectedAmmoInMagazine -ge 0 -and $weapon.ammoInMagazine -ne $ExpectedAmmoInMagazine) {
-    throw "$Context expected weapon[0].ammoInMagazine=$ExpectedAmmoInMagazine, got $($weapon.ammoInMagazine)."
+    throw "$Context expected pistol.ammoInMagazine=$ExpectedAmmoInMagazine, got $($weapon.ammoInMagazine)."
   }
   if ($ExpectedReserveAmmo -ge 0 -and $weapon.reserveAmmo -ne $ExpectedReserveAmmo) {
-    throw "$Context expected weapon[0].reserveAmmo=$ExpectedReserveAmmo, got $($weapon.reserveAmmo)."
+    throw "$Context expected pistol.reserveAmmo=$ExpectedReserveAmmo, got $($weapon.reserveAmmo)."
   }
   if ($ExpectedReloadRemainingMs -ge 0 -and $weapon.reloadRemainingMs -ne $ExpectedReloadRemainingMs) {
-    throw "$Context expected weapon[0].reloadRemainingMs=$ExpectedReloadRemainingMs, got $($weapon.reloadRemainingMs)."
+    throw "$Context expected pistol.reloadRemainingMs=$ExpectedReloadRemainingMs, got $($weapon.reloadRemainingMs)."
   }
+}
+
+function New-BattleSmokeHandle {
+  param(
+    [string]$Label
+  )
+
+  $Script:BattleHandleCounter += 1
+  $safeLabel = ([string]$Label).ToLowerInvariant() -replace "[^a-z0-9_-]", ""
+  if ([string]::IsNullOrWhiteSpace($safeLabel)) {
+    $safeLabel = "p"
+  }
+
+  $prefix = "c$Script:BattleRunSuffix$($Script:BattleHandleCounter.ToString("00"))"
+  $maxLabelLength = [Math]::Max(0, 16 - $prefix.Length)
+  if ($safeLabel.Length -gt $maxLabelLength) {
+    $safeLabel = $safeLabel.Substring(0, $maxLabelLength)
+  }
+
+  return "$prefix$safeLabel"
+}
+
+function Get-SmokeSessionToken {
+  param(
+    [string]$Handle
+  )
+
+  if ($Script:RegisteredSmokeSessions.ContainsKey($Handle)) {
+    return $Script:RegisteredSmokeSessions[$Handle]
+  }
+
+  $registration = Invoke-ContractJson "POST" "/identity/register" @{
+    handle = $Handle
+    password = $Script:SmokePassword
+    skinId = "blue"
+  }
+  $missingRegistration = Test-Fields $registration @("handle", "session")
+  if ($missingRegistration.Count -gt 0) {
+    throw "Battle smoke identity registration missing fields for handle=${Handle}: $($missingRegistration -join ', ')"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$registration.session)) {
+    throw "Battle smoke identity registration returned an empty session for handle=$Handle."
+  }
+
+  $Script:RegisteredSmokeSessions[$Handle] = [string]$registration.session
+  return $Script:RegisteredSmokeSessions[$Handle]
+}
+
+function Join-AuthenticatedBattleQueue {
+  param(
+    [string]$Handle,
+    [string]$Rating = "1200",
+    [string]$Skin = "blue",
+    [string]$QueueRequestId = ""
+  )
+
+  $body = @{
+    handle = $Handle
+    sessionToken = Get-SmokeSessionToken $Handle
+    rating = $Rating
+    skin = $Skin
+  }
+  if (-not [string]::IsNullOrWhiteSpace($QueueRequestId)) {
+    $body.queueRequestId = $QueueRequestId
+  }
+
+  Invoke-ContractJson "POST" "/battle/queue/join" $body
+}
+
+function Add-AuthenticatedBattlePeers {
+  param(
+    [object]$PrimaryJoin,
+    [string]$Label,
+    [int]$Count,
+    [string]$Rating = "1200",
+    [string]$Skin = "blue"
+  )
+
+  $joins = @()
+  for ($peerIndex = 1; $peerIndex -le $Count; $peerIndex++) {
+    $peerHandle = New-BattleSmokeHandle "$Label$peerIndex"
+    $peerJoin = Join-AuthenticatedBattleQueue -Handle $peerHandle -Rating $Rating -Skin $Skin -QueueRequestId "contract-$peerHandle"
+    if ($null -ne $PrimaryJoin -and (Test-HasField $PrimaryJoin "roomId") -and $peerJoin.roomId -ne $PrimaryJoin.roomId) {
+      throw "Authenticated battle peer joined a different room: primary=$($PrimaryJoin.roomId), peer=$($peerJoin.roomId), handle=$peerHandle."
+    }
+    $joins += $peerJoin
+  }
+
+  return ,$joins
 }
 
 function Test-Endpoint {
@@ -200,6 +371,11 @@ function Test-Endpoint {
 }
 
 $RunId = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$Script:BattleRunSuffix = [string]$RunId
+$Script:BattleRunSuffix = $Script:BattleRunSuffix.Substring([Math]::Max(0, $Script:BattleRunSuffix.Length - 7))
+$Script:BattleHandleCounter = 0
+$Script:SmokePassword = "pass1234"
+$Script:RegisteredSmokeSessions = @{}
 $SmokeSource = "contract-smoke-source-$RunId"
 $SmokeTarget = "contract-smoke-target-$RunId"
 $SmokePlayer = "contract-smoke-player-$RunId"
@@ -720,22 +896,19 @@ Test-Endpoint "GET/POST /replay/catalog/:replayId/comments" {
 
 Test-Endpoint "GET /battle/state/stream SSE state frame" {
   $join = $null
+  $extraJoins = @()
   $client = $null
   $response = $null
   $stream = $null
   $reader = $null
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = "$SmokePlayer-sse"
-      rating = "1200"
-      skin = "blue"
-    }
+    $sseHandle = New-BattleSmokeHandle "sse"
+    $join = Join-AuthenticatedBattleQueue -Handle $sseHandle -Rating "1200" -Skin "blue" -QueueRequestId "contract-$sseHandle"
     $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
     if ($missingJoin.Count -gt 0) {
       throw "SSE state smoke queue join missing fields: $($missingJoin -join ', ')"
     }
-
     $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     $waitMs = [Math]::Max(0, [Int64]$join.startsAt - $nowMs + 250)
     if ($waitMs -gt 0) {
@@ -777,10 +950,10 @@ Test-Endpoint "GET /battle/state/stream SSE state frame" {
     $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
     $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8)
 
-    $sawStateEvent = $false
-    $dataLine = $null
+    $statePayloads = @()
+    $stateEventPending = $false
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(5)
-    for ($lineIndex = 0; $lineIndex -lt 24 -and [DateTimeOffset]::UtcNow -lt $deadline; $lineIndex++) {
+    for ($lineIndex = 0; $lineIndex -lt 96 -and [DateTimeOffset]::UtcNow -lt $deadline; $lineIndex++) {
       $readTask = $reader.ReadLineAsync()
       $remainingMs = [Math]::Max(1, [int]($deadline - [DateTimeOffset]::UtcNow).TotalMilliseconds)
       if (-not $readTask.Wait($remainingMs)) {
@@ -792,37 +965,39 @@ Test-Endpoint "GET /battle/state/stream SSE state frame" {
         break
       }
       if ($line -eq "event: state") {
-        $sawStateEvent = $true
+        $stateEventPending = $true
       } elseif ($line.StartsWith("data:")) {
         $dataLine = $line.Substring(5).TrimStart()
+        if ($stateEventPending -and -not [string]::IsNullOrWhiteSpace($dataLine)) {
+          $payload = $dataLine | ConvertFrom-Json
+          if ($payload.battleId -ne $battleId) {
+            throw "SSE state payload battleId mismatch: expected=$battleId actual=$($payload.battleId)"
+          }
+          if (-not (Test-HasField $payload "tick") -or -not (Test-NumberOrNull $payload.tick) -or $null -eq $payload.tick) {
+            $actualTick = if (Test-HasField $payload "tick") { $payload.tick } else { "<missing>" }
+            throw "SSE state payload tick must be a number, got $actualTick."
+          }
+          $statePayloads += $payload
+          $stateEventPending = $false
+          if ($statePayloads.Count -ge 2) {
+            break
+          }
+        }
       }
-
-      if ($sawStateEvent -and -not [string]::IsNullOrWhiteSpace($dataLine)) {
-        break
-      }
     }
 
-    if (-not $sawStateEvent) {
-      throw "SSE state stream did not emit event: state within timeout."
-    }
-    if ([string]::IsNullOrWhiteSpace($dataLine)) {
-      throw "SSE state stream did not emit data payload within timeout."
+    if ($statePayloads.Count -lt 2) {
+      throw "SSE state stream must emit at least two state payloads; got $($statePayloads.Count)."
     }
 
-    $statePayload = $dataLine | ConvertFrom-Json
-    if ($statePayload.battleId -ne $battleId) {
-      throw "SSE state payload battleId mismatch: expected=$battleId actual=$($statePayload.battleId)"
-    }
-    $players = Test-ArrayEnvelope $statePayload "players"
+    $firstStatePayload = $statePayloads[0]
+    $secondStatePayload = $statePayloads[1]
+    $players = Test-ArrayEnvelope $firstStatePayload "players"
     if ($players.Count -lt 1) {
       throw "SSE state payload expected at least one player."
     }
-    if (-not (Test-HasField $statePayload "tick") -or -not (Test-NumberOrNull $statePayload.tick) -or $null -eq $statePayload.tick) {
-      $actualTick = if (Test-HasField $statePayload "tick") { $statePayload.tick } else { "<missing>" }
-      throw "SSE state payload tick must be a number, got $actualTick."
-    }
 
-    "battleId=$battleId; players=$($players.Count); tick=$($statePayload.tick); contentType=$($contentType.MediaType)"
+    "battleId=$battleId; players=$($players.Count); ticks=$($firstStatePayload.tick),$($secondStatePayload.tick); contentType=$($contentType.MediaType)"
   } finally {
     if ($null -ne $reader) {
       $reader.Dispose()
@@ -835,6 +1010,11 @@ Test-Endpoint "GET /battle/state/stream SSE state frame" {
     if ($null -ne $client) {
       $client.Dispose()
     }
+    foreach ($extraJoin in $extraJoins) {
+      if ($null -ne $extraJoin -and (Test-HasField $extraJoin "ticketId")) {
+        try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $extraJoin.ticketId } | Out-Null } catch {}
+      }
+    }
     if ($null -ne $join -and (Test-HasField $join "ticketId")) {
       try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $join.ticketId } | Out-Null } catch {}
     }
@@ -846,28 +1026,31 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
   $extraJoins = @()
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = "$SmokePlayer-ammo"
-      rating = "1210"
-      skin = "blue"
+    $ammoHandle = New-BattleSmokeHandle "ammo"
+    $ammoPeerHandles = @()
+    for ($extraSeat = 1; $extraSeat -le 5; $extraSeat++) {
+      $ammoPeerHandles += New-BattleSmokeHandle "ammo$extraSeat"
     }
+    Get-SmokeSessionToken $ammoHandle | Out-Null
+    foreach ($peerHandle in $ammoPeerHandles) {
+      Get-SmokeSessionToken $peerHandle | Out-Null
+    }
+
+    $join = Join-AuthenticatedBattleQueue -Handle $ammoHandle -Rating "1210" -Skin "blue" -QueueRequestId "contract-$ammoHandle"
     $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
     if ($missingJoin.Count -gt 0) {
       throw "Ammo smoke queue join missing fields: $($missingJoin -join ', ')"
     }
 
-    for ($extraSeat = 1; $extraSeat -le 5; $extraSeat++) {
-      $extraJoin = Invoke-ContractJson "POST" "/battle/queue/join" @{
-        handle = "$SmokePlayer-ammo-peer-$extraSeat"
-        rating = "1210"
-        skin = "blue"
-      }
+    for ($extraSeat = 0; $extraSeat -lt $ammoPeerHandles.Count; $extraSeat++) {
+      $peerHandle = $ammoPeerHandles[$extraSeat]
+      $extraJoin = Join-AuthenticatedBattleQueue -Handle $peerHandle -Rating "1210" -Skin "blue" -QueueRequestId "contract-$peerHandle"
       $missingExtraJoin = Test-Fields $extraJoin @("ticketId", "playerId", "roomId", "startsAt")
       if ($missingExtraJoin.Count -gt 0) {
-        throw "Ammo smoke extra queue join $extraSeat missing fields: $($missingExtraJoin -join ', ')"
+        throw "Ammo smoke extra queue join $($extraSeat + 1) missing fields: $($missingExtraJoin -join ', ')"
       }
       if ($extraJoin.roomId -ne $join.roomId) {
-        throw "Ammo smoke extra queue join $extraSeat landed in different room: primary=$($join.roomId), extra=$($extraJoin.roomId)"
+        throw "Ammo smoke extra queue join $($extraSeat + 1) landed in different room: primary=$($join.roomId), extra=$($extraJoin.roomId)"
       }
       $extraJoins += $extraJoin
     }
@@ -1276,19 +1459,47 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
     if ($afterWeaponSwitchPlayer.Count -lt 1) {
       throw "Weapon switch smoke player disappeared after switch command."
     }
+    if ($afterWeaponSwitchPlayer[0].currentWeaponIndex -ne 1 -or $afterWeaponSwitchPlayer[0].currentWeaponKind -ne "Gatling") {
+      throw "Weapon switch smoke expected spawn Gatling after switch: index=$($afterWeaponSwitchPlayer[0].currentWeaponIndex), kind=$($afterWeaponSwitchPlayer[0].currentWeaponKind)"
+    }
+    Test-PlayerPistolWeaponSync $afterWeaponSwitchPlayer[0] "Weapon switch smoke Gatling state"
+
+    Invoke-ContractJson "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $join.playerId
+      ticketId = $join.ticketId
+      clientTick = 1
+      movement = @{ x = 0; y = 0 }
+      aim = @{ x = 0; y = -1 }
+      primaryHeld = $false
+      reloadPressed = $false
+      castDash = $false
+      switchWeaponDirection = 0
+      switchWeaponIndex = 0
+    } | Out-Null
+
+    $afterWeaponSwitch = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+    $afterWeaponSwitchPlayer = @($afterWeaponSwitch.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
+    if ($afterWeaponSwitchPlayer.Count -lt 1) {
+      throw "Weapon switch smoke player disappeared after switching back to pistol."
+    }
     if ($afterWeaponSwitchPlayer[0].currentWeaponIndex -ne 0 -or $afterWeaponSwitchPlayer[0].currentWeaponKind -ne "Pistol") {
-      throw "Weapon switch smoke fixed pistol drifted: index=$($afterWeaponSwitchPlayer[0].currentWeaponIndex), kind=$($afterWeaponSwitchPlayer[0].currentWeaponKind)"
+      throw "Weapon switch smoke expected Pistol after explicit switch back: index=$($afterWeaponSwitchPlayer[0].currentWeaponIndex), kind=$($afterWeaponSwitchPlayer[0].currentWeaponKind)"
     }
     Test-PlayerPistolWeaponSync $afterWeaponSwitchPlayer[0] "Weapon switch smoke pistol state"
 
     $initialPickups = Test-ArrayEnvelope $state "pickups"
     $initialMedkit = @($initialPickups | Where-Object { $_.pickupId -ceq "pickup-medkit-1" } | Select-Object -First 1)
-    $initialWeaponPickup = @($initialPickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
+    $initialRocketPickup = @($initialPickups | Where-Object { $_.pickupId -ceq "pickup-rocket-1" } | Select-Object -First 1)
+    $initialSpawnWeaponPickup = @($initialPickups | Where-Object { $_.pickupId -ceq "pickup-gatling-1" } | Select-Object -First 1)
     if ($initialMedkit.Count -lt 1) {
       throw "Medkit smoke initial state did not include pickup-medkit-1."
     }
-    if ($initialWeaponPickup.Count -lt 1) {
-      throw "Weapon pickup smoke initial state did not include pickup-pistol-cache-1."
+    if ($initialRocketPickup.Count -lt 1) {
+      throw "Weapon pickup smoke initial state did not include pickup-rocket-1."
+    }
+    if ($initialSpawnWeaponPickup.Count -lt 1) {
+      throw "Weapon pickup smoke initial state did not include pickup-gatling-1."
     }
     $missingMedkitFields = Test-Fields $initialMedkit[0] @("pickupId", "kind", "position", "available", "respawnMs")
     if ($missingMedkitFields.Count -gt 0) {
@@ -1305,19 +1516,31 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       throw "Medkit smoke pickup unexpectedly included weaponKind=$($initialMedkit[0].weaponKind)"
     }
 
-    $missingWeaponPickupFields = Test-Fields $initialWeaponPickup[0] @("pickupId", "kind", "weaponKind", "position", "available", "respawnMs")
+    $missingWeaponPickupFields = Test-Fields $initialRocketPickup[0] @("pickupId", "kind", "weaponKind", "position", "available", "respawnMs")
     if ($missingWeaponPickupFields.Count -gt 0) {
       throw "Weapon pickup smoke missing fields: $($missingWeaponPickupFields -join ', ')"
     }
-    $missingWeaponPickupPositionFields = Test-Fields $initialWeaponPickup[0].position @("x", "y")
+    $missingWeaponPickupPositionFields = Test-Fields $initialRocketPickup[0].position @("x", "y")
     if ($missingWeaponPickupPositionFields.Count -gt 0) {
       throw "Weapon pickup smoke position missing fields: $($missingWeaponPickupPositionFields -join ', ')"
     }
-    if ($initialWeaponPickup[0].kind -ne "Weapon" -or $initialWeaponPickup[0].weaponKind -ne "Pistol" -or $initialWeaponPickup[0].available -ne $true -or $initialWeaponPickup[0].respawnMs -ne 0) {
-      throw "Weapon pickup smoke initial state mismatch: kind=$($initialWeaponPickup[0].kind), weaponKind=$($initialWeaponPickup[0].weaponKind), available=$($initialWeaponPickup[0].available), respawnMs=$($initialWeaponPickup[0].respawnMs)"
+    if ($initialRocketPickup[0].kind -ne "Weapon" -or $initialRocketPickup[0].weaponKind -ne "RocketLauncher" -or $initialRocketPickup[0].available -ne $true -or $initialRocketPickup[0].respawnMs -ne 0) {
+      throw "Weapon pickup smoke initial Rocket state mismatch: kind=$($initialRocketPickup[0].kind), weaponKind=$($initialRocketPickup[0].weaponKind), available=$($initialRocketPickup[0].available), respawnMs=$($initialRocketPickup[0].respawnMs)"
     }
-    if ($initialWeaponPickup[0].position.x -ne 1280 -or $initialWeaponPickup[0].position.y -ne 256) {
-      throw "Weapon pickup smoke position mismatch: x=$($initialWeaponPickup[0].position.x), y=$($initialWeaponPickup[0].position.y)"
+    if ($initialRocketPickup[0].position.x -ne 1280 -or $initialRocketPickup[0].position.y -ne 256) {
+      throw "Weapon pickup smoke Rocket position mismatch: x=$($initialRocketPickup[0].position.x), y=$($initialRocketPickup[0].position.y)"
+    }
+    if ($initialSpawnWeaponPickup[0].kind -ne "Weapon" -or $initialSpawnWeaponPickup[0].weaponKind -ne "Gatling" -or $initialSpawnWeaponPickup[0].available -ne $false -or $initialSpawnWeaponPickup[0].respawnMs -le 0 -or $initialSpawnWeaponPickup[0].respawnMs -gt 10000) {
+      throw "Weapon pickup smoke spawn Gatling was not consumed on spawn: kind=$($initialSpawnWeaponPickup[0].kind), weaponKind=$($initialSpawnWeaponPickup[0].weaponKind), available=$($initialSpawnWeaponPickup[0].available), respawnMs=$($initialSpawnWeaponPickup[0].respawnMs)"
+    }
+
+    $initialWeapons = Test-ArrayEnvelope $player[0] "weapons"
+    $initialGatlingWeapon = @($initialWeapons | Where-Object { $_.weaponKind -ceq "Gatling" } | Select-Object -First 1)
+    if ($initialGatlingWeapon.Count -lt 1) {
+      throw "Weapon pickup smoke did not add spawn Gatling to player inventory."
+    }
+    if ($initialGatlingWeapon[0].ammoInMagazine -ne 0 -or $initialGatlingWeapon[0].magazineSize -ne 0 -or $initialGatlingWeapon[0].reserveAmmo -ne 0) {
+      throw "Weapon pickup smoke Gatling state mismatch: ammo=$($initialGatlingWeapon[0].ammoInMagazine), mag=$($initialGatlingWeapon[0].magazineSize), reserve=$($initialGatlingWeapon[0].reserveAmmo)"
     }
 
     $beforeAmmoShot = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
@@ -1475,6 +1698,96 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       }
     }
 
+    if ($afterReloadPlayer[0].ammoInMagazine -ne 12 -or $afterReloadPlayer[0].reloadRemainingMs -ne 0) {
+      throw "Ammo smoke auto reload setup expected full ready pistol, got ammo=$($afterReloadPlayer[0].ammoInMagazine), reload=$($afterReloadPlayer[0].reloadRemainingMs)"
+    }
+    $autoReloadStartReserve = [int]$afterReloadPlayer[0].reserveAmmo
+    if ($autoReloadStartReserve -lt 12) {
+      throw "Ammo smoke auto reload setup expected at least 12 reserve rounds, got reserve=$autoReloadStartReserve"
+    }
+
+    $autoShotPlayer = $afterReloadPlayer
+    for ($autoShot = 1; $autoShot -le 12; $autoShot++) {
+      Invoke-ContractJson "POST" "/battle/commands" @{
+        battleId = $battleId
+        playerId = $join.playerId
+        ticketId = $join.ticketId
+        clientTick = 5000 + ($autoShot * 2)
+        movement = @{ x = 0; y = 0 }
+        aim = @{ x = 0; y = -1 }
+        primaryHeld = $true
+        reloadPressed = $false
+        castDash = $false
+        castBlink = $false
+        castFreeze = $false
+        switchWeaponDirection = 0
+      } | Out-Null
+      Start-Sleep -Milliseconds 90
+      Invoke-ContractJson "POST" "/battle/commands" @{
+        battleId = $battleId
+        playerId = $join.playerId
+        ticketId = $join.ticketId
+        clientTick = 5001 + ($autoShot * 2)
+        movement = @{ x = 0; y = 0 }
+        aim = @{ x = 0; y = -1 }
+        primaryHeld = $false
+        reloadPressed = $false
+        castDash = $false
+        castBlink = $false
+        castFreeze = $false
+        switchWeaponDirection = 0
+      } | Out-Null
+      Start-Sleep -Milliseconds 80
+
+      $autoShotState = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+      $autoShotPlayer = @($autoShotState.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
+      if ($autoShotPlayer.Count -lt 1) {
+        throw "Ammo smoke auto reload player disappeared after shot $autoShot."
+      }
+      if ($autoShotPlayer[0].alive -ne $true) {
+        throw "Ammo smoke auto reload player died after shot ${autoShot}: hp=$($autoShotPlayer[0].hp), respawnMs=$($autoShotPlayer[0].respawnMs)"
+      }
+
+      $expectedAutoAmmo = 12 - $autoShot
+      if ($autoShotPlayer[0].ammoInMagazine -ne $expectedAutoAmmo) {
+        throw "Ammo smoke auto reload shot $autoShot ammo mismatch: expected=$expectedAutoAmmo, actual=$($autoShotPlayer[0].ammoInMagazine)"
+      }
+      if ($autoShotPlayer[0].reserveAmmo -ne $autoReloadStartReserve) {
+        throw "Ammo smoke auto reload reserve changed before reload completed: start=$autoReloadStartReserve, actual=$($autoShotPlayer[0].reserveAmmo)"
+      }
+      if ($autoShot -lt 12 -and $autoShotPlayer[0].reloadRemainingMs -ne 0) {
+        throw "Ammo smoke auto reload started early after shot ${autoShot}: reload=$($autoShotPlayer[0].reloadRemainingMs)"
+      }
+      if ($autoShot -lt 12) {
+        Start-Sleep -Milliseconds 320
+      }
+    }
+
+    if ($autoShotPlayer[0].ammoInMagazine -ne 0 -or $autoShotPlayer[0].reloadRemainingMs -le 0 -or $autoShotPlayer[0].reloadRemainingMs -gt 1000) {
+      throw "Ammo smoke empty magazine did not start bounded auto reload: ammo=$($autoShotPlayer[0].ammoInMagazine), reload=$($autoShotPlayer[0].reloadRemainingMs)"
+    }
+    Test-PlayerPistolWeaponSync $autoShotPlayer[0] "Ammo smoke empty magazine auto reload started" 0 $autoReloadStartReserve
+
+    $autoReloadExpectedReserve = $autoReloadStartReserve - 12
+    $autoReloadCompletedPlayer = $autoShotPlayer
+    for ($autoReloadPoll = 0; $autoReloadPoll -lt 20; $autoReloadPoll++) {
+      Start-Sleep -Milliseconds 120
+      $autoReloadState = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+      $autoReloadCompletedPlayer = @($autoReloadState.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
+      if ($autoReloadCompletedPlayer.Count -lt 1) {
+        throw "Ammo smoke auto reload player disappeared while waiting for completion."
+      }
+      if ($autoReloadCompletedPlayer[0].ammoInMagazine -eq 12 -and $autoReloadCompletedPlayer[0].reserveAmmo -eq $autoReloadExpectedReserve -and $autoReloadCompletedPlayer[0].reloadRemainingMs -eq 0) {
+        break
+      }
+    }
+    if ($autoReloadCompletedPlayer[0].ammoInMagazine -ne 12 -or $autoReloadCompletedPlayer[0].reserveAmmo -ne $autoReloadExpectedReserve -or $autoReloadCompletedPlayer[0].reloadRemainingMs -ne 0) {
+      throw "Ammo smoke auto reload completion mismatch: ammo=$($autoReloadCompletedPlayer[0].ammoInMagazine), reserve=$($autoReloadCompletedPlayer[0].reserveAmmo), reload=$($autoReloadCompletedPlayer[0].reloadRemainingMs), expectedReserve=$autoReloadExpectedReserve"
+    }
+    Test-PlayerPistolWeaponSync $autoReloadCompletedPlayer[0] "Ammo smoke auto reload completed" 12 $autoReloadExpectedReserve 0
+    $afterReload = $autoReloadState
+    $afterReloadPlayer = $autoReloadCompletedPlayer
+
     $afterPickup = $null
     $afterPickupPlayer = @()
     $medkitContactPoints = @(
@@ -1549,14 +1862,6 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
     if ($afterPickupMedkit[0].available -ne $false -or $afterPickupMedkit[0].respawnMs -le 0 -or $afterPickupMedkit[0].respawnMs -gt 10000) {
       throw "Medkit smoke pickup was not consumed with respawn timer: available=$($afterPickupMedkit[0].available), respawnMs=$($afterPickupMedkit[0].respawnMs)"
     }
-    $afterPickupWeapon = @($afterPickup.pickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
-    if ($afterPickupWeapon.Count -lt 1) {
-      throw "Weapon pickup smoke pickup disappeared after medkit movement."
-    }
-    if ($afterPickupWeapon[0].kind -ne "Weapon" -or $afterPickupWeapon[0].weaponKind -ne "Pistol") {
-      throw "Pistol cache smoke identity changed before cache contact: kind=$($afterPickupWeapon[0].kind), weaponKind=$($afterPickupWeapon[0].weaponKind)"
-    }
-
     $afterPickupEvents = Test-ArrayEnvelope $afterPickup "events"
     $medkitHealEvent = @(
       $afterPickupEvents |
@@ -1574,160 +1879,31 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       throw "Medkit smoke did not find related heal event in battle state events."
     }
 
-    $beforeCacheContact = $null
-    $beforeCachePlayer = @()
-    $beforeCachePickup = @()
-    for ($cacheReadyPoll = 0; $cacheReadyPoll -lt 120; $cacheReadyPoll++) {
-      $beforeCacheContact = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-      $beforeCachePlayer = @($beforeCacheContact.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-      $beforeCachePickup = @($beforeCacheContact.pickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
-      if ($beforeCachePlayer.Count -lt 1) {
-        throw "Pistol cache smoke player disappeared before cache contact."
-      }
-      if ($beforeCachePickup.Count -lt 1) {
-        throw "Pistol cache smoke pickup disappeared before cache contact."
-      }
-      if ($beforeCachePlayer[0].alive -eq $true -and $beforeCachePickup[0].available -eq $true) {
-        break
-      }
-      Start-Sleep -Milliseconds 100
+    $afterPickupSpawnWeapon = @($afterPickup.pickups | Where-Object { $_.pickupId -ceq "pickup-gatling-1" } | Select-Object -First 1)
+    if ($afterPickupSpawnWeapon.Count -lt 1) {
+      throw "Weapon pickup smoke spawn Gatling pickup disappeared after medkit movement."
     }
-    if ($beforeCachePlayer[0].alive -ne $true) {
-      for ($cacheAlivePoll = 0; $cacheAlivePoll -lt 45; $cacheAlivePoll++) {
-        Start-Sleep -Milliseconds 100
-        $beforeCacheContact = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-        $beforeCachePlayer = @($beforeCacheContact.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-        $beforeCachePickup = @($beforeCacheContact.pickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
-        if ($beforeCachePlayer.Count -lt 1) {
-          throw "Pistol cache smoke player disappeared while waiting for cache setup respawn."
-        }
-        if ($beforeCachePickup.Count -lt 1) {
-          throw "Pistol cache smoke pickup disappeared while waiting for cache setup respawn."
-        }
-        if ($beforeCachePlayer[0].alive -eq $true -and $beforeCachePickup[0].available -eq $true) {
-          break
-        }
-      }
-      if ($beforeCachePlayer[0].alive -ne $true) {
-        throw "Pistol cache smoke player was not alive before cache contact: hp=$($beforeCachePlayer[0].hp), respawnMs=$($beforeCachePlayer[0].respawnMs)"
-      }
+    if ($afterPickupSpawnWeapon[0].kind -ne "Weapon" -or $afterPickupSpawnWeapon[0].weaponKind -ne "Gatling") {
+      throw "Weapon pickup smoke spawn Gatling identity changed: kind=$($afterPickupSpawnWeapon[0].kind), weaponKind=$($afterPickupSpawnWeapon[0].weaponKind)"
     }
-    if ($beforeCachePickup[0].available -ne $true) {
-      throw "Pistol cache smoke pickup did not become available before contact: available=$($beforeCachePickup[0].available), respawnMs=$($beforeCachePickup[0].respawnMs)"
+    if ($afterPickupSpawnWeapon[0].available -eq $false -and ($afterPickupSpawnWeapon[0].respawnMs -le 0 -or $afterPickupSpawnWeapon[0].respawnMs -gt 10000)) {
+      throw "Weapon pickup smoke spawn Gatling consumed timer was invalid: available=$($afterPickupSpawnWeapon[0].available), respawnMs=$($afterPickupSpawnWeapon[0].respawnMs)"
     }
-    if ($beforeCachePlayer[0].currentWeaponKind -ne "Pistol" -or $beforeCachePlayer[0].ammoInMagazine -ne 12 -or $beforeCachePlayer[0].reloadRemainingMs -ne 0) {
-      throw "Pistol cache smoke expected ready pistol before refill setup: weapon=$($beforeCachePlayer[0].currentWeaponKind), ammo=$($beforeCachePlayer[0].ammoInMagazine), reload=$($beforeCachePlayer[0].reloadRemainingMs)"
-    }
-    $beforeCacheRefill = $beforeCacheContact
-    $beforeCacheRefillPlayer = $beforeCachePlayer
-    $beforeCacheRefillReserve = [int]$beforeCacheRefillPlayer[0].reserveAmmo
-    $expectedCacheRefillReserve = [int]$beforeCacheRefillPlayer[0].reserveAmmo + 24
-    Test-PlayerPistolWeaponSync $beforeCacheRefillPlayer[0] "Pistol cache smoke before cache refill" 12 $beforeCacheRefillReserve 0
-
-    $afterCache = $null
-    $afterCachePlayer = @()
-    $cacheContactPoints = @(
-      @{ x = 960; y = 360 },
-      @{ x = [double]$initialWeaponPickup[0].position.x; y = 360 },
-      @{ x = [double]$initialWeaponPickup[0].position.x; y = [double]$initialWeaponPickup[0].position.y }
-    )
-    $cacheMoveStep = 0
-    foreach ($cacheContactPoint in $cacheContactPoints) {
-      for ($cachePointStep = 0; $cachePointStep -lt 45; $cachePointStep++) {
-        $cacheMoveState = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-        $cacheMovePlayer = @($cacheMoveState.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-        $cacheMovePickup = @($cacheMoveState.pickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
-        if ($cacheMovePlayer.Count -lt 1) {
-          throw "Pistol cache smoke player disappeared while moving to cache."
-        }
-        if ($cacheMovePickup.Count -lt 1) {
-          throw "Pistol cache smoke pickup disappeared while moving to cache."
-        }
-        if ($cacheMovePickup[0].available -eq $false -and $cacheMovePlayer[0].reserveAmmo -eq $expectedCacheRefillReserve) {
-          $afterCache = $cacheMoveState
-          $afterCachePlayer = $cacheMovePlayer
-          break
-        }
-        if ($cacheMovePlayer[0].alive -ne $true) {
-          for ($cacheMoveRespawnPoll = 0; $cacheMoveRespawnPoll -lt 45; $cacheMoveRespawnPoll++) {
-            Start-Sleep -Milliseconds 100
-            $cacheMoveState = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-            $cacheMovePlayer = @($cacheMoveState.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-            if ($cacheMovePlayer.Count -lt 1) {
-              throw "Pistol cache smoke player disappeared while waiting for cache movement respawn."
-            }
-            if ($cacheMovePlayer[0].alive -eq $true) {
-              break
-            }
-          }
-          if ($cacheMovePlayer[0].alive -ne $true) {
-            throw "Pistol cache smoke player died before cache contact: hp=$($cacheMovePlayer[0].hp), respawnMs=$($cacheMovePlayer[0].respawnMs)"
-          }
-        }
-
-        $cacheDx = [double]$cacheContactPoint.x - [double]$cacheMovePlayer[0].position.x
-        $cacheDy = [double]$cacheContactPoint.y - [double]$cacheMovePlayer[0].position.y
-        $cacheDistance = [math]::Sqrt($cacheDx * $cacheDx + $cacheDy * $cacheDy)
-        if ($cacheDistance -le 14) {
-          break
-        }
-        $cacheMoveX = if ($cacheDistance -gt 0.001) { $cacheDx / $cacheDistance } else { 0 }
-        $cacheMoveY = if ($cacheDistance -gt 0.001) { $cacheDy / $cacheDistance } else { 0 }
-        $cacheBlinkSkill = @($cacheMovePlayer[0].skills | Where-Object { $_.kind -ceq "Blink" } | Select-Object -First 1)
-        $canBlinkToCachePoint = $cacheBlinkSkill.Count -gt 0 -and $cacheBlinkSkill[0].cooldownMs -eq 0 -and $cacheDistance -gt 120 -and $cacheDistance -le 250
-
-        Invoke-ContractJson "POST" "/battle/commands" @{
-          battleId = $battleId
-          playerId = $join.playerId
-          ticketId = $join.ticketId
-          clientTick = 910 + $cacheMoveStep
-          movement = if ($canBlinkToCachePoint) { @{ x = 0; y = 0 } } else { @{ x = $cacheMoveX; y = $cacheMoveY } }
-          aim = @{ x = $cacheMoveX; y = $cacheMoveY }
-          primaryHeld = $false
-          reloadPressed = $false
-          castDash = $false
-          castBlink = $canBlinkToCachePoint
-          pointerWorld = @{
-            x = [double]$cacheContactPoint.x
-            y = [double]$cacheContactPoint.y
-          }
-          switchWeaponDirection = 0
-        } | Out-Null
-        $cacheMoveStep += 1
-        Start-Sleep -Milliseconds 120
-      }
-      if ($null -ne $afterCache) {
-        break
-      }
-    }
-    if ($null -eq $afterCache) {
-      $afterCache = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-      $afterCachePlayer = @($afterCache.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-    }
-    if ($afterCachePlayer.Count -lt 1) {
-      throw "Pistol cache smoke player disappeared after cache movement."
-    }
-    if ($afterCachePlayer[0].ammoInMagazine -ne 12 -or $afterCachePlayer[0].reserveAmmo -ne $expectedCacheRefillReserve -or $afterCachePlayer[0].reloadRemainingMs -ne 0) {
-      $debugCachePickup = @($afterCache.pickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
-      $debugCachePickupDetail = if ($debugCachePickup.Count -gt 0) { "pickupAvailable=$($debugCachePickup[0].available), pickupRespawn=$($debugCachePickup[0].respawnMs), pickup=($($debugCachePickup[0].position.x),$($debugCachePickup[0].position.y))" } else { "pickup=<missing>" }
-      throw "Pistol cache smoke ammo refill mismatch: ammo=$($afterCachePlayer[0].ammoInMagazine), reserve=$($afterCachePlayer[0].reserveAmmo), reload=$($afterCachePlayer[0].reloadRemainingMs), expectedReserve=$expectedCacheRefillReserve, player=($($afterCachePlayer[0].position.x),$($afterCachePlayer[0].position.y)), $debugCachePickupDetail"
-    }
-    if ($afterCachePlayer[0].currentWeaponIndex -ne 0 -or $afterCachePlayer[0].currentWeaponKind -ne "Pistol") {
-      throw "Pistol cache smoke fixed pistol drifted: index=$($afterCachePlayer[0].currentWeaponIndex), kind=$($afterCachePlayer[0].currentWeaponKind)"
-    }
-    Test-PlayerPistolWeaponSync $afterCachePlayer[0] "Pistol cache smoke after cache" 12 $expectedCacheRefillReserve 0
-
-    $afterCachePickup = @($afterCache.pickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
-    if ($afterCachePickup.Count -lt 1) {
-      throw "Pistol cache smoke pickup disappeared after cache movement."
-    }
-    if ($afterCachePickup[0].available -ne $false -or $afterCachePickup[0].respawnMs -le 0 -or $afterCachePickup[0].respawnMs -gt 10000) {
-      throw "Pistol cache smoke pickup was not consumed with respawn timer: available=$($afterCachePickup[0].available), respawnMs=$($afterCachePickup[0].respawnMs)"
+    if ($afterPickupSpawnWeapon[0].available -eq $true -and $afterPickupSpawnWeapon[0].respawnMs -ne 0) {
+      throw "Weapon pickup smoke spawn Gatling available timer was invalid: available=$($afterPickupSpawnWeapon[0].available), respawnMs=$($afterPickupSpawnWeapon[0].respawnMs)"
     }
 
-    $afterCacheEvents = Test-ArrayEnvelope $afterCache "events"
-    $pistolCachePickupEvent = @(
-      $afterCacheEvents |
+    $afterPickupWeapons = Test-ArrayEnvelope $afterPickupPlayer[0] "weapons"
+    $afterPickupGatlingWeapon = @($afterPickupWeapons | Where-Object { $_.weaponKind -ceq "Gatling" } | Select-Object -First 1)
+    if ($afterPickupGatlingWeapon.Count -lt 1) {
+      throw "Weapon pickup smoke player inventory lost spawn Gatling after medkit movement."
+    }
+    if ($afterPickupGatlingWeapon[0].ammoInMagazine -ne 0 -or $afterPickupGatlingWeapon[0].magazineSize -ne 0 -or $afterPickupGatlingWeapon[0].reserveAmmo -ne 0) {
+      throw "Weapon pickup smoke Gatling inventory mismatch after medkit movement: ammo=$($afterPickupGatlingWeapon[0].ammoInMagazine), mag=$($afterPickupGatlingWeapon[0].magazineSize), reserve=$($afterPickupGatlingWeapon[0].reserveAmmo)"
+    }
+
+    $weaponPickupEvent = @(
+      $afterPickupEvents |
         Where-Object {
           $_.type -ceq "pickup" -and
           $_.kind -ceq "pickup" -and
@@ -1738,13 +1914,13 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
         } |
         Select-Object -First 1
     )
-    if ($pistolCachePickupEvent.Count -lt 1) {
-      throw "Pistol cache smoke did not find related pickup event in battle state events."
+    if ($weaponPickupEvent.Count -lt 1) {
+      throw "Weapon pickup smoke did not find related pickup event in battle state events."
     }
 
     $dashSetupPoint = @{ x = 1040; y = 320 }
-    $beforeDash = $afterCache
-    $beforeDashPlayer = $afterCachePlayer
+    $beforeDash = $afterPickup
+    $beforeDashPlayer = $afterPickupPlayer
     for ($dashSetupStep = 0; $dashSetupStep -lt 35; $dashSetupStep++) {
       $beforeDash = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
       $beforeDashPlayer = @($beforeDash.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
@@ -1833,15 +2009,8 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
     if ($laterMedkit[0].available -ne $false -or $laterMedkit[0].respawnMs -le 0 -or $laterMedkit[0].respawnMs -ge $afterPickupMedkit[0].respawnMs) {
       throw "Medkit smoke respawn countdown did not decrease: first=$($afterPickupMedkit[0].respawnMs), later=$($laterMedkit[0].respawnMs), available=$($laterMedkit[0].available)"
     }
-    $laterCache = @($laterPickupState.pickups | Where-Object { $_.pickupId -ceq "pickup-pistol-cache-1" } | Select-Object -First 1)
-    if ($laterCache.Count -lt 1) {
-      throw "Pistol cache smoke pickup disappeared during respawn countdown."
-    }
-    if ($laterCache[0].available -ne $false -or $laterCache[0].respawnMs -le 0 -or $laterCache[0].respawnMs -ge $afterCachePickup[0].respawnMs) {
-      throw "Pistol cache smoke respawn countdown did not decrease: first=$($afterCachePickup[0].respawnMs), later=$($laterCache[0].respawnMs), available=$($laterCache[0].available)"
-    }
 
-    "battleId=$battleId; pistol ammo/reload, medkit behavior, pistol cache ammo refill, and Dash checked"
+    "battleId=$battleId; pistol ammo/manual reload/auto reload, medkit behavior, spawn Gatling pickup, Rocket pickup catalog, weapon switch, and Dash checked"
   } finally {
     foreach ($extraJoin in $extraJoins) {
       if ($null -ne $extraJoin -and (Test-HasField $extraJoin "ticketId")) {
@@ -1856,18 +2025,27 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
 
 Test-Endpoint "POST /battle/commands authoritative obstacle collision" {
   $join = $null
+  $extraJoins = @()
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = "$SmokePlayer-obstacle"
-      rating = "1215"
-      skin = "blue"
-    }
+    $obstacleHandle = New-BattleSmokeHandle "obst"
+    $join = Join-AuthenticatedBattleQueue -Handle $obstacleHandle -Rating "1215" -Skin "blue" -QueueRequestId "contract-$obstacleHandle"
     $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
     if ($missingJoin.Count -gt 0) {
       throw "Obstacle smoke queue join missing fields: $($missingJoin -join ', ')"
     }
-
+    foreach ($suffix in @("obstb", "obstc", "obstd")) {
+      $extraHandle = New-BattleSmokeHandle $suffix
+      $extraJoin = Join-AuthenticatedBattleQueue -Handle $extraHandle -Rating "1215" -Skin "blue" -QueueRequestId "contract-$extraHandle"
+      $missingExtraJoin = Test-Fields $extraJoin @("ticketId", "playerId", "roomId", "startsAt")
+      if ($missingExtraJoin.Count -gt 0) {
+        throw "Obstacle smoke extra queue join missing fields: $($missingExtraJoin -join ', ')"
+      }
+      if ($extraJoin.roomId -ne $join.roomId) {
+        throw "Obstacle smoke expected extra player to join same room: first=$($join.roomId), extra=$($extraJoin.roomId)"
+      }
+      $extraJoins += $extraJoin
+    }
     $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     $waitMs = [Math]::Max(0, [Int64]$join.startsAt - $nowMs + 250)
     if ($waitMs -gt 0) {
@@ -1894,6 +2072,60 @@ Test-Endpoint "POST /battle/commands authoritative obstacle collision" {
     $player = @($state.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
     if ($player.Count -lt 1) {
       throw "Obstacle smoke player was not present in battle state."
+    }
+    $movementJoin = $extraJoins[2]
+    $movementPlayer = @($state.players | Where-Object { $_.playerId -ceq $movementJoin.playerId } | Select-Object -First 1)
+    if ($movementPlayer.Count -lt 1) {
+      throw "Obstacle smoke movement player was not present in battle state."
+    }
+    if ([math]::Abs([double]$movementPlayer[0].position.x - 1600.0) -gt 0.1 -or [math]::Abs([double]$movementPlayer[0].position.y - 320.0) -gt 0.1) {
+      throw "Obstacle smoke movement player expected spawn point 3 at (1600, 320), got ($($movementPlayer[0].position.x), $($movementPlayer[0].position.y))"
+    }
+
+    Invoke-ContractJson "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $movementJoin.playerId
+      ticketId = $movementJoin.ticketId
+      clientTick = 1
+      movement = @{ x = 0; y = 1 }
+      aim = @{ x = 0; y = 1 }
+      primaryHeld = $false
+      reloadPressed = $false
+      castDash = $false
+      castBlink = $false
+      castFreeze = $false
+      switchWeaponDirection = 0
+    } | Out-Null
+    Start-Sleep -Milliseconds 2000
+    Invoke-ContractJson "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $movementJoin.playerId
+      ticketId = $movementJoin.ticketId
+      clientTick = 2
+      movement = @{ x = 0; y = 0 }
+      aim = @{ x = 0; y = 1 }
+      primaryHeld = $false
+      reloadPressed = $false
+      castDash = $false
+      castBlink = $false
+      castFreeze = $false
+      switchWeaponDirection = 0
+    } | Out-Null
+    Start-Sleep -Milliseconds 80
+
+    $afterMovement = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+    $afterMovementPlayer = @($afterMovement.players | Where-Object { $_.playerId -ceq $movementJoin.playerId } | Select-Object -First 1)
+    if ($afterMovementPlayer.Count -lt 1) {
+      throw "Obstacle smoke movement player disappeared after moving into lane wall."
+    }
+    if ([math]::Abs([double]$afterMovementPlayer[0].position.x - 1600.0) -gt 0.1) {
+      throw "Obstacle smoke movement collision changed x lane unexpectedly: x=$($afterMovementPlayer[0].position.x)"
+    }
+    if ([double]$afterMovementPlayer[0].position.y -gt 590.0) {
+      throw "Obstacle smoke movement passed through right lane wall: y=$($afterMovementPlayer[0].position.y)"
+    }
+    if ([double]$afterMovementPlayer[0].position.y -le [double]$movementPlayer[0].position.y) {
+      throw "Obstacle smoke movement did not advance before blocker: initial=$($movementPlayer[0].position.y), after=$($afterMovementPlayer[0].position.y)"
     }
 
     $coverNw = @{ x = 416; y = 416 }
@@ -1980,33 +2212,32 @@ Test-Endpoint "POST /battle/commands authoritative obstacle collision" {
       throw "Obstacle smoke expected pistol bullet to be removed by cover-nw, found $($ownerProjectiles.Count) owner projectile(s); sample position=($($sample.position.x), $($sample.position.y)), ttlMs=$($sample.ttlMs)"
     }
 
-    "battleId=$battleId; blocked Blink into cover-nw and pistol projectile obstacle removal checked"
+    "battleId=$battleId; ordinary movement stopped before lane wall; blocked Blink into cover-nw and pistol projectile obstacle removal checked"
   } finally {
+    foreach ($extraJoin in $extraJoins) {
+      if ($null -ne $extraJoin -and (Test-HasField $extraJoin "ticketId")) {
+        try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $extraJoin.ticketId } | Out-Null } catch {}
+      }
+    }
     if ($null -ne $join -and (Test-HasField $join "ticketId")) {
       try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $join.ticketId } | Out-Null } catch {}
     }
   }
 }
 
-Test-Endpoint "POST /battle/commands authoritative respawn" {
+Test-Endpoint "POST /battle/commands authoritative terminal elimination" {
   $join = $null
   $victimJoin = $null
+  $extraJoins = @()
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = "$SmokePlayer-respawn-killer"
-      rating = "1220"
-      skin = "blue"
-    }
-    $victimJoin = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = "$SmokePlayer-respawn-victim"
-      rating = "1221"
-      skin = "red"
-    }
+    $killerHandle = New-BattleSmokeHandle "kill"
+    $victimHandle = New-BattleSmokeHandle "vict"
+    $join = Join-AuthenticatedBattleQueue -Handle $killerHandle -Rating "1220" -Skin "blue" -QueueRequestId "contract-$killerHandle"
+    $victimJoin = Join-AuthenticatedBattleQueue -Handle $victimHandle -Rating "1221" -Skin "red" -QueueRequestId "contract-$victimHandle"
     if ($join.roomId -ne $victimJoin.roomId) {
-      throw "Respawn smoke joins landed in different rooms: killer=$($join.roomId), victim=$($victimJoin.roomId)"
+      throw "Elimination smoke joins landed in different rooms: killer=$($join.roomId), victim=$($victimJoin.roomId)"
     }
-
     $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     $waitMs = [Math]::Max(0, [Int64]$join.startsAt - $nowMs + 250)
     if ($waitMs -gt 0) {
@@ -2022,66 +2253,112 @@ Test-Endpoint "POST /battle/commands authoritative respawn" {
       Start-Sleep -Milliseconds 250
     }
     if ($null -eq $status.battleSession -or $status.phase -ne "active") {
-      throw "Respawn smoke expected active battle, got phase=$($status.phase)"
+      throw "Elimination smoke expected active battle, got phase=$($status.phase)"
     }
 
     $battleId = $status.battleSession.battleId
     $state = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
     $killer = @($state.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-    $victim = @($state.players | Where-Object { $_.playerId -ceq $victimJoin.playerId } | Select-Object -First 1)
-    if ($killer.Count -lt 1 -or $victim.Count -lt 1) {
-      throw "Respawn smoke missing killer/victim in initial battle state."
+    if ($killer.Count -lt 1) {
+      throw "Elimination smoke missing killer in initial battle state."
+    }
+
+    $laneSetupPoint = @{ x = 1100; y = 800 }
+    for ($setupStep = 0; $setupStep -lt 24; $setupStep++) {
+      $setupState = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+      $setupKiller = @($setupState.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
+      if ($setupKiller.Count -lt 1) {
+        throw "Elimination smoke missing killer during lane setup."
+      }
+      if ($setupKiller[0].alive -ne $true) {
+        throw "Elimination smoke killer died during lane setup: hp=$($setupKiller[0].hp), respawnMs=$($setupKiller[0].respawnMs)"
+      }
+
+      $setupDx = [double]$laneSetupPoint.x - [double]$setupKiller[0].position.x
+      $setupDy = [double]$laneSetupPoint.y - [double]$setupKiller[0].position.y
+      $setupDistance = [math]::Sqrt($setupDx * $setupDx + $setupDy * $setupDy)
+      if ($setupDistance -le 18) {
+        $state = $setupState
+        $killer = $setupKiller
+        break
+      }
+
+      $setupMoveX = if ($setupDistance -gt 0.001) { $setupDx / $setupDistance } else { 0 }
+      $setupMoveY = if ($setupDistance -gt 0.001) { $setupDy / $setupDistance } else { 0 }
+      Invoke-ContractJson "POST" "/battle/commands" @{
+        battleId = $battleId
+        playerId = $join.playerId
+        ticketId = $join.ticketId
+        clientTick = 600 + $setupStep
+        movement = @{ x = $setupMoveX; y = $setupMoveY }
+        aim = @{ x = 1; y = 0 }
+        primaryHeld = $false
+        reloadPressed = $false
+        castDash = $false
+        castBlink = $false
+        castFreeze = $false
+        switchWeaponDirection = 0
+      } | Out-Null
+      Start-Sleep -Milliseconds 120
+
+      if ($setupStep -eq 23) {
+        $state = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+        $killer = @($state.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
+      }
+    }
+
+    $victim = @(
+      $state.players |
+        Where-Object {
+          $_.playerId -cne $join.playerId -and
+          $_.alive -eq $true -and
+          [double]$_.position.x -gt [double]$killer[0].position.x -and
+          [math]::Abs([double]$_.position.y - [double]$killer[0].position.y) -le 80
+        } |
+        Sort-Object {
+          -1.0 * [double]$_.position.x
+        } |
+        Select-Object -First 1
+    )
+    if ($victim.Count -lt 1) {
+      $victim = @(
+        $state.players |
+          Where-Object { $_.playerId -cne $join.playerId -and $_.alive -eq $true } |
+          Sort-Object {
+            [math]::Sqrt(
+              [math]::Pow(([double]$_.position.x - [double]$killer[0].position.x), 2) +
+              [math]::Pow(([double]$_.position.y - [double]$killer[0].position.y), 2)
+            )
+          } |
+          Select-Object -First 1
+      )
+    }
+    if ($victim.Count -lt 1) {
+      throw "Elimination smoke missing victim in initial battle state."
+    }
+    $victimPlayerId = $victim[0].playerId
+    $victimDistance = [math]::Sqrt([math]::Pow(([double]$victim[0].position.x - [double]$killer[0].position.x), 2) + [math]::Pow(([double]$victim[0].position.y - [double]$killer[0].position.y), 2))
+    if ($victimDistance -gt 1150) {
+      throw "Elimination smoke nearest victim was too far for pistol setup: victim=$victimPlayerId distance=$victimDistance"
     }
     $missingVictimFields = Test-Fields $victim[0] @("hp", "maxHp", "alive", "eliminatedAtMs", "respawnMs", "position")
     if ($missingVictimFields.Count -gt 0) {
-      throw "Respawn smoke victim missing fields: $($missingVictimFields -join ', ')"
+      throw "Elimination smoke victim missing fields: $($missingVictimFields -join ', ')"
     }
     if ($victim[0].respawnMs -ne 0 -or $victim[0].alive -ne $true) {
-      throw "Respawn smoke initial victim state mismatch: alive=$($victim[0].alive), respawnMs=$($victim[0].respawnMs)"
-    }
-    $spawnAnchorX = [double]$victim[0].position.x
-    $spawnAnchorY = [double]$victim[0].position.y
-
-    $killerSetupTargetX = [double]$victim[0].position.x + 88
-    $killerSetupTargetY = [double]$victim[0].position.y + 76
-    Invoke-ContractJson "POST" "/battle/commands" @{
-      battleId = $battleId
-      playerId = $join.playerId
-      ticketId = $join.ticketId
-      clientTick = 300
-      movement = @{ x = 0; y = 0 }
-      aim = @{ x = -1; y = -1 }
-      primaryHeld = $false
-      reloadPressed = $false
-      castDash = $false
-      castBlink = $true
-      castFreeze = $false
-      pointerWorld = @{ x = $killerSetupTargetX; y = $killerSetupTargetY }
-      switchWeaponDirection = 0
-    } | Out-Null
-    Start-Sleep -Milliseconds 2350
-
-    $afterBlinkState = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-    $afterBlinkKiller = @($afterBlinkState.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-    $afterBlinkVictim = @($afterBlinkState.players | Where-Object { $_.playerId -ceq $victimJoin.playerId } | Select-Object -First 1)
-    if ($afterBlinkKiller.Count -lt 1 -or $afterBlinkVictim.Count -lt 1) {
-      throw "Respawn smoke missing players after positioning."
-    }
-    $positioningDelta = [math]::Sqrt([math]::Pow(([double]$afterBlinkKiller[0].position.x - [double]$afterBlinkVictim[0].position.x), 2) + [math]::Pow(([double]$afterBlinkKiller[0].position.y - [double]$afterBlinkVictim[0].position.y), 2))
-    if ($positioningDelta -gt 850) {
-      throw "Respawn smoke failed to position killer near victim: delta=$positioningDelta"
+      throw "Elimination smoke initial victim state mismatch: alive=$($victim[0].alive), respawnMs=$($victim[0].respawnMs)"
     }
 
-    $respawningVictim = $null
+    $eliminatedVictim = $null
     for ($shot = 0; $shot -lt 12; $shot++) {
       $shotState = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
       $shotKiller = @($shotState.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
-      $shotVictim = @($shotState.players | Where-Object { $_.playerId -ceq $victimJoin.playerId } | Select-Object -First 1)
+      $shotVictim = @($shotState.players | Where-Object { $_.playerId -ceq $victimPlayerId } | Select-Object -First 1)
       if ($shotKiller.Count -lt 1 -or $shotVictim.Count -lt 1) {
-        throw "Respawn smoke missing players during lethal shot loop."
+        throw "Elimination smoke missing players during lethal shot loop."
       }
-      if ($shotVictim[0].alive -eq $false -and $shotVictim[0].respawnMs -gt 0) {
-        $respawningVictim = $shotVictim[0]
+      if ($shotVictim[0].alive -eq $false -and $shotVictim[0].respawnMs -eq 0) {
+        $eliminatedVictim = $shotVictim[0]
         break
       }
 
@@ -2120,74 +2397,58 @@ Test-Endpoint "POST /battle/commands authoritative respawn" {
     }
 
     $afterKill = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-    if ($afterKill.phase -ne "active") {
-      throw "Respawn smoke expected battle to remain active after lethal damage, got phase=$($afterKill.phase)"
+    if ($afterKill.phase -ne "active" -and $afterKill.phase -ne "finished") {
+      throw "Elimination smoke expected active or finished battle after lethal damage, got phase=$($afterKill.phase)"
     }
-    $afterKillVictim = @($afterKill.players | Where-Object { $_.playerId -ceq $victimJoin.playerId } | Select-Object -First 1)
+    $afterKillVictim = @($afterKill.players | Where-Object { $_.playerId -ceq $victimPlayerId } | Select-Object -First 1)
     if ($afterKillVictim.Count -lt 1) {
-      throw "Respawn smoke victim disappeared after lethal damage."
+      throw "Elimination smoke victim disappeared after lethal damage."
     }
-    if ($null -eq $respawningVictim) {
-      $respawningVictim = $afterKillVictim[0]
+    if ($null -eq $eliminatedVictim) {
+      $eliminatedVictim = $afterKillVictim[0]
     }
-    if ($afterKillVictim[0].alive -ne $false -or $afterKillVictim[0].hp -ne 0 -or $afterKillVictim[0].respawnMs -le 0 -or $afterKillVictim[0].respawnMs -gt 3000) {
-      throw "Respawn smoke victim did not enter respawning state: alive=$($afterKillVictim[0].alive), hp=$($afterKillVictim[0].hp), respawnMs=$($afterKillVictim[0].respawnMs)"
+    if ($afterKillVictim[0].alive -ne $false -or $afterKillVictim[0].hp -ne 0 -or $afterKillVictim[0].respawnMs -ne 0) {
+      throw "Elimination smoke victim did not enter terminal dead state: alive=$($afterKillVictim[0].alive), hp=$($afterKillVictim[0].hp), respawnMs=$($afterKillVictim[0].respawnMs)"
     }
     if ($null -eq $afterKillVictim[0].eliminatedAtMs) {
-      throw "Respawn smoke victim did not retain first eliminatedAtMs."
+      throw "Elimination smoke victim did not retain eliminatedAtMs."
     }
 
-    $respawnWaitMs = [Math]::Max(0, [int64]$afterKillVictim[0].respawnMs - 160)
-    if ($respawnWaitMs -gt 0) {
-      Start-Sleep -Milliseconds ([Int32][Math]::Min($respawnWaitMs, 3200))
+    Start-Sleep -Milliseconds 3400
+    $afterNoRespawn = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+    $afterNoRespawnVictim = @($afterNoRespawn.players | Where-Object { $_.playerId -ceq $victimPlayerId } | Select-Object -First 1)
+    if ($afterNoRespawnVictim.Count -lt 1) {
+      throw "Elimination smoke victim disappeared after no-respawn wait."
+    }
+    if ($afterNoRespawnVictim[0].alive -ne $false -or $afterNoRespawnVictim[0].hp -ne 0 -or $afterNoRespawnVictim[0].respawnMs -ne 0) {
+      throw "Elimination smoke victim respawned unexpectedly: alive=$($afterNoRespawnVictim[0].alive), hp=$($afterNoRespawnVictim[0].hp), respawnMs=$($afterNoRespawnVictim[0].respawnMs)"
+    }
+    if ($afterNoRespawnVictim[0].eliminatedAtMs -ne $afterKillVictim[0].eliminatedAtMs) {
+      throw "Elimination smoke eliminatedAtMs changed after no-respawn wait: before=$($afterKillVictim[0].eliminatedAtMs), after=$($afterNoRespawnVictim[0].eliminatedAtMs)"
     }
 
-    $afterRespawn = $null
-    $afterRespawnVictim = @()
-    for ($respawnPoll = 0; $respawnPoll -lt 24; $respawnPoll++) {
-      $afterRespawn = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
-      $afterRespawnVictim = @($afterRespawn.players | Where-Object { $_.playerId -ceq $victimJoin.playerId } | Select-Object -First 1)
-      if ($afterRespawnVictim.Count -lt 1) {
-        throw "Respawn smoke victim disappeared after respawn wait."
-      }
-      if (
-        $afterRespawnVictim[0].alive -eq $true -and
-        $afterRespawnVictim[0].hp -eq $afterRespawnVictim[0].maxHp -and
-        $afterRespawnVictim[0].respawnMs -eq 0
-      ) {
-        break
-      }
-      Start-Sleep -Milliseconds 80
-    }
-    if ($afterRespawnVictim[0].alive -ne $true -or $afterRespawnVictim[0].hp -ne $afterRespawnVictim[0].maxHp -or $afterRespawnVictim[0].respawnMs -ne 0) {
-      throw "Respawn smoke victim did not restore: alive=$($afterRespawnVictim[0].alive), hp=$($afterRespawnVictim[0].hp), maxHp=$($afterRespawnVictim[0].maxHp), respawnMs=$($afterRespawnVictim[0].respawnMs)"
-    }
-    if ($afterRespawnVictim[0].eliminatedAtMs -ne $afterKillVictim[0].eliminatedAtMs) {
-      throw "Respawn smoke first eliminatedAtMs changed across respawn: before=$($afterKillVictim[0].eliminatedAtMs), after=$($afterRespawnVictim[0].eliminatedAtMs)"
-    }
-    $respawnPositionDelta = [math]::Sqrt([math]::Pow(([double]$afterRespawnVictim[0].position.x - $spawnAnchorX), 2) + [math]::Pow(([double]$afterRespawnVictim[0].position.y - $spawnAnchorY), 2))
-    if ($respawnPositionDelta -gt 80) {
-      throw "Respawn smoke victim did not return near spawn anchor: delta=$respawnPositionDelta"
-    }
-    Test-PlayerPistolWeaponSync $afterRespawnVictim[0] "Respawn smoke restored pistol" 12 48 0
-
-    $afterRespawnEvents = Test-ArrayEnvelope $afterRespawn "events"
+    $afterNoRespawnEvents = Test-ArrayEnvelope $afterNoRespawn "events"
     $respawnEvent = @(
-      $afterRespawnEvents |
+      $afterNoRespawnEvents |
         Where-Object {
           $_.type -ceq "respawn" -and
           $_.kind -ceq "respawn" -and
           $null -ne $_.target -and
-          $_.target.playerId -ceq $victimJoin.playerId
+          $_.target.playerId -ceq $victimPlayerId
         } |
         Select-Object -First 1
     )
-    if ($respawnEvent.Count -lt 1) {
-      throw "Respawn smoke did not find server-owned respawn event."
+    if ($respawnEvent.Count -gt 0) {
+      throw "Elimination smoke found unexpected respawn event: eventId=$($respawnEvent[0].eventId)"
     }
 
-    "battleId=$battleId; victim respawnMs restored; respawn event=$($respawnEvent[0].eventId)"
+    "battleId=$battleId; victim stayed eliminated with respawnMs=0; no respawn event emitted"
   } finally {
+    foreach ($extraJoin in $extraJoins) {
+      if ($null -ne $extraJoin -and (Test-HasField $extraJoin "ticketId")) {
+        try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $extraJoin.ticketId } | Out-Null } catch {}
+      }
+    }
     if ($null -ne $victimJoin -and (Test-HasField $victimJoin "ticketId")) {
       try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $victimJoin.ticketId } | Out-Null } catch {}
     }
@@ -2199,18 +2460,15 @@ Test-Endpoint "POST /battle/commands authoritative respawn" {
 
 Test-Endpoint "POST /battle/commands Shift sprint moves farther than walk" {
   $join = $null
+  $extraJoins = @()
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = "$SmokePlayer-sprint"
-      rating = "1215"
-      skin = "blue"
-    }
+    $sprintHandle = New-BattleSmokeHandle "sprint"
+    $join = Join-AuthenticatedBattleQueue -Handle $sprintHandle -Rating "1215" -Skin "blue" -QueueRequestId "contract-$sprintHandle"
     $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
     if ($missingJoin.Count -gt 0) {
       throw "Sprint smoke queue join missing fields: $($missingJoin -join ', ')"
     }
-
     $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     $waitMs = [Math]::Max(0, [Int64]$join.startsAt - $nowMs + 250)
     if ($waitMs -gt 0) {
@@ -2234,6 +2492,14 @@ Test-Endpoint "POST /battle/commands Shift sprint moves farther than walk" {
     $player = @($state.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
     if ($player.Count -lt 1) {
       throw "Sprint smoke player was not present in battle state."
+    }
+    $missingInitialSprintFields = Test-Fields $player[0] @("position", "sprint", "stamina", "maxStamina")
+    if ($missingInitialSprintFields.Count -gt 0) {
+      throw "Sprint smoke player missing fields: $($missingInitialSprintFields -join ', ')"
+    }
+    $initialStamina = [double]$player[0].stamina
+    if ($initialStamina -le 0 -or [double]$player[0].maxStamina -lt $initialStamina) {
+      throw "Sprint smoke initial stamina invalid: stamina=$($player[0].stamina), maxStamina=$($player[0].maxStamina)"
     }
 
     $walkStart = $player[0].position
@@ -2259,9 +2525,19 @@ Test-Endpoint "POST /battle/commands Shift sprint moves farther than walk" {
     if ($walkPlayer.Count -lt 1) {
       throw "Sprint smoke player disappeared after walk sample."
     }
+    $missingWalkSprintFields = Test-Fields $walkPlayer[0] @("position", "sprint", "stamina")
+    if ($missingWalkSprintFields.Count -gt 0) {
+      throw "Sprint smoke walk player missing fields: $($missingWalkSprintFields -join ', ')"
+    }
     $walkDistance = [math]::Sqrt([math]::Pow(([double]$walkPlayer[0].position.x - [double]$walkStart.x), 2) + [math]::Pow(([double]$walkPlayer[0].position.y - [double]$walkStart.y), 2))
     if ($walkDistance -lt 8) {
       throw "Sprint smoke walk sample was too short: walkDistance=$walkDistance"
+    }
+    if ([double]$walkPlayer[0].stamina -lt ($initialStamina - 0.1)) {
+      throw "Sprint smoke walk unexpectedly consumed stamina: initial=$initialStamina, afterWalk=$($walkPlayer[0].stamina)"
+    }
+    if ($walkPlayer[0].sprint -ne $false) {
+      throw "Sprint smoke walk should not mark sprint=true."
     }
 
     Invoke-ContractJson "POST" "/battle/commands" @{
@@ -2286,6 +2562,11 @@ Test-Endpoint "POST /battle/commands Shift sprint moves farther than walk" {
     if ($sprintStartPlayer.Count -lt 1) {
       throw "Sprint smoke player disappeared before sprint sample."
     }
+    $missingSprintStartFields = Test-Fields $sprintStartPlayer[0] @("position", "stamina")
+    if ($missingSprintStartFields.Count -gt 0) {
+      throw "Sprint smoke start player missing fields: $($missingSprintStartFields -join ', ')"
+    }
+    $sprintStartStamina = [double]$sprintStartPlayer[0].stamina
 
     Invoke-ContractJson "POST" "/battle/commands" @{
       battleId = $battleId
@@ -2309,13 +2590,66 @@ Test-Endpoint "POST /battle/commands Shift sprint moves farther than walk" {
     if ($sprintPlayer.Count -lt 1) {
       throw "Sprint smoke player disappeared after sprint sample."
     }
+    $missingSprintFields = Test-Fields $sprintPlayer[0] @("position", "sprint", "stamina")
+    if ($missingSprintFields.Count -gt 0) {
+      throw "Sprint smoke sprint player missing fields: $($missingSprintFields -join ', ')"
+    }
     $sprintDistance = [math]::Sqrt([math]::Pow(([double]$sprintPlayer[0].position.x - [double]$sprintStartPlayer[0].position.x), 2) + [math]::Pow(([double]$sprintPlayer[0].position.y - [double]$sprintStartPlayer[0].position.y), 2))
     if ($sprintDistance -le ($walkDistance * 1.25)) {
       throw "Sprint smoke expected sprint to move farther than walk: walk=$walkDistance, sprint=$sprintDistance"
     }
+    if ($sprintPlayer[0].sprint -ne $true) {
+      throw "Sprint smoke expected sprint=true while stamina exists."
+    }
+    $afterSprintStamina = [double]$sprintPlayer[0].stamina
+    if ($afterSprintStamina -ge $sprintStartStamina) {
+      throw "Sprint smoke expected sprint to consume stamina: before=$sprintStartStamina, after=$afterSprintStamina"
+    }
+    if ([Math]::Abs($afterSprintStamina - [Math]::Round($afterSprintStamina)) -lt 0.0001) {
+      throw "Sprint smoke expected precise fractional stamina after sprint, got $afterSprintStamina"
+    }
 
-    "battleId=$battleId; walkDistance=$walkDistance; sprintDistance=$sprintDistance"
+    Invoke-ContractJson "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $join.playerId
+      ticketId = $join.ticketId
+      clientTick = 4
+      movement = @{ x = 0; y = 0 }
+      aim = @{ x = 1; y = 0 }
+      primaryHeld = $false
+      sprint = $false
+      reloadPressed = $false
+      castDash = $false
+      castBlink = $false
+      castFreeze = $false
+      switchWeaponDirection = 0
+    } | Out-Null
+    Start-Sleep -Milliseconds 260
+
+    $afterRecover = Invoke-ContractJson "GET" "/battle/state/$([uri]::EscapeDataString($battleId))"
+    $recoverPlayer = @($afterRecover.players | Where-Object { $_.playerId -ceq $join.playerId } | Select-Object -First 1)
+    if ($recoverPlayer.Count -lt 1) {
+      throw "Sprint smoke player disappeared after recovery sample."
+    }
+    $missingRecoverFields = Test-Fields $recoverPlayer[0] @("sprint", "stamina")
+    if ($missingRecoverFields.Count -gt 0) {
+      throw "Sprint smoke recovery player missing fields: $($missingRecoverFields -join ', ')"
+    }
+    if ($recoverPlayer[0].sprint -ne $false) {
+      throw "Sprint smoke expected idle command to clear effective sprint."
+    }
+    $recoveredStamina = [double]$recoverPlayer[0].stamina
+    if ($recoveredStamina -le $afterSprintStamina) {
+      throw "Sprint smoke expected idle recovery to increase stamina: afterSprint=$afterSprintStamina, recovered=$recoveredStamina"
+    }
+
+    "battleId=$battleId; walkDistance=$walkDistance; sprintDistance=$sprintDistance; stamina=$initialStamina->$afterSprintStamina->$recoveredStamina"
   } finally {
+    foreach ($extraJoin in $extraJoins) {
+      if ($null -ne $extraJoin -and (Test-HasField $extraJoin "ticketId")) {
+        try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $extraJoin.ticketId } | Out-Null } catch {}
+      }
+    }
     if ($null -ne $join -and (Test-HasField $join "ticketId")) {
       try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $join.ticketId } | Out-Null } catch {}
     }
@@ -2324,18 +2658,15 @@ Test-Endpoint "POST /battle/commands Shift sprint moves farther than walk" {
 
 Test-Endpoint "POST /battle/commands Freeze projectile slow + expiry" {
   $join = $null
+  $extraJoins = @()
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = "$SmokePlayer-freeze-projectile"
-      rating = "1215"
-      skin = "blue"
-    }
+    $freezeHandle = New-BattleSmokeHandle "freeze"
+    $join = Join-AuthenticatedBattleQueue -Handle $freezeHandle -Rating "1215" -Skin "blue" -QueueRequestId "contract-$freezeHandle"
     $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
     if ($missingJoin.Count -gt 0) {
       throw "Freeze projectile smoke queue join missing fields: $($missingJoin -join ', ')"
     }
-
     $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     $waitMs = [Math]::Max(0, [Int64]$join.startsAt - $nowMs + 250)
     if ($waitMs -gt 0) {
@@ -2362,8 +2693,8 @@ Test-Endpoint "POST /battle/commands Freeze projectile slow + expiry" {
     }
 
     $freezeTarget = @{
-      x = [double]$player[0].position.x + 40
-      y = [double]$player[0].position.y
+      x = [double]$player[0].position.x
+      y = [double]$player[0].position.y - 80
     }
     Invoke-ContractJson "POST" "/battle/commands" @{
       battleId = $battleId
@@ -2437,8 +2768,8 @@ Test-Endpoint "POST /battle/commands Freeze projectile slow + expiry" {
       throw "Freeze projectile smoke sample interval was too short: elapsedMs=$elapsedProjectileMs"
     }
     $actualProjectileDelta = [math]::Sqrt([math]::Pow(([double]$projectileB[0].position.x - [double]$projectileA[0].position.x), 2) + [math]::Pow(([double]$projectileB[0].position.y - [double]$projectileA[0].position.y), 2))
-    $normalProjectileDelta = 920 * ($elapsedProjectileMs / 1000)
-    if ($actualProjectileDelta -ge ($normalProjectileDelta * 0.75)) {
+    $normalProjectileDelta = 1400 * ($elapsedProjectileMs / 1000)
+    if ($actualProjectileDelta -ge ($normalProjectileDelta * 0.85)) {
       throw "Freeze projectile smoke expected displacement substantially below normal speed: actual=$actualProjectileDelta, normal=$normalProjectileDelta, elapsedMs=$elapsedProjectileMs"
     }
 
@@ -2466,6 +2797,11 @@ Test-Endpoint "POST /battle/commands Freeze projectile slow + expiry" {
 
     "battleId=$battleId; projectile slow delta=$actualProjectileDelta vs normal=$normalProjectileDelta; slowFields expired"
   } finally {
+    foreach ($extraJoin in $extraJoins) {
+      if ($null -ne $extraJoin -and (Test-HasField $extraJoin "ticketId")) {
+        try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $extraJoin.ticketId } | Out-Null } catch {}
+      }
+    }
     if ($null -ne $join -and (Test-HasField $join "ticketId")) {
       try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $join.ticketId } | Out-Null } catch {}
     }
@@ -2473,88 +2809,20 @@ Test-Endpoint "POST /battle/commands Freeze projectile slow + expiry" {
 }
 
 Test-Endpoint "POST /battle/commands authoritative ownership" {
-  function Invoke-ContractJsonExpectError {
-    param(
-      [string]$Method,
-      [string]$Path,
-      [object]$Body = $null
-    )
-
-    $uri = "$BaseUrl$Path"
-    $parameters = @{
-      Method = $Method
-      Uri = $uri
-      Headers = @{ "Accept" = "application/json" }
-      TimeoutSec = 8
-    }
-
-    if ($null -ne $Body) {
-      $parameters.ContentType = "application/json"
-      $parameters.Body = ($Body | ConvertTo-Json -Depth 8 -Compress)
-    }
-
-    try {
-      Invoke-RestMethod @parameters | Out-Null
-      throw "Expected request to fail: $Method $uri"
-    } catch {
-      $response = $_.Exception.Response
-      if ($null -eq $response) {
-        throw
-      }
-
-      $statusCode = [int]$response.StatusCode
-      $payload = $null
-
-      try {
-        $bodyText = $_.ErrorDetails.Message
-        if ($null -ne $response.Content) {
-          $contentText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-          if (-not [string]::IsNullOrWhiteSpace($contentText)) {
-            $bodyText = $contentText
-          }
-        } elseif ([string]::IsNullOrWhiteSpace($bodyText) -and $response.PSObject.Methods.Name -contains "GetResponseStream") {
-          $stream = $response.GetResponseStream()
-          if ($null -ne $stream) {
-            $reader = New-Object System.IO.StreamReader($stream)
-            $bodyText = $reader.ReadToEnd()
-          }
-        }
-
-        if (-not [string]::IsNullOrWhiteSpace($bodyText)) {
-          $payload = $bodyText | ConvertFrom-Json
-        }
-      } catch {
-        $payload = $null
-      }
-
-      return [pscustomobject]@{
-        StatusCode = $statusCode
-        Payload = $payload
-      }
-    }
-  }
-
   $joinOne = $null
   $joinTwo = $null
-  $handleOne = "$SmokePlayer-owner-a"
-  $handleTwo = "$SmokePlayer-owner-b"
+  $extraJoins = @()
+  $handleOne = New-BattleSmokeHandle "owna"
+  $handleTwo = New-BattleSmokeHandle "ownb"
 
   try {
-    $joinOne = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = $handleOne
-      rating = "1230"
-      skin = "blue"
-    }
+    $joinOne = Join-AuthenticatedBattleQueue -Handle $handleOne -Rating "1230" -Skin "blue" -QueueRequestId "contract-$handleOne"
     $missingJoinOne = Test-Fields $joinOne @("ticketId", "playerId", "roomId", "startsAt")
     if ($missingJoinOne.Count -gt 0) {
       throw "Ownership smoke first queue join missing fields: $($missingJoinOne -join ', ')"
     }
 
-    $joinTwo = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = $handleTwo
-      rating = "1220"
-      skin = "red"
-    }
+    $joinTwo = Join-AuthenticatedBattleQueue -Handle $handleTwo -Rating "1220" -Skin "red" -QueueRequestId "contract-$handleTwo"
     $missingJoinTwo = Test-Fields $joinTwo @("ticketId", "playerId", "roomId", "startsAt")
     if ($missingJoinTwo.Count -gt 0) {
       throw "Ownership smoke second queue join missing fields: $($missingJoinTwo -join ', ')"
@@ -2562,7 +2830,6 @@ Test-Endpoint "POST /battle/commands authoritative ownership" {
     if ($joinTwo.roomId -ne $joinOne.roomId) {
       throw "Ownership smoke players did not join the same room: first=$($joinOne.roomId), second=$($joinTwo.roomId)"
     }
-
     $startsAt = [Math]::Max([Int64]$joinOne.startsAt, [Int64]$joinTwo.startsAt)
     $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     $waitMs = [Math]::Max(0, $startsAt - $nowMs + 250)
@@ -2649,8 +2916,77 @@ Test-Endpoint "POST /battle/commands authoritative ownership" {
       throw "Ownership smoke expected command_not_authorized error, got $errorValue."
     }
 
-    "battleId=$battleId; roomId=$($joinOne.roomId); players=$($joinOne.playerId),$($joinTwo.playerId); wrong-owner command rejected"
+    $missingTicket = Invoke-ContractJsonExpectError "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $joinTwo.playerId
+      clientTick = 3
+      movement = @{ x = 0; y = 0 }
+      aim = @{ x = 1; y = 0 }
+      primaryHeld = $false
+      reloadPressed = $false
+      castDash = $false
+      switchWeaponDirection = 0
+    }
+    if ($missingTicket.StatusCode -ne 403) {
+      throw "Ownership smoke expected missing-ticket command to return HTTP 403, got $($missingTicket.StatusCode)."
+    }
+    if ($null -eq $missingTicket.Payload -or $missingTicket.Payload.error -ne "command_not_authorized") {
+      $errorValue = if ($null -ne $missingTicket.Payload) { $missingTicket.Payload.error } else { "<no payload>" }
+      throw "Ownership smoke expected missing-ticket command_not_authorized error, got $errorValue."
+    }
+
+    $missingPrimaryHeld = Invoke-ContractJsonExpectError "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $joinOne.playerId
+      ticketId = $joinOne.ticketId
+      clientTick = 4
+      movement = @{ x = 0; y = 0 }
+      aim = @{ x = 1; y = 0 }
+      reloadPressed = $false
+      switchWeaponDirection = 0
+    }
+    if ($missingPrimaryHeld.StatusCode -ne 400 -or $null -eq $missingPrimaryHeld.Payload -or $missingPrimaryHeld.Payload.error -ne "missing_primary_held") {
+      $errorValue = if ($null -ne $missingPrimaryHeld.Payload) { $missingPrimaryHeld.Payload.error } else { "<no payload>" }
+      throw "Ownership smoke expected missing_primary_held 400, got status=$($missingPrimaryHeld.StatusCode), error=$errorValue."
+    }
+
+    $missingReloadPressed = Invoke-ContractJsonExpectError "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $joinOne.playerId
+      ticketId = $joinOne.ticketId
+      clientTick = 5
+      movement = @{ x = 0; y = 0 }
+      aim = @{ x = 1; y = 0 }
+      primaryHeld = $false
+      switchWeaponDirection = 0
+    }
+    if ($missingReloadPressed.StatusCode -ne 400 -or $null -eq $missingReloadPressed.Payload -or $missingReloadPressed.Payload.error -ne "missing_reload_pressed") {
+      $errorValue = if ($null -ne $missingReloadPressed.Payload) { $missingReloadPressed.Payload.error } else { "<no payload>" }
+      throw "Ownership smoke expected missing_reload_pressed 400, got status=$($missingReloadPressed.StatusCode), error=$errorValue."
+    }
+
+    $missingSwitchDirection = Invoke-ContractJsonExpectError "POST" "/battle/commands" @{
+      battleId = $battleId
+      playerId = $joinOne.playerId
+      ticketId = $joinOne.ticketId
+      clientTick = 6
+      movement = @{ x = 0; y = 0 }
+      aim = @{ x = 1; y = 0 }
+      primaryHeld = $false
+      reloadPressed = $false
+    }
+    if ($missingSwitchDirection.StatusCode -ne 400 -or $null -eq $missingSwitchDirection.Payload -or $missingSwitchDirection.Payload.error -ne "missing_switch_weapon_direction") {
+      $errorValue = if ($null -ne $missingSwitchDirection.Payload) { $missingSwitchDirection.Payload.error } else { "<no payload>" }
+      throw "Ownership smoke expected missing_switch_weapon_direction 400, got status=$($missingSwitchDirection.StatusCode), error=$errorValue."
+    }
+
+    "battleId=$battleId; roomId=$($joinOne.roomId); players=$($joinOne.playerId),$($joinTwo.playerId); wrong-owner/missing-ticket and required-field commands rejected"
   } finally {
+    foreach ($extraJoin in $extraJoins) {
+      if ($null -ne $extraJoin -and (Test-HasField $extraJoin "ticketId")) {
+        try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $extraJoin.ticketId } | Out-Null } catch {}
+      }
+    }
     if ($null -ne $joinTwo -and (Test-HasField $joinTwo "ticketId")) {
       try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $joinTwo.ticketId } | Out-Null } catch {}
     }
@@ -2663,14 +2999,11 @@ Test-Endpoint "POST /battle/commands authoritative ownership" {
 Test-Endpoint "POST /battle/queue/join + room snapshot" {
   $join = $null
   $secondJoin = $null
-  $secondHandle = "$SmokePlayer-peer"
+  $primaryHandle = New-BattleSmokeHandle "rooma"
+  $secondHandle = New-BattleSmokeHandle "roomb"
 
   try {
-    $join = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = $SmokePlayer
-      rating = "1200"
-      skin = "blue"
-    }
+    $join = Join-AuthenticatedBattleQueue -Handle $primaryHandle -Rating "1200" -Skin "blue" -QueueRequestId "contract-$primaryHandle"
     $missingJoin = Test-Fields $join @("ticketId", "roomId", "createdAt", "startsAt", "deadline", "participants", "capacity", "durationMs")
     if ($missingJoin.Count -gt 0) {
       throw "Queue join missing fields: $($missingJoin -join ', ')"
@@ -2690,11 +3023,7 @@ Test-Endpoint "POST /battle/queue/join + room snapshot" {
       }
     }
 
-    $secondJoin = Invoke-ContractJson "POST" "/battle/queue/join" @{
-      handle = $secondHandle
-      rating = "1190"
-      skin = "red"
-    }
+    $secondJoin = Join-AuthenticatedBattleQueue -Handle $secondHandle -Rating "1190" -Skin "red" -QueueRequestId "contract-$secondHandle"
     $missingSecondJoin = Test-Fields $secondJoin @("ticketId", "roomId", "createdAt", "startsAt", "deadline", "participants", "capacity", "durationMs")
     if ($missingSecondJoin.Count -gt 0) {
       throw "Second queue join missing fields: $($missingSecondJoin -join ', ')"
@@ -2706,14 +3035,14 @@ Test-Endpoint "POST /battle/queue/join + room snapshot" {
       throw "Second queue join snapshot did not include at least two participants."
     }
     $participantHandles = @($secondJoin.participants | ForEach-Object { $_.handle })
-    if (-not ($participantHandles -contains $SmokePlayer) -or -not ($participantHandles -contains $secondHandle)) {
+    if (-not ($participantHandles -contains $primaryHandle) -or -not ($participantHandles -contains $secondHandle)) {
       throw "Second queue join snapshot did not include both smoke handles: $($participantHandles -join ', ')"
     }
 
     $heartbeat = Invoke-ContractJson "POST" "/battle/rooms/heartbeat" @{
       roomId = $join.roomId
       ticketId = $join.ticketId
-      handle = $SmokePlayer
+      handle = $primaryHandle
     }
     $missingHeartbeat = Test-Fields $heartbeat @("roomId", "serverTime", "participants", "capacity", "phase")
     if ($missingHeartbeat.Count -gt 0) {
@@ -2754,7 +3083,22 @@ Test-Endpoint "POST /battle/queue/join + room snapshot" {
       }
     }
 
-    "roomId=$($snapshot.roomId); participants=$($snapshot.participants.Count); same-room handles=$SmokePlayer,$secondHandle; phase=$($snapshot.phase)"
+    $missingSnapshotRoomId = Invoke-ContractJsonExpectError "GET" "/battle/rooms/snapshot"
+    if ($missingSnapshotRoomId.StatusCode -ne 400 -or $missingSnapshotRoomId.Payload.code -ne "invalid_room_id") {
+      throw "Missing room snapshot id expected 400 invalid_room_id, got status=$($missingSnapshotRoomId.StatusCode), code=$($missingSnapshotRoomId.Payload.code)"
+    }
+
+    $missingHeartbeatRoomId = Invoke-ContractJsonExpectError "POST" "/battle/rooms/heartbeat" @{}
+    if ($missingHeartbeatRoomId.StatusCode -ne 400 -or $missingHeartbeatRoomId.Payload.code -ne "invalid_room_id") {
+      throw "Missing room heartbeat id expected 400 invalid_room_id, got status=$($missingHeartbeatRoomId.StatusCode), code=$($missingHeartbeatRoomId.Payload.code)"
+    }
+
+    $missingRoomSnapshot = Invoke-ContractJsonExpectError "GET" "/battle/rooms/snapshot?roomId=contract-missing-room"
+    if ($missingRoomSnapshot.StatusCode -ne 404 -or $missingRoomSnapshot.Payload.code -ne "room_not_found") {
+      throw "Unknown room snapshot expected 404 room_not_found, got status=$($missingRoomSnapshot.StatusCode), code=$($missingRoomSnapshot.Payload.code)"
+    }
+
+    "roomId=$($snapshot.roomId); participants=$($snapshot.participants.Count); same-room handles=$primaryHandle,$secondHandle; phase=$($snapshot.phase); missing-id errors verified"
   } finally {
     if ($null -ne $secondJoin -and (Test-HasField $secondJoin "ticketId")) {
       try { Invoke-ContractJson "POST" "/battle/queue/leave" @{ ticketId = $secondJoin.ticketId } | Out-Null } catch {}

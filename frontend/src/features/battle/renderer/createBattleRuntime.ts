@@ -391,6 +391,15 @@ function createBootSnapshot(
     return snapshot;
   }
 
+  const authoritativeLocalHeroId = resolveInitialAuthoritativeLocalHeroId(
+    snapshot,
+    initialAuthoritativeState,
+    localAuthoritativePlayerId || initialParticipants?.localPlayerId || ""
+  );
+  if (authoritativeLocalHeroId) {
+    snapshot.playerHeroId = authoritativeLocalHeroId;
+  }
+
   const stableSeatHeroIds = snapshot.heroes.map((hero) => hero.heroId);
   const frame = buildBattleRuntimeAuthoritativeFrame(
     snapshot,
@@ -408,4 +417,28 @@ function createBootSnapshot(
   });
 
   return snapshot;
+}
+
+function resolveInitialAuthoritativeLocalHeroId(
+  snapshot: GameSnapshot,
+  state: AuthoritativeBattleState,
+  localPlayerId: string
+): string | null {
+  const normalizedLocalPlayerId = normalizeAuthoritativeId(localPlayerId);
+  if (!normalizedLocalPlayerId) {
+    return null;
+  }
+
+  const localPlayer = state.players.find(
+    (player) => normalizeAuthoritativeId(player.playerId) === normalizedLocalPlayerId
+  );
+  if (!localPlayer || !snapshot.heroes.some((hero) => hero.heroId === localPlayer.heroId)) {
+    return null;
+  }
+
+  return localPlayer.heroId;
+}
+
+function normalizeAuthoritativeId(value: string): string {
+  return value.trim().toLowerCase();
 }

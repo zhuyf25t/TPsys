@@ -24,7 +24,6 @@ export interface AuthoritativeRemoteProjectileBirthFeedbackPresentation {
 export function presentAuthoritativeRemoteProjectileBirthFeedback({
   snapshot,
   previousProjectileStates,
-  getHeroDisplayPosition,
   callbacks
 }: AuthoritativeRemoteProjectileBirthFeedbackPresentation): void {
   snapshot.projectiles.forEach((projectile) => {
@@ -33,8 +32,7 @@ export function presentAuthoritativeRemoteProjectileBirthFeedback({
     }
 
     const owner = snapshot.heroes.find((hero) => hero.heroId === projectile.ownerHeroId);
-    const ownerDisplayPosition = owner ? getHeroDisplayPosition(owner.heroId) : null;
-    const position = resolveRemoteProjectileBirthFeedbackPosition(projectile, owner, ownerDisplayPosition);
+    const position = resolveRemoteProjectileBirthFeedbackPosition(projectile, owner);
     const color = PROJECTILE_SPARK_COLORS[projectile.kind];
     recordRemoteProjectileBirthDiagnostics({
       projectile,

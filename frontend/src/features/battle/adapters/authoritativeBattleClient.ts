@@ -310,7 +310,7 @@ export async function sendAuthoritativeBattleCommand(
         castDash: command.castDash,
         castBlink: command.castBlink,
         castFreeze: command.castFreeze,
-        pointerWorld: command.pointerWorld ? normalizeVector(command.pointerWorld) : null,
+        pointerWorld: command.pointerWorld ? normalizeWorldPoint(command.pointerWorld) : null,
         switchWeaponDirection: normalizeSwitchDirection(command.switchWeaponDirection),
         switchWeaponIndex: normalizeSwitchWeaponIndex(command.switchWeaponIndex)
       }),
@@ -989,6 +989,10 @@ function normalizeVector(vector: AuthoritativeBattleVector): AuthoritativeBattle
   const x = Number.isFinite(vector.x) ? vector.x : 0;
   const y = Number.isFinite(vector.y) ? vector.y : 0;
   return { x, y };
+}
+
+function normalizeWorldPoint(point: AuthoritativeBattleVector): AuthoritativeBattleVector {
+  return normalizeVector(point);
 }
 
 function normalizeAim(aim: AuthoritativeBattleVector): AuthoritativeBattleVector {

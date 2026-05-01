@@ -3,7 +3,12 @@ $ErrorActionPreference = "Stop"
 $BaseUrl = if ($env:SLAY_DEMO_API_BASE) { $env:SLAY_DEMO_API_BASE } else { "http://127.0.0.1:5173/api" }
 $BaseUrl = $BaseUrl.TrimEnd("/")
 $RunId = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-$SmokeHandle = "bp40-fresh-$RunId"
+$RunSuffix = ([string]$RunId)
+if ($RunSuffix.Length -gt 8) {
+  $RunSuffix = $RunSuffix.Substring($RunSuffix.Length - 8)
+}
+$SmokeHandle = "bp40$RunSuffix"
+$SmokeSession = $null
 
 function Invoke-Bp40Json {
   param(
@@ -27,6 +32,20 @@ function Invoke-Bp40Json {
   return Invoke-RestMethod @parameters
 }
 
+function New-Bp40SmokeSession {
+  $account = Invoke-Bp40Json "POST" "/identity/register" @{
+    handle = $SmokeHandle
+    password = "secret"
+    skinId = "blue"
+  }
+
+  if ([string]::IsNullOrWhiteSpace([string]$account.session)) {
+    throw "Identity register did not return a session token for handle=$SmokeHandle."
+  }
+
+  return [string]$account.session
+}
+
 function Test-HasField {
   param(
     [object]$Value,
@@ -43,6 +62,7 @@ function Join-Bp40Queue {
 
   return Invoke-Bp40Json "POST" "/battle/queue/join" @{
     handle = $SmokeHandle
+    sessionToken = $SmokeSession
     queueRequestId = $QueueRequestId
     rating = "1200"
     skin = "blue"
@@ -105,6 +125,7 @@ Write-Host "Handle: $SmokeHandle"
 Write-Host ""
 
 try {
+  $SmokeSession = New-Bp40SmokeSession
   $roundOne = Join-Bp40Queue "bp40-round-1-$RunId"
   $sameRequestJoin = Join-Bp40Queue "bp40-round-1-$RunId"
   if ($sameRequestJoin.ticketId -ne $roundOne.ticketId -or $sameRequestJoin.roomId -ne $roundOne.roomId) {

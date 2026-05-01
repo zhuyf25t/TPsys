@@ -67,6 +67,10 @@ export interface ReplaySyncPayload {
   frames: ReplayFrame[];
 }
 
+interface LoadReplayPlaybackOptions {
+  ratingHandle?: string | null;
+}
+
 export async function syncReplayToBackend(payload: ReplaySyncPayload): Promise<boolean> {
   if (typeof window === "undefined") {
     return false;
@@ -126,8 +130,9 @@ export async function loadReplayCatalog(): Promise<ReplayBackendCatalogItem[] | 
   }
 }
 
-export async function loadReplayPlayback(id: string): Promise<ReplayBackendPlaybackItem | null> {
-  if (typeof window === "undefined" || !id.trim()) {
+export async function loadReplayPlayback(id: string, options: LoadReplayPlaybackOptions = {}): Promise<ReplayBackendPlaybackItem | null> {
+  const replayId = id.trim();
+  if (typeof window === "undefined" || !replayId) {
     return null;
   }
 
@@ -138,7 +143,9 @@ export async function loadReplayPlayback(id: string): Promise<ReplayBackendPlayb
     const timeout = window.setTimeout(() => controller.abort(), BACKEND_HEALTH_TIMEOUT_MS);
 
     try {
-      const response = await fetch(buildApiUrl(REPLAY_API_BASE, `/replay/catalog/${encodeURIComponent(id.trim())}`), {
+      const ratingHandle = options.ratingHandle?.trim();
+      const handleQuery = ratingHandle ? `?handle=${encodeURIComponent(ratingHandle)}` : "";
+      const response = await fetch(buildApiUrl(REPLAY_API_BASE, `/replay/catalog/${encodeURIComponent(replayId)}${handleQuery}`), {
         method: "GET",
         cache: "no-store",
         signal: controller.signal

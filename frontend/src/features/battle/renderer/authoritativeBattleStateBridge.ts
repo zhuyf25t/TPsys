@@ -336,16 +336,16 @@ function resolveMatchedHero(input: ResolveMatchedHeroInput): Hero | null {
   const normalizedDisplayName = normalizeHandle(player.displayName);
   const normalizedPlayerId = normalizeHandle(player.playerId);
 
-  const directHero = heroesById.get(player.heroId);
-  if (directHero && !assignedHeroIds.has(directHero.heroId)) {
-    return directHero;
-  }
-
   if (normalizedPlayerId && normalizedPlayerId === normalizedLocalPlayerId) {
     const localHero = heroesById.get(snapshot.playerHeroId) ?? null;
     if (localHero && !assignedHeroIds.has(localHero.heroId)) {
       return localHero;
     }
+  }
+
+  const directHero = heroesById.get(player.heroId);
+  if (directHero && !assignedHeroIds.has(directHero.heroId)) {
+    return directHero;
   }
 
   const labelMatches = [

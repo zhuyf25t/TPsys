@@ -218,7 +218,7 @@ export class BattleFeedbackSceneBridge {
 
       if (shouldPlayVfx) {
         const color = PROJECTILE_SPARK_COLORS[terminal.kind];
-        if (!isLocalAuthoritativeProjectileTerminal(terminal, snapshot.playerHeroId)) {
+        if (shouldPresentAuthoritativeTerminalTracer(terminal, previous, snapshot.playerHeroId)) {
           presentAuthoritativeProjectileTerminalTracer({ terminal, previous, color, callbacks: this.options });
           presentAuthoritativeProjectileTerminalCorrectionTracer({ terminal, previous, color, callbacks: this.options });
         }
@@ -389,4 +389,17 @@ export class BattleFeedbackSceneBridge {
 
     return this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs;
   }
+}
+
+function shouldPresentAuthoritativeTerminalTracer(
+  terminal: AuthoritativeProjectileTerminalFeedbackState,
+  previous: ProjectileFeedbackState | undefined,
+  playerHeroId: string
+): boolean {
+  if (!isLocalAuthoritativeProjectileTerminal(terminal, playerHeroId)) {
+    return true;
+  }
+
+  // Fast local shots can hit before a live projectile frame is rendered; keep one short tracer at impact.
+  return previous === undefined;
 }

@@ -6,9 +6,30 @@ const ROOT_DIR = join(fileURLToPath(new URL("..", import.meta.url)));
 const PATHS = {
   frontendMap: join(ROOT_DIR, "frontend", "src", "game", "battleMapCatalog.ts"),
   frontendContent: join(ROOT_DIR, "frontend", "src", "game", "battleContentCatalog.ts"),
-  backendMap: join(ROOT_DIR, "backend", "src", "main", "scala", "battle", "runtime", "BattleMapCatalog.scala"),
-  backendContent: join(ROOT_DIR, "backend", "src", "main", "scala", "battle", "runtime", "BattleContentCatalog.scala"),
-  backendGeometry: join(ROOT_DIR, "backend", "src", "main", "scala", "battle", "runtime", "AuthoritativeArenaGeometry.scala"),
+  backendRuntime: join(
+    ROOT_DIR,
+    "backend",
+    "src",
+    "main",
+    "scala",
+    "slaydemo",
+    "backend",
+    "battle",
+    "services",
+    "BattleStateService.scala"
+  ),
+  backendCatalog: join(
+    ROOT_DIR,
+    "backend",
+    "src",
+    "main",
+    "scala",
+    "slaydemo",
+    "backend",
+    "battle",
+    "services",
+    "InMemoryBattleStateCatalog.scala"
+  ),
 };
 
 const WEAPON_FIELDS = [
@@ -52,9 +73,9 @@ const frontend = {
   skillDefinitions: parseFrontendSkillDefinitions(sources.frontendContent),
 };
 const backend = {
-  defaultMap: parseBackendMapCatalog(sources.backendMap),
-  weaponDefinitions: parseBackendWeaponDefinitions(sources.backendContent, sources.backendGeometry),
-  skillDefinitions: parseBackendSkillDefinitions(sources.backendContent),
+  defaultMap: parseBackendRuntimeMapCatalog(combinedBackendBattleSource()),
+  weaponDefinitions: parseBackendRuntimeWeaponDefinitions(combinedBackendBattleSource()),
+  skillDefinitions: parseBackendRuntimeSkillDefinitions(combinedBackendBattleSource()),
 };
 
 const failures = [];
@@ -89,6 +110,10 @@ function pushNonEmptyRecordFailure(label, record, target) {
   if (Object.keys(record).length === 0) {
     target.push(`${label} must not be empty.`);
   }
+}
+
+function combinedBackendBattleSource() {
+  return `${sources.backendCatalog}\n${sources.backendRuntime}`;
 }
 
 function validateBattleContent(prefix, content, target) {
@@ -368,6 +393,197 @@ function parseFrontendSkillDefinitions(source) {
   }
 
   return definitions;
+}
+
+function parseBackendRuntimeMapCatalog(source) {
+  const constants = parseScalaConstants(source, "");
+  const pickups = parseBackendRuntimePickupDefinitions(source);
+
+  return {
+    mapId: constants.get("MapId") ?? null,
+    themeId: constants.get("ThemeId") ?? null,
+    worldSize: readScalaValVec(source, "WorldSize"),
+    heroSpawnPoints: parseScalaVecArray(extractScalaValVector(source, "SpawnPoints")),
+    innerObstacles: parseBackendRuntimeInnerObstacles(source),
+    weaponPickupDefinitions: pickups.weaponPickupDefinitions,
+    itemPickupDefinitions: pickups.itemPickupDefinitions,
+  };
+}
+
+function parseBackendRuntimeInnerObstacles(source) {
+  return [
+    ...extractScalaDefVector(source, "innerObstacles").matchAll(
+      /ArenaObstacle\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*\)/g
+    ),
+  ].map((match) => ({
+    obstacleId: match[1],
+    kind: match[2],
+    position: vec(Number(match[3]), Number(match[4])),
+    size: vec(Number(match[5]), Number(match[6])),
+  }));
+}
+
+function parseBackendRuntimePickupDefinitions(source) {
+  const calls = extractScalaCalls(extractScalaDefVector(source, "initialPickups"), "BattlePickupState");
+  const weaponPickupDefinitions = [];
+  const itemPickupDefinitions = [];
+
+  for (const call of calls) {
+    const args = parseScalaNamedArgs(call);
+    const pickupId = readScalaWrapperString(args.get("pickupId"), "PickupId");
+    const pickupKind = readScalaEnum(args.get("pickupKind"), "PickupKind");
+    const position = parseScalaVecExpression(args.get("position"));
+
+    if (pickupKind === "Weapon") {
+      weaponPickupDefinitions.push({
+        pickupId,
+        weaponKind: readScalaOptionalEnum(args.get("weaponKind"), "WeaponKind"),
+        position,
+      });
+    } else if (pickupKind === "Medkit") {
+      itemPickupDefinitions.push({
+        pickupId,
+        kind: "Medkit",
+        position,
+      });
+    }
+  }
+
+  return { weaponPickupDefinitions, itemPickupDefinitions };
+}
+
+function parseBackendRuntimeWeaponDefinitions(source) {
+  const constants = parseScalaConstants(source, "");
+
+  return {
+    Pistol: {
+      projectileKind: "pistol-bullet",
+      cooldownMs: constants.get("PistolFireCooldownMs"),
+      reloadMs: constants.get("PistolReloadMs"),
+      projectileSpeedPerSecond: constants.get("PistolProjectileSpeed"),
+      projectileDamage: constants.get("PistolDamage"),
+      projectileLifetimeMs: constants.get("PistolProjectileLifetimeMs"),
+      projectileRadius: constants.get("PistolProjectileRadius"),
+      splashRadius: 0,
+      pellets: 1,
+      spreadRadians: 0,
+      magazineSize: constants.get("PistolMagazineSize"),
+      reserveAmmo: constants.get("InitialPistolReserveAmmo"),
+      pickupAmmo: constants.get("PistolPickupAmmo"),
+      recoilStrength: constants.get("PistolRecoilStrength"),
+      usesHeat: false,
+      maxHeat: 0,
+      heatPerShot: 0,
+      coolRatePerSecond: 0,
+      overheatLockMs: 0,
+    },
+    RocketLauncher: {
+      projectileKind: "rocket",
+      cooldownMs: constants.get("RocketCooldownMs"),
+      reloadMs: constants.get("RocketReloadMs"),
+      projectileSpeedPerSecond: constants.get("RocketProjectileSpeed"),
+      projectileDamage: constants.get("RocketDamage"),
+      projectileLifetimeMs: constants.get("RocketProjectileLifetimeMs"),
+      projectileRadius: constants.get("RocketProjectileRadius"),
+      splashRadius: constants.get("RocketSplashRadius"),
+      pellets: 1,
+      spreadRadians: 0,
+      magazineSize: constants.get("RocketMagazineSize"),
+      reserveAmmo: constants.get("RocketReserveAmmo"),
+      pickupAmmo: constants.get("RocketPickupAmmo"),
+      recoilStrength: constants.get("RocketRecoilStrength"),
+      usesHeat: false,
+      maxHeat: 0,
+      heatPerShot: 0,
+      coolRatePerSecond: 0,
+      overheatLockMs: 0,
+    },
+    Gatling: {
+      projectileKind: "gatling-bullet",
+      cooldownMs: constants.get("GatlingCooldownMs"),
+      reloadMs: constants.get("GatlingReloadMs"),
+      projectileSpeedPerSecond: constants.get("GatlingProjectileSpeed"),
+      projectileDamage: constants.get("GatlingDamage"),
+      projectileLifetimeMs: constants.get("GatlingProjectileLifetimeMs"),
+      projectileRadius: constants.get("GatlingProjectileRadius"),
+      splashRadius: 0,
+      pellets: 1,
+      spreadRadians: constants.get("GatlingSpreadRadians"),
+      magazineSize: constants.get("GatlingMagazineSize"),
+      reserveAmmo: 0,
+      pickupAmmo: constants.get("GatlingPickupAmmo"),
+      recoilStrength: constants.get("GatlingRecoilStrength"),
+      usesHeat: true,
+      maxHeat: constants.get("GatlingMaxHeat"),
+      heatPerShot: constants.get("GatlingHeatPerShot"),
+      coolRatePerSecond: constants.get("GatlingCoolRatePerSecond"),
+      overheatLockMs: constants.get("GatlingOverheatLockMs"),
+    },
+    Shotgun: {
+      projectileKind: "shotgun-pellet",
+      cooldownMs: constants.get("ShotgunCooldownMs"),
+      reloadMs: constants.get("ShotgunReloadMs"),
+      projectileSpeedPerSecond: constants.get("ShotgunProjectileSpeed"),
+      projectileDamage: constants.get("ShotgunDamage"),
+      projectileLifetimeMs: constants.get("ShotgunProjectileLifetimeMs"),
+      projectileRadius: constants.get("ShotgunProjectileRadius"),
+      splashRadius: 0,
+      pellets: constants.get("ShotgunPellets"),
+      spreadRadians: constants.get("ShotgunSpreadRadians"),
+      magazineSize: constants.get("ShotgunMagazineSize"),
+      reserveAmmo: constants.get("ShotgunReserveAmmo"),
+      pickupAmmo: constants.get("ShotgunPickupAmmo"),
+      recoilStrength: constants.get("ShotgunRecoilStrength"),
+      usesHeat: false,
+      maxHeat: 0,
+      heatPerShot: 0,
+      coolRatePerSecond: 0,
+      overheatLockMs: 0,
+    },
+  };
+}
+
+function parseBackendRuntimeSkillDefinitions(source) {
+  const constants = parseScalaConstants(source, "");
+
+  return {
+    Blink: {
+      skillKind: "Blink",
+      activationKind: "prepared-target",
+      effectType: "teleport",
+      cooldownMs: constants.get("BlinkCooldownMs"),
+      activeMs: constants.get("BlinkActiveMs"),
+      range: constants.get("BlinkRange"),
+      radius: null,
+      durationMs: null,
+      distance: null,
+      speedMultiplier: null,
+    },
+    Dash: {
+      skillKind: "Dash",
+      activationKind: "instant",
+      effectType: "dash",
+      cooldownMs: constants.get("DashCooldownMs"),
+      activeMs: constants.get("DashActiveMs"),
+      range: null,
+      radius: null,
+      durationMs: null,
+      distance: constants.get("DashDistance"),
+      speedMultiplier: null,
+    },
+    Freeze: {
+      skillKind: "Freeze",
+      activationKind: "prepared-target",
+      effectType: "slow-field",
+      cooldownMs: constants.get("FreezeCooldownMs"),
+      activeMs: constants.get("FreezeDurationMs"),
+      range: constants.get("FreezeCastRange"),
+      radius: constants.get("FreezeRadius"),
+      durationMs: constants.get("FreezeDurationMs"),
+      distance: null,
+      speedMultiplier: constants.get("SlowFieldMovementFactor"),
+    },
+  };
 }
 
 function parseBackendMapCatalog(source) {
@@ -867,6 +1083,124 @@ function readScalaNamedVec(block, fieldName) {
   }
 
   return vec(Number(match[1]), Number(match[2]));
+}
+
+function readScalaValVec(source, valName) {
+  const declaration = new RegExp(`\\bval\\s+${valName}\\b`).exec(source);
+  if (!declaration) {
+    throw new Error(`Could not find Scala val ${valName}.`);
+  }
+
+  const callStart = source.indexOf("BattleVector2(", declaration.index);
+  if (callStart < 0) {
+    throw new Error(`Could not find BattleVector2 initializer for ${valName}.`);
+  }
+
+  return parseScalaVecExpression(source.slice(callStart, findMatchingBracket(source, source.indexOf("(", callStart), "(", ")") + 1));
+}
+
+function parseScalaVecExpression(expression) {
+  const match = /BattleVector2\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)/.exec(expression ?? "");
+  if (!match) {
+    throw new Error(`Could not parse Scala BattleVector2 expression: ${expression}`);
+  }
+
+  return vec(Number(match[1]), Number(match[2]));
+}
+
+function extractScalaVectorAfter(source, marker) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) {
+    throw new Error(`Could not find Scala marker ${marker}.`);
+  }
+
+  const vectorIndex = source.indexOf("Vector(", markerIndex);
+  const openIndex = source.indexOf("(", vectorIndex);
+  const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
+  if (vectorIndex < 0 || closeIndex < 0) {
+    throw new Error(`Could not find Scala Vector after ${marker}.`);
+  }
+
+  return source.slice(openIndex + 1, closeIndex);
+}
+
+function extractScalaValVector(source, valName) {
+  return extractScalaDeclaredVector(source, new RegExp(`\\bval\\s+${valName}\\b`), `val ${valName}`);
+}
+
+function extractScalaDefVector(source, defName) {
+  return extractScalaDeclaredVector(source, new RegExp(`\\bdef\\s+${defName}\\b`), `def ${defName}`);
+}
+
+function extractScalaDeclaredVector(source, declarationPattern, label) {
+  const declaration = declarationPattern.exec(source);
+  if (!declaration) {
+    throw new Error(`Could not find Scala ${label}.`);
+  }
+
+  const vectorIndex = source.indexOf("Vector(", declaration.index);
+  const openIndex = source.indexOf("(", vectorIndex);
+  const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
+  if (vectorIndex < 0 || closeIndex < 0) {
+    throw new Error(`Could not find Scala Vector for ${label}.`);
+  }
+
+  return source.slice(openIndex + 1, closeIndex);
+}
+
+function extractScalaCalls(source, callName) {
+  const calls = [];
+  let index = 0;
+
+  while (index < source.length) {
+    const callIndex = source.indexOf(`${callName}(`, index);
+    if (callIndex < 0) {
+      break;
+    }
+
+    const openIndex = source.indexOf("(", callIndex);
+    const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
+    if (closeIndex < 0) {
+      throw new Error(`Could not find closing parenthesis for ${callName}.`);
+    }
+
+    calls.push(source.slice(openIndex + 1, closeIndex));
+    index = closeIndex + 1;
+  }
+
+  return calls;
+}
+
+function readScalaWrapperString(rawValue, wrapperName) {
+  const match = new RegExp(`^${wrapperName}\\(\\s*"([^"]+)"\\s*\\)$`).exec((rawValue ?? "").trim());
+  if (!match) {
+    throw new Error(`Could not parse ${wrapperName} string value: ${rawValue}`);
+  }
+
+  return match[1];
+}
+
+function readScalaEnum(rawValue, enumName) {
+  const match = new RegExp(`^${enumName}\\.([A-Za-z0-9_]+)$`).exec((rawValue ?? "").trim());
+  if (!match) {
+    throw new Error(`Could not parse ${enumName} enum value: ${rawValue}`);
+  }
+
+  return match[1];
+}
+
+function readScalaOptionalEnum(rawValue, enumName) {
+  const value = (rawValue ?? "").trim();
+  if (value === "None") {
+    return null;
+  }
+
+  const somePrefix = "Some(";
+  if (value.startsWith(somePrefix) && value.endsWith(")")) {
+    return readScalaEnum(value.slice(somePrefix.length, -1), enumName);
+  }
+
+  return readScalaEnum(value, enumName);
 }
 
 function findTopLevelArrow(source, startIndex) {

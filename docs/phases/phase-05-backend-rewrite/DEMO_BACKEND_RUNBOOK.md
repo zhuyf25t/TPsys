@@ -55,6 +55,8 @@ GRANT USAGE, CREATE ON SCHEMA public TO slay_user;
 
 ```powershell
 cd F:\slay-demo
+# Postgres is opt-in. Generic DATABASE_URL alone is ignored by the rebuilt backend.
+$env:SLAY_DEMO_STORAGE_MODE="postgres"
 $env:SLAY_DEMO_DATABASE_URL="jdbc:postgresql://localhost:5432/slay_demo"
 $env:SLAY_DEMO_DATABASE_USER="slay_user"
 $env:SLAY_DEMO_DATABASE_PASSWORD="secret"
@@ -78,8 +80,10 @@ http://127.0.0.1:8080/health
 预期返回：
 
 ```json
-{"status":"ok","service":"slay-demo-backend","port":8080}
+{"status":"ok","service":"slay-demo-backend","port":8080,"storageMode":"postgres"}
 ```
+
+如果 `storageMode` 是 `memory`，说明你没有显式设置 `SLAY_DEMO_STORAGE_MODE=postgres`，当前进程不会写入 PostgreSQL。
 
 ## 4. 如果 8080 被占用
 

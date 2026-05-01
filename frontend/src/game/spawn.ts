@@ -26,6 +26,7 @@ export interface InitialHeroConfig {
   heroId: string;
   displayName?: string;
   skin?: string;
+  spawnPointIndex?: number;
 }
 
 let heroVisualOverrides = new Map<string, HeroVisualDefinition>();
@@ -44,27 +45,20 @@ export function resolveHeroVisual(heroId: string): HeroVisualDefinition {
     };
   }
 
-  return HERO_VISUALS[heroId];
+  return HERO_VISUALS[heroId] ?? HERO_VISUALS["player-1"];
 }
 
 export function createInitialHeroes(initialHeroes?: readonly InitialHeroConfig[]): Hero[] {
   const playerHandle = getCurrentAuthHandle();
-  const heroConfigById = new Map(initialHeroes?.map((config) => [config.heroId, config]) ?? []);
-  heroVisualOverrides = new Map(
-    (initialHeroes ?? [])
-      .map((config) => {
-        const visual = resolveSkinVisual(config.skin);
-        return visual ? ([config.heroId, visual] as const) : null;
-      })
-      .filter((entry): entry is readonly [string, HeroVisualDefinition] => entry !== null)
-  );
+  const heroDefinitions = resolveInitialHeroDefinitions(initialHeroes, playerHandle);
+  heroVisualOverrides = hasProvidedHeroDefinitions(initialHeroes)
+    ? buildHeroVisualOverrides(heroDefinitions)
+    : new Map();
 
-  return HERO_DEFINITIONS.map((definition) => ({
+  return heroDefinitions.map((definition) => ({
     ...createStarterInventory(),
     heroId: definition.heroId,
-    displayName:
-      heroConfigById.get(definition.heroId)?.displayName ??
-      (definition.heroId === "player-1" ? playerHandle : definition.displayName),
+    displayName: definition.displayName,
     team: TEAM_MODE,
     hp: HERO_MAX_HP,
     maxHp: HERO_MAX_HP,
@@ -83,6 +77,76 @@ export function createInitialHeroes(initialHeroes?: readonly InitialHeroConfig[]
     jumpCooldownMs: 0,
     eliminatedAtMs: null
   }));
+}
+
+function hasProvidedHeroDefinitions(initialHeroes: readonly InitialHeroConfig[] | undefined): boolean {
+  return Boolean(initialHeroes?.some((config) => config.heroId.trim().length > 0));
+}
+
+interface ResolvedInitialHeroDefinition {
+  heroId: string;
+  displayName: string;
+  skin?: string;
+  position: Vec2;
+  visual: HeroVisualDefinition;
+}
+
+function resolveInitialHeroDefinitions(
+  initialHeroes: readonly InitialHeroConfig[] | undefined,
+  playerHandle: string
+): ResolvedInitialHeroDefinition[] {
+  const providedHeroes = (initialHeroes ?? [])
+    .map((config) => ({
+      ...config,
+      heroId: config.heroId.trim()
+    }))
+    .filter((config) => config.heroId.length > 0)
+    .slice(0, HERO_DEFINITIONS.length);
+
+  if (providedHeroes.length > 0) {
+    return providedHeroes.map((config, index) => {
+      const fallbackDefinition = resolveSpawnDefinition(config.spawnPointIndex, index);
+      const fallbackVisual = resolveDefinitionVisual(fallbackDefinition.heroId);
+
+      return {
+        heroId: config.heroId,
+        displayName: normalizeOptionalText(config.displayName) ?? fallbackDefinition.displayName,
+        ...(config.skin ? { skin: config.skin } : {}),
+        position: { x: fallbackDefinition.position.x, y: fallbackDefinition.position.y },
+        visual: resolveSkinVisual(config.skin) ?? fallbackVisual
+      };
+    });
+  }
+
+  return HERO_DEFINITIONS.map((definition) => ({
+    heroId: definition.heroId,
+    displayName: definition.heroId === "player-1" ? playerHandle : definition.displayName,
+    position: { x: definition.position.x, y: definition.position.y },
+    visual: resolveDefinitionVisual(definition.heroId)
+  }));
+}
+
+function buildHeroVisualOverrides(
+  heroDefinitions: readonly ResolvedInitialHeroDefinition[]
+): Map<string, HeroVisualDefinition> {
+  return new Map(heroDefinitions.map((definition) => [definition.heroId, definition.visual] as const));
+}
+
+function resolveSpawnDefinition(spawnPointIndex: number | undefined, fallbackIndex: number): (typeof HERO_DEFINITIONS)[number] {
+  const index =
+    typeof spawnPointIndex === "number" && Number.isFinite(spawnPointIndex)
+      ? Math.max(0, Math.trunc(spawnPointIndex))
+      : fallbackIndex;
+  return HERO_DEFINITIONS[index] ?? HERO_DEFINITIONS[fallbackIndex] ?? HERO_DEFINITIONS[0];
+}
+
+function resolveDefinitionVisual(heroId: string): HeroVisualDefinition {
+  return HERO_VISUALS[heroId] ?? HERO_VISUALS["player-1"];
+}
+
+function normalizeOptionalText(value: string | undefined): string | null {
+  const normalized = value?.trim() ?? "";
+  return normalized ? normalized : null;
 }
 
 function resolveSkinVisual(skin: string | undefined): HeroVisualDefinition | null {

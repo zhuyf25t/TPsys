@@ -37,7 +37,8 @@ export function createInitialBattleSnapshot(participants?: InitialBattleParticip
       ? seatAssignments.map<InitialHeroConfig>((seat) => ({
           heroId: seat.heroId,
           displayName: seat.displayName,
-          skin: seat.skin
+          skin: seat.skin,
+          spawnPointIndex: seat.spawnPointIndex
         }))
       : undefined
   );

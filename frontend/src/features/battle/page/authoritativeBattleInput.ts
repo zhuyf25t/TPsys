@@ -2,6 +2,8 @@ import type { Vec2 } from "../../../domain/types";
 import { getSelectedSkillBindings } from "../../loadout/loadoutGateway";
 import { readSkillBindingPresses } from "../input/skillBindingInputAdapter";
 
+const FALLBACK_POINTER_WORLD_DISTANCE = 220;
+
 export interface AuthoritativeBattleInputSnapshot {
   movement: Vec2;
   aim: Vec2;
@@ -130,8 +132,8 @@ export function createAuthoritativeBattleInputCapture({
       const playerPosition = resolvePlayerPosition?.() ?? null;
       const pointerWorld = playerPosition
         ? {
-            x: playerPosition.x + fallbackAim.x,
-            y: playerPosition.y + fallbackAim.y
+            x: playerPosition.x + fallbackAim.x * FALLBACK_POINTER_WORLD_DISTANCE,
+            y: playerPosition.y + fallbackAim.y * FALLBACK_POINTER_WORLD_DISTANCE
           }
         : null;
       const snapshot: AuthoritativeBattleInputSnapshot = {

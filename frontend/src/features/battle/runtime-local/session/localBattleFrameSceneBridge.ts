@@ -47,10 +47,15 @@ export class LocalBattleFrameSceneBridge {
     this.options.syncPlayerHeroFromPhysics();
     this.updatePlayerMovement(command, deltaMs);
     this.options.pickupFrameBridge.handleAutomaticPickups();
+    const preparedSkillBeforeSkillInputs = this.options.getPlayerHero().preparedSkill;
     this.options.playerAbilityBridge.handleSkillInputs(command);
     this.options.playerAbilityBridge.handleJumpAction(command, this.lastMoveDirection);
     this.handleWeaponSwitchAction(command);
-    this.options.weaponActionBridge.handleWeaponFireAction(command);
+    this.options.weaponActionBridge.handleWeaponFireAction(
+      !shouldSuppressPrimaryFireForSkill(command, preparedSkillBeforeSkillInputs)
+        ? command
+        : suppressPrimaryFire(command)
+    );
     this.options.botFrameBridge.updateBotActions(deltaMs);
     this.options.projectileFrameBridge.updateProjectiles(deltaMs);
     this.options.syncPlayerHeroFromPhysics();
@@ -120,4 +125,25 @@ export class LocalBattleFrameSceneBridge {
       this.options.showFloatingText(player.position, "\u6b63\u5728\u5207\u67aa", "neutral");
     }
   }
+}
+
+function shouldSuppressPrimaryFireForSkill(command: PlayerCommand, preparedSkillBeforeSkillInputs: Hero["preparedSkill"]): boolean {
+  return (
+    preparedSkillBeforeSkillInputs !== null ||
+    command.castDash ||
+    command.toggleBlink ||
+    command.toggleFreeze
+  );
+}
+
+function suppressPrimaryFire(command: PlayerCommand): PlayerCommand {
+  if (!command.primaryHeld && !command.primaryJustPressed) {
+    return command;
+  }
+
+  return {
+    ...command,
+    primaryHeld: false,
+    primaryJustPressed: false
+  };
 }

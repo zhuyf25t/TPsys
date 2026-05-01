@@ -1691,7 +1691,7 @@ function resolveAuthoritativePreparedInput(
   const castBlink = transition.castSkill === "Blink";
   const castFreeze = transition.castSkill === "Freeze";
   const suppressPrimaryHeld =
-    castBlink || castFreeze || transition.preparedSkill !== null || transition.toggledPreparedSkill;
+    input.castDash || castBlink || castFreeze || transition.preparedSkill !== null || transition.toggledPreparedSkill;
 
   return {
     input: {

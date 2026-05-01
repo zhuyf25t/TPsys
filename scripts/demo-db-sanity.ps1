@@ -450,7 +450,12 @@ Run-Check -Name "health" -Action {
 
   $service = Require-TextField -Object $health -Field "service" -Context "/health"
   $port = [int](Require-NumberField -Object $health -Field "port" -Context "/health")
-  Write-Pass "/health readable service=$service port=$port status=$status"
+  $storageMode = Require-TextField -Object $health -Field "storageMode" -Context "/health"
+  if ($storageMode -ne "postgres") {
+    throw "/health returned storageMode=$storageMode; expected postgres. Set SLAY_DEMO_STORAGE_MODE=postgres before starting the backend."
+  }
+
+  Write-Pass "/health readable service=$service port=$port status=$status storageMode=$storageMode"
 }
 
 Run-Check -Name "identity accounts" -Action {

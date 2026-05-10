@@ -2,13 +2,13 @@ package slaydemo.backend
 
 import slaydemo.backend.battle.database.InMemoryBattleResultRepository
 import slaydemo.backend.battle.objects.*
-import slaydemo.backend.battle.services.{BattleResultRecordCommand, DefaultBattleResultService}
+import slaydemo.backend.battle.services.{BattleResultRecordCommand, BattleResultRecordError, DefaultBattleResultService}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.mail.database.InMemoryMailRepository
-import slaydemo.backend.mail.objects.{MailId, MailKind, MailRecord}
+import slaydemo.backend.mail.objects.{MailId, MailImportance, MailKind, MailReadState, MailRecord}
 import slaydemo.backend.mail.services.{DefaultMailService, MailReadError}
 import slaydemo.backend.replay.database.InMemoryReplayRepository
-import slaydemo.backend.replay.objects.ReplayId
+import slaydemo.backend.replay.objects.{ReplayFrameCount, ReplayId, ReplayPlaybackAvailability}
 import slaydemo.backend.replay.services.{DefaultReplayService, ReplayCommentCommand, ReplayCommentError, ReplayRecordCommand}
 
 object VisitorHandleGuardrailContractTest {
@@ -24,9 +24,11 @@ object VisitorHandleGuardrailContractTest {
     val repository = InMemoryBattleResultRepository()
     val service = DefaultBattleResultService(repository)
 
-    service.record(resultCommand(BattleId("battle-visitor-result"), PlayerHandle("Visitor")))
+    val visitorRecord = service.record(resultCommand(BattleId("battle-visitor-result"), PlayerHandle("Visitor")))
     service.record(resultCommand(BattleId("battle-playable-result"), PlayerHandle("Alice")))
+      .fold(error => throw AssertionError(s"playable battle result record failed: $error"), value => value)
 
+    assertEquals("visitor result is rejected", visitorRecord, Left(BattleResultRecordError.VisitorNotAllowed))
     assertEquals("visitor result is not persisted", repository.list(None, None, 20).map(_.handle.value), Vector("Alice"))
     assertEquals("all result listing hides visitor owners", service.list(None, None, 20).map(_.handle.value), Vector("Alice"))
     assertEquals(
@@ -73,9 +75,14 @@ object VisitorHandleGuardrailContractTest {
       subject = "Hidden",
       excerpt = "Hidden",
       senderLabel = "System",
-      unread = true,
-      important = false,
-      createdAt = EpochMillis(10L)
+      readState = MailReadState.Unread,
+      importance = MailImportance.Normal,
+      createdAt = EpochMillis(10L),
+      sourceBattleId = None,
+      sourcePath = None,
+      sourceLabel = None,
+      governanceMetadata = None,
+      friendRequestMetadata = None
     )
 
     repository.save(visitorMail)
@@ -100,10 +107,10 @@ object VisitorHandleGuardrailContractTest {
       finishedAtLabel = "Finished",
       durationMs = DurationMillis(1800L),
       score = Score(12),
-      placement = Some(1),
-      aliveAtEnd = true,
+      placement = Some(BattlePlacement.unsafe(1)),
+      survivalOutcome = BattleSurvivalOutcome.Survived,
       ratingBefore = Rating(1200),
-      ratingDelta = 12,
+      ratingDelta = RatingDelta(12),
       ratingAfter = Rating(1212),
       resultLabel = "Victory",
       modeLabel = "Authoritative",
@@ -131,13 +138,13 @@ object VisitorHandleGuardrailContractTest {
       playersLine = handle.value,
       timelineHint = "Done",
       score = Score(12),
-      placement = Some(1),
+      placement = Some(BattlePlacement.unsafe(1)),
       durationMs = DurationMillis(1800L),
-      aliveAtEnd = true,
+      survivalOutcome = BattleSurvivalOutcome.Survived,
       thumbnailDataUrl = None,
       currentLoadout = Some("Pistol"),
-      frameCount = 2,
-      playbackAvailable = true,
+      frameCount = ReplayFrameCount.fromWire(2),
+      requestedPlaybackAvailability = ReplayPlaybackAvailability.Available,
       framesJson = "[]"
     )
 

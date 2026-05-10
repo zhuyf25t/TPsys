@@ -5,8 +5,13 @@ import slaydemo.backend.battle.objects.*
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.shared.policies.HandlePolicy
 
+enum BattleResultRecordError {
+  case InvalidHandle
+  case VisitorNotAllowed
+}
+
 trait BattleResultService {
-  def record(command: BattleResultRecordCommand): BattleResultRecord
+  def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord]
   def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord]
 }
 
@@ -18,10 +23,10 @@ final case class BattleResultRecordCommand(
   finishedAtLabel: String,
   durationMs: DurationMillis,
   score: Score,
-  placement: Option[Int],
-  aliveAtEnd: Boolean,
+  placement: Option[BattlePlacement],
+  survivalOutcome: BattleSurvivalOutcome,
   ratingBefore: Rating,
-  ratingDelta: Int,
+  ratingDelta: RatingDelta,
   ratingAfter: Rating,
   resultLabel: String,
   modeLabel: String,
@@ -33,30 +38,35 @@ final case class BattleResultRecordCommand(
 )
 
 final class DefaultBattleResultService(repository: BattleResultRepository) extends BattleResultService {
-  override def record(command: BattleResultRecordCommand): BattleResultRecord = {
+  override def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord] =
+    validateRecordHandle(command.handle).map { handle =>
+      val record = buildRecord(command, handle)
+      repository.save(record)
+    }
+
+  private def buildRecord(command: BattleResultRecordCommand, handle: PlayerHandle): BattleResultRecord =
     val record = BattleResultRecord(
       battleId = command.battleId,
-      handle = command.handle,
+      handle = handle,
       displayName = command.displayName,
       finishedAt = command.finishedAt,
       finishedAtLabel = command.finishedAtLabel,
       durationMs = command.durationMs,
       score = command.score,
       placement = command.placement,
-      aliveAtEnd = command.aliveAtEnd,
+      survivalOutcome = command.survivalOutcome,
       ratingBefore = command.ratingBefore,
       ratingDelta = command.ratingDelta,
       ratingAfter = command.ratingAfter,
-      resultLabel = command.resultLabel,
-      modeLabel = command.modeLabel,
-      mapLabel = command.mapLabel,
-      highlightLine = command.highlightLine,
-      playersLine = command.playersLine,
-      timelineHint = command.timelineHint,
+      resultLabel = BattleResultLabel.fromWire(command.resultLabel),
+      modeLabel = BattleModeLabel.fromWire(command.modeLabel),
+      mapLabel = BattleMapLabel.fromWire(command.mapLabel),
+      highlightLine = BattleHighlightLine.fromWire(command.highlightLine),
+      playersLine = BattlePlayersLine.fromWire(command.playersLine),
+      timelineHint = BattleTimelineHint.fromWire(command.timelineHint),
       currentLoadout = command.currentLoadout.flatMap(nonEmpty)
     )
-    if isPlayable(record.handle) then repository.save(record) else record
-  }
+    record
 
   override def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord] = {
     val safeLimit = math.max(0, math.min(limit, 100))
@@ -73,6 +83,13 @@ final class DefaultBattleResultService(repository: BattleResultRepository) exten
 
   private def nonEmpty(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
+
+  private def validateRecordHandle(handle: PlayerHandle): Either[BattleResultRecordError, PlayerHandle] = {
+    val trimmed = HandlePolicy.trim(handle.value)
+    if trimmed.isEmpty then Left(BattleResultRecordError.InvalidHandle)
+    else if HandlePolicy.isVisitorLikeHandle(trimmed) then Left(BattleResultRecordError.VisitorNotAllowed)
+    else PlayerHandle.forLookup(trimmed).toRight(BattleResultRecordError.InvalidHandle)
+  }
 
   private def isPlayable(handle: PlayerHandle): Boolean =
     HandlePolicy.isPlayableIdentityHandle(handle.value)

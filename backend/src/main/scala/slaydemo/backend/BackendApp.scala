@@ -3,7 +3,7 @@ package slaydemo.backend
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
 
-import com.sun.net.httpserver.{HttpExchange, HttpServer}
+import com.sun.net.httpserver.HttpServer
 
 import slaydemo.backend.battle.objects.DurationMillis
 import slaydemo.backend.battle.routes.{BattleResultRoutes, BattleRoutes}
@@ -34,41 +34,16 @@ import slaydemo.backend.social.routes.SocialRoutes
 import slaydemo.backend.social.services.DefaultFriendRequestService
 
 object BackendApp {
-  private[backend] final case class BackendRouteContext(path: String)
-
   private[backend] val BaseRouteContexts: Vector[BackendRouteContext] =
-    Vector(
-      "/health",
-      "/identity/register",
-      "/identity/session",
-      "/identity/me",
-      "/identity/accounts",
-      "/battle/queue/join",
-      "/battle/queue/status",
-      "/battle/queue/leave",
-      "/battle/rooms",
-      "/battle/state",
-      "/battle/commands",
-      "/battle/results",
-      "/replay/catalog",
-      "/mails",
-      "/mails/read",
-      "/bots/profiles",
-      "/bot/profiles",
-      "/social/friend-requests/respond",
-      "/social/friend-requests",
-      "/forum/topics",
-      "/governance/contribution-adjustments",
-      "/governance/admin-notifications"
-    ).map(BackendRouteContext.apply)
+    BackendRouteCatalog.BaseRouteContexts
 
   private[backend] val RouteContexts: Vector[BackendRouteContext] =
-    BaseRouteContexts ++ BaseRouteContexts.map(context => BackendRouteContext(s"/api${context.path}"))
+    BackendRouteCatalog.RouteContexts
 
   def main(args: Array[String]): Unit =
-    start()
+    start(BackendEnvironment.load())
 
-  def start(env: Map[String, String] = sys.env): Unit = {
+  def start(env: Map[String, String] = BackendEnvironment.load()): Unit = {
     val config = BackendConfig.unsafeFromEnvironment(env)
     val healthService = StaticHealthService(ServiceName.Backend, config.port, config.storage.mode)
     val healthRoutes = HealthRoutes(healthService)
@@ -114,9 +89,9 @@ object BackendApp {
     val governanceRoutes = GovernanceRoutes(governanceService, governanceService)
 
     val server = HttpServer.create(InetSocketAddress(config.port.value), 0)
-    registerRouteHandlers(
+    BackendRouteRegistry.register(
       server,
-      routeHandlers(
+      BackendRouteRegistry.routeHandlers(
         healthRoutes = healthRoutes,
         identityRoutes = identityRoutes,
         battleRoutes = battleRoutes,
@@ -138,55 +113,6 @@ object BackendApp {
 
   private def awaitForever(): Unit =
     while true do Thread.sleep(60_000L)
-
-  private final case class BackendRouteHandler(path: String, handle: HttpExchange => Unit)
-
-  private def routeHandlers(
-    healthRoutes: HealthRoutes,
-    identityRoutes: IdentityRoutes,
-    battleRoutes: BattleRoutes,
-    battleResultRoutes: BattleResultRoutes,
-    replayRoutes: ReplayRoutes,
-    mailRoutes: MailRoutes,
-    botProfileRoutes: BotProfileRoutes,
-    socialRoutes: SocialRoutes,
-    forumRoutes: ForumRoutes,
-    governanceRoutes: GovernanceRoutes
-  ): Vector[BackendRouteHandler] = {
-    val baseHandlers = Vector(
-      BackendRouteHandler("/health", healthRoutes.handle),
-      BackendRouteHandler("/identity/register", identityRoutes.register),
-      BackendRouteHandler("/identity/session", identityRoutes.issueSession),
-      BackendRouteHandler("/identity/me", identityRoutes.current),
-      BackendRouteHandler("/identity/accounts", identityRoutes.accounts),
-      BackendRouteHandler("/battle/queue/join", battleRoutes.join),
-      BackendRouteHandler("/battle/queue/status", battleRoutes.status),
-      BackendRouteHandler("/battle/queue/leave", battleRoutes.leave),
-      BackendRouteHandler("/battle/rooms", battleRoutes.rooms),
-      BackendRouteHandler("/battle/state", battleRoutes.state),
-      BackendRouteHandler("/battle/commands", battleRoutes.commands),
-      BackendRouteHandler("/battle/results", battleResultRoutes.handle),
-      BackendRouteHandler("/replay/catalog", replayRoutes.handle),
-      BackendRouteHandler("/mails", mailRoutes.mails),
-      BackendRouteHandler("/mails/read", mailRoutes.read),
-      BackendRouteHandler("/bots/profiles", botProfileRoutes.handle),
-      BackendRouteHandler("/bot/profiles", botProfileRoutes.handle),
-      BackendRouteHandler("/social/friend-requests/respond", socialRoutes.friendRequests),
-      BackendRouteHandler("/social/friend-requests", socialRoutes.friendRequests),
-      BackendRouteHandler("/forum/topics", forumRoutes.handle),
-      BackendRouteHandler("/governance/contribution-adjustments", governanceRoutes.contributionAdjustments),
-      BackendRouteHandler("/governance/admin-notifications", governanceRoutes.adminNotifications)
-    )
-
-    baseHandlers ++ baseHandlers.map(handler => handler.copy(path = s"/api${handler.path}"))
-  }
-
-  private def registerRouteHandlers(server: HttpServer, handlers: Vector[BackendRouteHandler]): Unit = {
-    val paths = handlers.map(_.path)
-    if paths != RouteContexts.map(_.path) then
-      throw IllegalStateException("Backend route handler table and route context metadata diverged.")
-    handlers.foreach(handler => server.createContext(handler.path, exchange => handler.handle(exchange)))
-  }
 
   private def battleDurationFor(env: Map[String, String]): DurationMillis =
     env

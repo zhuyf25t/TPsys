@@ -1,6 +1,14 @@
 package slaydemo.backend.forum.database
 
-import slaydemo.backend.forum.objects.{ForumReplyId, ForumTopicId, ForumTopicRecord}
+import slaydemo.backend.battle.objects.EpochMillis
+import slaydemo.backend.forum.objects.{
+  ForumReplyId,
+  ForumReplyVoteUpdateError,
+  ForumTopicId,
+  ForumTopicRecord,
+  ForumVoteChoice
+}
+import slaydemo.backend.identity.objects.PlayerHandle
 
 final class InMemoryForumRepository extends ForumRepository {
   private val lock = Object()
@@ -23,9 +31,11 @@ final class InMemoryForumRepository extends ForumRepository {
     }
 
   override def listTopics(): Vector[ForumTopicRecord] =
-    lock.synchronized {
-      topicsById.values.toVector
-    }.sortWith(compareRecentFirst)
+    ForumTopicOrderingRules.sortRecentFirst(
+      lock.synchronized {
+        topicsById.values.toVector
+      }
+    )
 
   override def findTopic(topicId: ForumTopicId): Option[ForumTopicRecord] =
     lock.synchronized {
@@ -39,9 +49,45 @@ final class InMemoryForumRepository extends ForumRepository {
     topic
   }
 
-  private def compareRecentFirst(left: ForumTopicRecord, right: ForumTopicRecord): Boolean =
-    if left.updatedAt.value != right.updatedAt.value then left.updatedAt.value > right.updatedAt.value
-    else left.createdAt.value > right.createdAt.value
+  override def setTopicVote(
+    topicId: ForumTopicId,
+    authorHandle: PlayerHandle,
+    vote: Option[ForumVoteChoice],
+    updatedAt: EpochMillis
+  ): Either[ForumVoteMutationError, ForumTopicRecord] =
+    lock.synchronized {
+      topicsById.get(topicId) match {
+        case None =>
+          Left(ForumVoteMutationError.TopicNotFound)
+        case Some(topic) =>
+          val updated = ForumTopicRecord.setVote(topic, authorHandle, vote, updatedAt)
+          topicsById = topicsById.updated(topicId, updated)
+          Right(updated)
+      }
+    }
+
+  override def setReplyVote(
+    topicId: ForumTopicId,
+    replyId: ForumReplyId,
+    authorHandle: PlayerHandle,
+    vote: Option[ForumVoteChoice],
+    updatedAt: EpochMillis
+  ): Either[ForumVoteMutationError, ForumTopicRecord] =
+    lock.synchronized {
+      topicsById.get(topicId) match {
+        case None =>
+          Left(ForumVoteMutationError.TopicNotFound)
+        case Some(topic) =>
+          ForumTopicRecord.setReplyVote(topic, replyId, authorHandle, vote, updatedAt) match {
+            case Left(ForumReplyVoteUpdateError.ReplyNotFound) =>
+              Left(ForumVoteMutationError.ReplyNotFound)
+            case Right(updated) =>
+              topicsById = topicsById.updated(topicId, updated)
+              Right(updated)
+          }
+      }
+    }
+
 }
 
 object InMemoryForumRepository {

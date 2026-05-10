@@ -27,7 +27,7 @@ final class InMemoryGovernanceRepository extends GovernanceRepository {
   override def listAdjustments(limit: Int): Vector[ContributionAdjustmentRecord] =
     lock.synchronized {
       adjustmentsById.values.toVector
-    }.sortWith(compareAdjustmentsRecentFirst).take(math.max(0, limit))
+    }.sortWith(GovernanceRepositoryOrderingRules.adjustmentsRecentFirst).take(math.max(0, limit))
 
   override def saveAdjustment(record: ContributionAdjustmentRecord): ContributionAdjustmentRecord = {
     lock.synchronized {
@@ -55,7 +55,7 @@ final class InMemoryGovernanceRepository extends GovernanceRepository {
       notificationsById.values.toVector
     }.filter(record => kind.forall(_ == record.kind))
       .filter(record => targetType.forall(_ == record.targetType))
-      .sortWith(compareNotificationsRecentFirst)
+      .sortWith(GovernanceRepositoryOrderingRules.notificationsRecentFirst)
       .take(math.max(0, limit))
 
   override def saveReviewNotification(
@@ -66,17 +66,6 @@ final class InMemoryGovernanceRepository extends GovernanceRepository {
     }
     record
   }
-
-  private def compareAdjustmentsRecentFirst(left: ContributionAdjustmentRecord, right: ContributionAdjustmentRecord): Boolean =
-    if left.createdAt.value != right.createdAt.value then left.createdAt.value > right.createdAt.value
-    else left.id.value < right.id.value
-
-  private def compareNotificationsRecentFirst(
-    left: GovernanceReviewNotificationRecord,
-    right: GovernanceReviewNotificationRecord
-  ): Boolean =
-    if left.createdAt.value != right.createdAt.value then left.createdAt.value > right.createdAt.value
-    else left.id.value < right.id.value
 }
 
 object InMemoryGovernanceRepository {

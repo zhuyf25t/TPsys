@@ -7,18 +7,25 @@ enum JsonObjectParseError {
 
 object JsonObjectParser {
   def parseStringFields(body: String): Either[JsonObjectParseError, Map[String, String]] = {
+    parseNullableStringFields(body).flatMap { fields =>
+      if fields.values.exists(_.isEmpty) then Left(JsonObjectParseError.ExpectedStringField)
+      else Right(fields.collect { case (name, Some(value)) => name -> value })
+    }
+  }
+
+  def parseNullableStringFields(body: String): Either[JsonObjectParseError, Map[String, Option[String]]] = {
     val trimmed = Option(body).getOrElse("").trim
     if trimmed.isEmpty then Right(Map.empty)
     else Parser(trimmed).parse()
   }
 
   private final class Parser(source: String) {
-    def parse(): Either[JsonObjectParseError, Map[String, String]] = {
+    def parse(): Either[JsonObjectParseError, Map[String, Option[String]]] = {
       var index = skipWhitespace(0)
       if !hasChar(index, '{') then return Left(JsonObjectParseError.ExpectedObject)
       index = skipWhitespace(index + 1)
 
-      var fields = Map.empty[String, String]
+      var fields = Map.empty[String, Option[String]]
       if hasChar(index, '}') then return Right(fields)
 
       while index < source.length do {
@@ -29,7 +36,7 @@ object JsonObjectParser {
             if !hasChar(index, ':') then return Left(JsonObjectParseError.ExpectedStringField)
             index = skipWhitespace(index + 1)
 
-            parseString(index) match {
+            parseFieldValue(index) match {
               case None => return Left(JsonObjectParseError.ExpectedStringField)
               case Some((value, afterValue)) =>
                 fields = fields.updated(key, value)
@@ -43,6 +50,16 @@ object JsonObjectParser {
 
       Left(JsonObjectParseError.ExpectedObject)
     }
+
+    private def parseFieldValue(start: Int): Option[(Option[String], Int)] =
+      parseString(start) match {
+        case Some((value, afterValue)) =>
+          Some(Some(value) -> afterValue)
+        case None if startsWith(start, "null") =>
+          Some(None -> (start + "null".length))
+        case None =>
+          None
+      }
 
     private def parseString(start: Int): Option[(String, Int)] = {
       if !hasChar(start, '"') then return None
@@ -106,6 +123,9 @@ object JsonObjectParser {
 
     private def hasChar(index: Int, expected: Char): Boolean =
       index >= 0 && index < source.length && source.charAt(index) == expected
+
+    private def startsWith(index: Int, expected: String): Boolean =
+      index >= 0 && source.regionMatches(index, expected, 0, expected.length)
 
     private def isHexDigit(char: Char): Boolean =
       (char >= '0' && char <= '9') ||

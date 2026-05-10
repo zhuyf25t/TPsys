@@ -1,9 +1,21 @@
 package slaydemo.backend
 
-import slaydemo.backend.battle.objects.{BattleId, DurationMillis, EpochMillis, Score}
+import java.nio.file.{Files, Path}
+import scala.jdk.CollectionConverters.*
+
+import slaydemo.backend.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Rating, RatingDelta, Score}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
-import slaydemo.backend.replay.database.InMemoryReplayRepository
-import slaydemo.backend.replay.objects.ReplayId
+import slaydemo.backend.replay.database.{FileReplayRepository, InMemoryReplayRepository}
+import slaydemo.backend.replay.objects.{
+  ReplayCommentRecord,
+  ReplayFrameCount,
+  ReplayFramesJson,
+  ReplayId,
+  ReplayPlaybackAvailability,
+  ReplayRecord,
+  ReplaySettlementRecord,
+  ReplayTitle
+}
 import slaydemo.backend.replay.services.{
   DefaultReplayService,
   ReplayCommentCommand,
@@ -16,6 +28,7 @@ object ReplayServiceContractTest {
   def main(args: Array[String]): Unit = {
     recordNormalizesReplayFieldsAndSupportsListLoad()
     commentsAreOrderedLimitedAndExplicitAboutMissingReplay()
+    fileRepositoryPersistsReplaysSettlementsAndComments()
 
     println("Replay service contract checks passed")
   }
@@ -91,19 +104,19 @@ object ReplayServiceContractTest {
 
     assertEquals("invalid replay is not persisted", service.load(ReplayId("replay-invalid")), None)
     assertEquals("unsafe replay is not persisted", service.load(ReplayId("unsafe/id")), None)
-    assertEquals("first frame count derived from blank frames", first.frameCount, 0)
+    assertEquals("first frame count derived from blank frames", first.frameCount, ReplayFrameCount.zero)
     assertEquals("first playback requires at least two frames", first.playbackAvailable, false)
-    assertEquals("first frames json normalized", first.framesJson, "[]")
+    assertEquals("first frames json normalized", first.framesJson, ReplayFramesJson.empty)
     assertEquals("first blank loadout normalized", first.currentLoadout, None)
     assertEquals("first blank thumbnail normalized", first.thumbnailDataUrl, None)
-    assertEquals("second frame count derived from frames", second.frameCount, 1)
+    assertEquals("second frame count derived from frames", second.frameCount, ReplayFrameCount.fromWire(1))
     assertEquals("second playback unavailable with one frame", second.playbackAvailable, false)
-    assertEquals("second frames json preserved", second.framesJson, """[{"elapsedMs":0}]""")
+    assertEquals("second frames json preserved", second.framesJson, ReplayFramesJson.fromNormalized("""[{"elapsedMs":0}]"""))
     assertEquals("second loadout preserved", second.currentLoadout, Some("Pistol"))
     assertEquals("second thumbnail preserved", second.thumbnailDataUrl, Some("data:image/png;base64,abc"))
-    assertEquals("third frame count derived from frames", third.frameCount, 2)
+    assertEquals("third frame count derived from frames", third.frameCount, ReplayFrameCount.fromWire(2))
     assertEquals("third playback honors submitted unavailable flag", third.playbackAvailable, false)
-    assertEquals("fourth frame count derived from frames", fourth.frameCount, 2)
+    assertEquals("fourth frame count derived from frames", fourth.frameCount, ReplayFrameCount.fromWire(2))
     assertEquals("fourth playback requires submitted flag and playable frames", fourth.playbackAvailable, true)
     assertEquals("load finds saved replay", service.load(first.replayId).map(_.replayId), Some(first.replayId))
     assertEquals("list newest first limit", service.list(1).map(_.replayId), Vector(fourth.replayId))
@@ -153,6 +166,102 @@ object ReplayServiceContractTest {
     assertEquals("missing replay comments are hidden", service.listComments(ReplayId("missing"), 20), Vector.empty)
   }
 
+  private def fileRepositoryPersistsReplaysSettlementsAndComments(): Unit = {
+    val directory = Files.createTempDirectory("slay-demo-replay-file-contract")
+    try {
+      val storagePath = directory.resolve("replay-records.json")
+      val repository = FileReplayRepository(storagePath)
+      val replay = ReplayRecord(
+        replayId = ReplayId("file-replay"),
+        battleId = BattleId("battle-file-replay"),
+        handle = PlayerHandle("Alice"),
+        displayName = DisplayName("Alice"),
+        finishedAt = EpochMillis(2_000L),
+        finishedAtLabel = "Finished",
+        title = ReplayTitle.fromWire("File Replay"),
+        modeLabel = "Authoritative",
+        resultLabel = "Victory",
+        mapLabel = "Arena",
+        highlightLine = "Victory",
+        coverLabel = "Cover",
+        playersLine = "Alice / Bob",
+        timelineHint = "Done",
+        score = Score(12),
+        placement = Some(BattlePlacement.unsafe(1)),
+        ratingBefore = Some(Rating(1200)),
+        ratingDelta = Some(RatingDelta(12)),
+        ratingAfter = Some(Rating(1212)),
+        durationMs = DurationMillis(1_800L),
+        survivalOutcome = BattleSurvivalOutcome.Survived,
+        thumbnailDataUrl = Some("data:image/png;base64,abc"),
+        currentLoadout = Some("Pistol"),
+        frameCount = ReplayFrameCount.fromWire(2),
+        playbackAvailability = ReplayPlaybackAvailability.Available,
+        framesJson = ReplayFramesJson.fromNormalized("""[{"elapsedMs":0},{"elapsedMs":16}]"""),
+        settlements = Vector(
+          ReplaySettlementRecord(
+            handle = PlayerHandle("Bob"),
+            displayName = DisplayName("Bob"),
+            resultLabel = "Defeat",
+            highlightLine = "Downed",
+            score = Score(3),
+            placement = Some(BattlePlacement.unsafe(2)),
+            ratingBefore = Some(Rating(1000)),
+            ratingDelta = Some(RatingDelta(-8)),
+            ratingAfter = Some(Rating(992)),
+            survivalOutcome = BattleSurvivalOutcome.Eliminated,
+            currentLoadout = None
+          ),
+          ReplaySettlementRecord(
+            handle = PlayerHandle("Alice"),
+            displayName = DisplayName("Alice"),
+            resultLabel = "Victory",
+            highlightLine = "Winner",
+            score = Score(12),
+            placement = Some(BattlePlacement.unsafe(1)),
+            ratingBefore = Some(Rating(1200)),
+            ratingDelta = Some(RatingDelta(12)),
+            ratingAfter = Some(Rating(1212)),
+            survivalOutcome = BattleSurvivalOutcome.Survived,
+            currentLoadout = Some("Pistol")
+          )
+        )
+      )
+
+      repository.saveReplay(replay)
+      repository.saveComment(
+        ReplayCommentRecord(
+          id = repository.nextCommentId(),
+          replayId = replay.replayId,
+          authorHandle = PlayerHandle("Alice"),
+          body = "first",
+          createdAt = EpochMillis(1_000L)
+        )
+      )
+      repository.saveComment(
+        ReplayCommentRecord(
+          id = repository.nextCommentId(),
+          replayId = replay.replayId,
+          authorHandle = PlayerHandle("Bob"),
+          body = "second",
+          createdAt = EpochMillis(2_000L)
+        )
+      )
+
+      val reloaded = FileReplayRepository(storagePath)
+      val loadedReplay = reloaded.findReplayById(replay.replayId).getOrElse(fail("missing file replay after reload"))
+      assertEquals("file replay frames json round trips", loadedReplay.framesJson, replay.framesJson)
+      assertEquals("file replay rating before round trips", loadedReplay.ratingBefore, Some(Rating(1200)))
+      assertEquals("file replay settlements sort by placement", loadedReplay.settlements.map(_.handle), Vector(PlayerHandle("Alice"), PlayerHandle("Bob")))
+      assertEquals("file replay settlement loadout round trips", loadedReplay.settlements.head.currentLoadout, Some("Pistol"))
+      assertEquals("file replay list newest first", reloaded.listReplays(1).map(_.replayId), Vector(replay.replayId))
+      assertEquals("file replay comments latest window is chronological", reloaded.listComments(replay.replayId, 1).map(_.body), Vector("second"))
+      assertEquals("file replay next comment id advances after reload", reloaded.nextCommentId(), slaydemo.backend.replay.objects.ReplayCommentId("comment-000003"))
+    } finally {
+      deleteRecursively(directory)
+    }
+  }
+
   private def replayCommand(
     replayId: ReplayId,
     finishedAt: EpochMillis,
@@ -178,13 +287,13 @@ object ReplayServiceContractTest {
       playersLine = "Alice / Bob",
       timelineHint = "Done",
       score = Score(12),
-      placement = Some(1),
+      placement = Some(BattlePlacement.unsafe(1)),
       durationMs = DurationMillis(1_800L),
-      aliveAtEnd = true,
+      survivalOutcome = BattleSurvivalOutcome.Survived,
       thumbnailDataUrl = thumbnailDataUrl,
       currentLoadout = currentLoadout,
-      frameCount = frameCount,
-      playbackAvailable = playbackAvailable,
+      frameCount = ReplayFrameCount.fromWire(frameCount),
+      requestedPlaybackAvailability = ReplayPlaybackAvailability.fromAvailableFlag(playbackAvailable),
       framesJson = framesJson
     )
 
@@ -199,4 +308,20 @@ object ReplayServiceContractTest {
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)
+
+  private def deleteRecursively(path: Path): Unit =
+    if Files.exists(path) then {
+      val stream = Files.walk(path)
+      try {
+        stream
+          .iterator()
+          .asScala
+          .toVector
+          .sortBy(_.toString.length)
+          .reverse
+          .foreach(Files.deleteIfExists)
+      } finally {
+        stream.close()
+      }
+    }
 }

@@ -1,9 +1,9 @@
 package slaydemo.backend.replay.services
 
-import slaydemo.backend.battle.objects.{BattleId, DurationMillis, EpochMillis, Score}
+import slaydemo.backend.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Score}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.replay.database.{InMemoryReplayRepository, ReplayRepository}
-import slaydemo.backend.replay.objects.{ReplayCommentRecord, ReplayId, ReplayRecord}
+import slaydemo.backend.replay.objects.{ReplayCommentRecord, ReplayFrameCount, ReplayId, ReplayPlaybackAvailability, ReplayRecord}
 import slaydemo.backend.replay.support.ReplayFrameJson
 import slaydemo.backend.shared.policies.HandlePolicy
 
@@ -35,13 +35,13 @@ final case class ReplayRecordCommand(
   playersLine: String,
   timelineHint: String,
   score: Score,
-  placement: Option[Int],
+  placement: Option[BattlePlacement],
   durationMs: DurationMillis,
-  aliveAtEnd: Boolean,
+  survivalOutcome: BattleSurvivalOutcome,
   thumbnailDataUrl: Option[String],
   currentLoadout: Option[String],
-  frameCount: Int,
-  playbackAvailable: Boolean,
+  frameCount: ReplayFrameCount,
+  requestedPlaybackAvailability: ReplayPlaybackAvailability,
   framesJson: String
 )
 
@@ -67,34 +67,7 @@ final class DefaultReplayService(repository: ReplayRepository, currentTimeMillis
         case Left(ReplayFrameJson.Error.InvalidFramesJson) =>
           Left(ReplayRecordError.InvalidFramesJson)
         case Right(replayFrames) =>
-          val record = ReplayRecord(
-            replayId = command.replayId,
-            battleId = command.battleId,
-            handle = command.handle,
-            displayName = command.displayName,
-            finishedAt = command.finishedAt,
-            finishedAtLabel = command.finishedAtLabel,
-            title = command.title,
-            modeLabel = command.modeLabel,
-            resultLabel = command.resultLabel,
-            mapLabel = command.mapLabel,
-            highlightLine = command.highlightLine,
-            coverLabel = command.coverLabel,
-            playersLine = command.playersLine,
-            timelineHint = command.timelineHint,
-            score = command.score,
-            placement = command.placement,
-            ratingBefore = None,
-            ratingDelta = None,
-            ratingAfter = None,
-            durationMs = command.durationMs,
-            aliveAtEnd = command.aliveAtEnd,
-            thumbnailDataUrl = command.thumbnailDataUrl.flatMap(nonEmpty),
-            currentLoadout = command.currentLoadout.flatMap(nonEmpty),
-            frameCount = replayFrames.frameCount,
-            playbackAvailable = command.playbackAvailable && replayFrames.playbackAvailable,
-            framesJson = replayFrames.framesJson
-          )
+          val record = ReplayRecordFactory.fromCommand(command, replayFrames)
           Right(if isPlayable(record.handle) then repository.saveReplay(record) else record)
       }
   }
@@ -150,9 +123,6 @@ final class DefaultReplayService(repository: ReplayRepository, currentTimeMillis
     }
   }
 
-  private def nonEmpty(value: String): Option[String] =
-    Option(value).map(_.trim).filter(_.nonEmpty)
-
   private def isPlayable(handle: PlayerHandle): Boolean =
     HandlePolicy.isPlayableIdentityHandle(handle.value)
 }
@@ -165,18 +135,4 @@ object DefaultReplayService {
 object InMemoryReplayService {
   def apply(): DefaultReplayService =
     DefaultReplayService(InMemoryReplayRepository(), () => System.currentTimeMillis())
-}
-
-object ReplayIdentifierPolicy {
-  private val MaxReplayIdLength: Int = 200
-
-  def isSafeReplayId(replayId: ReplayId): Boolean =
-    isSafeIdentifier(replayId.value)
-
-  def isSafeIdentifier(value: String): Boolean = {
-    val trimmed = Option(value).getOrElse("").trim
-    trimmed.nonEmpty &&
-      trimmed.length <= MaxReplayIdLength &&
-      trimmed.forall(char => char.isLetterOrDigit || char == '-' || char == '_' || char == '.' || char == '~')
-  }
 }

@@ -3,7 +3,7 @@ package slaydemo.backend.governance.objects
 import java.util.Locale
 
 import slaydemo.backend.battle.objects.EpochMillis
-import slaydemo.backend.mail.objects.{GovernanceMailMetadata, MailKind}
+import slaydemo.backend.mail.objects.{GovernanceMailMetadata, MailImportance, MailKind, MailReadState}
 
 final case class AdminHandle(value: String) extends AnyVal {
   def key: String = value.toLowerCase(Locale.ROOT)
@@ -123,8 +123,14 @@ final case class GovernanceMailSnapshot(
   subject: String,
   excerpt: String,
   senderLabel: String,
-  unread: Boolean,
-  important: Boolean,
+  readState: MailReadState,
+  importance: MailImportance,
   createdAt: EpochMillis,
-  governanceMetadata: Option[GovernanceMailMetadata] = None
-)
+  governanceMetadata: Option[GovernanceMailMetadata]
+) {
+  def unread: Boolean =
+    MailReadState.unreadFlag(readState)
+
+  def important: Boolean =
+    MailImportance.importantFlag(importance)
+}

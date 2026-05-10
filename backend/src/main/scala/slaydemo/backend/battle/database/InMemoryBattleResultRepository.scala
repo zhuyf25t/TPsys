@@ -23,12 +23,8 @@ final class InMemoryBattleResultRepository extends BattleResultRepository {
       recordsById.values.toVector
     }.filter(record => handle.forall(_.key == record.handle.key))
       .filter(record => battleId.forall(_.value == record.battleId.value))
-      .sortWith(compareRecentFirst)
+      .sortWith(BattleResultRepositoryOrderingRules.recentFirst)
       .take(math.max(0, limit))
-
-  private def compareRecentFirst(left: BattleResultRecord, right: BattleResultRecord): Boolean =
-    if left.finishedAt.value != right.finishedAt.value then left.finishedAt.value > right.finishedAt.value
-    else left.resultId.value < right.resultId.value
 }
 
 object InMemoryBattleResultRepository {

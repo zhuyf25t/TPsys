@@ -29,12 +29,15 @@ final case class BattleSessionBootstrapSeat(
   handle: PlayerHandle,
   displayName: DisplayName,
   joinedAt: EpochMillis,
-  isBot: Boolean,
+  participantKind: BattleParticipantKind,
   spawnPointIndex: SpawnPointIndex,
   rating: Option[Rating],
   avatar: Option[String],
   skin: Option[String]
-)
+) {
+  def isBot: Boolean =
+    BattleParticipantKind.isBot(participantKind)
+}
 
 final case class BattleSessionBootstrap(
   seats: Vector[BattleSessionBootstrapSeat]

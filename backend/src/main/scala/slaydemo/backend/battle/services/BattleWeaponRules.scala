@@ -3,14 +3,6 @@ package slaydemo.backend.battle.services
 import slaydemo.backend.battle.objects.*
 
 private[services] object BattleWeaponRules {
-  private final case class WeaponInventoryDefinition(
-    weaponKind: WeaponKind,
-    magazineSize: Int,
-    reserveAmmo: Option[Int],
-    pickupAmmo: Int,
-    usesHeat: Boolean
-  )
-
   def currentWeapon(player: BattlePlayerState): Option[BattleWeaponState] =
     player.weapons.lift(player.currentWeaponIndex)
 
@@ -30,13 +22,12 @@ private[services] object BattleWeaponRules {
   def canFireHeatWeapon(weapon: BattleWeaponState): Boolean =
     weapon.fireCooldownMs.value <= 0 &&
       weapon.reloadRemainingMs.value <= 0 &&
-      !weapon.overheated &&
-      weapon.overheatRemainingMs.value <= 0
+      weapon.thermalState == BattleWeaponThermalState.Ready
 
-  def chargeMagazineWeapon(weapon: BattleWeaponState, cooldownMs: Int): BattleWeaponState =
+  def chargeMagazineWeapon(weapon: BattleWeaponState, cooldownMs: CooldownMillis): BattleWeaponState =
     val chargedWeapon = weapon.copy(
       ammoInMagazine = AmmoCount(weapon.ammoInMagazine.value - 1),
-      fireCooldownMs = CooldownMillis(cooldownMs)
+      fireCooldownMs = cooldownMs
     )
     if shouldAutoReload(chargedWeapon) then startMagazineReload(chargedWeapon)
     else chargedWeapon
@@ -69,32 +60,30 @@ private[services] object BattleWeaponRules {
     }
 
   def createWeaponState(weaponKind: WeaponKind): BattleWeaponState = {
-    val definition = weaponInventoryDefinition(weaponKind)
+    val definition = BattleWeaponCatalog.inventoryDefinition(weaponKind)
     BattleWeaponState(
       weaponKind = definition.weaponKind,
-      ammoInMagazine = AmmoCount(if definition.usesHeat then 0 else definition.magazineSize),
+      ammoInMagazine = AmmoCount(if usesHeatResource(definition) then 0 else definition.magazineSize),
       magazineSize = AmmoCount(definition.magazineSize),
       reserveAmmo = definition.reserveAmmo.map(AmmoCount.apply),
       fireCooldownMs = CooldownMillis(0),
       reloadRemainingMs = CooldownMillis(0),
       heat = 0,
-      overheated = false,
-      overheatRemainingMs = CooldownMillis(0)
+      thermalState = BattleWeaponThermalState.Ready
     )
   }
 
   def refillWeaponState(weapon: BattleWeaponState): BattleWeaponState = {
-    val definition = weaponInventoryDefinition(weapon.weaponKind)
+    val definition = BattleWeaponCatalog.inventoryDefinition(weapon.weaponKind)
     val reserve = weapon.reserveAmmo.map(ammo => AmmoCount(ammo.value + definition.pickupAmmo))
     weapon.copy(
-      ammoInMagazine = AmmoCount(if definition.usesHeat then 0 else definition.magazineSize),
+      ammoInMagazine = AmmoCount(if usesHeatResource(definition) then 0 else definition.magazineSize),
       magazineSize = AmmoCount(definition.magazineSize),
       reserveAmmo = reserve,
       fireCooldownMs = CooldownMillis(0),
       reloadRemainingMs = CooldownMillis(0),
       heat = 0,
-      overheated = false,
-      overheatRemainingMs = CooldownMillis(0)
+      thermalState = BattleWeaponThermalState.Ready
     )
   }
 
@@ -109,17 +98,15 @@ private[services] object BattleWeaponRules {
 
   def applyWeaponSwitchRequest(
     player: BattlePlayerState,
-    direction: Int,
-    requestedIndex: Option[Int]
+    direction: BattleWeaponSwitchDirection,
+    requestedIndex: Option[BattleWeaponSwitchIndex]
   ): BattlePlayerState = {
     val weapons = if player.weapons.nonEmpty then player.weapons else Vector(createWeaponState(WeaponKind.Pistol))
     val currentIndex = clampWeaponIndex(player.currentWeaponIndex, weapons.length)
-    val switchDirection =
-      if direction < 0 then -1
-      else if direction > 0 then 1
-      else 0
+    val switchDirection = BattleWeaponSwitchDirection.step(direction)
     val targetIndex = requestedIndex
-      .filter(index => index >= 0 && index < weapons.length)
+      .map(_.value)
+      .filter(index => index < weapons.length)
       .filter(_ != currentIndex)
       .orElse {
         if switchDirection == 0 || weapons.length <= 1 then None
@@ -148,25 +135,11 @@ private[services] object BattleWeaponRules {
     if weaponCount <= 0 then 0 else math.max(0, math.min(index, weaponCount - 1))
 
   def weaponUsesHeat(weaponKind: WeaponKind): Boolean =
-    weaponInventoryDefinition(weaponKind).usesHeat
+    BattleWeaponCatalog.usesHeatResource(weaponKind)
 
-  private def weaponInventoryDefinition(weaponKind: WeaponKind): WeaponInventoryDefinition =
-    weaponKind match {
-      case WeaponKind.Pistol =>
-        WeaponInventoryDefinition(WeaponKind.Pistol, InMemoryBattleStateCatalog.PistolMagazineSize, Some(InMemoryBattleStateCatalog.InitialPistolReserveAmmo), InMemoryBattleStateCatalog.PistolPickupAmmo, false)
-      case WeaponKind.RocketLauncher =>
-        WeaponInventoryDefinition(WeaponKind.RocketLauncher, InMemoryBattleStateCatalog.RocketMagazineSize, Some(InMemoryBattleStateCatalog.RocketReserveAmmo), InMemoryBattleStateCatalog.RocketPickupAmmo, false)
-      case WeaponKind.Gatling =>
-        WeaponInventoryDefinition(WeaponKind.Gatling, InMemoryBattleStateCatalog.GatlingMagazineSize, Some(0), InMemoryBattleStateCatalog.GatlingPickupAmmo, true)
-      case WeaponKind.Shotgun =>
-        WeaponInventoryDefinition(WeaponKind.Shotgun, InMemoryBattleStateCatalog.ShotgunMagazineSize, Some(InMemoryBattleStateCatalog.ShotgunReserveAmmo), InMemoryBattleStateCatalog.ShotgunPickupAmmo, false)
-    }
+  private def usesHeatResource(definition: BattleWeaponInventoryDefinition): Boolean =
+    definition.usesHeatResource
 
   private def weaponReloadMs(weaponKind: WeaponKind): Int =
-    weaponKind match {
-      case WeaponKind.Pistol         => InMemoryBattleStateCatalog.PistolReloadMs
-      case WeaponKind.RocketLauncher => InMemoryBattleStateCatalog.RocketReloadMs
-      case WeaponKind.Gatling        => InMemoryBattleStateCatalog.GatlingReloadMs
-      case WeaponKind.Shotgun        => InMemoryBattleStateCatalog.ShotgunReloadMs
-    }
+    BattleWeaponCatalog.reloadMs(weaponKind)
 }

@@ -45,10 +45,11 @@ export function updateBattleCameraTarget({
     x: scaleSize.width / 2,
     y: scaleSize.height / 2
   };
+  const resolvedPointer = resolveCameraPointer(pointer, screenCenter);
 
   const desiredOffset = {
-    x: Phaser.Math.Clamp((pointer.x - screenCenter.x) * POINTER_LOOK_AHEAD_RATIO, -POINTER_LOOK_AHEAD_MAX.x, POINTER_LOOK_AHEAD_MAX.x),
-    y: Phaser.Math.Clamp((pointer.y - screenCenter.y) * POINTER_LOOK_AHEAD_RATIO, -POINTER_LOOK_AHEAD_MAX.y, POINTER_LOOK_AHEAD_MAX.y)
+    x: Phaser.Math.Clamp((resolvedPointer.position.x - screenCenter.x) * POINTER_LOOK_AHEAD_RATIO, -POINTER_LOOK_AHEAD_MAX.x, POINTER_LOOK_AHEAD_MAX.x),
+    y: Phaser.Math.Clamp((resolvedPointer.position.y - screenCenter.y) * POINTER_LOOK_AHEAD_RATIO, -POINTER_LOOK_AHEAD_MAX.y, POINTER_LOOK_AHEAD_MAX.y)
   };
 
   cameraOffset.x = Phaser.Math.Linear(cameraOffset.x, desiredOffset.x, CAMERA_OFFSET_LERP.x);
@@ -56,7 +57,9 @@ export function updateBattleCameraTarget({
   cameraTarget.setPosition(playerPosition.x + cameraOffset.x, playerPosition.y + cameraOffset.y);
   if (isBattleVisionDiagnosticsEnabled()) {
     recordBattleVisionLookAheadDiagnostics({
-      pointer: { x: pointer.x, y: pointer.y },
+      pointer: resolvedPointer.position,
+      rawPointer: { x: pointer.x, y: pointer.y },
+      pointerReady: resolvedPointer.ready,
       screenCenter,
       desiredOffset,
       actualOffset: cameraOffset,
@@ -67,4 +70,22 @@ export function updateBattleCameraTarget({
       lerp: CAMERA_OFFSET_LERP
     });
   }
+}
+
+function resolveCameraPointer(
+  pointer: Phaser.Input.Pointer,
+  screenCenter: Vec2
+): { position: Vec2; ready: boolean } {
+  const pointerHasEvent = Boolean(pointer.event) || pointer.moveTime > 0 || pointer.downTime > 0 || pointer.upTime > 0;
+  if (!pointerHasEvent || !Number.isFinite(pointer.x) || !Number.isFinite(pointer.y)) {
+    return {
+      position: screenCenter,
+      ready: false
+    };
+  }
+
+  return {
+    position: { x: pointer.x, y: pointer.y },
+    ready: true
+  };
 }

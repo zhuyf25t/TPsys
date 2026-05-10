@@ -5,7 +5,7 @@ import slaydemo.backend.governance.database.{GovernanceRepository, InMemoryGover
 import slaydemo.backend.governance.objects.*
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.database.{InMemoryMailRepository, MailRepository}
-import slaydemo.backend.mail.objects.{GovernanceMailMetadata, MailId, MailKind, MailRecord}
+import slaydemo.backend.mail.objects.{MailId, MailRecord}
 
 final case class ContributionAdjustmentSubmissionResult(
   adjustment: ContributionAdjustmentRecord,
@@ -78,7 +78,7 @@ final class DefaultGovernanceService(
       sourcePath = command.sourcePath
     )
     val saved = repository.saveAdjustment(adjustment)
-    val mail = buildContributionMail(saved)
+    val mail = GovernanceMailFactory.contributionMail(saved)
     persistMail(mail)
     ContributionAdjustmentSubmissionResult(saved, mail)
   }
@@ -107,43 +107,10 @@ final class DefaultGovernanceService(
       mailId = ids.mailId
     )
     val saved = repository.saveReviewNotification(notification)
-    val mail = buildReviewMail(saved)
+    val mail = GovernanceMailFactory.reviewMail(saved)
     persistMail(mail)
     GovernanceReviewNotificationSubmissionResult(saved, mail)
   }
-
-  private def buildContributionMail(record: ContributionAdjustmentRecord): GovernanceMailSnapshot =
-    GovernanceMailSnapshot(
-      id = GovernanceMailSnapshotId(s"mail-${record.id.value}"),
-      ownerHandle = record.targetHandle,
-      kind = MailKind.Governance,
-      subject = s"Contribution adjustment ${formatDelta(record.delta)}",
-      excerpt = contributionMailExcerpt(record),
-      senderLabel = s"Admin @${record.actorHandle.value}",
-      unread = true,
-      important = true,
-      createdAt = record.createdAt
-    )
-
-  private def buildReviewMail(record: GovernanceReviewNotificationRecord): GovernanceMailSnapshot =
-    GovernanceMailSnapshot(
-      id = record.mailId,
-      ownerHandle = GovernanceTargetHandle("admin"),
-      kind = MailKind.Governance,
-      subject = s"[Review] ${GovernanceReviewKind.displayLabel(record.kind)}: ${reviewTargetLabel(record).take(36)}",
-      excerpt = reviewMailExcerpt(record),
-      senderLabel = s"Governance notice @${record.actorHandle.value}",
-      unread = true,
-      important = true,
-      createdAt = record.createdAt,
-      governanceMetadata = Some(
-        GovernanceMailMetadata(
-          actorHandle = record.actorHandle.value,
-          targetPath = record.targetPath.value,
-          targetLabel = reviewTargetLabel(record)
-        )
-      )
-    )
 
   private def persistMail(snapshot: GovernanceMailSnapshot): Unit =
     PlayerHandle.forLookup(snapshot.ownerHandle.value).foreach { ownerHandle =>
@@ -155,36 +122,17 @@ final class DefaultGovernanceService(
           subject = snapshot.subject,
           excerpt = snapshot.excerpt,
           senderLabel = snapshot.senderLabel,
-          unread = snapshot.unread,
-          important = snapshot.important,
+          readState = snapshot.readState,
+          importance = snapshot.importance,
           createdAt = snapshot.createdAt,
-          governanceMetadata = snapshot.governanceMetadata
+          sourceBattleId = None,
+          sourcePath = None,
+          sourceLabel = None,
+          governanceMetadata = snapshot.governanceMetadata,
+          friendRequestMetadata = None
         )
       )
     }
-
-  private def contributionMailExcerpt(record: ContributionAdjustmentRecord): String = {
-    val reason = if record.reason.value.isEmpty then "" else s" Reason: ${record.reason.value}"
-    val source = (record.sourceLabel.value, record.sourcePath.value) match {
-      case ("", "")       => ""
-      case (label, "")    => s" Source: $label"
-      case ("", path)     => s" Source: $path"
-      case (label, path)  => s" Source: $label $path"
-    }
-    s"@${record.actorHandle.value} adjusted your contribution by ${formatDelta(record.delta)}.$reason$source"
-  }
-
-  private def reviewMailExcerpt(record: GovernanceReviewNotificationRecord): String = {
-    val targetType = GovernanceReviewTargetType.wireValue(record.targetType)
-    val path = if record.targetPath.value.isEmpty then "" else s" Path: ${record.targetPath.value}."
-    s"@${record.actorHandle.value} submitted ${GovernanceReviewKind.displayLabel(record.kind)} for ${reviewTargetLabel(record)} ($targetType:${record.targetId.value}). $path Body: ${record.body.value}"
-  }
-
-  private def reviewTargetLabel(record: GovernanceReviewNotificationRecord): String =
-    if record.targetTitle.value.trim.nonEmpty then record.targetTitle.value else record.targetId.value
-
-  private def formatDelta(delta: ContributionDelta): String =
-    if delta.value > 0 then s"+${delta.value}" else delta.value.toString
 
   private def clampLimit(value: Int, max: Int): Int =
     math.max(0, math.min(value, max))

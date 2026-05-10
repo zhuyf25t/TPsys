@@ -1,27 +1,16 @@
 package slaydemo.backend
 
-import slaydemo.backend.battle.database.{
-  BattleResultRepository,
-  InMemoryBattleResultRepository,
-  PostgresBattleResultRepository
-}
-import slaydemo.backend.bots.database.{BotProfileRepository, InMemoryBotProfileRepository, PostgresBotProfileRepository}
-import slaydemo.backend.bots.objects.DemoBotProfiles
-import slaydemo.backend.forum.database.{ForumRepository, InMemoryForumRepository, PostgresForumRepository}
-import slaydemo.backend.governance.database.{GovernanceRepository, InMemoryGovernanceRepository, PostgresGovernanceRepository}
-import slaydemo.backend.identity.database.{
-  IdentityAccountRepository,
-  InMemoryIdentityAccountRepository,
-  PostgresIdentityAccountRepository
-}
-import slaydemo.backend.mail.database.{InMemoryMailRepository, MailRepository, PostgresMailRepository}
-import slaydemo.backend.replay.database.{InMemoryReplayRepository, PostgresReplayRepository, ReplayRepository}
+import java.nio.file.{Path, Paths}
+
+import slaydemo.backend.battle.database.BattleResultRepository
+import slaydemo.backend.bots.database.BotProfileRepository
+import slaydemo.backend.forum.database.ForumRepository
+import slaydemo.backend.governance.database.GovernanceRepository
+import slaydemo.backend.identity.database.IdentityAccountRepository
+import slaydemo.backend.mail.database.MailRepository
+import slaydemo.backend.replay.database.ReplayRepository
 import slaydemo.backend.shared.storage.{PostgresConnectionSettings, StorageConfig}
-import slaydemo.backend.social.database.{
-  FriendRequestRepository,
-  InMemoryFriendRequestRepository,
-  PostgresFriendRequestRepository
-}
+import slaydemo.backend.social.database.FriendRequestRepository
 
 private[backend] final case class BackendRepositories(
   identity: IdentityAccountRepository,
@@ -36,43 +25,34 @@ private[backend] final case class BackendRepositories(
 
 private[backend] final case class BackendRepositoryFactories(
   inMemoryIdentity: () => IdentityAccountRepository,
+  fileIdentity: Path => IdentityAccountRepository,
   postgresIdentity: PostgresConnectionSettings => IdentityAccountRepository,
   inMemoryBattleResults: () => BattleResultRepository,
+  fileBattleResults: Path => BattleResultRepository,
   postgresBattleResults: PostgresConnectionSettings => BattleResultRepository,
   inMemoryMail: () => MailRepository,
+  fileMail: Path => MailRepository,
   postgresMail: PostgresConnectionSettings => MailRepository,
   inMemoryBotProfiles: () => BotProfileRepository,
+  fileBotProfiles: Path => BotProfileRepository,
   postgresBotProfiles: PostgresConnectionSettings => BotProfileRepository,
   inMemoryReplay: () => ReplayRepository,
+  fileReplay: Path => ReplayRepository,
   postgresReplay: PostgresConnectionSettings => ReplayRepository,
   inMemoryFriendRequests: () => FriendRequestRepository,
+  fileFriendRequests: Path => FriendRequestRepository,
   postgresFriendRequests: PostgresConnectionSettings => FriendRequestRepository,
   inMemoryForum: () => ForumRepository,
+  fileForum: Path => ForumRepository,
   postgresForum: PostgresConnectionSettings => ForumRepository,
   inMemoryGovernance: () => GovernanceRepository,
+  fileGovernance: Path => GovernanceRepository,
   postgresGovernance: PostgresConnectionSettings => GovernanceRepository
 )
 
 private[backend] object BackendRepositoryFactories {
   val live: BackendRepositoryFactories =
-    BackendRepositoryFactories(
-      inMemoryIdentity = () => new InMemoryIdentityAccountRepository(),
-      postgresIdentity = connection => PostgresIdentityAccountRepository(connection),
-      inMemoryBattleResults = () => InMemoryBattleResultRepository(),
-      postgresBattleResults = connection => PostgresBattleResultRepository(connection),
-      inMemoryMail = () => InMemoryMailRepository(),
-      postgresMail = connection => PostgresMailRepository(connection),
-      inMemoryBotProfiles = () => InMemoryBotProfileRepository(DemoBotProfiles.all),
-      postgresBotProfiles = connection => PostgresBotProfileRepository(connection),
-      inMemoryReplay = () => InMemoryReplayRepository(),
-      postgresReplay = connection => PostgresReplayRepository(connection),
-      inMemoryFriendRequests = () => InMemoryFriendRequestRepository(),
-      postgresFriendRequests = connection => PostgresFriendRequestRepository(connection),
-      inMemoryForum = () => InMemoryForumRepository(),
-      postgresForum = connection => PostgresForumRepository(connection),
-      inMemoryGovernance = () => InMemoryGovernanceRepository(),
-      postgresGovernance = connection => PostgresGovernanceRepository(connection)
-    )
+    BackendLiveRepositoryFactories.live
 }
 
 private[backend] object BackendRepositories {
@@ -92,6 +72,18 @@ private[backend] object BackendRepositories {
           forum = factories.inMemoryForum(),
           governance = factories.inMemoryGovernance()
         )
+      case StorageConfig.File(root) =>
+        val rootPath = Paths.get(root.value)
+        BackendRepositories(
+          identity = factories.fileIdentity(rootPath),
+          battleResults = factories.fileBattleResults(rootPath),
+          mail = factories.fileMail(rootPath),
+          botProfiles = factories.fileBotProfiles(rootPath),
+          replay = factories.fileReplay(rootPath),
+          friendRequests = factories.fileFriendRequests(rootPath),
+          forum = factories.fileForum(rootPath),
+          governance = factories.fileGovernance(rootPath)
+        )
       case StorageConfig.Postgres(connection) =>
         BackendRepositories(
           identity = factories.postgresIdentity(connection),
@@ -103,7 +95,5 @@ private[backend] object BackendRepositories {
           forum = factories.postgresForum(connection),
           governance = factories.postgresGovernance(connection)
         )
-      case StorageConfig.File(_) =>
-        throw IllegalArgumentException("SLAY_DEMO_STORAGE_MODE=file is not implemented in the rebuilt backend yet.")
     }
 }

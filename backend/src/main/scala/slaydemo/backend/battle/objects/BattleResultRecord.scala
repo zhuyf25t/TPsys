@@ -10,21 +10,24 @@ final case class BattleResultRecord(
   finishedAtLabel: String,
   durationMs: DurationMillis,
   score: Score,
-  placement: Option[Int],
-  aliveAtEnd: Boolean,
+  placement: Option[BattlePlacement],
+  survivalOutcome: BattleSurvivalOutcome,
   ratingBefore: Rating,
-  ratingDelta: Int,
+  ratingDelta: RatingDelta,
   ratingAfter: Rating,
-  resultLabel: String,
-  modeLabel: String,
-  mapLabel: String,
-  highlightLine: String,
-  playersLine: String,
-  timelineHint: String,
+  resultLabel: BattleResultLabel,
+  modeLabel: BattleModeLabel,
+  mapLabel: BattleMapLabel,
+  highlightLine: BattleHighlightLine,
+  playersLine: BattlePlayersLine,
+  timelineHint: BattleTimelineHint,
   currentLoadout: Option[String]
 ) {
   def resultId: BattleResultId =
     BattleResultRecord.resultId(battleId, handle)
+
+  def aliveAtEnd: Boolean =
+    BattleSurvivalOutcome.aliveAtEnd(survivalOutcome)
 }
 
 object BattleResultRecord {

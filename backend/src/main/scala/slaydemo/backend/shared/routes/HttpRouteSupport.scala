@@ -24,6 +24,9 @@ object HttpRouteSupport {
     finally output.close()
   }
 
+  def sendJsonError(exchange: HttpExchange, status: Int, code: String, message: String): Unit =
+    sendJson(exchange, status, s"""{"error":${jsonString(message)},"code":${jsonString(code)}}""")
+
   def readRequestBody(exchange: HttpExchange): String =
     String(exchange.getRequestBody.readAllBytes(), StandardCharsets.UTF_8)
 
@@ -39,4 +42,7 @@ object HttpRouteSupport {
       case char if char.isControl => f"\\u${char.toInt}%04x"
       case char => char.toString
     }
+
+  private def jsonString(value: String): String =
+    s""""${escapeJson(value)}""""
 }

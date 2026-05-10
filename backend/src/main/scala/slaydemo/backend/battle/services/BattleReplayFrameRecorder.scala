@@ -45,11 +45,13 @@ private[services] object BattleReplayFrameRecorder {
           position = player.position,
           hp = HitPoints(math.max(0, player.hp.value)),
           maxHp = HitPoints(math.max(1, player.maxHp.value)),
-          alive = player.alive,
+          lifeState = BattleReplayHeroLifeState.fromAliveFlag(
+            player.alive,
+            player.eliminatedAtMs.map(value => ElapsedMillis(math.max(0L, value.value)))
+          ),
           score = player.score,
           facing = player.facing,
-          currentWeaponKind = player.currentWeaponKind,
-          eliminatedAtMs = player.eliminatedAtMs.map(value => ElapsedMillis(math.max(0L, value.value)))
+          currentWeaponKind = player.currentWeaponKind
         )
       },
       projectiles = projectiles.map { projectile =>
@@ -68,8 +70,7 @@ private[services] object BattleReplayFrameRecorder {
           pickupKind = pickup.pickupKind,
           weaponKind = pickup.weaponKind,
           position = pickup.position,
-          available = pickup.available,
-          respawnMs = DurationMillis(math.max(0L, pickup.respawnMs.value))
+          pickupAvailability = pickup.pickupAvailability
         )
       }
     )
@@ -77,8 +78,8 @@ private[services] object BattleReplayFrameRecorder {
   private def shouldRecordIntervalFrame(frames: Vector[BattleReplayFrameState], elapsedMs: ElapsedMillis): Boolean =
     elapsedMs.value > 0L && {
       val latestElapsedMs = frames.map(_.elapsedMs.value).maxOption.getOrElse(0L)
-      elapsedMs.value / InMemoryBattleStateCatalog.ReplayFrameSampleIntervalMs >
-        latestElapsedMs / InMemoryBattleStateCatalog.ReplayFrameSampleIntervalMs
+      elapsedMs.value / BattleHistoryCatalog.ReplayFrameSampleInterval.value >
+        latestElapsedMs / BattleHistoryCatalog.ReplayFrameSampleInterval.value
     }
 
   private def retainFrames(frames: Vector[BattleReplayFrameState]): Vector[BattleReplayFrameState] = {
@@ -89,13 +90,13 @@ private[services] object BattleReplayFrameRecorder {
         accumulator :+ frame
     }
 
-    if distinctFrames.length <= InMemoryBattleStateCatalog.RetainedReplayFrameCount then distinctFrames
+    if distinctFrames.length <= BattleHistoryCatalog.RetainedReplayFrameCount.value then distinctFrames
     else
       val initialFrame = distinctFrames.headOption.filter(_.elapsedMs.value == 0L).toVector
       val retainedTail =
         distinctFrames
           .drop(initialFrame.length)
-          .takeRight(InMemoryBattleStateCatalog.RetainedReplayFrameCount - initialFrame.length)
+          .takeRight(BattleHistoryCatalog.RetainedReplayFrameCount.value - initialFrame.length)
       initialFrame ++ retainedTail
   }
 }

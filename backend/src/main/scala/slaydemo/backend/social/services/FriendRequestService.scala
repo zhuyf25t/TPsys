@@ -3,15 +3,7 @@ package slaydemo.backend.social.services
 import slaydemo.backend.battle.objects.EpochMillis
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.database.{InMemoryMailRepository, MailRepository}
-import slaydemo.backend.mail.objects.{
-  FriendRequestMailMetadata,
-  MailFriendRequestId,
-  MailFriendRequestStatus,
-  MailId,
-  MailKind,
-  MailRecord
-}
-import slaydemo.backend.shared.policies.HandlePolicy
+import slaydemo.backend.mail.objects.{MailReadState, MailRecord}
 import slaydemo.backend.social.database.{
   FriendRequestRepository,
   FriendRequestStoreCreateResult,
@@ -101,32 +93,38 @@ final class DefaultFriendRequestService(
     respondParsed(requestId, actorHandle, decision)
 
   override def list(ownerHandle: PlayerHandle): Vector[FriendRequestRecord] =
-    if isPlayable(ownerHandle) then repository.listByOwner(ownerHandle).filter(isVisible)
-    else Vector.empty
+    normalizedHandle(ownerHandle) match {
+      case Some(owner) =>
+        repository.listByOwner(owner).filter(FriendRequestVisibilityRules.isVisible)
+      case None =>
+        Vector.empty
+    }
 
   override def find(requestId: FriendRequestId): Option[FriendRequestRecord] =
-    repository.findById(requestId).filter(isVisible)
+    repository.findById(requestId).filter(FriendRequestVisibilityRules.isVisible)
 
   private def createParsed(
     source: PlayerHandle,
     target: PlayerHandle
   ): Either[FriendRequestCreateError, FriendRequestSubmissionResult] =
-    if source.key == target.key || !isPlayable(source) || !isPlayable(target) then
-      Left(FriendRequestCreateError.InvalidHandles)
-    else {
-      val request = FriendRequestRecord.pending(
-        id = repository.nextRequestId(),
-        sourceHandle = source,
-        targetHandle = target,
-        createdAt = EpochMillis(currentTimeMillis())
-      )
-      repository.createIfAbsent(request) match {
-        case FriendRequestStoreCreateResult.Created(created) =>
-          val mail = mailRepository.save(buildRequestMail(created, MailFriendRequestStatus.Pending, unread = true))
-          Right(FriendRequestSubmissionResult.Created(created, mail))
-        case FriendRequestStoreCreateResult.AlreadyExists(existing) =>
-          Right(FriendRequestSubmissionResult.AlreadySent(existing))
-      }
+    (normalizedHandle(source), normalizedHandle(target)) match {
+      case (Some(normalizedSource), Some(normalizedTarget))
+          if FriendRequestVisibilityRules.canCreate(normalizedSource, normalizedTarget) =>
+        val request = FriendRequestRecord.pending(
+          id = repository.nextRequestId(),
+          sourceHandle = normalizedSource,
+          targetHandle = normalizedTarget,
+          createdAt = EpochMillis(currentTimeMillis())
+        )
+        repository.createIfAbsent(request) match {
+          case FriendRequestStoreCreateResult.Created(created) =>
+            val mail = mailRepository.save(FriendRequestMailFactory.requestMail(created, MailReadState.Unread))
+            Right(FriendRequestSubmissionResult.Created(created, mail))
+          case FriendRequestStoreCreateResult.AlreadyExists(existing) =>
+            Right(FriendRequestSubmissionResult.AlreadySent(existing))
+        }
+      case _ =>
+        Left(FriendRequestCreateError.InvalidHandles)
     }
 
   private def respondParsed(
@@ -134,84 +132,37 @@ final class DefaultFriendRequestService(
     actor: PlayerHandle,
     decision: FriendRequestDecision
   ): Either[FriendRequestRespondError, FriendRequestResponseResult] =
-    repository.findById(requestId).filter(isVisible) match {
+    repository.findById(requestId).filter(FriendRequestVisibilityRules.isVisible) match {
       case None =>
         Left(FriendRequestRespondError.RequestNotFound)
-      case Some(request) if request.targetHandle.key != actor.key =>
-        Left(FriendRequestRespondError.Forbidden)
-      case Some(request) if request.status != FriendRequestStatus.Pending =>
-        Right(FriendRequestResponseResult.AlreadyResolved(request))
       case Some(request) =>
-        val updated = FriendRequestRecord.respond(request, decision, EpochMillis(currentTimeMillis()))
-        val saved = repository.save(updated)
-        mailRepository.save(buildRequestMail(saved, mailStatusFor(saved.status), unread = false))
-        val responseMail = mailRepository.save(buildResponseMail(saved, decision))
-        Right(FriendRequestResponseResult.Updated(saved, responseMail))
+        normalizedHandle(actor) match {
+          case Some(normalizedActor) =>
+            respondAsNormalizedActor(request, normalizedActor, decision)
+          case None =>
+            Left(FriendRequestRespondError.Forbidden)
+        }
     }
 
-  private def isVisible(request: FriendRequestRecord): Boolean =
-    isPlayable(request.sourceHandle) && isPlayable(request.targetHandle)
-
-  private def isPlayable(handle: PlayerHandle): Boolean =
-    HandlePolicy.isPlayableIdentityHandle(handle.value)
-
-  private def buildRequestMail(
+  private def respondAsNormalizedActor(
     request: FriendRequestRecord,
-    status: MailFriendRequestStatus,
-    unread: Boolean
-  ): MailRecord =
-    MailRecord(
-      id = MailId(s"mail-friend-${request.id.value}"),
-      ownerHandle = request.targetHandle,
-      kind = MailKind.Friend,
-      subject = "Friend request",
-      excerpt = s"@${request.sourceHandle.value} wants to add you as a friend.",
-      senderLabel = "Friend request",
-      unread = unread,
-      important = false,
-      createdAt = request.createdAt,
-      sourcePath = Some("/social"),
-      sourceLabel = Some("Friend request"),
-      friendRequestMetadata = Some(friendRequestMetadata(request, status, request.sourceHandle))
-    )
-
-  private def buildResponseMail(request: FriendRequestRecord, decision: FriendRequestDecision): MailRecord = {
-    val accepted = decision == FriendRequestDecision.Accepted
-    MailRecord(
-      id = MailId(s"mail-friend-response-${request.id.value}-${FriendRequestDecision.wireValue(decision)}"),
-      ownerHandle = request.sourceHandle,
-      kind = MailKind.Friend,
-      subject = if accepted then "Friend request accepted" else "Friend request rejected",
-      excerpt =
-        if accepted then s"@${request.targetHandle.value} accepted your friend request."
-        else s"@${request.targetHandle.value} rejected your friend request.",
-      senderLabel = "Friend request result",
-      unread = true,
-      important = false,
-      createdAt = request.respondedAt.getOrElse(request.createdAt),
-      sourcePath = Some("/social"),
-      sourceLabel = Some("Friend request"),
-      friendRequestMetadata = Some(friendRequestMetadata(request, mailStatusFor(request.status), request.targetHandle))
-    )
-  }
-
-  private def friendRequestMetadata(
-    request: FriendRequestRecord,
-    status: MailFriendRequestStatus,
-    sourceHandle: PlayerHandle
-  ): FriendRequestMailMetadata =
-    FriendRequestMailMetadata(
-      requestId = MailFriendRequestId(request.id.value),
-      status = status,
-      sourceHandle = sourceHandle
-    )
-
-  private def mailStatusFor(status: FriendRequestStatus): MailFriendRequestStatus =
-    status match {
-      case FriendRequestStatus.Pending  => MailFriendRequestStatus.Pending
-      case FriendRequestStatus.Accepted => MailFriendRequestStatus.Accepted
-      case FriendRequestStatus.Rejected => MailFriendRequestStatus.Rejected
+    actor: PlayerHandle,
+    decision: FriendRequestDecision
+  ): Either[FriendRequestRespondError, FriendRequestResponseResult] =
+    if request.targetHandle.key != actor.key then
+      Left(FriendRequestRespondError.Forbidden)
+    else if request.status != FriendRequestStatus.Pending then
+      Right(FriendRequestResponseResult.AlreadyResolved(request))
+    else {
+      val updated = FriendRequestRecord.respond(request, decision, EpochMillis(currentTimeMillis()))
+      val saved = repository.save(updated)
+      mailRepository.save(FriendRequestMailFactory.requestMail(saved, MailReadState.Read))
+      val responseMail = mailRepository.save(FriendRequestMailFactory.responseMail(saved, decision))
+      Right(FriendRequestResponseResult.Updated(saved, responseMail))
     }
+
+  private def normalizedHandle(handle: PlayerHandle): Option[PlayerHandle] =
+    PlayerHandle.forLookup(handle.value)
 
 }
 

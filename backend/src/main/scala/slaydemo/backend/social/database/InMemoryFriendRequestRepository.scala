@@ -30,7 +30,7 @@ final class InMemoryFriendRequestRepository extends FriendRequestRepository {
     lock.synchronized {
       recordsById.values.toVector
     }.filter(record => record.sourceHandle.key == owner.key || record.targetHandle.key == owner.key)
-      .sortWith(compareRecentFirst)
+      .sortWith(FriendRequestOrderingRules.recentFirst)
 
   override def createIfAbsent(record: FriendRequestRecord): FriendRequestStoreCreateResult =
     lock.synchronized {
@@ -55,10 +55,6 @@ final class InMemoryFriendRequestRepository extends FriendRequestRepository {
 
   private def friendPairKey(source: PlayerHandle, target: PlayerHandle): String =
     s"${source.key}->${target.key}"
-
-  private def compareRecentFirst(left: FriendRequestRecord, right: FriendRequestRecord): Boolean =
-    if left.createdAt.value != right.createdAt.value then left.createdAt.value > right.createdAt.value
-    else left.id.value < right.id.value
 }
 
 object InMemoryFriendRequestRepository {

@@ -4308,6 +4308,63 @@ function Get-Vec2Distance {
   return [Math]::Sqrt([Math]::Pow([double]$rightX - [double]$leftX, 2) + [Math]::Pow([double]$rightY - [double]$leftY, 2))
 }
 
+function Get-NullableDouble {
+  param($Value)
+
+  if ($null -eq $Value) {
+    return $null
+  }
+
+  try {
+    return [double]$Value
+  } catch {
+    return $null
+  }
+}
+
+function Assert-InitialCameraLookAheadStable {
+  param(
+    $VisionRead,
+    [Parameter(Mandatory = $true)][string]$Label
+  )
+
+  Assert-Condition (
+    $null -ne $VisionRead -and $VisionRead.available -eq $true
+  ) "$Label vision diagnostics are unavailable before input."
+
+  $diagnostics = Get-ObjectPropertyValue -InputObject $VisionRead -Name "diagnostics"
+  $lookAhead = Get-ObjectPropertyValue -InputObject $diagnostics -Name "lookAhead"
+  Assert-Condition ($null -ne $lookAhead) "$Label vision.lookAhead is unavailable before input."
+
+  $pointerReady = Get-ObjectPropertyValue -InputObject $lookAhead -Name "pointerReady"
+  Assert-Condition ($null -ne $pointerReady) "$Label vision.lookAhead.pointerReady is unavailable."
+
+  if ($pointerReady -eq $true) {
+    return
+  }
+
+  $pointer = Get-ObjectPropertyValue -InputObject $lookAhead -Name "pointer"
+  $rawPointer = Get-ObjectPropertyValue -InputObject $lookAhead -Name "rawPointer"
+  $screenCenter = Get-ObjectPropertyValue -InputObject $lookAhead -Name "screenCenter"
+  Assert-Condition ($null -ne $pointer) "$Label vision.lookAhead.pointer is unavailable."
+  Assert-Condition ($null -ne $rawPointer) "$Label vision.lookAhead.rawPointer is unavailable."
+  Assert-Condition ($null -ne $screenCenter) "$Label vision.lookAhead.screenCenter is unavailable."
+
+  $pointerToCenterDistance = Get-Vec2Distance -Left $pointer -Right $screenCenter
+  $actualOffsetDistance = Get-NullableDouble (Get-ObjectPropertyValue -InputObject $lookAhead -Name "actualOffsetDistance")
+  $targetAheadDistance = Get-NullableDouble (Get-ObjectPropertyValue -InputObject $lookAhead -Name "targetAheadDistance")
+
+  Assert-Condition (
+    $null -ne $pointerToCenterDistance -and $pointerToCenterDistance -le 0.5
+  ) "$Label unresolved pointer should use screen center before input; distance=$pointerToCenterDistance."
+  Assert-Condition (
+    $null -ne $actualOffsetDistance -and $actualOffsetDistance -le 0.5
+  ) "$Label unresolved pointer should not create camera offset; actualOffsetDistance=$actualOffsetDistance."
+  Assert-Condition (
+    $null -ne $targetAheadDistance -and $targetAheadDistance -le 0.5
+  ) "$Label unresolved pointer should not move camera target ahead of player; targetAheadDistance=$targetAheadDistance."
+}
+
 function Get-VisionScreenPxPerWorldUnit {
   param($VisionRead)
 
@@ -6218,6 +6275,147 @@ function Stop-SmokeProcess {
   }
 }
 
+function Convert-ToJavaStringLiteral {
+  param([string]$Value)
+
+  if ($null -eq $Value) {
+    return '""'
+  }
+
+  $escaped = $Value.Replace("\", "\\").Replace('"', '\"').Replace("`r", "\r").Replace("`n", "\n")
+  return '"' + $escaped + '"'
+}
+
+function Resolve-PostgresJdbcJar {
+  param([Parameter(Mandatory = $true)][string]$WorkspaceRoot)
+
+  $backendTarget = Join-Path $WorkspaceRoot "backend\target"
+  if (-not (Test-Path -LiteralPath $backendTarget)) {
+    return $null
+  }
+
+  return Get-ChildItem -LiteralPath $backendTarget -Recurse -Filter "postgresql-*.jar" -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 -ExpandProperty FullName
+}
+
+function Invoke-SmokeAccountCleanup {
+  param(
+    [Parameter(Mandatory = $true)][string]$WorkspaceRoot,
+    [Parameter(Mandatory = $true)][string]$RuntimeDir,
+    [Parameter(Mandatory = $true)][string[]]$Handles,
+    [string]$StorageMode,
+    [System.Collections.Generic.List[string]]$Warnings
+  )
+
+  if ($StorageMode -ne "postgres") {
+    return
+  }
+
+  $safeHandles = @(
+    $Handles |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { $_ -match '^b28[ab][0-9a-f]{8}$' } |
+      Select-Object -Unique
+  )
+  if ($safeHandles.Count -eq 0) {
+    return
+  }
+
+  $jshellCommand = Get-Command "jshell" -ErrorAction SilentlyContinue
+  if ($null -eq $jshellCommand) {
+    if ($null -ne $Warnings) {
+      $Warnings.Add("BP28 smoke account cleanup skipped: jshell is not available.") | Out-Null
+    }
+    return
+  }
+
+  $jdbcJar = Resolve-PostgresJdbcJar -WorkspaceRoot $WorkspaceRoot
+  if ([string]::IsNullOrWhiteSpace($jdbcJar)) {
+    if ($null -ne $Warnings) {
+      $Warnings.Add("BP28 smoke account cleanup skipped: PostgreSQL JDBC jar was not found under backend target.") | Out-Null
+    }
+    return
+  }
+
+  if (-not (Test-Path -LiteralPath $RuntimeDir)) {
+    New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
+  }
+
+  $databaseUrl = if ([string]::IsNullOrWhiteSpace($env:SLAY_DEMO_DATABASE_URL)) {
+    "jdbc:postgresql://localhost:5432/slay_demo"
+  } else {
+    $env:SLAY_DEMO_DATABASE_URL.Trim()
+  }
+  $databaseUser = if ([string]::IsNullOrWhiteSpace($env:SLAY_DEMO_DATABASE_USER)) {
+    "slay_user"
+  } else {
+    $env:SLAY_DEMO_DATABASE_USER.Trim()
+  }
+  $databasePassword = if ($null -eq $env:SLAY_DEMO_DATABASE_PASSWORD) {
+    "secret"
+  } else {
+    $env:SLAY_DEMO_DATABASE_PASSWORD
+  }
+  $handleArray = ($safeHandles | ForEach-Object { Convert-ToJavaStringLiteral -Value $_ }) -join ", "
+  $scriptPath = Join-Path $RuntimeDir "cleanup-bp28-smoke-accounts.jsh"
+  $script = @"
+import java.sql.*;
+String url = $(Convert-ToJavaStringLiteral -Value $databaseUrl);
+String user = $(Convert-ToJavaStringLiteral -Value $databaseUser);
+String password = $(Convert-ToJavaStringLiteral -Value $databasePassword);
+String[] handles = new String[] { $handleArray };
+Connection conn = DriverManager.getConnection(url, user, password);
+conn.setAutoCommit(false);
+try {
+  long deletedMails = 0L;
+  long deletedAccounts = 0L;
+  try (PreparedStatement statement = conn.prepareStatement("DELETE FROM mails WHERE lower(owner_handle) = lower(?)")) {
+    for (String handle : handles) {
+      statement.setString(1, handle);
+      deletedMails += statement.executeUpdate();
+    }
+  }
+  try (PreparedStatement statement = conn.prepareStatement("DELETE FROM identity_accounts WHERE lower(handle) = lower(?)")) {
+    for (String handle : handles) {
+      statement.setString(1, handle);
+      deletedAccounts += statement.executeUpdate();
+    }
+  }
+  conn.commit();
+  System.out.println("bp28_cleanup_deleted_mails=" + deletedMails);
+  System.out.println("bp28_cleanup_deleted_identity_accounts=" + deletedAccounts);
+} catch (Throwable error) {
+  conn.rollback();
+  throw error;
+} finally {
+  conn.close();
+}
+/exit
+"@
+  [System.IO.File]::WriteAllText($scriptPath, $script, [System.Text.UTF8Encoding]::new($false))
+
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    $cleanupOutput = & $jshellCommand.Source --class-path $jdbcJar $scriptPath 2>&1
+    $cleanupExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($cleanupExitCode -ne 0) {
+    Write-Warning "BP28 smoke account cleanup failed."
+    if ($null -ne $Warnings) {
+      $Warnings.Add("BP28 smoke account cleanup failed: $($cleanupOutput -join ' ')") | Out-Null
+    }
+    return
+  }
+
+  Write-Host "BP-28E render-feel smoke: cleaned synthetic accounts $($safeHandles -join ', ')."
+}
+
 $frontendBase = Normalize-BaseUrl -Value $FrontendUrl
 $backendBase = Normalize-BaseUrl -Value $BackendUrl
 if ($InputDurationMs -lt 1000) {
@@ -6232,11 +6430,15 @@ $clientA = $null
 $clientB = $null
 $processA = $null
 $processB = $null
+$clientAHandle = $null
+$clientBHandle = $null
+$backendStorageMode = $null
 
 try {
   Write-Host "BP-28E render-feel smoke: checking services..."
   $health = Invoke-SmokeJson -Method "GET" -Uri (Join-TestUrl -Base $backendBase -Path "/health") -TimeoutSec 8
   Assert-Condition ($health.status -eq "ok") "Backend /health did not return status=ok."
+  $backendStorageMode = "" + $health.storageMode
   Test-HttpReachable -Uri $frontendBase -Name "Frontend"
 
   Reset-RuntimeDir -RuntimeDir $runtimeDir -WorkspaceRoot $workspaceRoot
@@ -6340,6 +6542,8 @@ try {
   $localFeedbackBeforeA = Read-LocalFeedbackDiagnostics -Client $clientA -Phase "beforeInput" -Warnings $warnings
   $visionBeforeA = Read-VisionDiagnostics -Client $clientA -Phase "beforeInput"
   $visionBeforeB = Read-VisionDiagnostics -Client $clientB -Phase "beforeInput"
+  Assert-InitialCameraLookAheadStable -VisionRead $visionBeforeA -Label "clientA beforeInput"
+  Assert-InitialCameraLookAheadStable -VisionRead $visionBeforeB -Label "clientB beforeInput"
   $localFeedbackBeforeB = $null
   if ($Scenario -eq "DualClientPressure") {
     $localFeedbackBeforeB = Read-LocalFeedbackDiagnostics -Client $clientB -Phase "beforeInput" -Warnings $warnings
@@ -7133,5 +7337,13 @@ try {
     Stop-SmokeProcess -Process $processB
   } else {
     Write-Host "BP-28E render-feel smoke: leaving browser windows open because -KeepBrowsersOpen was set."
+  }
+  if (-not $KeepBrowsersOpen) {
+    Invoke-SmokeAccountCleanup `
+      -WorkspaceRoot $workspaceRoot `
+      -RuntimeDir $runtimeDir `
+      -Handles @($clientAHandle, $clientBHandle) `
+      -StorageMode $backendStorageMode `
+      -Warnings $warnings
   }
 }

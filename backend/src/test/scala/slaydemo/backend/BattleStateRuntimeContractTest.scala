@@ -36,6 +36,7 @@ object BattleStateRuntimeContractTest {
     sprintConsumesAndRecoversStamina()
     pistolCooldownReloadAndPickupAreAuthoritative()
     pistolDamageWaitsForVisibleProjectileTravel()
+    projectileLargeReadGapMatchesSteppedCollision()
     heldPrimaryContinuesPistolFireDuringRuntimeAdvance()
     fixedStepCatchUpAdvancesHeldFireAcrossLargeReadGap()
     projectilesDoNotExpireAtOldShortRange()
@@ -47,18 +48,23 @@ object BattleStateRuntimeContractTest {
     botRuntimeControlMovesAimsAndRespectsOpeningDelay()
     emptyMagazineStartsAutomaticReload()
     weaponAndMedkitPickupsMatchFrontendMap()
+    sameTickPickupContentionHasSingleWinner()
     medkitHealsDamagedPlayer()
     nonPistolWeaponsFireAuthoritatively()
     nonPistolActiveProjectilesDamageTargets()
+    rocketSplashDamageReportsDirectTargetAndDamagesNearbyTargets()
     eliminationDoesNotRespawnAndFinishesBattle()
     eliminationClearsDeadPlayerRuntimeBeforeBattleFinish()
     dashAndBlinkRespectArenaCollision()
     skillCommandSuppressesPrimaryFire()
+    noopSkillCommandsSuppressPrimaryFire()
     freezeUsesFrontendContentConstants()
+    activeSlowFieldSlowsProjectiles()
     expiringSlowFieldDoesNotAffectMovementOnExpiryTick()
     finishedStateClearsRuntimeButPreservesSlowFieldsWithoutInventingTimeoutWinner()
     finishedStateProjectsArtifactsOnce()
     finishedStateTracksPartialArtifactReadiness()
+    throwingFinishProjectorDoesNotLeaveProjectionInProgress()
     ignoredFinishedCommandUsesStoredClientSequence()
     finishedStateMarksQueueRoomFinished()
 
@@ -84,6 +90,7 @@ object BattleStateRuntimeContractTest {
 
     val state = service.currentState(BattleId("battle-state-runtime")).fold(error => fail(s"state not found: $error"), value => value)
 
+    assertLifecycleBooleanOptionInvariants("initial state", state)
     assertEquals("battle id", state.battleId, BattleId("battle-state-runtime"))
     assertEquals("room id", state.roomId, RoomId("room-state-runtime"))
     assertEquals("phase", state.phase, BattlePhase.Active)
@@ -311,6 +318,7 @@ object BattleStateRuntimeContractTest {
       firstProjectile.ttlMs.value < 30000L && firstProjectile.ttlMs.value >= 29900L,
       s"pistol projectile advances during its birth tick, ttl=${firstProjectile.ttlMs}"
     )
+    assertProjectileTravelAlignedWithVelocity("pistol projectile", initialAlice.position, firstProjectile)
     assert(distanceBetweenForTest(initialAlice.position, firstProjectile.position) > 30.0, s"pistol projectile advances from muzzle birth, got ${firstProjectile.position}")
 
     service.acceptCommand(
@@ -422,6 +430,7 @@ object BattleStateRuntimeContractTest {
     assertEquals("pistol direct hit does not damage in first runtime frame", afterShotBot.hp, HitPoints(100))
     assertEquals("pistol direct hit creates live projectile", projectile.projectileKind, ProjectileKind.PistolBullet)
     assertEquals("pistol direct hit has no terminal yet", afterShot.projectileTerminals.exists(_.projectileId == projectile.projectileId), false)
+    assertProjectileTravelAlignedWithVelocity("visible pistol projectile", alice.position, projectile)
 
     service.acceptCommand(
       command(
@@ -453,6 +462,33 @@ object BattleStateRuntimeContractTest {
     assert(
       terminal.end.x > terminal.terminalPosition.x,
       s"pistol hit terminal should preserve full segment end beyond hit point, terminal=${terminal.terminalPosition}, end=${terminal.end}"
+    )
+  }
+
+  private def projectileLargeReadGapMatchesSteppedCollision(): Unit = {
+    val largeGap = pistolHitOutcomeAfterReads(Vector(1_300L), "projectile large read gap")
+    val stepped = pistolHitOutcomeAfterReads(
+      Vector(1_066L, 1_099L, 1_132L, 1_165L, 1_198L, 1_231L, 1_264L, 1_297L, 1_300L),
+      "projectile stepped reads"
+    )
+
+    assertEquals("large-gap projectile target hp", largeGap.targetHp, HitPoints(88))
+    assertEquals("stepped projectile target hp", stepped.targetHp, HitPoints(88))
+    assertEquals("large-gap projectile terminal reason", largeGap.terminal.reason, ProjectileTerminalReason.Hit)
+    assertEquals("stepped projectile terminal reason", stepped.terminal.reason, ProjectileTerminalReason.Hit)
+    assertEquals("large-gap projectile terminal target", largeGap.terminal.targetPlayerId, Some(PlayerId("bot-one")))
+    assertEquals("stepped projectile terminal target", stepped.terminal.targetPlayerId, Some(PlayerId("bot-one")))
+    assertEquals("large-gap consumed hit projectile", largeGap.liveOwnerProjectiles, 0)
+    assertEquals("stepped consumed hit projectile", stepped.liveOwnerProjectiles, 0)
+    assertClose("large-gap terminal x matches stepped", largeGap.terminal.terminalPosition.x, stepped.terminal.terminalPosition.x, 0.001)
+    assertClose("large-gap terminal y matches stepped", largeGap.terminal.terminalPosition.y, stepped.terminal.terminalPosition.y, 0.001)
+    assert(
+      largeGap.terminal.end.x > largeGap.terminal.terminalPosition.x,
+      s"large-gap terminal should preserve segment end beyond hit, terminal=${largeGap.terminal.terminalPosition}, end=${largeGap.terminal.end}"
+    )
+    assert(
+      stepped.terminal.end.x > stepped.terminal.terminalPosition.x,
+      s"stepped terminal should preserve segment end beyond hit, terminal=${stepped.terminal.terminalPosition}, end=${stepped.terminal.end}"
     )
   }
 
@@ -919,6 +955,7 @@ object BattleStateRuntimeContractTest {
 
     val initial = service.currentState(BattleId("battle-state-runtime"))
       .fold(error => fail(s"state not found: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("pickup initial state", initial)
     assertEquals(
       "initial weapon pickups",
       initial.pickups.filter(_.pickupKind == PickupKind.Weapon).map(pickup => pickup.pickupId -> pickup.weaponKind -> pickup.position),
@@ -952,6 +989,7 @@ object BattleStateRuntimeContractTest {
     clock.now = 2_300L
     val pickedUpRocket = service.currentState(BattleId("battle-state-runtime"))
       .fold(error => fail(s"state not found after rocket pickup: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("after rocket pickup", pickedUpRocket)
     val rocketAlice = pickedUpRocket.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing alice after rocket pickup"))
     val rocket = rocketAlice.weapons.find(_.weaponKind == WeaponKind.RocketLauncher).getOrElse(fail("missing rocket launcher"))
     val rocketPickup = pickedUpRocket.pickups.find(_.pickupId == PickupId("pickup-rocket-1")).getOrElse(fail("missing rocket pickup"))
@@ -987,6 +1025,7 @@ object BattleStateRuntimeContractTest {
 
     val switchedToRocket = service.currentState(BattleId("battle-state-runtime"))
       .fold(error => fail(s"state not found after switch to rocket: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("after switch to rocket", switchedToRocket)
     val rocketSwitchedAlice = switchedToRocket.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing alice after switch to rocket"))
 
     assertEquals("switch index selects rocket", rocketSwitchedAlice.currentWeaponIndex, 1)
@@ -997,7 +1036,7 @@ object BattleStateRuntimeContractTest {
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 15L,
-        switchWeaponDirection = 1
+        switchWeaponDirection = BattleWeaponSwitchDirection.Next
       )
     ).fold(error => fail(s"switch direction failed: $error"), value => value)
 
@@ -1028,6 +1067,7 @@ object BattleStateRuntimeContractTest {
     medkitClock.now = 2_000L
     val medkitPickedUp = medkitService.currentState(BattleId("battle-state-runtime"))
       .fold(error => fail(s"state not found after medkit pickup: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("after medkit pickup", medkitPickedUp)
     val medkitPickup = medkitPickedUp.pickups.find(_.pickupId == PickupId("pickup-medkit-2")).getOrElse(fail("missing medkit"))
 
     assertEquals("medkit consumed", medkitPickup.available, false)
@@ -1040,6 +1080,64 @@ object BattleStateRuntimeContractTest {
       BattleEventId(s"heal-${medkitPickupEvent.elapsedMs.value}-pickup-medkit-2-alice")
     )
     assert(medkitPickupEvent.message.contains("medkit"), s"medkit pickup event should stay medkit-specific, got ${medkitPickupEvent.message}")
+
+    medkitService.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 14L,
+        movement = BattleCommandVector(0.0, 1.0)
+      )
+    ).fold(error => fail(s"medkit move-away command failed: $error"), value => value)
+    medkitClock.now = 3_000L
+    val movedAwayFromMedkit = medkitService.currentState(BattleId("battle-state-runtime"))
+      .fold(error => fail(s"state not found after medkit move-away: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("after medkit move-away", movedAwayFromMedkit)
+
+    medkitService.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 15L,
+        movement = BattleCommandVector(0.0, 0.0)
+      )
+    ).fold(error => fail(s"medkit stop command failed: $error"), value => value)
+
+    medkitClock.now = 13_500L
+    val medkitRespawned = medkitService.currentState(BattleId("battle-state-runtime"))
+      .fold(error => fail(s"state not found after medkit respawn wait: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("after medkit respawn", medkitRespawned)
+    val respawnedMedkit = medkitRespawned.pickups.find(_.pickupId == PickupId("pickup-medkit-2")).getOrElse(fail("missing respawned medkit"))
+    assertEquals("medkit becomes available after respawn", respawnedMedkit.available, true)
+    assertEquals("medkit clears respawn timer after respawn", respawnedMedkit.respawnMs, DurationMillis(0L))
+  }
+
+  private def sameTickPickupContentionHasSingleWinner(): Unit = {
+    val clock = TestClock(1_100L)
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeed(
+        aliceSpawnPointIndex = SpawnPointIndex(0),
+        botSpawnPointIndex = SpawnPointIndex(0),
+        secondIsBot = false
+      )
+    )
+
+    val contested = battleState(service, "same tick pickup contention")
+    assertLifecycleBooleanOptionInvariants("same tick pickup contention", contested)
+    val alice = contested.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing contested alice"))
+    val other = contested.players.find(_.playerId == PlayerId("bot-one")).getOrElse(fail("missing contested second player"))
+    val gatlingPickup = contested.pickups.find(_.pickupId == PickupId("pickup-gatling-1")).getOrElse(fail("missing contested gatling pickup"))
+    val pickupEvents = contested.events.filter(event => event.eventKind == BattleEventKind.Pickup && event.eventId.value.contains("pickup-gatling-1"))
+
+    assertEquals("contention gives first player gatling", alice.weapons.exists(_.weaponKind == WeaponKind.Gatling), true)
+    assertEquals("contention does not duplicate gatling to second player", other.weapons.exists(_.weaponKind == WeaponKind.Gatling), false)
+    assertEquals("contention has exactly one weapon winner", contested.players.count(_.weapons.exists(_.weaponKind == WeaponKind.Gatling)), 1)
+    assertEquals("contention consumes pickup once", gatlingPickup.available, false)
+    assert(gatlingPickup.respawnMs.value > 0L, s"contention pickup should have respawn timer, got ${gatlingPickup.respawnMs}")
+    assertEquals("contention emits one pickup event", pickupEvents.length, 1)
+    assertEquals("contention event source is winner", pickupEvents.head.source.playerId, PlayerId("alice"))
+    assertEquals("contention event target is winner", pickupEvents.head.target.playerId, PlayerId("alice"))
   }
 
   private def nonPistolWeaponsFireAuthoritatively(): Unit = {
@@ -1086,6 +1184,7 @@ object BattleStateRuntimeContractTest {
     )
     assertClose("gatling single projectile has no spread x", gatlingProjectile.velocity.x, 980.0, 0.001)
     assertClose("gatling single projectile has no spread y", gatlingProjectile.velocity.y, 0.0, 0.001)
+    assertProjectileTravelAlignedWithVelocity("gatling projectile", gatlingReadyAlice.position, gatlingProjectile)
     assertClose("gatling recoil moves shooter backward", gatlingReadyAlice.position.x - gatlingAlice.position.x, 1.44, 0.01)
     assertClose("gatling recoil keeps lane", gatlingAlice.position.y, gatlingReadyAlice.position.y, 0.01)
     assert(distanceBetweenForTest(gatlingAlice.position, gatlingProjectile.position) > 29.0, s"gatling projectile advances from muzzle birth, got ${gatlingProjectile.position}")
@@ -1189,6 +1288,7 @@ object BattleStateRuntimeContractTest {
       rocketProjectile.ttlMs.value < 30000L && rocketProjectile.ttlMs.value >= 29900L,
       s"rocket projectile should retain long authoritative lifetime after birth tick, ttl=${rocketProjectile.ttlMs}"
     )
+    assertProjectileTravelAlignedWithVelocity("rocket projectile", rocketReadyAlice.position, rocketProjectile)
     assertClose("rocket recoil moves shooter backward", rocketReadyAlice.position.x - rocketFireAlice.position.x, 21.6, 0.01)
     assertClose("rocket recoil keeps lane", rocketFireAlice.position.y, rocketReadyAlice.position.y, 0.01)
     assert(distanceBetweenForTest(rocketFireAlice.position, rocketProjectile.position) > 36.0, s"rocket projectile advances from muzzle birth, got ${rocketProjectile.position}")
@@ -1263,6 +1363,7 @@ object BattleStateRuntimeContractTest {
     assert(shotgunProjectiles.forall(_.radius == Radius(7.0)), s"shotgun pellet radii should match content, got ${shotgunProjectiles.map(_.radius)}")
     shotgunProjectiles.foreach { projectile =>
       assertClose("shotgun pellet speed", vectorLengthForTest(projectile.velocity), 720.0, 0.001)
+      assertProjectileTravelAlignedWithVelocity("shotgun pellet", shotgunReadyAlice.position, projectile)
     }
     assertClose("shotgun recoil moves shooter backward", shotgunReadyAlice.position.x - shotgunFireAlice.position.x, 14.4, 0.01)
     assertClose("shotgun recoil keeps lane", shotgunFireAlice.position.y, shotgunReadyAlice.position.y, 0.01)
@@ -1414,6 +1515,118 @@ object BattleStateRuntimeContractTest {
     )
   }
 
+  private def rocketSplashDamageReportsDirectTargetAndDamagesNearbyTargets(): Unit = {
+    val clock = TestClock(1_000L)
+    val seats = Vector(
+      seat(
+        playerId = PlayerId("alice"),
+        heroId = HeroId("hero-alice"),
+        handle = PlayerHandle("Alice"),
+        displayName = DisplayName("Alice"),
+        seat = SeatIndex(0),
+        isBot = false,
+        spawnPointIndex = Some(SpawnPointIndex(3))
+      ),
+      seat(
+        playerId = PlayerId("direct"),
+        heroId = HeroId("hero-direct"),
+        handle = PlayerHandle("Direct"),
+        displayName = DisplayName("Direct"),
+        seat = SeatIndex(1),
+        isBot = false,
+        spawnPointIndex = Some(SpawnPointIndex(3))
+      ),
+      seat(
+        playerId = PlayerId("splash"),
+        heroId = HeroId("hero-splash"),
+        handle = PlayerHandle("Splash"),
+        displayName = DisplayName("Splash"),
+        seat = SeatIndex(2),
+        isBot = false,
+        spawnPointIndex = Some(SpawnPointIndex(3))
+      )
+    )
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeedWithSeats(
+        seats,
+        commandOwnership = Vector(
+          BattleCommandOwnership(PlayerId("alice"), TicketId("ticket-alice")),
+          BattleCommandOwnership(PlayerId("direct"), TicketId("ticket-direct")),
+          BattleCommandOwnership(PlayerId("splash"), TicketId("ticket-splash"))
+        )
+      )
+    )
+
+    battleState(service, "rocket splash initial")
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 34L,
+        movement = BattleCommandVector(-5.0, -1.0)
+      )
+    ).fold(error => fail(s"rocket splash pickup movement failed: $error"), value => value)
+
+    clock.now = 2_300L
+    val pickedUp = battleState(service, "rocket splash picked up")
+    val rocketAlice = pickedUp.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing rocket splash alice"))
+    val directBefore = pickedUp.players.find(_.playerId == PlayerId("direct")).getOrElse(fail("missing rocket splash direct target"))
+    val rocketIndex = rocketAlice.weapons.indexWhere(_.weaponKind == WeaponKind.RocketLauncher)
+    assert(rocketIndex >= 0, "rocket splash setup should pick up RocketLauncher")
+
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 35L,
+        switchWeaponIndex = Some(rocketIndex)
+      )
+    ).fold(error => fail(s"rocket splash switch failed: $error"), value => value)
+    val rocketReady = battleState(service, "rocket splash ready")
+    val rocketReadyAlice = rocketReady.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing ready rocket splash alice"))
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 36L,
+        aim = BattleCommandVector(directBefore.position.x - rocketReadyAlice.position.x, directBefore.position.y - rocketReadyAlice.position.y),
+        primaryHeld = true
+      )
+    ).fold(error => fail(s"rocket splash fire failed: $error"), value => value)
+
+    clock.now = 2_333L
+    val afterFire = battleState(service, "rocket splash after fire")
+    assert(afterFire.projectiles.exists(_.projectileKind == ProjectileKind.Rocket), "rocket splash should create a live rocket before impact")
+
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 37L,
+        aim = BattleCommandVector(directBefore.position.x - rocketReadyAlice.position.x, directBefore.position.y - rocketReadyAlice.position.y),
+        primaryHeld = false
+      )
+    ).fold(error => fail(s"rocket splash release failed: $error"), value => value)
+
+    clock.now = 3_500L
+    val afterImpact = battleState(service, "rocket splash after impact")
+    val directAfter = afterImpact.players.find(_.playerId == PlayerId("direct")).getOrElse(fail("missing damaged direct target"))
+    val splashAfter = afterImpact.players.find(_.playerId == PlayerId("splash")).getOrElse(fail("missing damaged splash target"))
+    val terminal = afterImpact.projectileTerminals
+      .find(_.projectileKind == ProjectileKind.Rocket)
+      .getOrElse(fail("missing rocket splash terminal"))
+
+    assertEquals("rocket splash direct target damaged", directAfter.hp, HitPoints(40))
+    assertEquals("rocket splash nearby target damaged", splashAfter.hp, HitPoints(40))
+    assertEquals("rocket splash battle remains active", afterImpact.phase, BattlePhase.Active)
+    assertEquals("rocket splash terminal reason", terminal.reason, ProjectileTerminalReason.Hit)
+    assertEquals("rocket splash terminal target", terminal.targetPlayerId, Some(PlayerId("direct")))
+    assertEquals("rocket splash terminal hp before", terminal.hpBefore, Some(HitPoints(100)))
+    assertEquals("rocket splash terminal hp after", terminal.hpAfter, Some(HitPoints(40)))
+    assertEquals("rocket splash terminal damage", terminal.damage, Some(Damage(60)))
+  }
+
   private def eliminationDoesNotRespawnAndFinishesBattle(): Unit = {
     val clock = TestClock(1_000L)
     val service = battleStateService(
@@ -1447,6 +1660,7 @@ object BattleStateRuntimeContractTest {
     clock.now = 3_700L
     val finished = service.currentState(BattleId("battle-state-runtime"))
       .fold(error => fail(s"state not found after elimination: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("after finished elimination", finished)
     val eliminatedBot = finished.players.find(_.playerId == PlayerId("bot-one")).getOrElse(fail("missing eliminated bot"))
 
     assertEquals("battle finishes after one survivor remains", finished.phase, BattlePhase.Finished)
@@ -1459,6 +1673,7 @@ object BattleStateRuntimeContractTest {
     clock.now = 5_000L
     val later = service.currentState(BattleId("battle-state-runtime"))
       .fold(error => fail(s"state not found after no-respawn wait: $error"), value => value)
+    assertLifecycleBooleanOptionInvariants("after no-respawn wait", later)
     val laterBot = later.players.find(_.playerId == PlayerId("bot-one")).getOrElse(fail("missing later bot"))
 
     assertEquals("battle remains finished", later.phase, BattlePhase.Finished)
@@ -1546,6 +1761,7 @@ object BattleStateRuntimeContractTest {
 
     clock.now = 9_000L
     val afterElimination = battleState(service, "dead runtime cleanup after elimination")
+    assertLifecycleBooleanOptionInvariants("active battle after target elimination", afterElimination)
     val eliminatedTarget = afterElimination.players.find(_.playerId == PlayerId("target")).getOrElse(fail("missing eliminated cleanup target"))
     val eliminatedWeapon = eliminatedTarget.weapons(eliminatedTarget.currentWeaponIndex)
 
@@ -1563,6 +1779,40 @@ object BattleStateRuntimeContractTest {
     assert(eliminatedTarget.skills.forall(_.activeMs == DurationMillis(0L)), s"expected eliminated target active skills cleared, got ${eliminatedTarget.skills}")
     assertEquals("target weapon fire cooldown cleared", eliminatedWeapon.fireCooldownMs, CooldownMillis(0))
     assertEquals("target weapon reload runtime cleared", eliminatedWeapon.reloadRemainingMs, CooldownMillis(0))
+
+    val projectileCountBeforeIgnoredDeadCommand = afterElimination.projectiles.length
+    val terminalCountBeforeIgnoredDeadCommand = afterElimination.projectileTerminals.length
+    val ignoredDeadCommand = service.acceptCommand(
+      command(
+        playerId = PlayerId("target"),
+        ticketId = TicketId("ticket-target"),
+        seq = 99L,
+        movement = BattleCommandVector(1.0, 0.0),
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true,
+        sprint = true,
+        reloadPressed = true,
+        castFreeze = true,
+        pointerWorld = Some(BattleCommandVector(eliminatedTarget.position.x + 120.0, eliminatedTarget.position.y))
+      )
+    ).fold(error => fail(s"dead target command failed: $error"), value => value)
+
+    assertEquals("dead target command ignored", ignoredDeadCommand.commandStatus, BattleCommandStatus.Ignored)
+    assertEquals("dead target command reason", ignoredDeadCommand.commandReason, Some(BattleCommandReason.PlayerDead))
+    assertEquals("dead target command keeps stored seq", ignoredDeadCommand.acceptedCommandSeq, eliminatedTarget.lastClientCommandSeq)
+
+    val afterIgnoredDeadCommand = battleState(service, "dead runtime cleanup after ignored dead command")
+    val ignoredDeadTarget = afterIgnoredDeadCommand.players.find(_.playerId == PlayerId("target")).getOrElse(fail("missing ignored dead target"))
+    val ignoredDeadWeapon = ignoredDeadTarget.weapons(ignoredDeadTarget.currentWeaponIndex)
+    assertEquals("battle remains active after ignored dead command", afterIgnoredDeadCommand.phase, BattlePhase.Active)
+    assertEquals("ignored dead target stays eliminated", ignoredDeadTarget.alive, false)
+    assertEquals("ignored dead movement remains cleared", ignoredDeadTarget.movement, BattleVector2(0.0, 0.0))
+    assertEquals("ignored dead sprint remains cleared", ignoredDeadTarget.sprint, false)
+    assertEquals("ignored dead primary remains cleared", ignoredDeadTarget.primaryHeld, false)
+    assertEquals("ignored dead reload remains cleared", ignoredDeadTarget.reloadPressed, false)
+    assertEquals("ignored dead command does not change ammo", ignoredDeadWeapon.ammoInMagazine, eliminatedWeapon.ammoInMagazine)
+    assertEquals("ignored dead command creates no projectile", afterIgnoredDeadCommand.projectiles.length, projectileCountBeforeIgnoredDeadCommand)
+    assertEquals("ignored dead command creates no terminal", afterIgnoredDeadCommand.projectileTerminals.length, terminalCountBeforeIgnoredDeadCommand)
   }
 
   private def dashAndBlinkRespectArenaCollision(): Unit = {
@@ -1749,6 +1999,161 @@ object BattleStateRuntimeContractTest {
     assertEquals("skill command creates no projectile on next tick", afterTick.projectiles, Vector.empty)
   }
 
+  private def noopSkillCommandsSuppressPrimaryFire(): Unit = {
+    val blinkMissingClock = TestClock(1_000L)
+    val blinkMissingService = battleStateService(clock = blinkMissingClock, seed = sessionSeed(secondIsBot = false))
+    battleState(blinkMissingService, "blink missing target fire suppression initial")
+    assertNoopSkillSuppressesPrimaryFire(
+      label = "blink missing target",
+      service = blinkMissingService,
+      clock = blinkMissingClock,
+      request = command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 191L,
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true,
+        castBlink = true
+      ),
+      expectedReason = SkillOutcomeReason.MissingTarget
+    )
+
+    val blinkRangeClock = TestClock(1_000L)
+    val blinkRangeService = battleStateService(clock = blinkRangeClock, seed = sessionSeed(secondIsBot = false))
+    val blinkRangeInitial = battleState(blinkRangeService, "blink out of range fire suppression initial")
+    val blinkRangeAlice = blinkRangeInitial.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing blink range alice"))
+    assertNoopSkillSuppressesPrimaryFire(
+      label = "blink out of range",
+      service = blinkRangeService,
+      clock = blinkRangeClock,
+      request = command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 192L,
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true,
+        castBlink = true,
+        pointerWorld = Some(BattleCommandVector(blinkRangeAlice.position.x + 260.0, blinkRangeAlice.position.y))
+      ),
+      expectedReason = SkillOutcomeReason.OutOfRange
+    )
+
+    val blinkCooldownClock = TestClock(1_000L)
+    val blinkCooldownService = battleStateService(clock = blinkCooldownClock, seed = sessionSeed(secondIsBot = false))
+    val blinkCooldownInitial = battleState(blinkCooldownService, "blink cooldown fire suppression initial")
+    val blinkCooldownAlice = blinkCooldownInitial.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing blink cooldown alice"))
+    blinkCooldownService.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 193L,
+        castBlink = true,
+        pointerWorld = Some(BattleCommandVector(blinkCooldownAlice.position.x + 240.0, blinkCooldownAlice.position.y))
+      )
+    ).fold(error => fail(s"blink cooldown setup command failed: $error"), accepted => {
+      assertEquals("blink cooldown setup outcome", accepted.outcomes.headOption.map(_.outcomeStatus), Some(SkillOutcomeStatus.Applied))
+    })
+    assertNoopSkillSuppressesPrimaryFire(
+      label = "blink cooldown",
+      service = blinkCooldownService,
+      clock = blinkCooldownClock,
+      request = command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 194L,
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true,
+        castBlink = true,
+        pointerWorld = Some(BattleCommandVector(blinkCooldownAlice.position.x + 120.0, blinkCooldownAlice.position.y))
+      ),
+      expectedReason = SkillOutcomeReason.Cooldown
+    )
+
+    val freezeMissingClock = TestClock(1_000L)
+    val freezeMissingService = battleStateService(clock = freezeMissingClock, seed = sessionSeed(secondIsBot = false))
+    battleState(freezeMissingService, "freeze missing target fire suppression initial")
+    assertNoopSkillSuppressesPrimaryFire(
+      label = "freeze missing target",
+      service = freezeMissingService,
+      clock = freezeMissingClock,
+      request = command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 195L,
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true,
+        castFreeze = true
+      ),
+      expectedReason = SkillOutcomeReason.MissingTarget
+    )
+
+    val freezeCooldownClock = TestClock(1_000L)
+    val freezeCooldownService = battleStateService(clock = freezeCooldownClock, seed = sessionSeed(secondIsBot = false))
+    val freezeCooldownInitial = battleState(freezeCooldownService, "freeze cooldown fire suppression initial")
+    val freezeCooldownAlice = freezeCooldownInitial.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing freeze cooldown alice"))
+    freezeCooldownService.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 196L,
+        castFreeze = true,
+        pointerWorld = Some(BattleCommandVector(freezeCooldownAlice.position.x + 120.0, freezeCooldownAlice.position.y))
+      )
+    ).fold(error => fail(s"freeze cooldown setup command failed: $error"), accepted => {
+      assertEquals("freeze cooldown setup outcome", accepted.outcomes.headOption.map(_.outcomeStatus), Some(SkillOutcomeStatus.Applied))
+    })
+    assertNoopSkillSuppressesPrimaryFire(
+      label = "freeze cooldown",
+      service = freezeCooldownService,
+      clock = freezeCooldownClock,
+      request = command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 197L,
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true,
+        castFreeze = true,
+        pointerWorld = Some(BattleCommandVector(freezeCooldownAlice.position.x + 160.0, freezeCooldownAlice.position.y))
+      ),
+      expectedReason = SkillOutcomeReason.Cooldown
+    )
+  }
+
+  private def assertNoopSkillSuppressesPrimaryFire(
+    label: String,
+    service: InMemoryBattleStateService,
+    clock: TestClock,
+    request: BattleCommandRequest,
+    expectedReason: SkillOutcomeReason
+  ): Unit = {
+    val before = battleState(service, s"$label before noop skill")
+    val beforeAlice = before.players.find(_.playerId == PlayerId("alice")).getOrElse(fail(s"missing $label alice before noop skill"))
+    val beforeAmmo = beforeAlice.weapons.head.ammoInMagazine
+    val beforeProjectileCount = before.projectiles.length
+    val beforeTerminalCount = before.projectileTerminals.length
+
+    val accepted = service.acceptCommand(request)
+      .fold(error => fail(s"$label command failed: $error"), value => value)
+
+    assertEquals(s"$label outcome", accepted.outcomes.headOption.map(_.outcomeStatus), Some(SkillOutcomeStatus.Noop))
+    assertEquals(s"$label reason", accepted.outcomes.headOption.flatMap(_.reason), Some(expectedReason))
+
+    val afterCommand = battleState(service, s"$label after command")
+    val afterCommandAlice = afterCommand.players.find(_.playerId == PlayerId("alice")).getOrElse(fail(s"missing $label alice after command"))
+    assertEquals(s"$label command clears primary held", afterCommandAlice.primaryHeld, false)
+    assertEquals(s"$label command does not consume ammo", afterCommandAlice.weapons.head.ammoInMagazine, beforeAmmo)
+    assertEquals(s"$label command creates no live projectile", afterCommand.projectiles.length, beforeProjectileCount)
+    assertEquals(s"$label command creates no projectile terminal", afterCommand.projectileTerminals.length, beforeTerminalCount)
+
+    clock.now += 33L
+    val afterTick = battleState(service, s"$label after tick")
+    val afterTickAlice = afterTick.players.find(_.playerId == PlayerId("alice")).getOrElse(fail(s"missing $label alice after tick"))
+    assertEquals(s"$label tick keeps primary released", afterTickAlice.primaryHeld, false)
+    assertEquals(s"$label tick does not consume ammo", afterTickAlice.weapons.head.ammoInMagazine, beforeAmmo)
+    assertEquals(s"$label tick creates no live projectile", afterTick.projectiles.length, beforeProjectileCount)
+    assertEquals(s"$label tick creates no projectile terminal", afterTick.projectileTerminals.length, beforeTerminalCount)
+  }
+
   private def freezeUsesFrontendContentConstants(): Unit = {
     val clock = TestClock(1_000L)
     val service = battleStateService(clock = clock)
@@ -1815,6 +2220,72 @@ object BattleStateRuntimeContractTest {
     val obstacleFrozen = battleState(obstacleService, "freeze obstacle target applied")
     val obstacleSlowField = obstacleFrozen.slowFields.lastOption.getOrElse(fail("missing obstacle slow field"))
     assertEquals("freeze obstacle field position", obstacleSlowField.position, BattleVector2(obstacleTarget.x, obstacleTarget.y))
+  }
+
+  private def activeSlowFieldSlowsProjectiles(): Unit = {
+    val clearClock = TestClock(1_000L)
+    val clearService = battleStateService(clock = clearClock, seed = sessionSeed(secondIsBot = false))
+    val clearInitial = battleState(clearService, "clear projectile movement initial")
+    val clearAlice = clearInitial.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing clear projectile alice"))
+
+    clearService.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 198L,
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true
+      )
+    ).fold(error => fail(s"clear projectile fire command failed: $error"), value => value)
+
+    clearClock.now = 1_033L
+    val clearShot = battleState(clearService, "clear projectile movement after shot")
+    val clearProjectile = clearShot.projectiles.lastOption.getOrElse(fail("missing clear projectile"))
+    val clearDistance = distanceBetweenForTest(clearAlice.position, clearProjectile.position)
+    assertClose("clear projectile first tick travel from player center", clearDistance, 76.2, 0.5)
+
+    val slowClock = TestClock(1_000L)
+    val slowService = battleStateService(clock = slowClock, seed = sessionSeed(secondIsBot = false))
+    val slowInitial = battleState(slowService, "slowed projectile movement initial")
+    val slowAlice = slowInitial.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing slowed projectile alice"))
+    val slowFieldTarget = BattleCommandVector(slowAlice.position.x + 80.0, slowAlice.position.y)
+
+    slowService.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 199L,
+        castFreeze = true,
+        pointerWorld = Some(slowFieldTarget)
+      )
+    ).fold(error => fail(s"slow projectile freeze command failed: $error"), accepted => {
+      assertEquals("slow projectile freeze outcome", accepted.outcomes.headOption.map(_.outcomeStatus), Some(SkillOutcomeStatus.Applied))
+    })
+
+    val frozen = battleState(slowService, "slowed projectile field active")
+    val slowField = frozen.slowFields.lastOption.getOrElse(fail("missing projectile slow field"))
+    assertEquals("projectile slow field position", slowField.position, BattleVector2(slowFieldTarget.x, slowFieldTarget.y))
+
+    slowService.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 200L,
+        aim = BattleCommandVector(1.0, 0.0),
+        primaryHeld = true
+      )
+    ).fold(error => fail(s"slowed projectile fire command failed: $error"), value => value)
+
+    slowClock.now = 1_033L
+    val slowedShot = battleState(slowService, "slowed projectile movement after shot")
+    val slowedProjectile = slowedShot.projectiles.lastOption.getOrElse(fail("missing slowed projectile"))
+    val slowedDistance = distanceBetweenForTest(slowAlice.position, slowedProjectile.position)
+
+    assertClose("slowed projectile first tick travel from player center", slowedDistance, 53.1, 0.5)
+    assert(
+      slowedDistance < clearDistance - 20.0,
+      s"expected slow field to reduce projectile travel, clear=$clearDistance slowed=$slowedDistance"
+    )
   }
 
   private def expiringSlowFieldDoesNotAffectMovementOnExpiryTick(): Unit = {
@@ -1969,6 +2440,21 @@ object BattleStateRuntimeContractTest {
     battleState(service, "partial artifact finished")
   }
 
+  private def throwingFinishProjectorDoesNotLeaveProjectionInProgress(): Unit = {
+    val clock = TestClock(1_000L)
+    val projector = ThrowOnceThenProjector(BattleFinishProjectionOutcome.Projected)
+    val service = battleStateService(clock = clock, battleDuration = DurationMillis(1_000L), finishProjector = projector)
+
+    battleState(service, "throwing projection initial")
+    clock.now = 2_500L
+    val firstFinished = battleState(service, "throwing projection first finished")
+    val retried = battleState(service, "throwing projection retry")
+
+    assertEquals("throwing projector first read stays pending", firstFinished.artifactStatus, BattleArtifactStatus.Pending)
+    assertEquals("throwing projector retried projection", retried.artifactStatus, BattleArtifactStatus.Ready)
+    assertEquals("throwing projector attempted twice", projector.attempts, 2)
+  }
+
   private def ignoredFinishedCommandUsesStoredClientSequence(): Unit = {
     val clock = TestClock(1_000L)
     val service = battleStateService(clock = clock, battleDuration = DurationMillis(1_000L))
@@ -2009,6 +2495,63 @@ object BattleStateRuntimeContractTest {
       lifecycleSink.finishedRooms,
       Vector(RoomId("room-state-runtime") -> EpochMillis(2_000L))
     )
+  }
+
+  private final case class ProjectileHitOutcome(
+    targetHp: HitPoints,
+    terminal: BattleProjectileTerminalState,
+    liveOwnerProjectiles: Int
+  )
+
+  private def pistolHitOutcomeAfterReads(readTimes: Vector[Long], context: String): ProjectileHitOutcome = {
+    val clock = TestClock(1_000L)
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeed(
+        aliceSpawnPointIndex = SpawnPointIndex(6),
+        botSpawnPointIndex = SpawnPointIndex(7),
+        secondIsBot = false
+      )
+    )
+    val initial = battleState(service, s"$context initial")
+    val alice = initial.players.find(_.playerId == PlayerId("alice")).getOrElse(fail(s"missing alice for $context"))
+    val target = initial.players.find(_.playerId == PlayerId("bot-one")).getOrElse(fail(s"missing target for $context"))
+
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 101L,
+        aim = BattleCommandVector(target.position.x - alice.position.x, target.position.y - alice.position.y),
+        primaryHeld = true
+      )
+    ).fold(error => fail(s"$context shot failed: $error"), value => value)
+
+    clock.now = 1_033L
+    battleState(service, s"$context projectile birth")
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 102L,
+        aim = BattleCommandVector(target.position.x - alice.position.x, target.position.y - alice.position.y),
+        primaryHeld = false
+      )
+    ).fold(error => fail(s"$context release failed: $error"), value => value)
+
+    val finalState = readTimes.foldLeft(battleState(service, s"$context after release")) { case (_, readTime) =>
+      clock.now = readTime
+      battleState(service, s"$context read $readTime")
+    }
+    val finalTarget = finalState.players.find(_.playerId == PlayerId("bot-one")).getOrElse(fail(s"missing final target for $context"))
+    val terminal = finalState.projectileTerminals
+      .find(terminal => terminal.ownerHeroId == alice.heroId && terminal.projectileKind == ProjectileKind.PistolBullet)
+      .getOrElse(fail(s"missing pistol hit terminal for $context"))
+    val liveOwnerProjectiles = finalState.projectiles.count(projectile =>
+      projectile.ownerHeroId == alice.heroId && projectile.projectileKind == ProjectileKind.PistolBullet
+    )
+
+    ProjectileHitOutcome(finalTarget.hp, terminal, liveOwnerProjectiles)
   }
 
   private def battleStateService(
@@ -2107,7 +2650,7 @@ object BattleStateRuntimeContractTest {
       handle = handle,
       displayName = displayName,
       joinedAt = EpochMillis(1_000L),
-      isBot = isBot,
+      participantKind = BattleParticipantKind.fromBotFlag(isBot),
       spawnPointIndex = spawnPointIndex.getOrElse(SpawnPointIndex(seat.value)),
       rating = Some(Rating(1200)),
       avatar = None,
@@ -2127,7 +2670,7 @@ object BattleStateRuntimeContractTest {
     castBlink: Boolean = false,
     castFreeze: Boolean = false,
     pointerWorld: Option[BattleCommandVector] = None,
-    switchWeaponDirection: Int = 0,
+    switchWeaponDirection: BattleWeaponSwitchDirection = BattleWeaponSwitchDirection.NoSwitch,
     switchWeaponIndex: Option[Int] = None
   ): BattleCommandRequest =
     BattleCommandRequest(
@@ -2141,12 +2684,14 @@ object BattleStateRuntimeContractTest {
       primaryHeld = primaryHeld,
       sprint = sprint,
       reloadPressed = reloadPressed,
-      castDash = castDash,
-      castBlink = castBlink,
-      castFreeze = castFreeze,
+      skillIntents = BattleCommandSkillIntents.fromLegacyFlags(
+        castDash = castDash,
+        castBlink = castBlink,
+        castFreeze = castFreeze
+      ),
       pointerWorld = pointerWorld,
       switchWeaponDirection = switchWeaponDirection,
-      switchWeaponIndex = switchWeaponIndex
+      switchWeaponIndex = switchWeaponIndex.flatMap(BattleWeaponSwitchIndex.fromWire)
     )
 
   private final case class TestClock(var now: Long) {
@@ -2164,6 +2709,16 @@ object BattleStateRuntimeContractTest {
     override def project(state: BattleAggregateState): BattleFinishProjectionOutcome = {
       projectedStates = projectedStates :+ state
       outcome
+    }
+  }
+
+  private final case class ThrowOnceThenProjector(outcome: BattleFinishProjectionOutcome) extends BattleFinishProjector {
+    var attempts: Int = 0
+
+    override def project(state: BattleAggregateState): BattleFinishProjectionOutcome = {
+      attempts += 1
+      if attempts == 1 then throw new RuntimeException("projection boom")
+      else outcome
     }
   }
 
@@ -2195,11 +2750,53 @@ object BattleStateRuntimeContractTest {
     assertClose(s"$label direction y", offset.y / offsetLength, projectile.velocity.y / velocityLength, 0.001)
   }
 
+  private def assertProjectileTravelAlignedWithVelocity(
+    label: String,
+    ownerPosition: BattleVector2,
+    projectile: BattleProjectileState
+  ): Unit = {
+    val offset = BattleVector2(projectile.position.x - ownerPosition.x, projectile.position.y - ownerPosition.y)
+    val offsetLength = math.hypot(offset.x, offset.y)
+    val velocityLength = math.hypot(projectile.velocity.x, projectile.velocity.y)
+    assert(offsetLength > 0.0, s"$label offset should be non-zero")
+    assert(velocityLength > 0.0, s"$label velocity should be non-zero")
+    val normalizedCross = math.abs(offset.x * projectile.velocity.y - offset.y * projectile.velocity.x) / (offsetLength * velocityLength)
+    assert(
+      normalizedCross <= 0.001,
+      s"$label position and velocity should be aligned, cross=$normalizedCross, offset=$offset, velocity=${projectile.velocity}"
+    )
+  }
+
   private def vectorLengthForTest(vector: BattleVector2): Double =
     math.hypot(vector.x, vector.y)
 
   private def distanceBetweenForTest(left: BattleVector2, right: BattleVector2): Double =
     math.hypot(left.x - right.x, left.y - right.y)
+
+  private def assertLifecycleBooleanOptionInvariants(label: String, state: BattleAggregateState): Unit = {
+    state.players.foreach { player =>
+      if player.alive then {
+        assertEquals(s"$label ${player.playerId.value} alive has no eliminatedAtMs", player.eliminatedAtMs, None)
+        assertEquals(s"$label ${player.playerId.value} alive has no respawn timer", player.respawnMs, DurationMillis(0L))
+      } else {
+        assert(
+          player.eliminatedAtMs.nonEmpty,
+          s"$label ${player.playerId.value} eliminated player must carry eliminatedAtMs"
+        )
+        assertEquals(s"$label ${player.playerId.value} eliminated has no respawn timer", player.respawnMs, DurationMillis(0L))
+      }
+    }
+
+    state.pickups.foreach { pickup =>
+      if pickup.available then
+        assertEquals(s"$label ${pickup.pickupId.value} available pickup has no respawn timer", pickup.respawnMs, DurationMillis(0L))
+      else
+        assert(
+          pickup.respawnMs.value > 0L,
+          s"$label ${pickup.pickupId.value} unavailable pickup must have positive respawn timer, got ${pickup.respawnMs}"
+        )
+    }
+  }
 
   private def aliceWeapon(service: InMemoryBattleStateService, context: String): BattleWeaponState = {
     val state = battleState(service, context)

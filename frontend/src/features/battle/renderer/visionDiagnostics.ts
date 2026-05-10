@@ -50,6 +50,8 @@ interface BattleVisionViewportDiagnostics {
 
 interface BattleVisionLookAheadDiagnostics {
   pointer: Vec2;
+  rawPointer: Vec2;
+  pointerReady: boolean;
   screenCenter: Vec2;
   desiredOffset: Vec2;
   actualOffset: Vec2;
@@ -111,6 +113,8 @@ export function recordBattleVisionCameraDiagnostics(input: {
 
 export function recordBattleVisionLookAheadDiagnostics(input: {
   pointer: Vec2;
+  rawPointer: Vec2;
+  pointerReady: boolean;
   screenCenter: Vec2;
   desiredOffset: Vec2;
   actualOffset: Vec2;
@@ -127,6 +131,8 @@ export function recordBattleVisionLookAheadDiagnostics(input: {
   updateVisionDiagnostics({
     lookAhead: {
       pointer: cloneVec2(input.pointer),
+      rawPointer: cloneVec2(input.rawPointer),
+      pointerReady: input.pointerReady,
       screenCenter: cloneVec2(input.screenCenter),
       desiredOffset: cloneVec2(input.desiredOffset),
       actualOffset: cloneVec2(input.actualOffset),

@@ -1,6 +1,15 @@
 package slaydemo.backend
 
-import slaydemo.backend.identity.database.{IdentityAccountCreateResult, IdentityAccountRepository, InMemoryIdentityAccountRepository}
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path}
+import scala.jdk.CollectionConverters.*
+
+import slaydemo.backend.identity.database.{
+  FileIdentityAccountRepository,
+  IdentityAccountCreateResult,
+  IdentityAccountRepository,
+  InMemoryIdentityAccountRepository
+}
 import slaydemo.backend.identity.objects.{AccountStatus, DisplayName, IdentityAccount, PasswordHash, PlainTextPassword, PlayerHandle, SessionToken, SkinId}
 import slaydemo.backend.identity.ports.{IdentityIdGenerator, SessionTokenGenerator, Sha256PasswordHasher}
 import slaydemo.backend.identity.services.{
@@ -24,6 +33,8 @@ object IdentityServiceContractTest {
     builtinAdminSession(identity)
     activeAccountSummariesIncludeAdmin(identity)
     legacyPlaintextPasswordLoginUpgradesToHash()
+    fileRepositoryPersistsHashAndSessions()
+    fileRepositoryUpgradesLegacyPlaintext()
 
     println("Identity service contract checks passed")
   }
@@ -124,6 +135,140 @@ object IdentityServiceContractTest {
       .fold(error => fail(s"upgraded hash session failed: $error"), identity => identity)
 
     assertEquals("upgraded account authenticates through hash without another legacy check", repository.legacyAuthenticationCount, 2)
+  }
+
+  private def fileRepositoryPersistsHashAndSessions(): Unit = {
+    val directory = Files.createTempDirectory("slay-demo-identity-file-contract")
+    try {
+      val storagePath = directory.resolve("identity-accounts.json")
+      val repository = FileIdentityAccountRepository(storagePath)
+      val passwordHash = Sha256PasswordHasher().hash(PlainTextPassword.unsafe("file-pass"))
+      val account = IdentityAccount.active(
+        userId = UserId("file-user"),
+        handle = PlayerHandle("FileUser"),
+        skinId = SkinId.Soldier,
+        sessionToken = None
+      ).copy(displayName = DisplayName("File User"))
+
+      assertEquals(
+        "file identity create stores account",
+        repository.create(account, passwordHash),
+        IdentityAccountCreateResult.Created(account)
+      )
+
+      val storedAfterCreate = Files.readString(storagePath, StandardCharsets.UTF_8)
+      assertEquals(
+        "file identity schema marker is stable",
+        storedAfterCreate.contains(""""schema": "slay-demo.identity-accounts.v1""""),
+        true
+      )
+      Vector("userId", "handle", "displayName", "skinId", "sessionToken", "active", "password").foreach { field =>
+        assertEquals(s"file identity persisted field is present: $field", storedAfterCreate.contains(s""""$field""""), true)
+      }
+      assertEquals(
+        "file identity empty session token is persisted as empty string",
+        storedAfterCreate.contains(""""sessionToken": """""),
+        true
+      )
+      assertEquals(
+        "file identity password hash is persisted",
+        storedAfterCreate.contains(s""""password": "${passwordHash.value}""""),
+        true
+      )
+      assertEquals("file identity raw plaintext is not persisted for hash row", storedAfterCreate.contains("file-pass"), false)
+      val reloadedWithoutSession = FileIdentityAccountRepository(storagePath)
+      assertEquals(
+        "file identity empty session token reloads as no session",
+        reloadedWithoutSession.findByHandle(PlayerHandle("fileuser")).flatMap(_.sessionToken),
+        None
+      )
+
+      assertEquals(
+        "file identity duplicate handle is case-insensitive",
+        repository.create(account.copy(handle = PlayerHandle("fileuser")), passwordHash),
+        IdentityAccountCreateResult.HandleAlreadyExists(account)
+      )
+      assertEquals(
+        "file identity hash authentication works",
+        repository.authenticate(PlayerHandle("fileuser"), passwordHash),
+        Some(account)
+      )
+      assertEquals(
+        "file identity plaintext does not authenticate as legacy for hash row",
+        repository.authenticateLegacyPlaintext(PlayerHandle("FileUser"), PlainTextPassword.unsafe("file-pass")),
+        None
+      )
+
+      val sessionAccount = repository
+        .updateSession(PlayerHandle("fileuser"), SessionToken("session-file-user"))
+        .getOrElse(fail("file identity session update failed"))
+
+      val reloaded = FileIdentityAccountRepository(storagePath)
+      assertEquals("file identity reload finds handle", reloaded.findByHandle(PlayerHandle("FILEUSER")), Some(sessionAccount))
+      assertEquals(
+        "file identity reload finds session token",
+        reloaded.findBySessionToken(SessionToken("session-file-user")),
+        Some(sessionAccount)
+      )
+      assertEquals("file identity reload lists active accounts", reloaded.listActiveAccounts().map(_.handle), Vector(PlayerHandle("FileUser")))
+    } finally {
+      deleteRecursively(directory)
+    }
+  }
+
+  private def fileRepositoryUpgradesLegacyPlaintext(): Unit = {
+    val directory = Files.createTempDirectory("slay-demo-identity-legacy-file-contract")
+    try {
+      val storagePath = directory.resolve("identity-accounts.json")
+      Files.writeString(
+        storagePath,
+        """{
+          |  "schema": "slay-demo.identity-accounts.v1",
+          |  "accounts": [
+          |    {
+          |      "userId": "legacy-file-user",
+          |      "handle": "LegacyFile",
+          |      "displayName": "Legacy File",
+          |      "skinId": "blue",
+          |      "sessionToken": "",
+          |      "active": true,
+          |      "password": "legacy-pass"
+          |    }
+          |  ]
+          |}
+          |""".stripMargin,
+        StandardCharsets.UTF_8
+      )
+
+      val repository = FileIdentityAccountRepository(storagePath)
+      val identity = DefaultIdentityService(
+        repository = repository,
+        identityIdGenerator = DeterministicIdentityIdGenerator,
+        sessionTokenGenerator = DeterministicSessionTokenGenerator,
+        passwordHasher = Sha256PasswordHasher()
+      )
+      val handle = PlayerHandle("LegacyFile")
+
+      identity
+        .issueSession(IdentitySessionCommand(handle, PlainTextPassword.unsafe("legacy-pass")))
+        .fold(error => fail(s"file legacy plaintext session failed: $error"), identity => identity)
+
+      val expectedHash = Sha256PasswordHasher().hash(PlainTextPassword.unsafe("legacy-pass"))
+      val reloaded = FileIdentityAccountRepository(storagePath)
+      assertEquals(
+        "file legacy plaintext is no longer accepted after upgrade",
+        reloaded.authenticateLegacyPlaintext(handle, PlainTextPassword.unsafe("legacy-pass")),
+        None
+      )
+      assertEquals(
+        "file legacy plaintext upgrade stores current hash",
+        reloaded.authenticate(handle, expectedHash).exists(_.handle == handle),
+        true
+      )
+      assertEquals("file legacy plaintext secret removed", Files.readString(storagePath).contains("\"legacy-pass\""), false)
+    } finally {
+      deleteRecursively(directory)
+    }
   }
 
   private def register(
@@ -245,4 +390,20 @@ object IdentityServiceContractTest {
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)
+
+  private def deleteRecursively(path: Path): Unit =
+    if Files.exists(path) then {
+      val stream = Files.walk(path)
+      try {
+        stream
+          .iterator()
+          .asScala
+          .toVector
+          .sortBy(_.toString.length)
+          .reverse
+          .foreach(Files.deleteIfExists)
+      } finally {
+        stream.close()
+      }
+    }
 }

@@ -18,7 +18,7 @@ final class InMemoryReplayRepository extends ReplayRepository {
   override def listReplays(limit: Int): Vector[ReplayRecord] =
     lock.synchronized {
       replays.values.toVector
-    }.sortWith(compareRecentFirst).take(math.max(0, limit))
+    }.sortWith(ReplayRepositoryOrderingRules.replaysRecentFirst).take(math.max(0, limit))
 
   override def findReplayById(replayId: ReplayId): Option[ReplayRecord] =
     lock.synchronized {
@@ -45,11 +45,7 @@ final class InMemoryReplayRepository extends ReplayRepository {
   override def listComments(replayId: ReplayId, limit: Int): Vector[ReplayCommentRecord] =
     lock.synchronized {
       commentsByReplayId.getOrElse(replayId, Vector.empty)
-    }.sortBy(_.createdAt.value).takeRight(math.max(0, limit))
-
-  private def compareRecentFirst(left: ReplayRecord, right: ReplayRecord): Boolean =
-    if left.finishedAt.value != right.finishedAt.value then left.finishedAt.value > right.finishedAt.value
-    else left.replayId.value < right.replayId.value
+    }.sortWith(ReplayRepositoryOrderingRules.inMemoryCommentsChronological).takeRight(math.max(0, limit))
 }
 
 object InMemoryReplayRepository {

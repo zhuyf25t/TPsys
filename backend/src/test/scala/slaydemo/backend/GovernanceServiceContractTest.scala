@@ -1,6 +1,9 @@
 package slaydemo.backend
 
-import slaydemo.backend.governance.database.InMemoryGovernanceRepository
+import java.nio.file.{Files, Path}
+import scala.jdk.CollectionConverters.*
+
+import slaydemo.backend.governance.database.{FileGovernanceRepository, GovernanceReviewGeneratedIds, InMemoryGovernanceRepository}
 import slaydemo.backend.governance.objects.*
 import slaydemo.backend.governance.services.{
   ContributionAdjustmentCommand,
@@ -9,7 +12,7 @@ import slaydemo.backend.governance.services.{
 }
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.database.InMemoryMailRepository
-import slaydemo.backend.mail.objects.MailKind
+import slaydemo.backend.mail.objects.{GovernanceMailActorHandle, GovernanceMailTargetLabel, GovernanceMailTargetPath, MailKind}
 
 object GovernanceServiceContractTest {
   def main(args: Array[String]): Unit = {
@@ -17,6 +20,7 @@ object GovernanceServiceContractTest {
     contributionAdjustmentCreatesRecordAndMail()
     reviewNotificationCreatesFilteredRecordAndAdminMail()
     reviewNotificationUsesTargetIdWhenTitleIsBlank()
+    fileRepositoryPersistsGovernanceRecordsAndIds()
 
     println("Governance service contract checks passed")
   }
@@ -111,9 +115,9 @@ object GovernanceServiceContractTest {
     val metadata = adminMails.head.governanceMetadata.getOrElse(fail("missing governance metadata"))
     assertEquals("review persisted one admin mail", adminMails.map(_.id.value), Vector(result.mail.id.value))
     assertEquals("review mail kind", adminMails.head.kind, MailKind.Governance)
-    assertEquals("review metadata actor", metadata.actorHandle, "Alice")
-    assertEquals("review metadata target path", metadata.targetPath, "/replay/replay-1")
-    assertEquals("review metadata target label", metadata.targetLabel, "Suspicious replay")
+    assertEquals("review metadata actor", metadata.actorHandle, GovernanceMailActorHandle("Alice"))
+    assertEquals("review metadata target path", metadata.targetPath, GovernanceMailTargetPath("/replay/replay-1"))
+    assertEquals("review metadata target label", metadata.targetLabel, GovernanceMailTargetLabel("Suspicious replay"))
   }
 
   private def reviewNotificationUsesTargetIdWhenTitleIsBlank(): Unit = {
@@ -132,13 +136,76 @@ object GovernanceServiceContractTest {
     )
 
     val snapshotMetadata = result.mail.governanceMetadata.getOrElse(fail("missing snapshot metadata"))
-    assertEquals("blank title snapshot target label", snapshotMetadata.targetLabel, "bot-alpha")
+    assertEquals("blank title snapshot target label", snapshotMetadata.targetLabel, GovernanceMailTargetLabel("bot-alpha"))
     assertContains("blank title subject target label", result.mail.subject, "bot-alpha")
     assertContains("blank title excerpt target label", result.mail.excerpt, "bot-alpha")
 
     val adminMails = mailRepository.listByOwner(PlayerHandle("admin"))
     val persistedMetadata = adminMails.head.governanceMetadata.getOrElse(fail("missing persisted metadata"))
-    assertEquals("blank title persisted target label", persistedMetadata.targetLabel, "bot-alpha")
+    assertEquals("blank title persisted target label", persistedMetadata.targetLabel, GovernanceMailTargetLabel("bot-alpha"))
+  }
+
+  private def fileRepositoryPersistsGovernanceRecordsAndIds(): Unit = {
+    val directory = Files.createTempDirectory("slay-demo-governance-file-contract")
+    try {
+      var now = 1_000L
+      val repository = FileGovernanceRepository(directory)
+      val service = DefaultGovernanceService(repository, InMemoryMailRepository(), () => now)
+      val adjustment = service.create(
+        ContributionAdjustmentCommand(
+          actorHandle = AdminHandle("admin"),
+          targetHandle = GovernanceTargetHandle("Alice"),
+          delta = ContributionDelta(7),
+          reason = GovernanceReason("Helpful {review} \"quote\""),
+          sourceLabel = GovernanceSourceLabel("Replay"),
+          sourcePath = GovernanceSourcePath("/replay/file")
+        )
+      ).adjustment
+
+      now = 2_000L
+      val notification = service.createReviewNotification(
+        GovernanceReviewNotificationCommand(
+          actorHandle = GovernanceActorHandle("Alice"),
+          kind = GovernanceReviewKind.DiscussionReport,
+          targetType = GovernanceReviewTargetType.Discussion,
+          targetId = GovernanceReviewTargetId("topic-file"),
+          targetTitle = GovernanceReviewTargetTitle("Forum topic"),
+          targetPath = GovernanceReviewTargetPath("/forum/topic-file"),
+          body = GovernanceReviewBody("Review body with {braces}.")
+        )
+      ).notification
+
+      val reloaded = FileGovernanceRepository(directory)
+      assertEquals("file governance adjustment reload", reloaded.listAdjustments(10).map(_.id), Vector(adjustment.id))
+      assertEquals("file governance adjustment reason round trips", reloaded.listAdjustments(10).head.reason, GovernanceReason("Helpful {review} \"quote\""))
+      assertEquals(
+        "file governance notification filter",
+        reloaded
+          .listReviewNotifications(Some(GovernanceReviewKind.DiscussionReport), Some(GovernanceReviewTargetType.Discussion), 10)
+          .map(_.id),
+        Vector(notification.id)
+      )
+      assertEquals(
+        "file governance notification wrong filter",
+        reloaded.listReviewNotifications(Some(GovernanceReviewKind.ReplayReport), None, 10),
+        Vector.empty
+      )
+      assertEquals(
+        "file governance next adjustment id advances",
+        reloaded.nextAdjustmentId(),
+        ContributionAdjustmentId("governance-adjustment-000002")
+      )
+      assertEquals(
+        "file governance next review ids advance",
+        reloaded.nextReviewIds(),
+        GovernanceReviewGeneratedIds(
+          notificationId = GovernanceReviewNotificationId("governance-review-000002"),
+          mailId = GovernanceMailSnapshotId("mail-governance-review-000002")
+        )
+      )
+    } finally {
+      deleteRecursively(directory)
+    }
   }
 
   private def assertEquals[A](label: String, actual: A, expected: A): Unit =
@@ -149,4 +216,20 @@ object GovernanceServiceContractTest {
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)
+
+  private def deleteRecursively(path: Path): Unit =
+    if Files.exists(path) then {
+      val stream = Files.walk(path)
+      try {
+        stream
+          .iterator()
+          .asScala
+          .toVector
+          .sortBy(_.toString.length)
+          .reverse
+          .foreach(Files.deleteIfExists)
+      } finally {
+        stream.close()
+      }
+    }
 }

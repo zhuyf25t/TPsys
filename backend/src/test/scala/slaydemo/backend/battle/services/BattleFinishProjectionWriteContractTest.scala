@@ -6,7 +6,7 @@ import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.mail.database.InMemoryMailRepository
 import slaydemo.backend.mail.objects.{MailKind, MailRecord}
 import slaydemo.backend.replay.database.{InMemoryReplayRepository, ReplayRepository}
-import slaydemo.backend.replay.objects.{ReplayCommentId, ReplayCommentRecord, ReplayId, ReplayRecord}
+import slaydemo.backend.replay.objects.{ReplayCommentId, ReplayCommentRecord, ReplayFrameCount, ReplayId, ReplayRecord}
 
 object BattleFinishProjectionWriteContractTest {
   def main(args: Array[String]): Unit = {
@@ -43,15 +43,19 @@ object BattleFinishProjectionWriteContractTest {
 
     assertEquals("finished projection outcome", fixture.outcome, BattleFinishProjectionOutcome.Projected)
     assertEquals("result handles exclude bot", results.map(_.handle.value), Vector("Alice", "Bob"))
-    assertEquals("result placements count bot", results.map(_.placement), Vector(Some(2), Some(3)))
+    assertEquals(
+      "result placements count bot",
+      results.map(_.placement),
+      Vector(Some(BattlePlacement.unsafe(2)), Some(BattlePlacement.unsafe(3)))
+    )
     assertEquals("result scores", results.map(_.score.value), Vector(9, 7))
     assertEquals("alice previous rating", resultFor(results, "alice").ratingBefore, Rating(1500))
     assertEquals("alice rating after", resultFor(results, "alice").ratingAfter, Rating(1514))
     assertEquals("bob default rating", resultFor(results, "bob").ratingBefore, Rating(1200))
     assertEquals("bob rating after", resultFor(results, "bob").ratingAfter, Rating(1206))
-    assertEquals("alice result label", resultFor(results, "alice").resultLabel, "存活结算")
-    assertEquals("bob result label", resultFor(results, "bob").resultLabel, "淘汰结算")
-    assertEquals("alice mode label", resultFor(results, "alice").modeLabel, "权威对战")
+    assertEquals("alice result label", resultFor(results, "alice").resultLabel.value, "存活结算")
+    assertEquals("bob result label", resultFor(results, "bob").resultLabel.value, "淘汰结算")
+    assertEquals("alice mode label", resultFor(results, "alice").modeLabel.value, "权威对战")
     assertEquals("alice current loadout omitted", resultFor(results, "alice").currentLoadout, None)
 
     assertOwnerMail(
@@ -79,9 +83,9 @@ object BattleFinishProjectionWriteContractTest {
     assertEquals("replay result label", replay.resultLabel, "胜者已决")
     assertEquals("replay cover label", replay.coverLabel, "服务器战报")
     assertEquals("replay settlement ratings", replay.settlements.map(_.ratingAfter), Vector(Some(Rating(1514)), Some(Rating(1206))))
-    assertEquals("replay frame count", replay.frameCount, 3)
+    assertEquals("replay frame count", replay.frameCount, ReplayFrameCount.fromWire(3))
     assertEquals("replay playback flag", replay.playbackAvailable, true)
-    assertContains("replay saved captured frame", replay.framesJson, "\"elapsedMs\":1000")
+    assertContains("replay saved captured frame", replay.framesJson.value, "\"elapsedMs\":1000")
   }
 
   private def previousRatingLookupIgnoresCurrentBattleRecords(): Unit = {
@@ -297,17 +301,17 @@ object BattleFinishProjectionWriteContractTest {
       finishedAtLabel = "Previous",
       durationMs = DurationMillis(1000L),
       score = Score(1),
-      placement = Some(1),
-      aliveAtEnd = true,
+      placement = Some(BattlePlacement.unsafe(1)),
+      survivalOutcome = BattleSurvivalOutcome.Survived,
       ratingBefore = Rating(ratingAfter.value - 1),
-      ratingDelta = 1,
+      ratingDelta = RatingDelta(1),
       ratingAfter = ratingAfter,
-      resultLabel = "Previous",
-      modeLabel = "Authoritative",
-      mapLabel = "Arena",
-      highlightLine = "Previous result",
-      playersLine = handle.value,
-      timelineHint = "Previous",
+      resultLabel = BattleResultLabel.fromWire("Previous"),
+      modeLabel = BattleModeLabel.fromWire("Authoritative"),
+      mapLabel = BattleMapLabel.fromWire("Arena"),
+      highlightLine = BattleHighlightLine.fromWire("Previous result"),
+      playersLine = BattlePlayersLine.fromWire(handle.value),
+      timelineHint = BattleTimelineHint.fromWire("Previous"),
       currentLoadout = Some("Pistol")
     )
 
@@ -402,7 +406,7 @@ object BattleFinishProjectionWriteContractTest {
       handle = PlayerHandle(handle),
       displayName = DisplayName(displayName),
       seat = SeatIndex(seat),
-      isBot = isBot,
+      participantKind = BattleParticipantKind.fromBotFlag(isBot),
       position = BattleVector2(seat.toDouble * 10.0, seat.toDouble * 5.0),
       aim = BattleVector2(1.0, 0.0),
       facing = FacingRadians(0.0),
@@ -421,9 +425,11 @@ object BattleFinishProjectionWriteContractTest {
       score = Score(score),
       kills = kills,
       skills = Vector.empty,
-      alive = alive,
-      eliminatedAtMs = Option.when(!alive)(ElapsedMillis(1600L)),
-      respawnMs = DurationMillis(0L)
+      lifeState = BattlePlayerLifeState.fromAliveFlag(
+        alive,
+        Option.when(!alive)(ElapsedMillis(1600L)),
+        DurationMillis(0L)
+      )
     )
 
   private def weapon(weaponKind: WeaponKind): BattleWeaponState =
@@ -435,8 +441,7 @@ object BattleFinishProjectionWriteContractTest {
       fireCooldownMs = CooldownMillis(0),
       reloadRemainingMs = CooldownMillis(0),
       heat = 0,
-      overheated = false,
-      overheatRemainingMs = CooldownMillis(0)
+      thermalState = BattleWeaponThermalState.Ready
     )
 
   private def pickup(
@@ -450,8 +455,7 @@ object BattleFinishProjectionWriteContractTest {
       pickupKind = pickupKind,
       weaponKind = weaponKind,
       position = position,
-      available = true,
-      respawnMs = DurationMillis(0L)
+      pickupAvailability = BattlePickupAvailability.Available
     )
 
   private def replayFrame(
@@ -471,11 +475,10 @@ object BattleFinishProjectionWriteContractTest {
           position = player.position,
           hp = player.hp,
           maxHp = player.maxHp,
-          alive = player.alive,
+          lifeState = BattleReplayHeroLifeState.fromAliveFlag(player.alive, player.eliminatedAtMs),
           score = player.score,
           facing = player.facing,
-          currentWeaponKind = player.currentWeaponKind,
-          eliminatedAtMs = player.eliminatedAtMs
+          currentWeaponKind = player.currentWeaponKind
         )
       },
       projectiles = Vector.empty,
@@ -485,8 +488,7 @@ object BattleFinishProjectionWriteContractTest {
           pickupKind = pickup.pickupKind,
           weaponKind = pickup.weaponKind,
           position = pickup.position,
-          available = pickup.available,
-          respawnMs = pickup.respawnMs
+          pickupAvailability = pickup.pickupAvailability
         )
       }
     )

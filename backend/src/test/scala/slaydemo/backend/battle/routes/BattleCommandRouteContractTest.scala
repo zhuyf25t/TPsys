@@ -15,6 +15,8 @@ object BattleCommandRouteContractTest {
 
   def main(args: Array[String]): Unit = {
     validCommandReachesService()
+    skillBooleansReachServiceAsTypedIntents()
+    switchIndexReachesServiceAsTypedTarget()
     missingTicketIsUnauthorizedBeforeService()
     stringBooleanIsRejected()
     numericBattleIdIsRejected()
@@ -36,7 +38,49 @@ object BattleCommandRouteContractTest {
       assertEquals("valid command battle id", request.battleId, BattleId("battle-state-runtime"))
       assertEquals("valid command player id", request.playerId, PlayerId("alice"))
       assertEquals("valid command ticket id", request.ticketId, TicketId("ticket-alice"))
-      assertEquals("valid command switch direction is not route-clamped", request.switchWeaponDirection, 2)
+      assertEquals("valid command switch direction is normalized", request.switchWeaponDirection, BattleWeaponSwitchDirection.Next)
+      assertEquals("valid command has no skill intents", request.skillIntents, BattleCommandSkillIntents.empty)
+    }
+  }
+
+  private def skillBooleansReachServiceAsTypedIntents(): Unit = {
+    val stateService = RecordingBattleStateService()
+    val body = ValidCommandJson.replace(
+      "\"switchWeaponDirection\":2",
+      "\"castDash\":true,\"castBlink\":true,\"castFreeze\":true,\"switchWeaponDirection\":2"
+    )
+
+    withCommandServer(stateService) { uri =>
+      val response = postJson(uri, body)
+
+      assertEquals("skill command status", response.status, 200)
+      assertEquals(
+        "skill command intents preserve application order",
+        stateService.requests.head.skillIntents.values,
+        Vector(SkillKind.Blink, SkillKind.Dash, SkillKind.Freeze)
+      )
+    }
+  }
+
+  private def switchIndexReachesServiceAsTypedTarget(): Unit = {
+    val stateService = RecordingBattleStateService()
+    val positiveBody = ValidCommandJson.replace(
+      "\"switchWeaponDirection\":2",
+      "\"switchWeaponDirection\":2,\"switchWeaponIndex\":3"
+    )
+    val negativeBody = ValidCommandJson.replace(
+      "\"switchWeaponDirection\":2",
+      "\"switchWeaponDirection\":2,\"switchWeaponIndex\":-1"
+    )
+
+    withCommandServer(stateService) { uri =>
+      val positive = postJson(uri, positiveBody)
+      val negative = postJson(uri, negativeBody)
+
+      assertEquals("positive switch index status", positive.status, 200)
+      assertEquals("negative switch index status", negative.status, 200)
+      assertEquals("positive switch index is typed", stateService.requests(0).switchWeaponIndex, Some(BattleWeaponSwitchIndex(3)))
+      assertEquals("negative switch index is dropped", stateService.requests(1).switchWeaponIndex, None)
     }
   }
 

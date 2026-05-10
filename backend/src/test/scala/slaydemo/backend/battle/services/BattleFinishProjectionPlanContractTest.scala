@@ -2,6 +2,7 @@ package slaydemo.backend.battle.services
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
+import slaydemo.backend.replay.objects.ReplayFrameCount
 
 object BattleFinishProjectionPlanContractTest {
   def main(args: Array[String]): Unit = {
@@ -20,6 +21,8 @@ object BattleFinishProjectionPlanContractTest {
     replayOwnerPrefersPlayableWinner(state)
     visitorLikeHumansFallBackToServerSettlement(state)
     frameJsonEscapesBattleText(plan)
+    fallbackReplayFramesUseEventsAndFinalElapsed(state)
+    capturedReplayFramesAreClampedSortedAndDeduplicated(state)
     missingPreviousRatingUsesDefault(state)
 
     println("BattleFinishProjectionPlan contract checks passed")
@@ -42,7 +45,7 @@ object BattleFinishProjectionPlanContractTest {
     assertEquals(
       "human placements still count the leading bot",
       plan.settlements.map(_.result.placement),
-      Vector(Some(2), Some(3))
+      Vector(Some(BattlePlacement.unsafe(2)), Some(BattlePlacement.unsafe(3)))
     )
     assertEquals(
       "placement scores follow the legacy settlement table",
@@ -51,7 +54,7 @@ object BattleFinishProjectionPlanContractTest {
     )
     assertEquals(
       "players line preserves legacy seat order",
-      plan.settlements.map(_.result.playersLine).distinct,
+      plan.settlements.map(_.result.playersLine.value).distinct,
       Vector("Bob | Bot Zero | Alice \"Ace\"")
     )
   }
@@ -61,10 +64,10 @@ object BattleFinishProjectionPlanContractTest {
     val bob = settlementFor(plan, "bob")
 
     assertEquals("alice rating before", alice.ratingBefore, Rating(1300))
-    assertEquals("alice rating delta", alice.ratingDelta, 14)
+    assertEquals("alice rating delta", alice.ratingDelta, RatingDelta(14))
     assertEquals("alice rating after", alice.ratingAfter, Rating(1314))
     assertEquals("bob rating before", bob.ratingBefore, Rating(900))
-    assertEquals("bob rating delta", bob.ratingDelta, 6)
+    assertEquals("bob rating delta", bob.ratingDelta, RatingDelta(6))
     assertEquals("bob rating after", bob.ratingAfter, Rating(906))
   }
 
@@ -77,12 +80,12 @@ object BattleFinishProjectionPlanContractTest {
 
     assertEquals("finished at uses started plus capped elapsed", alice.finishedAt, EpochMillis(state.startedAt.value + state.durationMs.value))
     assert(alice.finishedAtLabel.nonEmpty && alice.finishedAtLabel != "Authoritative finish", s"unexpected finishedAtLabel ${alice.finishedAtLabel}")
-    assertEquals("mode label", alice.modeLabel, "权威对战")
-    assertEquals("map label", alice.mapLabel, "权威竞技场")
-    assertEquals("alive result label", alice.resultLabel, "存活结算")
-    assertEquals("dead result label", bob.resultLabel, "淘汰结算")
-    assertContains("alive highlight", alice.highlightLine, "最终排名第 2 名")
-    assertContains("dead timeline", bob.timelineHint, "1 秒被淘汰")
+    assertEquals("mode label", alice.modeLabel.value, "权威对战")
+    assertEquals("map label", alice.mapLabel.value, "权威竞技场")
+    assertEquals("alive result label", alice.resultLabel.value, "存活结算")
+    assertEquals("dead result label", bob.resultLabel.value, "淘汰结算")
+    assertContains("alive highlight", alice.highlightLine.value, "最终排名第 2 名")
+    assertContains("dead timeline", bob.timelineHint.value, "1 秒被淘汰")
     assertEquals("current loadout omitted", alice.currentLoadout, None)
   }
 
@@ -96,7 +99,7 @@ object BattleFinishProjectionPlanContractTest {
     assertEquals("replay score follows first human settlement", replay.score, alice.score)
     assertEquals("replay top-level result follows battle winner", replay.resultLabel, "胜者已决")
     assertEquals("replay cover label", replay.coverLabel, "服务器战报")
-    assertEquals("replay frame count", replay.frameCount, 3)
+    assertEquals("replay frame count", replay.frameCount, ReplayFrameCount.fromWire(3))
     assertEquals("replay playback flag", replay.playbackAvailable, true)
     assertEquals(
       "replay settlements mirror battle settlements",
@@ -138,7 +141,7 @@ object BattleFinishProjectionPlanContractTest {
 
     assertEquals("visitor-like humans are excluded", BattleFinishProjectionPlanner.humanPlayersByPlacement(serverOnlyState), Vector.empty)
     assertEquals("server fallback result handle", plan.settlements.map(_.result.handle), Vector(PlayerHandle("server")))
-    assertEquals("server fallback result label", plan.settlements.head.result.resultLabel, "对战结束")
+    assertEquals("server fallback result label", plan.settlements.head.result.resultLabel.value, "对战结束")
     assertEquals("server fallback replay owner", replay.handle, PlayerHandle("server"))
     assertEquals("server fallback replay result label", replay.resultLabel, "对战结束")
   }
@@ -146,14 +149,68 @@ object BattleFinishProjectionPlanContractTest {
   private def frameJsonEscapesBattleText(plan: BattleFinishProjectionPlan): Unit = {
     val replay = plan.replay.getOrElse(fail("expected replay for JSON checks"))
 
-    assertContains("quoted display name is escaped", replay.framesJson, "Alice \\\"Ace\\\"")
+    assertContains("quoted display name is escaped", replay.framesJson.value, "Alice \\\"Ace\\\"")
     assertContains(
       "event message escapes quotes, backslashes, and newlines",
-      replay.framesJson,
+      replay.framesJson.value,
       "First \\\"hit\\\"\\\\line\\nnext"
     )
-    assertContains("captured projectile is rendered", replay.framesJson, "\"projectileId\":\"replay-projectile\"")
-    assertContains("captured pickup is rendered", replay.framesJson, "\"id\":\"pickup-replay-gatling\"")
+    assertContains("captured projectile is rendered", replay.framesJson.value, "\"projectileId\":\"replay-projectile\"")
+    assertContains("captured pickup is rendered", replay.framesJson.value, "\"id\":\"pickup-replay-gatling\"")
+  }
+
+  private def fallbackReplayFramesUseEventsAndFinalElapsed(state: BattleAggregateState): Unit = {
+    val plan = BattleFinishProjectionPlanner.build(state.copy(replayFrames = Vector.empty), BattlePreviousRatings.empty)
+    val replay = plan.replay.getOrElse(fail("expected replay"))
+
+    assertEquals("fallback frame count uses initial, event, and final elapsed", replay.frameCount, ReplayFrameCount.fromWire(3))
+    assertEquals("fallback playback is available", replay.playbackAvailable, true)
+    assertEquals("fallback renders exactly three frame objects", countOccurrences(replay.framesJson.value, "\"elapsedMs\":"), 3)
+    assertContains("fallback initial frame", replay.framesJson.value, "\"elapsedMs\":0")
+    assertContains("fallback event frame", replay.framesJson.value, "\"elapsedMs\":1200")
+    assertContains("fallback final frame", replay.framesJson.value, "\"elapsedMs\":1800")
+    assertContains("fallback keeps escaped event text", replay.framesJson.value, "First \\\"hit\\\"\\\\line\\nnext")
+    assertNotContains("fallback does not leak captured projectile frames", replay.framesJson.value, "replay-projectile")
+  }
+
+  private def capturedReplayFramesAreClampedSortedAndDeduplicated(state: BattleAggregateState): Unit = {
+    val alice = state.players.find(_.playerId == PlayerId("alice")).getOrElse(fail("missing alice"))
+    val players = state.players
+    val duplicateProjectile = projectile(
+      projectileId = "duplicate-kept-projectile",
+      owner = alice,
+      projectileKind = ProjectileKind.PistolBullet,
+      position = BattleVector2(200.0, 100.0)
+    )
+    val droppedDuplicateProjectile = projectile(
+      projectileId = "duplicate-dropped-projectile",
+      owner = alice,
+      projectileKind = ProjectileKind.PistolBullet,
+      position = BattleVector2(180.0, 100.0)
+    )
+    val plan = BattleFinishProjectionPlanner.build(
+      state.copy(
+        replayFrames = Vector(
+          replayFrame(9999L, players),
+          replayFrame(1000L, players, projectiles = Vector(droppedDuplicateProjectile)),
+          replayFrame(-50L, players),
+          replayFrame(1000L, players, projectiles = Vector(duplicateProjectile))
+        )
+      ),
+      BattlePreviousRatings.empty
+    )
+    val replay = plan.replay.getOrElse(fail("expected replay"))
+
+    assertEquals("normalized captured frame count", replay.frameCount, ReplayFrameCount.fromWire(3))
+    assertEquals("normalized frames render one object per unique clamped elapsed", countOccurrences(replay.framesJson.value, "\"elapsedMs\":"), 3)
+    assertContains("negative elapsed is clamped to zero", replay.framesJson.value, "\"elapsedMs\":0")
+    assertContains("duplicate elapsed is kept once", replay.framesJson.value, "\"elapsedMs\":1000")
+    assertContains("overlong elapsed is clamped to duration", replay.framesJson.value, "\"elapsedMs\":1800")
+    assertEquals("duplicate elapsed occurs once", countOccurrences(replay.framesJson.value, "\"elapsedMs\":1000"), 1)
+    assertContains("last duplicate frame wins", replay.framesJson.value, "duplicate-kept-projectile")
+    assertNotContains("earlier duplicate frame is dropped", replay.framesJson.value, "duplicate-dropped-projectile")
+    assertBefore("normalized frames are sorted", replay.framesJson.value, "\"elapsedMs\":0", "\"elapsedMs\":1000")
+    assertBefore("normalized final frame follows duplicate frame", replay.framesJson.value, "\"elapsedMs\":1000", "\"elapsedMs\":1800")
   }
 
   private def missingPreviousRatingUsesDefault(state: BattleAggregateState): Unit = {
@@ -262,7 +319,7 @@ object BattleFinishProjectionPlanContractTest {
       handle = PlayerHandle(handle),
       displayName = DisplayName(displayName),
       seat = SeatIndex(seat),
-      isBot = isBot,
+      participantKind = BattleParticipantKind.fromBotFlag(isBot),
       position = BattleVector2(seat.toDouble * 10.0, seat.toDouble * 5.0),
       aim = BattleVector2(1.0, 0.0),
       facing = FacingRadians(0.0),
@@ -281,9 +338,11 @@ object BattleFinishProjectionPlanContractTest {
       score = Score(score),
       kills = kills,
       skills = Vector.empty,
-      alive = alive,
-      eliminatedAtMs = Option.when(!alive)(ElapsedMillis(1600L)),
-      respawnMs = DurationMillis(0L)
+      lifeState = BattlePlayerLifeState.fromAliveFlag(
+        alive,
+        Option.when(!alive)(ElapsedMillis(1600L)),
+        DurationMillis(0L)
+      )
     )
 
   private def weapon(weaponKind: WeaponKind): BattleWeaponState =
@@ -295,8 +354,7 @@ object BattleFinishProjectionPlanContractTest {
       fireCooldownMs = CooldownMillis(0),
       reloadRemainingMs = CooldownMillis(0),
       heat = 0,
-      overheated = false,
-      overheatRemainingMs = CooldownMillis(0)
+      thermalState = BattleWeaponThermalState.Ready
     )
 
   private def projectile(
@@ -330,8 +388,7 @@ object BattleFinishProjectionPlanContractTest {
       pickupKind = pickupKind,
       weaponKind = weaponKind,
       position = position,
-      available = true,
-      respawnMs = DurationMillis(0L)
+      pickupAvailability = BattlePickupAvailability.Available
     )
 
   private def replayFrame(
@@ -352,11 +409,10 @@ object BattleFinishProjectionPlanContractTest {
           position = player.position,
           hp = player.hp,
           maxHp = player.maxHp,
-          alive = player.alive,
+          lifeState = BattleReplayHeroLifeState.fromAliveFlag(player.alive, player.eliminatedAtMs),
           score = player.score,
           facing = player.facing,
-          currentWeaponKind = player.currentWeaponKind,
-          eliminatedAtMs = player.eliminatedAtMs
+          currentWeaponKind = player.currentWeaponKind
         )
       },
       projectiles = projectiles.map { projectile =>
@@ -375,8 +431,7 @@ object BattleFinishProjectionPlanContractTest {
           pickupKind = pickup.pickupKind,
           weaponKind = pickup.weaponKind,
           position = pickup.position,
-          available = pickup.available,
-          respawnMs = pickup.respawnMs
+          pickupAvailability = pickup.pickupAvailability
         )
       }
     )
@@ -393,6 +448,27 @@ object BattleFinishProjectionPlanContractTest {
 
   private def assertContains(label: String, text: String, expectedPart: String): Unit =
     assert(text.contains(expectedPart), s"$label: expected to find $expectedPart in $text")
+
+  private def assertNotContains(label: String, text: String, unexpectedPart: String): Unit =
+    assert(!text.contains(unexpectedPart), s"$label: did not expect to find $unexpectedPart in $text")
+
+  private def assertBefore(label: String, text: String, first: String, second: String): Unit = {
+    val firstIndex = text.indexOf(first)
+    val secondIndex = text.indexOf(second)
+    assert(firstIndex >= 0, s"$label: expected to find $first in $text")
+    assert(secondIndex >= 0, s"$label: expected to find $second in $text")
+    assert(firstIndex < secondIndex, s"$label: expected $first before $second in $text")
+  }
+
+  private def countOccurrences(text: String, part: String): Int = {
+    var count = 0
+    var index = text.indexOf(part)
+    while index >= 0 do {
+      count += 1
+      index = text.indexOf(part, index + part.length)
+    }
+    count
+  }
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)

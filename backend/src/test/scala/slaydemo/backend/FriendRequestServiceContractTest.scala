@@ -1,10 +1,13 @@
 package slaydemo.backend
 
+import java.nio.file.{Files, Path}
+import scala.jdk.CollectionConverters.*
+
 import slaydemo.backend.battle.objects.EpochMillis
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.database.InMemoryMailRepository
 import slaydemo.backend.mail.objects.{MailFriendRequestStatus, MailId}
-import slaydemo.backend.social.database.InMemoryFriendRequestRepository
+import slaydemo.backend.social.database.{FileFriendRequestRepository, FriendRequestStoreCreateResult, InMemoryFriendRequestRepository}
 import slaydemo.backend.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
 import slaydemo.backend.social.services.{
   DefaultFriendRequestService,
@@ -18,8 +21,10 @@ object FriendRequestServiceContractTest {
   def main(args: Array[String]): Unit = {
     decodesFriendRequestStatusWireValuesExplicitly()
     rejectsInvalidCreateHandles()
+    normalizesHandlesAtServiceBoundary()
     hidesVisitorLikeStoredRecords()
     createDuplicateRespondFlow()
+    fileRepositoryPersistsRequestsAndDoesNotReuseIds()
 
     println("FriendRequest service contract checks passed")
   }
@@ -42,6 +47,11 @@ object FriendRequestServiceContractTest {
       Left(FriendRequestCreateError.InvalidHandles)
     )
     assertEquals(
+      "whitespace self-request is rejected",
+      service.create(PlayerHandle(" Alice "), PlayerHandle("alice")),
+      Left(FriendRequestCreateError.InvalidHandles)
+    )
+    assertEquals(
       "visitor source is rejected",
       service.create(PlayerHandle("Visitor"), PlayerHandle("Alice")),
       Left(FriendRequestCreateError.InvalidHandles)
@@ -52,6 +62,36 @@ object FriendRequestServiceContractTest {
       Left(FriendRequestCreateError.InvalidHandles)
     )
     assertEquals("visitor owner list is hidden", service.list(PlayerHandle("anonymous")), Vector.empty)
+  }
+
+  private def normalizesHandlesAtServiceBoundary(): Unit = {
+    var now = 1_000L
+    val mailRepository = InMemoryMailRepository()
+    val service = DefaultFriendRequestService(InMemoryFriendRequestRepository(), mailRepository, () => now)
+
+    val created = service
+      .create(PlayerHandle(" Alice "), PlayerHandle(" Bob "))
+      .fold(error => fail(s"normalized create failed: $error"), result => result)
+    val request = created.friendRequest
+
+    assertEquals("normalized request source", request.sourceHandle, PlayerHandle("Alice"))
+    assertEquals("normalized request target", request.targetHandle, PlayerHandle("Bob"))
+    assertEquals("normalized target mail owner", created.notificationMail.map(_.ownerHandle), Some(PlayerHandle("Bob")))
+    assertEquals(
+      "normalized duplicate create detects existing pair",
+      service.create(PlayerHandle("alice"), PlayerHandle("bob")).map(_.friendRequest.id),
+      Right(request.id)
+    )
+    assertEquals("normalized source list finds request", service.list(PlayerHandle(" ALICE ")).map(_.id), Vector(request.id))
+    assertEquals("normalized target list finds request", service.list(PlayerHandle(" BOB ")).map(_.id), Vector(request.id))
+
+    now = 2_000L
+    val accepted = service
+      .respond(request.id, PlayerHandle(" BOB "), FriendRequestDecision.Accepted)
+      .fold(error => fail(s"normalized respond failed: $error"), result => result)
+
+    assertEquals("normalized actor can respond", accepted.friendRequest.status, FriendRequestStatus.Accepted)
+    assertEquals("normalized response mail owner", accepted.notificationMail.map(_.ownerHandle), Some(PlayerHandle("Alice")))
   }
 
   private def hidesVisitorLikeStoredRecords(): Unit = {
@@ -153,9 +193,66 @@ object FriendRequestServiceContractTest {
     assertEquals("bob can list the request", service.list(PlayerHandle("Bob")).map(_.id), Vector(request.id))
   }
 
+  private def fileRepositoryPersistsRequestsAndDoesNotReuseIds(): Unit = {
+    val directory = Files.createTempDirectory("slay-demo-friend-request-file-contract")
+    try {
+      val storagePath = directory.resolve("friend-requests.json")
+      val repository = FileFriendRequestRepository(storagePath)
+      val firstId = repository.nextRequestId()
+      val request = FriendRequestRecord.pending(
+        id = firstId,
+        sourceHandle = PlayerHandle("Alice"),
+        targetHandle = PlayerHandle("Bob"),
+        createdAt = EpochMillis(1_000L)
+      )
+
+      assertEquals(
+        "file friend request create stores record",
+        repository.createIfAbsent(request),
+        FriendRequestStoreCreateResult.Created(request)
+      )
+      assertEquals(
+        "file friend request duplicate pair is idempotent",
+        repository.createIfAbsent(request.copy(id = repository.nextRequestId(), createdAt = EpochMillis(2_000L))),
+        FriendRequestStoreCreateResult.AlreadyExists(request)
+      )
+
+      val accepted = FriendRequestRecord.respond(request, FriendRequestDecision.Accepted, EpochMillis(3_000L))
+      repository.save(accepted)
+
+      val reloaded = FileFriendRequestRepository(storagePath)
+      assertEquals("file friend request reload find by id", reloaded.findById(firstId), Some(accepted))
+      assertEquals(
+        "file friend request reload find by handles",
+        reloaded.findByHandles(PlayerHandle("alice"), PlayerHandle("bob")),
+        Some(accepted)
+      )
+      assertEquals("file friend request owner list", reloaded.listByOwner(PlayerHandle("BOB")).map(_.id), Vector(firstId))
+      assertEquals("file friend request next id advances after reload", reloaded.nextRequestId(), FriendRequestId("friend-000000000002"))
+    } finally {
+      deleteRecursively(directory)
+    }
+  }
+
   private def assertEquals[A](label: String, actual: A, expected: A): Unit =
     assert(actual == expected, s"$label: expected $expected, got $actual")
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)
+
+  private def deleteRecursively(path: Path): Unit =
+    if Files.exists(path) then {
+      val stream = Files.walk(path)
+      try {
+        stream
+          .iterator()
+          .asScala
+          .toVector
+          .sortBy(_.toString.length)
+          .reverse
+          .foreach(Files.deleteIfExists)
+      } finally {
+        stream.close()
+      }
+    }
 }

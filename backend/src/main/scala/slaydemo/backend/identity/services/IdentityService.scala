@@ -6,14 +6,12 @@ import slaydemo.backend.identity.api.IdentityAccountSummary
 import slaydemo.backend.identity.database.{IdentityAccountCreateResult, IdentityAccountRepository}
 import slaydemo.backend.identity.objects.{
   IdentityAccount,
-  PasswordHash,
   PlainTextPassword,
   PlayerHandle,
   SessionToken,
   SkinId
 }
 import slaydemo.backend.identity.ports.{IdentityIdGenerator, PasswordHasher, PasswordVerification, SessionTokenGenerator}
-import slaydemo.backend.shared.objects.UserId
 import slaydemo.backend.shared.policies.HandlePolicy
 
 enum IdentityRegistrationError {
@@ -53,16 +51,11 @@ final class DefaultIdentityService(
   sessionTokenGenerator: SessionTokenGenerator,
   passwordHasher: PasswordHasher
 ) extends IdentityService {
-  private val builtinAdminHandle = PlayerHandle("admin")
-  private val builtinAdminPasswordHash = PasswordHash.unsafe(
-    "ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78"
-  )
-  private val builtinAdminUserId = UserId("builtin-admin")
   private val builtinSessions = TrieMap.empty[SessionToken, IdentityAccount]
 
   override def register(command: IdentityRegistrationCommand): Either[IdentityRegistrationError, IdentityAccount] =
     for {
-      _ <- Either.cond(!isBuiltinAdminHandle(command.handle), (), IdentityRegistrationError.HandleTaken)
+      _ <- Either.cond(!BuiltinAdminIdentity.isHandle(command.handle), (), IdentityRegistrationError.HandleTaken)
       sessionToken = sessionTokenGenerator.nextSessionToken(command.handle)
       account = IdentityAccount.active(
         userId = identityIdGenerator.nextUserId(),
@@ -79,11 +72,11 @@ final class DefaultIdentityService(
     } yield created
 
   override def issueSession(command: IdentitySessionCommand): Either[IdentitySessionError, IdentityAccount] =
-    if isBuiltinAdminHandle(command.handle) then
-      passwordHasher.verify(command.password, builtinAdminPasswordHash) match {
+    if BuiltinAdminIdentity.isHandle(command.handle) then
+      passwordHasher.verify(command.password, BuiltinAdminIdentity.passwordHash) match {
         case PasswordVerification.Verified =>
-          val sessionToken = sessionTokenGenerator.nextSessionToken(builtinAdminHandle)
-          val account = builtinAdminAccount(Some(sessionToken))
+          val sessionToken = sessionTokenGenerator.nextSessionToken(BuiltinAdminIdentity.handle)
+          val account = BuiltinAdminIdentity.account(Some(sessionToken))
           builtinSessions.put(sessionToken, account)
           Right(account)
         case PasswordVerification.Rejected =>
@@ -113,17 +106,9 @@ final class DefaultIdentityService(
     (repository
       .listActiveAccounts()
       .filter(isPlayableStoredAccount)
-      .filterNot(account => isBuiltinAdminHandle(account.handle)) :+ builtinAdminAccount(None))
+      .filterNot(account => BuiltinAdminIdentity.isHandle(account.handle)) :+ BuiltinAdminIdentity.account(None))
       .sortBy(_.handle.key)
       .map(toSummary)
-
-  private def builtinAdminAccount(sessionToken: Option[SessionToken]): IdentityAccount =
-    IdentityAccount.active(
-      userId = builtinAdminUserId,
-      handle = builtinAdminHandle,
-      skinId = SkinId.Blue,
-      sessionToken = sessionToken
-    )
 
   private def toSummary(account: IdentityAccount): IdentityAccountSummary =
     IdentityAccountSummary(
@@ -131,9 +116,6 @@ final class DefaultIdentityService(
       displayName = account.displayName.value,
       skinId = SkinId.wireValue(account.skinId)
     )
-
-  private def isBuiltinAdminHandle(handle: PlayerHandle): Boolean =
-    handle.key == builtinAdminHandle.key
 
   private def isPlayableStoredAccount(account: IdentityAccount): Boolean =
     HandlePolicy.isPlayableIdentityHandle(account.handle.value)

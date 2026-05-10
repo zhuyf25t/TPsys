@@ -1,23 +1,20 @@
 package slaydemo.backend.identity.database
 
-import java.sql.{PreparedStatement, ResultSet}
+import java.sql.PreparedStatement
 
 import slaydemo.backend.identity.objects.{
-  AccountStatus,
-  DisplayName,
   IdentityAccount,
   PasswordHash,
   PlainTextPassword,
   PlayerHandle,
-  SessionToken,
-  SkinId
+  SessionToken
 }
+import slaydemo.backend.identity.database.PostgresIdentityAccountRecordMapper.{bindCreate, readAccounts, readOptionalAccount}
 import slaydemo.backend.shared.database.PostgresSupport
-import slaydemo.backend.shared.objects.UserId
 import slaydemo.backend.shared.storage.PostgresConnectionSettings
 
 final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettings) extends IdentityAccountRepository {
-  initialize()
+  PostgresIdentityAccountSchema.initialize(settings)
 
   override def findByHandle(handle: PlayerHandle): Option[IdentityAccount] =
     queryOne(
@@ -69,12 +66,7 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
           |) VALUES (?, ?, ?, ?, ?, TRUE, ?)
           |ON CONFLICT DO NOTHING""".stripMargin
       ) { statement =>
-        statement.setString(1, account.userId.value)
-        statement.setString(2, account.handle.value)
-        statement.setString(3, account.displayName.value)
-        statement.setString(4, SkinId.wireValue(account.skinId))
-        statement.setString(5, account.sessionToken.map(_.value).getOrElse(""))
-        statement.setString(6, passwordHash.value)
+        bindCreate(statement, account, passwordHash)
         statement.executeUpdate()
       }
     }
@@ -98,7 +90,7 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
         statement.setString(1, passwordHash.value)
         statement.setString(2, handle.value.trim)
         PostgresSupport.withResultSet(statement) { resultSet =>
-          if (resultSet.next()) Some(readAccount(resultSet)) else None
+          readOptionalAccount(resultSet)
         }
       }
     }
@@ -115,7 +107,7 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
         statement.setString(1, sessionToken.value)
         statement.setString(2, handle.value.trim)
         PostgresSupport.withResultSet(statement) { resultSet =>
-          if (resultSet.next()) Some(readAccount(resultSet)) else None
+          readOptionalAccount(resultSet)
         }
       }
     }
@@ -129,40 +121,8 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
           |WHERE active = TRUE
           |ORDER BY lower(handle) ASC""".stripMargin
       ) { statement =>
-        PostgresSupport.withResultSet(statement) { resultSet =>
-          val accounts = Vector.newBuilder[IdentityAccount]
-          while (resultSet.next()) {
-            accounts += readAccount(resultSet)
-          }
-          accounts.result()
-        }
+        PostgresSupport.withResultSet(statement)(readAccounts)
       }
-    }
-
-  private def initialize(): Unit =
-    PostgresSupport.withConnection(settings) { connection =>
-      PostgresSupport.withStatement(
-        connection,
-        """CREATE TABLE IF NOT EXISTS identity_accounts (
-          |  user_id TEXT PRIMARY KEY,
-          |  handle TEXT NOT NULL UNIQUE,
-          |  display_name TEXT NOT NULL,
-          |  skin_id TEXT NOT NULL,
-          |  session_token TEXT NOT NULL,
-          |  active BOOLEAN NOT NULL,
-          |  password TEXT NOT NULL
-          |)""".stripMargin
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        "CREATE UNIQUE INDEX IF NOT EXISTS identity_accounts_handle_lower_idx ON identity_accounts (lower(handle))"
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        "CREATE INDEX IF NOT EXISTS identity_accounts_session_token_idx ON identity_accounts (session_token)"
-      )(_.executeUpdate())
     }
 
   private def findAnyByHandle(handle: PlayerHandle): Option[IdentityAccount] =
@@ -178,18 +138,9 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
       PostgresSupport.withStatement(connection, sql) { statement =>
         bind(statement)
         PostgresSupport.withResultSet(statement) { resultSet =>
-          if (resultSet.next()) Some(readAccount(resultSet)) else None
+          readOptionalAccount(resultSet)
         }
       }
     }
 
-  private def readAccount(resultSet: ResultSet): IdentityAccount =
-    IdentityAccount(
-      userId = UserId(resultSet.getString("user_id")),
-      handle = PlayerHandle(resultSet.getString("handle")),
-      displayName = DisplayName(resultSet.getString("display_name")),
-      skinId = SkinId.fromString(resultSet.getString("skin_id")).getOrElse(SkinId.Blue),
-      sessionToken = SessionToken.fromString(resultSet.getString("session_token")),
-      status = AccountStatus.Active
-    )
 }

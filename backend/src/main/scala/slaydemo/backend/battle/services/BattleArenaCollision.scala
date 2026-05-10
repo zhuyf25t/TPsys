@@ -9,9 +9,9 @@ private[services] object BattleArenaCollision {
     radius: Double
   ): Option[Double] = {
     val minX = radius
-    val maxX = InMemoryBattleStateCatalog.WorldSize.x - radius
+    val maxX = BattleArenaCatalog.WorldSize.x - radius
     val minY = radius
-    val maxY = InMemoryBattleStateCatalog.WorldSize.y - radius
+    val maxY = BattleArenaCatalog.WorldSize.y - radius
 
     if !isPointInAabb(start, minX, maxX, minY, maxY) then Some(0.0)
     else if isPointInAabb(end, minX, maxX, minY, maxY) then None
@@ -37,7 +37,7 @@ private[services] object BattleArenaCollision {
     start: BattleVector2,
     end: BattleVector2,
     radius: Double,
-    obstacle: InMemoryBattleStateCatalog.ArenaObstacle
+    obstacle: ArenaObstacle
   ): Option[Double] = {
     val minX = obstacle.position.x - obstacle.size.x / 2.0 - radius
     val maxX = obstacle.position.x + obstacle.size.x / 2.0 + radius
@@ -130,18 +130,18 @@ private[services] object BattleArenaCollision {
   }
 
   def isBlockedPoint(point: BattleVector2): Boolean =
-    !canPlayerOccupy(point, InMemoryBattleStateCatalog.PlayerCollisionRadius)
+    !canPlayerOccupy(point, BattleArenaCatalog.PlayerCollisionRadius)
 
   def canPlayerOccupy(point: BattleVector2, radius: Double): Boolean =
     isInWorld(point, radius) && !collidesWithArenaObstacles(point, radius)
 
   def collidesWithArenaObstacles(point: BattleVector2, radius: Double): Boolean =
-    InMemoryBattleStateCatalog.ArenaObstacles.exists(obstacle => intersectsObstacle(point, radius, obstacle))
+    BattleArenaCatalog.ArenaObstacles.exists(obstacle => intersectsObstacle(point, radius, obstacle))
 
   def intersectsObstacle(
     point: BattleVector2,
     radius: Double,
-    obstacle: InMemoryBattleStateCatalog.ArenaObstacle
+    obstacle: ArenaObstacle
   ): Boolean = {
     val dx = math.abs(point.x - obstacle.position.x)
     val dy = math.abs(point.y - obstacle.position.y)
@@ -151,18 +151,18 @@ private[services] object BattleArenaCollision {
   def isInWorld(point: BattleVector2, radius: Double): Boolean =
     point.x >= radius &&
       point.y >= radius &&
-      point.x <= InMemoryBattleStateCatalog.WorldSize.x - radius &&
-      point.y <= InMemoryBattleStateCatalog.WorldSize.y - radius
+      point.x <= BattleArenaCatalog.WorldSize.x - radius &&
+      point.y <= BattleArenaCatalog.WorldSize.y - radius
 
   def isInWorld(point: BattleVector2): Boolean =
     point.x >= 0.0 &&
       point.y >= 0.0 &&
-      point.x <= InMemoryBattleStateCatalog.WorldSize.x &&
-      point.y <= InMemoryBattleStateCatalog.WorldSize.y
+      point.x <= BattleArenaCatalog.WorldSize.x &&
+      point.y <= BattleArenaCatalog.WorldSize.y
 
   def clampToWorld(point: BattleVector2): BattleVector2 =
     BattleVector2(
-      math.max(0.0, math.min(InMemoryBattleStateCatalog.WorldSize.x, point.x)),
-      math.max(0.0, math.min(InMemoryBattleStateCatalog.WorldSize.y, point.y))
+      math.max(0.0, math.min(BattleArenaCatalog.WorldSize.x, point.x)),
+      math.max(0.0, math.min(BattleArenaCatalog.WorldSize.y, point.y))
     )
 }

@@ -1,6 +1,9 @@
 package slaydemo.backend
 
-import slaydemo.backend.bots.database.InMemoryBotProfileRepository
+import java.nio.file.{Files, Path}
+import scala.jdk.CollectionConverters.*
+
+import slaydemo.backend.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
 import slaydemo.backend.bots.objects.*
 import slaydemo.backend.bots.services.{DefaultBotProfileService, StaticBotProfileService}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
@@ -9,6 +12,7 @@ object BotProfileServiceContractTest {
   def main(args: Array[String]): Unit = {
     demoCatalogIsDeterministic()
     repositoryOrdersAndReplacesByBotId()
+    fileRepositorySeedsAndPersistsProfiles()
 
     println("BotProfile service contract checks passed")
   }
@@ -47,6 +51,43 @@ object BotProfileServiceContractTest {
     assertEquals("updated display name", updated.head.displayName, DisplayName("Bot B New"))
   }
 
+  private def fileRepositorySeedsAndPersistsProfiles(): Unit = {
+    val directory = Files.createTempDirectory("slay-demo-bot-profiles-contract")
+    try {
+      val storagePath = directory.resolve("bot-profiles.json")
+      val repository = FileBotProfileRepository(storagePath)
+      val seeded = repository.list()
+
+      assertEquals("file repository seeds demo profile count", seeded.length, DemoBotProfiles.all.length)
+      assertEquals("file repository seeds demo ids", seeded.map(_.botId), DemoBotProfiles.all.map(_.botId))
+
+      val replacement = seeded.head.copy(
+        handle = PlayerHandle("cpu-file"),
+        displayName = DisplayName("File Bot"),
+        profileTone = BotProfileTone.Opportunist,
+        strategyLabel = BotStrategyLabel("Disk strategy"),
+        skin = BotSkinProfile(
+          avatarKey = BotAvatarKey("file-avatar"),
+          textureKey = BotTextureKey("file-texture"),
+          label = BotSkinLabel("File skin")
+        ),
+        profileOrder = BotProfileOrder(-1)
+      )
+
+      repository.save(replacement)
+
+      val reloaded = FileBotProfileRepository(storagePath).list()
+      assertEquals("file repository replace keeps profile count", reloaded.length, seeded.length)
+      assertEquals("file repository persisted ordering", reloaded.head.botId, replacement.botId)
+      assertEquals("file repository persisted handle", reloaded.head.handle, PlayerHandle("cpu-file"))
+      assertEquals("file repository persisted display name", reloaded.head.displayName, DisplayName("File Bot"))
+      assertEquals("file repository persisted tone", reloaded.head.profileTone, BotProfileTone.Opportunist)
+      assertEquals("file repository persisted skin", reloaded.head.skin.label, BotSkinLabel("File skin"))
+    } finally {
+      deleteRecursively(directory)
+    }
+  }
+
   private def profile(
     botId: BotId,
     handle: PlayerHandle,
@@ -70,4 +111,20 @@ object BotProfileServiceContractTest {
 
   private def assertEquals[A](label: String, actual: A, expected: A): Unit =
     assert(actual == expected, s"$label: expected $expected, got $actual")
+
+  private def deleteRecursively(path: Path): Unit =
+    if Files.exists(path) then {
+      val stream = Files.walk(path)
+      try {
+        stream
+          .iterator()
+          .asScala
+          .toVector
+          .sortBy(_.toString.length)
+          .reverse
+          .foreach(Files.deleteIfExists)
+      } finally {
+        stream.close()
+      }
+    }
 }

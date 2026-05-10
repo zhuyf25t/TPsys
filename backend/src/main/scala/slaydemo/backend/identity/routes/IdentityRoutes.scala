@@ -4,14 +4,11 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.identity.api.IdentityAuthResponse
-import slaydemo.backend.identity.objects.{IdentityAccount, PlainTextPassword, PlayerHandle, SessionToken, SkinId}
+import slaydemo.backend.identity.objects.SessionToken
 import slaydemo.backend.identity.services.{
   IdentityCurrentSessionError,
-  IdentityRegistrationCommand,
   IdentityRegistrationError,
   IdentityService,
-  IdentitySessionCommand,
   IdentitySessionError
 }
 import slaydemo.backend.shared.json.JsonObjectParser
@@ -24,7 +21,7 @@ final class IdentityRoutes(service: IdentityService) {
         case Left(message) =>
           jsonError(exchange, 400, "bad_request", message)
         case Right(fields) =>
-          parseRegistrationCommand(fields) match {
+          IdentityCommandParsers.parseRegistrationCommand(fields) match {
             case Left(IdentityRegistrationCommandParseError.InvalidHandle) =>
               jsonError(exchange, 400, "invalid_handle", "Handle must be 3-16 characters and use letters, numbers, -, _.")
             case Left(IdentityRegistrationCommandParseError.InvalidPassword) =>
@@ -34,7 +31,7 @@ final class IdentityRoutes(service: IdentityService) {
             case Right(command) =>
               service.register(command) match {
                 case Right(account) =>
-                  jsonOk(exchange, 200, toAuthResponse(account))
+                  jsonOk(exchange, 200, IdentityRouteJsonRenderer.renderAuth(IdentityRouteJsonRenderer.authResponse(account)))
                 case Left(IdentityRegistrationError.HandleTaken) =>
                   jsonError(exchange, 409, "handle_taken", "Handle already exists.")
               }
@@ -48,13 +45,13 @@ final class IdentityRoutes(service: IdentityService) {
         case Left(message) =>
           jsonError(exchange, 400, "bad_request", message)
         case Right(fields) =>
-          parseSessionCommand(fields) match {
+          IdentityCommandParsers.parseSessionCommand(fields) match {
             case Left(IdentitySessionCommandParseError.InvalidCredentials) =>
               jsonError(exchange, 401, "invalid_credentials", "Handle or password is incorrect.")
             case Right(command) =>
               service.issueSession(command) match {
                 case Right(account) =>
-                  jsonOk(exchange, 200, toAuthResponse(account))
+                  jsonOk(exchange, 200, IdentityRouteJsonRenderer.renderAuth(IdentityRouteJsonRenderer.authResponse(account)))
                 case Left(IdentitySessionError.InvalidCredentials) =>
                   jsonError(exchange, 401, "invalid_credentials", "Handle or password is incorrect.")
               }
@@ -72,7 +69,7 @@ final class IdentityRoutes(service: IdentityService) {
         case "GET" =>
           service.current(parseSessionToken(exchange)) match {
             case Right(account) =>
-              jsonOk(exchange, 200, toAuthResponse(account))
+              jsonOk(exchange, 200, IdentityRouteJsonRenderer.renderAuth(IdentityRouteJsonRenderer.authResponse(account)))
             case Left(IdentityCurrentSessionError.MissingSession) =>
               jsonError(exchange, 401, "missing_session", "Session token is required.")
             case Left(IdentityCurrentSessionError.InvalidSession) =>
@@ -94,13 +91,7 @@ final class IdentityRoutes(service: IdentityService) {
         case "OPTIONS" =>
           HttpRouteSupport.sendEmpty(exchange, 204)
         case "GET" =>
-          val accounts = service.listActiveAccounts()
-          val renderedAccounts = accounts
-            .map(account =>
-              s"""{"handle":"${HttpRouteSupport.escapeJson(account.handle)}","displayName":"${HttpRouteSupport.escapeJson(account.displayName)}","skinId":"${HttpRouteSupport.escapeJson(account.skinId)}"}"""
-            )
-            .mkString(",")
-          HttpRouteSupport.sendJson(exchange, 200, s"""{"accounts":[$renderedAccounts]}""")
+          HttpRouteSupport.sendJson(exchange, 200, IdentityRouteJsonRenderer.renderAccounts(service.listActiveAccounts()))
         case _ =>
           jsonError(exchange, 405, "method_not_allowed", "Only GET and OPTIONS are supported.")
       }
@@ -134,83 +125,21 @@ final class IdentityRoutes(service: IdentityService) {
       .map(_ => "Request body must be a JSON object with string fields.")
   }
 
-  private def parseRegistrationCommand(
-    fields: Map[String, String]
-  ): Either[IdentityRegistrationCommandParseError, IdentityRegistrationCommand] =
-    for {
-      handle <- PlayerHandle.forRegistration(fields.getOrElse("handle", ""))
-        .toRight(IdentityRegistrationCommandParseError.InvalidHandle)
-      password <- PlainTextPassword.fromString(fields.getOrElse("password", ""))
-        .toRight(IdentityRegistrationCommandParseError.InvalidPassword)
-      skinId <- SkinId.fromString(fields.getOrElse("skinId", "blue"))
-        .toRight(IdentityRegistrationCommandParseError.InvalidSkin)
-    } yield IdentityRegistrationCommand(
-      handle = handle,
-      password = password,
-      skinId = skinId
-    )
-
-  private def parseSessionCommand(
-    fields: Map[String, String]
-  ): Either[IdentitySessionCommandParseError, IdentitySessionCommand] =
-    for {
-      handle <- PlayerHandle.forLookup(fields.getOrElse("handle", ""))
-        .toRight(IdentitySessionCommandParseError.InvalidCredentials)
-      password <- PlainTextPassword.fromString(fields.getOrElse("password", ""))
-        .toRight(IdentitySessionCommandParseError.InvalidCredentials)
-    } yield IdentitySessionCommand(
-      handle = handle,
-      password = password
-    )
-
   private def parseSessionToken(exchange: HttpExchange): Option[SessionToken] = {
-    val authorization = Option(exchange.getRequestHeaders.getFirst("Authorization")).map(_.trim).filter(_.nonEmpty)
-    val fromAuthorization = authorization.flatMap { header =>
-      header.split("\\s+", 2).toList match {
-        case method :: token :: Nil if method.equalsIgnoreCase("Bearer") => SessionToken.fromString(token)
-        case token :: Nil                                                => SessionToken.fromString(token)
-        case _                                                           => None
-      }
-    }
-
-    fromAuthorization.orElse(
-      Option(exchange.getRequestHeaders.getFirst("X-Session-Token")).flatMap(SessionToken.fromString)
+    IdentitySessionTokenParser.parse(
+      authorization = Option(exchange.getRequestHeaders.getFirst("Authorization")),
+      xSessionToken = Option(exchange.getRequestHeaders.getFirst("X-Session-Token"))
     )
   }
 
-  private def toAuthResponse(account: IdentityAccount): IdentityAuthResponse =
-    IdentityAuthResponse(
-      handle = account.handle.value,
-      skinId = SkinId.wireValue(account.skinId),
-      session = account.sessionToken.map(_.value).getOrElse("")
-    )
-
-  private def jsonOk(exchange: HttpExchange, status: Int, response: IdentityAuthResponse): Unit =
-    HttpRouteSupport.sendJson(
-      exchange,
-      status,
-      s"""{"handle":"${HttpRouteSupport.escapeJson(response.handle)}","skinId":"${HttpRouteSupport.escapeJson(response.skinId)}","session":"${HttpRouteSupport.escapeJson(response.session)}"}"""
-    )
+  private def jsonOk(exchange: HttpExchange, status: Int, responseJson: String): Unit =
+    HttpRouteSupport.sendJson(exchange, status, responseJson)
 
   private def jsonError(exchange: HttpExchange, status: Int, code: String, message: String): Unit =
-    HttpRouteSupport.sendJson(
-      exchange,
-      status,
-      s"""{"error":"${HttpRouteSupport.escapeJson(message)}","code":"${HttpRouteSupport.escapeJson(code)}"}"""
-    )
+    HttpRouteSupport.sendJson(exchange, status, IdentityRouteJsonRenderer.renderError(code, message))
 }
 
 object IdentityRoutes {
   def apply(service: IdentityService): IdentityRoutes =
     new IdentityRoutes(service)
-}
-
-private enum IdentityRegistrationCommandParseError {
-  case InvalidHandle
-  case InvalidPassword
-  case InvalidSkin
-}
-
-private enum IdentitySessionCommandParseError {
-  case InvalidCredentials
 }

@@ -1,21 +1,14 @@
 package slaydemo.backend.battle.database
 
-import java.sql.{Connection, PreparedStatement, ResultSet, Types}
+import java.sql.PreparedStatement
 
-import slaydemo.backend.battle.objects.{
-  BattleId,
-  BattleResultRecord,
-  DurationMillis,
-  EpochMillis,
-  Rating,
-  Score
-}
-import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
+import slaydemo.backend.battle.objects.{BattleId, BattleResultRecord}
+import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.database.PostgresSupport
 import slaydemo.backend.shared.storage.PostgresConnectionSettings
 
 final class PostgresBattleResultRepository(settings: PostgresConnectionSettings) extends BattleResultRepository {
-  initialize()
+  PostgresBattleResultSchema.initialize(settings)
 
   override def save(record: BattleResultRecord): BattleResultRecord = {
     PostgresSupport.withConnection(settings) { connection =>
@@ -48,7 +41,7 @@ final class PostgresBattleResultRepository(settings: PostgresConnectionSettings)
           |  timeline_hint = EXCLUDED.timeline_hint,
           |  current_loadout = EXCLUDED.current_loadout""".stripMargin
       ) { statement =>
-        bindRecord(statement, record)
+        PostgresBattleResultRecordMapper.bindRecord(statement, record)
         statement.executeUpdate()
       }
     }
@@ -91,129 +84,6 @@ final class PostgresBattleResultRepository(settings: PostgresConnectionSettings)
     )
   }
 
-  private def initialize(): Unit =
-    PostgresSupport.withConnection(settings) { connection =>
-      PostgresSupport.withStatement(
-        connection,
-        """CREATE TABLE IF NOT EXISTS battle_results (
-          |  result_id TEXT PRIMARY KEY,
-          |  battle_id TEXT NOT NULL,
-          |  handle TEXT NOT NULL,
-          |  display_name TEXT NOT NULL,
-          |  finished_at BIGINT NOT NULL,
-          |  finished_at_label TEXT NOT NULL,
-          |  duration_ms BIGINT NOT NULL,
-          |  score INTEGER NOT NULL,
-          |  placement INTEGER NULL,
-          |  alive_at_end BOOLEAN NOT NULL,
-          |  rating_before INTEGER NOT NULL,
-          |  rating_delta INTEGER NOT NULL,
-          |  rating_after INTEGER NOT NULL,
-          |  result_label TEXT NOT NULL,
-          |  mode_label TEXT NOT NULL,
-          |  map_label TEXT NOT NULL,
-          |  highlight_line TEXT NOT NULL,
-          |  players_line TEXT NOT NULL,
-          |  timeline_hint TEXT NOT NULL,
-          |  current_loadout TEXT NULL
-          |)""".stripMargin
-      )(_.executeUpdate())
-
-      requiredColumns.foreach(addColumnIfMissing(connection, _))
-
-      PostgresSupport.withStatement(
-        connection,
-        "UPDATE battle_results SET result_id = battle_id || ':' || lower(trim(handle)) WHERE result_id IS NULL OR result_id = ''"
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        "ALTER TABLE battle_results ALTER COLUMN result_id SET NOT NULL"
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        """DO $$
-          |DECLARE
-          |  primary_key_name TEXT;
-          |  primary_key_columns TEXT[];
-          |BEGIN
-          |  SELECT constraint_info.conname, constraint_info.columns
-          |  INTO primary_key_name, primary_key_columns
-          |  FROM (
-          |    SELECT constraint_record.conname, array_agg(attribute.attname::TEXT ORDER BY key_column.ordinality) AS columns
-          |    FROM pg_constraint constraint_record
-          |    JOIN unnest(constraint_record.conkey) WITH ORDINALITY AS key_column(attnum, ordinality) ON TRUE
-          |    JOIN pg_attribute attribute
-          |      ON attribute.attrelid = constraint_record.conrelid
-          |      AND attribute.attnum = key_column.attnum
-          |    WHERE constraint_record.conrelid = 'battle_results'::regclass
-          |      AND constraint_record.contype = 'p'
-          |    GROUP BY constraint_record.conname
-          |  ) constraint_info;
-          |
-          |  IF primary_key_name IS NOT NULL AND primary_key_columns IS DISTINCT FROM ARRAY['result_id'] THEN
-          |    EXECUTE format('ALTER TABLE battle_results DROP CONSTRAINT %I', primary_key_name);
-          |    primary_key_name := NULL;
-          |  END IF;
-          |
-          |  IF primary_key_name IS NULL THEN
-          |    ALTER TABLE battle_results ADD CONSTRAINT battle_results_pkey PRIMARY KEY (result_id);
-          |  END IF;
-          |END $$""".stripMargin
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        "CREATE UNIQUE INDEX IF NOT EXISTS battle_results_result_id_unique_idx ON battle_results (result_id)"
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        "CREATE INDEX IF NOT EXISTS battle_results_finished_at_idx ON battle_results (finished_at DESC)"
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        "CREATE INDEX IF NOT EXISTS battle_results_handle_finished_at_idx ON battle_results (lower(handle), finished_at DESC)"
-      )(_.executeUpdate())
-
-      PostgresSupport.withStatement(
-        connection,
-        "CREATE INDEX IF NOT EXISTS battle_results_battle_id_finished_at_idx ON battle_results (battle_id, finished_at DESC)"
-      )(_.executeUpdate())
-    }
-
-  private def requiredColumns: Vector[String] =
-    Vector(
-      "result_id TEXT",
-      "battle_id TEXT NOT NULL DEFAULT ''",
-      "handle TEXT NOT NULL DEFAULT ''",
-      "display_name TEXT NOT NULL DEFAULT ''",
-      "finished_at BIGINT NOT NULL DEFAULT 0",
-      "finished_at_label TEXT NOT NULL DEFAULT ''",
-      "duration_ms BIGINT NOT NULL DEFAULT 0",
-      "score INTEGER NOT NULL DEFAULT 0",
-      "placement INTEGER",
-      "alive_at_end BOOLEAN NOT NULL DEFAULT FALSE",
-      "rating_before INTEGER NOT NULL DEFAULT 0",
-      "rating_delta INTEGER NOT NULL DEFAULT 0",
-      "rating_after INTEGER NOT NULL DEFAULT 0",
-      "result_label TEXT NOT NULL DEFAULT ''",
-      "mode_label TEXT NOT NULL DEFAULT ''",
-      "map_label TEXT NOT NULL DEFAULT ''",
-      "highlight_line TEXT NOT NULL DEFAULT ''",
-      "players_line TEXT NOT NULL DEFAULT ''",
-      "timeline_hint TEXT NOT NULL DEFAULT ''",
-      "current_loadout TEXT"
-    )
-
-  private def addColumnIfMissing(connection: Connection, columnDefinition: String): Unit =
-    PostgresSupport.withStatement(
-      connection,
-      s"ALTER TABLE battle_results ADD COLUMN IF NOT EXISTS $columnDefinition"
-    )(_.executeUpdate())
-
   private def queryMany(sql: String, bind: PreparedStatement => Unit): Vector[BattleResultRecord] =
     PostgresSupport.withConnection(settings) { connection =>
       PostgresSupport.withStatement(connection, sql) { statement =>
@@ -221,64 +91,10 @@ final class PostgresBattleResultRepository(settings: PostgresConnectionSettings)
         PostgresSupport.withResultSet(statement) { resultSet =>
           val records = Vector.newBuilder[BattleResultRecord]
           while (resultSet.next()) {
-            records += readRecord(resultSet)
+            records += PostgresBattleResultRecordMapper.readRecord(resultSet)
           }
           records.result()
         }
       }
     }
-
-  private def bindRecord(statement: PreparedStatement, record: BattleResultRecord): Unit = {
-    statement.setString(1, record.resultId.value)
-    statement.setString(2, record.battleId.value)
-    statement.setString(3, record.handle.value)
-    statement.setString(4, record.displayName.value)
-    statement.setLong(5, record.finishedAt.value)
-    statement.setString(6, record.finishedAtLabel)
-    statement.setLong(7, record.durationMs.value)
-    statement.setInt(8, record.score.value)
-    record.placement match {
-      case Some(value) => statement.setInt(9, value)
-      case None        => statement.setNull(9, Types.INTEGER)
-    }
-    statement.setBoolean(10, record.aliveAtEnd)
-    statement.setInt(11, record.ratingBefore.value)
-    statement.setInt(12, record.ratingDelta)
-    statement.setInt(13, record.ratingAfter.value)
-    statement.setString(14, record.resultLabel)
-    statement.setString(15, record.modeLabel)
-    statement.setString(16, record.mapLabel)
-    statement.setString(17, record.highlightLine)
-    statement.setString(18, record.playersLine)
-    statement.setString(19, record.timelineHint)
-    record.currentLoadout match {
-      case Some(value) => statement.setString(20, value)
-      case None        => statement.setNull(20, Types.VARCHAR)
-    }
-  }
-
-  private def readRecord(resultSet: ResultSet): BattleResultRecord = {
-    val placement = resultSet.getInt("placement")
-    BattleResultRecord(
-      battleId = BattleId(resultSet.getString("battle_id")),
-      handle = PlayerHandle(resultSet.getString("handle")),
-      displayName = DisplayName(resultSet.getString("display_name")),
-      finishedAt = EpochMillis(resultSet.getLong("finished_at")),
-      finishedAtLabel = resultSet.getString("finished_at_label"),
-      durationMs = DurationMillis(resultSet.getLong("duration_ms")),
-      score = Score(resultSet.getInt("score")),
-      placement = if (resultSet.wasNull()) None else Some(placement),
-      aliveAtEnd = resultSet.getBoolean("alive_at_end"),
-      ratingBefore = Rating(resultSet.getInt("rating_before")),
-      ratingDelta = resultSet.getInt("rating_delta"),
-      ratingAfter = Rating(resultSet.getInt("rating_after")),
-      resultLabel = resultSet.getString("result_label"),
-      modeLabel = resultSet.getString("mode_label"),
-      mapLabel = resultSet.getString("map_label"),
-      highlightLine = resultSet.getString("highlight_line"),
-      playersLine = resultSet.getString("players_line"),
-      timelineHint = resultSet.getString("timeline_hint"),
-      currentLoadout = Option(resultSet.getString("current_loadout"))
-    )
-  }
 }

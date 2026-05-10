@@ -18,12 +18,10 @@ final case class BattleCommandRequest(
   primaryHeld: Boolean,
   sprint: Boolean,
   reloadPressed: Boolean,
-  castDash: Boolean,
-  castBlink: Boolean,
-  castFreeze: Boolean,
+  skillIntents: BattleCommandSkillIntents,
   pointerWorld: Option[BattleCommandVector],
-  switchWeaponDirection: Int,
-  switchWeaponIndex: Option[Int]
+  switchWeaponDirection: BattleWeaponSwitchDirection,
+  switchWeaponIndex: Option[BattleWeaponSwitchIndex]
 )
 
 final case class BattleCommandSkillOutcome(

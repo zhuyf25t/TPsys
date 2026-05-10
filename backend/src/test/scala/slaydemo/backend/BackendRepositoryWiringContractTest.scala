@@ -1,13 +1,16 @@
 package slaydemo.backend
 
-import slaydemo.backend.battle.database.InMemoryBattleResultRepository
-import slaydemo.backend.bots.database.InMemoryBotProfileRepository
+import java.nio.file.{Files, Path, Paths}
+import scala.jdk.CollectionConverters.*
+
+import slaydemo.backend.battle.database.{FileBattleResultRepository, InMemoryBattleResultRepository}
+import slaydemo.backend.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
 import slaydemo.backend.bots.objects.DemoBotProfiles
-import slaydemo.backend.forum.database.InMemoryForumRepository
-import slaydemo.backend.governance.database.InMemoryGovernanceRepository
-import slaydemo.backend.identity.database.InMemoryIdentityAccountRepository
-import slaydemo.backend.mail.database.InMemoryMailRepository
-import slaydemo.backend.replay.database.InMemoryReplayRepository
+import slaydemo.backend.forum.database.{FileForumRepository, InMemoryForumRepository}
+import slaydemo.backend.governance.database.{FileGovernanceRepository, InMemoryGovernanceRepository}
+import slaydemo.backend.identity.database.{FileIdentityAccountRepository, InMemoryIdentityAccountRepository}
+import slaydemo.backend.mail.database.{FileMailRepository, InMemoryMailRepository}
+import slaydemo.backend.replay.database.{FileReplayRepository, InMemoryReplayRepository}
 import slaydemo.backend.shared.storage.{
   DatabasePassword,
   DatabaseUser,
@@ -16,13 +19,14 @@ import slaydemo.backend.shared.storage.{
   StorageConfig,
   StorageRoot
 }
-import slaydemo.backend.social.database.InMemoryFriendRequestRepository
+import slaydemo.backend.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 
 object BackendRepositoryWiringContractTest {
   def main(args: Array[String]): Unit = {
     memoryModeUsesOnlyMemoryFactories()
     postgresModeUsesOnlyPostgresFactories()
-    fileModeRejectsWithoutConstructingRepositories()
+    fileModeUsesOnlyFileFactories()
+    fileModeLiveFactoriesConstructFileRepositories()
 
     println("BackendRepository wiring contract checks passed")
   }
@@ -58,21 +62,43 @@ object BackendRepositoryWiringContractTest {
     assertEquals("every postgres factory receives the selected settings", log.postgresSettings, RepositoryNames.map(_ => settings))
   }
 
-  private def fileModeRejectsWithoutConstructingRepositories(): Unit = {
+  private def fileModeUsesOnlyFileFactories(): Unit = {
     val log = FactoryCallLog()
-    val message = interceptMessage {
-      BackendRepositories.fromStorage(StorageConfig.File(StorageRoot("./data")), countingFactories(log))
-    }
+    val root = StorageRoot("./data")
+    BackendRepositories.fromStorage(StorageConfig.File(root), countingFactories(log))
 
-    assertContains("file mode message", message, "SLAY_DEMO_STORAGE_MODE=file is not implemented")
     assertEquals("file mode must not call memory factories", log.memoryCalls, Vector.empty)
     assertEquals("file mode must not call postgres factories", log.postgresCalls, Vector.empty)
+    assertEquals("file repositories are all constructed", log.fileCalls, RepositoryNames)
+    assertEquals("every file factory receives the selected root", log.fileRoots, RepositoryNames.map(_ => Paths.get(root.value)))
+  }
+
+  private def fileModeLiveFactoriesConstructFileRepositories(): Unit = {
+    val directory = Files.createTempDirectory("slay-demo-repository-file-wiring-contract")
+    try {
+      val repositories = BackendRepositories.fromStorage(StorageConfig.File(StorageRoot(directory.toString)))
+
+      assert(repositories.identity.isInstanceOf[FileIdentityAccountRepository], "identity repository is file-backed")
+      assert(repositories.battleResults.isInstanceOf[FileBattleResultRepository], "battle result repository is file-backed")
+      assert(repositories.mail.isInstanceOf[FileMailRepository], "mail repository is file-backed")
+      assert(repositories.botProfiles.isInstanceOf[FileBotProfileRepository], "bot profile repository is file-backed")
+      assert(repositories.replay.isInstanceOf[FileReplayRepository], "replay repository is file-backed")
+      assert(repositories.friendRequests.isInstanceOf[FileFriendRequestRepository], "friend repository is file-backed")
+      assert(repositories.forum.isInstanceOf[FileForumRepository], "forum repository is file-backed")
+      assert(repositories.governance.isInstanceOf[FileGovernanceRepository], "governance repository is file-backed")
+    } finally {
+      deleteRecursively(directory)
+    }
   }
 
   private def countingFactories(log: FactoryCallLog): BackendRepositoryFactories =
     BackendRepositoryFactories(
       inMemoryIdentity = () => {
         log.recordMemory("identity")
+        new InMemoryIdentityAccountRepository()
+      },
+      fileIdentity = root => {
+        log.recordFile("identity", root)
         new InMemoryIdentityAccountRepository()
       },
       postgresIdentity = settings => {
@@ -83,12 +109,20 @@ object BackendRepositoryWiringContractTest {
         log.recordMemory("battle-results")
         InMemoryBattleResultRepository()
       },
+      fileBattleResults = root => {
+        log.recordFile("battle-results", root)
+        InMemoryBattleResultRepository()
+      },
       postgresBattleResults = settings => {
         log.recordPostgres("battle-results", settings)
         InMemoryBattleResultRepository()
       },
       inMemoryMail = () => {
         log.recordMemory("mail")
+        InMemoryMailRepository()
+      },
+      fileMail = root => {
+        log.recordFile("mail", root)
         InMemoryMailRepository()
       },
       postgresMail = settings => {
@@ -99,12 +133,20 @@ object BackendRepositoryWiringContractTest {
         log.recordMemory("bot-profiles")
         InMemoryBotProfileRepository(DemoBotProfiles.all)
       },
+      fileBotProfiles = root => {
+        log.recordFile("bot-profiles", root)
+        InMemoryBotProfileRepository(DemoBotProfiles.all)
+      },
       postgresBotProfiles = settings => {
         log.recordPostgres("bot-profiles", settings)
         InMemoryBotProfileRepository(DemoBotProfiles.all)
       },
       inMemoryReplay = () => {
         log.recordMemory("replay")
+        InMemoryReplayRepository()
+      },
+      fileReplay = root => {
+        log.recordFile("replay", root)
         InMemoryReplayRepository()
       },
       postgresReplay = settings => {
@@ -115,12 +157,20 @@ object BackendRepositoryWiringContractTest {
         log.recordMemory("friend-requests")
         InMemoryFriendRequestRepository()
       },
+      fileFriendRequests = root => {
+        log.recordFile("friend-requests", root)
+        InMemoryFriendRequestRepository()
+      },
       postgresFriendRequests = settings => {
         log.recordPostgres("friend-requests", settings)
         InMemoryFriendRequestRepository()
       },
       inMemoryForum = () => {
         log.recordMemory("forum")
+        InMemoryForumRepository()
+      },
+      fileForum = root => {
+        log.recordFile("forum", root)
         InMemoryForumRepository()
       },
       postgresForum = settings => {
@@ -131,6 +181,10 @@ object BackendRepositoryWiringContractTest {
         log.recordMemory("governance")
         InMemoryGovernanceRepository()
       },
+      fileGovernance = root => {
+        log.recordFile("governance", root)
+        InMemoryGovernanceRepository()
+      },
       postgresGovernance = settings => {
         log.recordPostgres("governance", settings)
         InMemoryGovernanceRepository()
@@ -139,6 +193,8 @@ object BackendRepositoryWiringContractTest {
 
   private final class FactoryCallLog {
     private var memoryNames: Vector[String] = Vector.empty
+    private var fileNames: Vector[String] = Vector.empty
+    private var selectedFileRoots: Vector[Path] = Vector.empty
     private var postgresNames: Vector[String] = Vector.empty
     private var selectedSettings: Vector[PostgresConnectionSettings] = Vector.empty
 
@@ -148,11 +204,22 @@ object BackendRepositoryWiringContractTest {
     def postgresCalls: Vector[String] =
       postgresNames
 
+    def fileCalls: Vector[String] =
+      fileNames
+
     def postgresSettings: Vector[PostgresConnectionSettings] =
       selectedSettings
 
+    def fileRoots: Vector[Path] =
+      selectedFileRoots
+
     def recordMemory(name: String): Unit =
       memoryNames = memoryNames :+ name
+
+    def recordFile(name: String, root: Path): Unit = {
+      fileNames = fileNames :+ name
+      selectedFileRoots = selectedFileRoots :+ root
+    }
 
     def recordPostgres(name: String, settings: PostgresConnectionSettings): Unit = {
       postgresNames = postgresNames :+ name
@@ -160,22 +227,24 @@ object BackendRepositoryWiringContractTest {
     }
   }
 
-  private def interceptMessage(block: => Unit): String =
-    try {
-      block
-      fail("expected exception")
-    } catch {
-      case error: IllegalArgumentException => error.getMessage
-    }
-
   private def assertEquals[A](label: String, actual: A, expected: A): Unit =
     assert(actual == expected, s"$label: expected $expected, got $actual")
 
-  private def assertContains(label: String, text: String, expectedPart: String): Unit =
-    assert(text.contains(expectedPart), s"$label: expected to find $expectedPart in $text")
-
-  private def fail(message: String): Nothing =
-    throw AssertionError(message)
+  private def deleteRecursively(path: Path): Unit =
+    if Files.exists(path) then {
+      val stream = Files.walk(path)
+      try {
+        stream
+          .iterator()
+          .asScala
+          .toVector
+          .sortBy(_.toString.length)
+          .reverse
+          .foreach(Files.deleteIfExists)
+      } finally {
+        stream.close()
+      }
+    }
 
   private val RepositoryNames: Vector[String] =
     Vector(

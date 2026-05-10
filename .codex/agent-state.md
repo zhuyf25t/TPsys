@@ -8656,7 +8656,7 @@ Risks:
 Next ticket:
 - BRT-209: Remove route-layer command ticket sentinel by modeling optional ticket parsing explicitly.
 
-## Current Ticket
+## Completed Ticket
 
 ID: BRT-209
 Goal: Remove route-layer command ticket sentinel by modeling missing ticket parsing explicitly.
@@ -8705,7 +8705,7 @@ Risks:
 Next ticket:
 - BRT-210: Move command weapon-switch normalization out of the HTTP route parse path so the route only parses transport input and command semantics stay in the battle command boundary.
 
-## Current Ticket
+## Completed Ticket
 
 ID: BRT-210
 Goal: Keep weapon-switch direction normalization out of the HTTP route parser.
@@ -8750,7 +8750,7 @@ Risks:
 Next ticket:
 - BRT-211: Align missing-skill command outcomes for Blink/Dash with Freeze and legacy semantics by returning `SkillNotOwned` instead of treating absent skills as cooldown failures.
 
-## Current Ticket
+## Completed Ticket
 
 ID: BRT-211
 Goal: Align Blink/Dash skill availability checks with Freeze and legacy runtime semantics.
@@ -8796,7 +8796,7 @@ Risks:
 Next ticket:
 - BRT-212: Add focused battle route command input contract tests or a route parse seam for stricter command parsing parity decisions without full API smoke data churn.
 
-## Current Ticket
+## Completed Ticket
 
 ID: BRT-212
 Goal: Add focused battle command route contracts and tighten command JSON parsing to legacy-shaped types.
@@ -8843,7 +8843,7 @@ Risks:
 Next ticket:
 - DB-213: Replace silent Postgres enum fallback decoding with explicit safe decode behavior for one bounded repository, starting with friend request status.
 
-## Current Ticket
+## Completed Ticket
 
 ID: DB-213
 Goal: Stop silently decoding invalid Postgres friend request statuses as `Pending`.
@@ -8891,7 +8891,7 @@ Risks:
 Next ticket:
 - DB-214: Apply the same explicit enum decode pattern to Postgres mail kind and friend-request mail metadata status.
 
-## Current Ticket
+## Completed Ticket
 
 ID: DB-214
 Goal: Apply explicit enum decode behavior to Postgres mail kind and friend-request mail metadata.
@@ -8940,7 +8940,7 @@ Risks:
 Next ticket:
 - DB-215: Apply explicit enum decode behavior to Postgres governance review kind and target type.
 
-## Current Ticket
+## Completed Ticket
 
 ID: DB-215
 Goal: Stop silently decoding invalid Postgres governance review kind/target type as replay defaults.
@@ -8987,7 +8987,7 @@ Risks:
 Next ticket:
 - BRT-216: Extract a small pure battle skill availability helper to make absent-skill outcomes directly testable without reaching into private service state.
 
-## Current Ticket
+## Completed Ticket
 
 ID: BRT-216
 Goal: Extract pure battle skill availability rules and cover absent-skill outcomes directly.
@@ -9036,7 +9036,7 @@ Risks:
 Next ticket:
 - BRT-217: Reduce repeated skill outcome branch boilerplate in `BattleStateService` without changing behavior.
 
-## Current Ticket
+## Completed Ticket
 
 ID: VAL-217
 Goal: Run final layered verification for the rebuilt backend and current frontend integration, then clean smoke-test data.
@@ -9117,7 +9117,7 @@ Risks:
 Next ticket:
 - Optional cleanup: reduce repeated skill outcome branch boilerplate or plan a package/path refactor if the team still wants a non-standard flatter backend layout.
 
-## Current Ticket
+## Completed Ticket
 
 ID: ID-218
 Goal: Restore legacy plaintext-password login compatibility for existing ordinary accounts and migrate successful logins to hashed passwords.
@@ -9162,3 +9162,15258 @@ Self-review:
 
 Next ticket:
 - Save the rebuilt backend and password compatibility fix to git, then push `main`.
+
+## Completed Ticket
+
+ID: ID-219
+Goal: Fix initial battle camera/local-player focus so the first rendered battle view follows the user's own hero before any mouse movement.
+Allowed scope: `frontend/src/features/battle/page`, `frontend/src/features/battle/renderer`, `frontend/src/features/battle/adapters`, `frontend/src/game`, focused smoke/test scripts if needed, `.codex/agent-state.md`.
+Forbidden scope: backend domain/runtime rewrites, database mutations, unrelated battle balance changes, visual restyling.
+Expected change:
+- BattlePage should resolve and apply the local player's hero/player identity during initial snapshot hydration.
+- Camera and HUD should not temporarily bind to the first/other hero while waiting for the first pointer/input event.
+Architecture/domain-modeling impact:
+- This is a frontend session identity/render-state fix; no domain model changes expected.
+Side-effect boundary impact:
+- Browser input/session storage reads remain in page/runtime boundary; renderer should receive explicit local identity.
+Verification:
+- inspect ownership mapping from active session to authoritative snapshot
+- `npm run build`
+- relevant smoke or focused script if available
+- `git diff --check`
+Acceptance criteria:
+- Initial camera target uses the logged-in player's hero without requiring mouse movement.
+- Mouse movement no longer acts as the first trigger that corrects local identity.
+Risks:
+- Need avoid papering over a backend room seating issue if the authoritative snapshot itself carries wrong local ids.
+
+Result:
+- Root cause refined from code and smoke diagnostics: the initial local hero identity was already correct, but Phaser's `activePointer` starts at raw `(0, 0)` before the first mouse/touch event.
+- The camera look-ahead treated that raw default pointer as real input, pushing the camera target up-left from the local hero until the first mouse movement corrected it.
+- Changed camera target resolution so look-ahead uses the screen center until a real pointer event exists.
+- Extended vision diagnostics to record both the resolved pointer and raw Phaser pointer plus `pointerReady`.
+
+Verification passed:
+- `npm run build`
+- `npm run demo:bp28-render-feel-smoke`
+  - Smoke showed `rawPointer=(0,0)`, `pointerReady=false`, resolved pointer at screen center, and zero initial look-ahead offset before input.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; `pointerReady` is renderer diagnostic state, not a business result.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes, only renderer camera diagnostics plus worklog.
+
+Next ticket:
+- If the user still observes wrong initial focus after refresh, inspect authoritative seat/player id reconciliation separately; this ticket fixed the confirmed no-input camera offset.
+
+## Completed Ticket
+
+ID: ID-220
+Goal: Add a focused regression assertion for initial battle camera look-ahead before any pointer input.
+Allowed scope: `scripts/bp28-render-feel-smoke.ps1`, `.codex/agent-state.md`.
+Forbidden scope: frontend runtime behavior changes, backend code, database mutations, git commit/push.
+Expected change:
+- BP28 render-feel smoke should fail if a not-yet-ready pointer can create non-zero initial camera look-ahead.
+Architecture/domain-modeling impact:
+- No application/domain model changes; this is verification hardening.
+Side-effect boundary impact:
+- Existing smoke browser diagnostics remain the only boundary effect.
+Verification:
+- `npm run demo:bp28-render-feel-smoke`
+- `git diff --check`
+Acceptance criteria:
+- When `vision.lookAhead.pointerReady=false`, resolved pointer is screen center and target/actual offset distance is near zero.
+- The smoke keeps passing with the current fix.
+Risks:
+- The assertion must not fail when a real pointer event already exists before the sample; in that case look-ahead may legitimately be non-zero.
+
+Result:
+- Added `Assert-InitialCameraLookAheadStable` to `scripts/bp28-render-feel-smoke.ps1`.
+- The assertion requires `vision.lookAhead.pointerReady` to exist.
+- When `pointerReady=false`, it now asserts the resolved pointer is the screen center and both actual camera offset and target-ahead distance are near zero.
+- The assertion returns without failure if a real pointer event already exists before the sample.
+
+Verification passed:
+- `npm run demo:bp28-render-feel-smoke`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; this is smoke assertion state only.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Audit smoke/test data residue after the recent browser/API smokes and tighten cleanup if needed.
+
+## Completed Ticket
+
+ID: ID-221
+Goal: Check whether recent smoke runs left temporary users/results/replays that could slow loading, and clean only safe synthetic residue if needed.
+Allowed scope: read-only DB/API sanity commands, safe deletion of clearly synthetic smoke data, smoke cleanup scripts if a narrow missing cleanup is found, `.codex/agent-state.md`.
+Forbidden scope: deleting real user accounts, deleting non-synthetic content, backend behavior changes, git commit/push.
+Expected change:
+- Confirm current persisted counts and identify any recent synthetic BP28/API smoke residues.
+- Remove only clearly synthetic smoke records when safe.
+- Document remaining non-synthetic persisted data.
+Architecture/domain-modeling impact:
+- No application code/domain model changes expected unless smoke cleanup script has a narrow gap.
+Side-effect boundary impact:
+- Any cleanup must be explicit database maintenance at the script/operator boundary, not hidden in app runtime.
+Verification:
+- `npm run demo:db-sanity`
+- targeted Postgres count/handle inspection without exposing passwords
+- `git diff --check` if scripts are edited
+Acceptance criteria:
+- Temporary smoke accounts such as `b28a*`/`b28b*` are not left in `identity_accounts`.
+- No real account rows are deleted.
+Risks:
+- Smoke-created battle/replay rows may have relationships; cleanup must respect FKs and only target synthetic handles/battle ids.
+
+Result:
+- Found four persisted BP28 smoke accounts (`b28a*`/`b28b*`) plus matching mailbox rows from previous smoke runs.
+- Deleted only rows whose handles matched the synthetic BP28 smoke prefix from `mails.owner_handle` and `identity_accounts.handle`.
+- Added BP28 smoke-script cleanup for Postgres mode so future successful runs remove their synthetic account/mail rows automatically.
+- Kept non-synthetic accounts, battle results, replay rows, governance data, and real mail untouched.
+
+Verification passed:
+- `npm run demo:bp28-render-feel-smoke`
+  - Passed and logged automatic cleanup for the two synthetic accounts created by that run.
+- Targeted Postgres count:
+  - `identity_accounts_b28=0`
+  - `mails_b28=0`
+- `npm run demo:db-sanity`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; cleanup is explicit smoke/operator script behavior.
+- Scope respected: yes.
+
+Next ticket:
+- Fix stale queue request/session reuse so a retry with the same queue request id cannot resurrect an already active or finished room.
+
+## Completed Ticket
+
+ID: ID-222
+Goal: Prevent stale queue request ids from reusing active or finished battle sessions.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, `backend/src/test/scala/slaydemo/backend/BattleQueueRuntimeContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: frontend code, battle state/combat mechanics, database schema/data, unrelated backend services, git commit/push.
+Expected change:
+- Same `queueRequestId` remains idempotent only while its original room is still waiting.
+- After the original room is active or finished, joining with the same `queueRequestId` creates a fresh waiting ticket/session instead of returning the stale active/finished snapshot.
+Architecture/domain-modeling impact:
+- Preserve existing queue domain types (`QueueRequestId`, `TicketId`, `MatchmakingRoomPhase`) and keep the change inside the application service boundary.
+Side-effect boundary impact:
+- Only in-memory queue bookkeeping changes; no persistence or domain-side effects.
+Verification:
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Existing same-request waiting idempotency test still passes.
+- New contract covers stale active and finished rooms.
+- No stale queue request mapping can resurrect an old battle session through `join`.
+Risks:
+- Frontend retries during the countdown must still be idempotent; do not break waiting-room dedupe.
+
+Result:
+- Changed `InMemoryBattleQueueService.join` so `queueRequestId` reuse only returns a snapshot while the mapped ticket still belongs to a waiting room.
+- If the mapped ticket now belongs to an active or finished room, the stale request mapping is removed and the join creates/selects a fresh waiting room.
+- Added runtime contract coverage for both active-room and finished-room retry cases.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond existing in-memory service state.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Prevent battle id reuse across backend restarts so persisted result/replay rows cannot collide with a fresh in-memory room counter.
+
+## Completed Ticket
+
+ID: ID-223
+Goal: Prevent battle id reuse across backend restarts.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, `backend/src/test/scala/slaydemo/backend/BattleQueueRuntimeContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: frontend code, route/API shape, database schema/data, battle combat mechanics, result/replay projection behavior, git commit/push.
+Expected change:
+- Battle ids should no longer be derived from restart-local room counters such as `battle-room-000001`.
+- The queue service should generate battle ids through an explicit service-boundary generator.
+- Runtime contracts should prove two fresh service instances can have the same room id counter without producing the same battle id.
+Architecture/domain-modeling impact:
+- Keep `BattleId` as the domain value type; random/id generation stays in the queue application service boundary.
+Side-effect boundary impact:
+- Random generation is injected at the service boundary and defaulted by the companion constructor.
+Verification:
+- focused queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Existing queue contracts pass.
+- A regression that derives battle id from room id would fail the new contract.
+Risks:
+- Scripts and frontend should treat battle ids as opaque strings; if any code assumes `battle-room-*`, this ticket must expose it in tests/search before broader changes.
+
+Result:
+- Added explicit battle id generation to `InMemoryBattleQueueService`.
+- Production construction now defaults to UUID-backed `BattleId` values instead of `battle-${roomId}`.
+- Runtime contract tests inject deterministic battle ids and prove two fresh service instances may reuse the same room counter while still producing distinct battle ids.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none at API/domain boundaries; generated ids are wrapped as `BattleId`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond existing queue service state.
+- Side effects inside domain: none; random id generation is injected/defaulted at the queue service boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Audit and restore legacy weapon projectile/ammo semantics where the rebuilt backend diverges from expected battle feel.
+
+## Completed Ticket
+
+ID: ID-224
+Goal: Harden backend weapon/ammo/projectile contracts around the battle-feel issues previously reported.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, narrow production battle constants only if an uncovered mismatch is found, `.codex/agent-state.md`.
+Forbidden scope: queue service, identity/database code, frontend rendering code, broad battle state refactors, git commit/push.
+Expected change:
+- Audit existing backend contracts for pistol hit delay, auto reload, weapon/medkit pickup, skill-fire suppression, and projectile lifetime/range behavior.
+- Add missing focused coverage for non-pistol projectile lifetime/identity semantics if current production behavior is already correct.
+- Do not revert current long projectile lifetime behavior because frontend constants and existing tests intentionally changed away from the legacy short TTLs.
+Architecture/domain-modeling impact:
+- Prefer test-only verification. Keep battle state domain value types unchanged.
+Side-effect boundary impact:
+- No new runtime side effects expected.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Current user-reported backend battle-feel paths are covered by executable contracts.
+- If no production bug is found, the ticket documents that outcome and protects the intended behavior.
+Risks:
+- Some remaining muzzle/tracer offset symptoms may be frontend presentation rather than backend authoritative state.
+
+Result:
+- Audited current BattleState runtime contracts against the reported battle-feel paths:
+  - empty magazine starts automatic reload
+  - pistol damage waits for visible projectile travel
+  - long projectile lifetime avoids old short TTL expiry
+  - weapon and medkit pickups are authoritative
+  - non-pistol weapons fire and reload authoritatively
+  - skill commands suppress primary fire
+- Added backend assertions that pistol, Gatling, rocket, and shotgun authoritative projectile positions stay aligned with their velocity vectors after the birth tick.
+- No production battle-state change was needed in this ticket.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; test-only coverage change plus worklog.
+
+Next ticket:
+- Check forum vote persistence semantics for aggregate delete/replace behavior that could lose concurrent votes.
+
+## Completed Ticket
+
+ID: ID-225
+Goal: Make forum vote persistence use single-vote writes instead of whole-topic delete/replace.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database`, `backend/src/main/scala/slaydemo/backend/forum/services/ForumService.scala`, `backend/src/test/scala/slaydemo/backend/ForumServiceContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: frontend code, route shape, database schema changes, non-forum services, git commit/push.
+Expected change:
+- Add repository-level vote mutation operations with explicit missing-topic/missing-reply results.
+- Forum service should use those operations for topic/reply votes instead of read-modify-`saveTopic`.
+- Postgres implementation should upsert/delete only the affected vote row and preserve unrelated concurrent votes.
+Architecture/domain-modeling impact:
+- Introduce an explicit repository mutation error ADT rather than Boolean outcomes.
+- Keep vote state in `ForumVotes` and repository I/O at the persistence boundary.
+Side-effect boundary impact:
+- Database writes remain in repository methods; service orchestrates only commands and view conversion.
+Verification:
+- focused forum contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Existing forum service vote behavior remains unchanged from the API view.
+- Repository contract shape prevents vote writes from requiring aggregate delete/replace.
+- Postgres topic/reply vote writes do not delete votes from other voters.
+Risks:
+- Existing `saveTopic` still owns full aggregate creation/update for topic/reply creation; this ticket only changes vote mutation paths.
+
+Result:
+- Added explicit `ForumVoteMutationError` and repository-level `setTopicVote`/`setReplyVote` operations.
+- Updated `DefaultForumService` vote commands to use those single-vote repository operations instead of read-modify-`saveTopic`.
+- Updated `PostgresForumRepository` vote writes to upsert/delete only the affected `(topic, voter)` or `(reply, voter)` row and to preserve unrelated votes.
+- Removed Postgres vote delete/replace from `saveTopic`, so topic/reply creation saves do not rewrite vote tables.
+- Added a service contract proving vote commands call the vote repository boundary and do not save the whole topic aggregate.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; vote outcomes use `ForumVoteMutationError`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; `ForumTopicRecord`/`ForumVotes` remain immutable copy/update values.
+- Side effects inside domain: none; database writes remain in repository methods.
+- Scope respected: yes.
+
+Next ticket:
+- Check friend request Postgres uniqueness/migration behavior for duplicate existing request pairs.
+
+## Current Ticket
+
+ID: ID-226
+Goal: Prevent friend-request Postgres startup and create paths from failing or creating more duplicates when existing duplicate pairs are present.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database/PostgresFriendRequestRepository.scala`, focused friend request tests if useful, `.codex/agent-state.md`.
+Forbidden scope: frontend code, mail behavior, identity rules, destructive database cleanup, git commit/push.
+Expected change:
+- Do not delete existing real friend-request rows during repository initialization.
+- Create the unique `(source,target)` index only when existing data has no duplicate pairs.
+- Make `createIfAbsent` check existing pair records before insert so duplicate legacy data does not cause another duplicate row.
+- Make `findByHandles` deterministic when duplicate legacy rows exist.
+Architecture/domain-modeling impact:
+- No domain type changes expected; this is repository/migration hardening.
+Side-effect boundary impact:
+- All database inspection/index creation remains in repository initialization.
+Verification:
+- focused friend request contract or compile
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Existing duplicate pairs no longer make repository initialization fail on unique index creation.
+- New create requests do not add another duplicate if a pair is already present.
+- No automatic destructive cleanup of real data is introduced.
+Risks:
+- If duplicate rows already exist, DB-level uniqueness cannot be enforced until an operator resolves them; application precheck still prevents ordinary new duplicates.
+
+Result:
+- Hardened `PostgresFriendRequestRepository.findByHandles` with deterministic ordering for duplicate legacy pairs.
+- `createIfAbsent` now checks an existing source/target pair before inserting, so a database that already contains duplicate pairs will not get another duplicate from ordinary create flow.
+- Repository initialization now checks for duplicate pairs before creating the unique functional index.
+- If duplicates exist, initialization creates a non-unique lookup index instead of failing or deleting real rows.
+- No destructive cleanup was introduced.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; duplicate detection is private repository control flow, not a business result.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; DB index/query behavior remains repository-only.
+- Scope respected: yes.
+
+Next ticket:
+- Re-scan backend for explicit unsupported/TODO paths and choose the next replacement risk.
+
+## Current Ticket
+
+ID: ID-227
+Goal: Add a rebuilt file-backed bot profile repository as the first staged file-mode restoration ticket.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/bots/database`, focused bot profile tests under `backend/src/test/scala/slaydemo/backend`, optional tiny shared file-storage helper if needed, `.codex/agent-state.md`.
+Forbidden scope: global `BackendRepositories` file-mode wiring, identity/password persistence, social/forum/governance repositories, frontend code, git commit/push.
+Expected change:
+- Implement file persistence for `BotProfileRepository` using rebuilt typed bot profile domain values.
+- Seed `DemoBotProfiles` when the file is missing or empty.
+- Persist via temp file plus atomic move fallback.
+- Add a contract proving save/reload behavior.
+Architecture/domain-modeling impact:
+- Keep bot profile values typed (`BotId`, `PlayerHandle`, `BotProfileTone`, etc.).
+- No domain mutation; repository is the side-effect boundary.
+Side-effect boundary impact:
+- File I/O belongs only in the file repository.
+Verification:
+- focused bot profile contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Empty temp storage yields demo profiles.
+- Saving a profile replaces by `BotId`.
+- A new repository instance reading the same file observes the saved update.
+Risks:
+- This does not enable `SLAY_DEMO_STORAGE_MODE=file`; later tickets must restore the other file repositories before global wiring changes.
+
+Result:
+- Added `FileBotProfileRepository` using rebuilt typed bot profile domain values.
+- Missing or empty storage seeds `DemoBotProfiles` and persists a `slay-demo.bot-profiles.v1` JSON payload.
+- `save` replaces by `BotId` and writes through a temp file plus atomic move fallback.
+- Added a temp-directory contract proving seed, save, reload, ordering, tone, and skin persistence.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BotProfileServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none outside file serialization parsing/rendering.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; repository replaces immutable records by id.
+- Side effects inside domain: none; file I/O is contained in the repository.
+- Scope respected: yes.
+
+Next ticket:
+- Restore identity file persistence with hash plus legacy plaintext compatibility.
+
+## Current Ticket
+
+ID: ID-228
+Goal: Add rebuilt identity file persistence with current password-hash storage and legacy plaintext login upgrade support.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/database`, focused identity tests under `backend/src/test/scala/slaydemo/backend`, `.codex/agent-state.md`.
+Forbidden scope: global `BackendRepositories` file-mode wiring, unrelated repositories, frontend code, account route shape, destructive data migration, git commit/push.
+Expected change:
+- Implement `FileIdentityAccountRepository` for the rebuilt `IdentityAccountRepository` contract.
+- Persist typed identity account values and the stored password secret in a legacy-compatible `password` field.
+- Authenticate current hashes and support legacy plaintext only when the stored secret is not a 64-character hex hash.
+- Replace a legacy plaintext secret with a hash through `replacePasswordHash`.
+Architecture/domain-modeling impact:
+- Keep identity domain types (`PlayerHandle`, `SessionToken`, `PasswordHash`, `PlainTextPassword`, `SkinId`) at repository boundaries.
+- No new domain states; inactive legacy rows are represented only as persistence metadata and filtered from active account methods.
+Side-effect boundary impact:
+- File I/O remains inside the repository.
+Verification:
+- focused identity contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- File repository create/authenticate/update session survives repository reconstruction.
+- Duplicate handles are rejected case-insensitively.
+- Legacy plaintext rows can log in once and are upgraded to hash storage.
+Risks:
+- This ticket does not enable global file mode and does not migrate existing files in place beyond ordinary repository writes.
+
+Result:
+- Added `FileIdentityAccountRepository` for rebuilt identity contracts.
+- Current registrations persist password hashes in the legacy-compatible `password` JSON field.
+- Hash authentication, case-insensitive duplicate detection, session updates, active account listing, and reload behavior are covered.
+- Legacy plaintext rows are accepted only when the stored secret is not a 64-character hex hash, and successful service login upgrades the stored secret to the current hash.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: only at JSON persistence parsing/rendering boundaries.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; session/hash changes replace immutable records inside the repository store.
+- Side effects inside domain: none; file I/O is repository-only.
+- Scope respected: yes.
+
+Next ticket:
+- Restore mail file persistence for save/list/mark-read behavior.
+
+## Current Ticket
+
+ID: ID-229
+Goal: Add rebuilt mail file persistence for owner-scoped list/save/mark-read behavior.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database`, focused mail tests under `backend/src/test/scala/slaydemo/backend`, `.codex/agent-state.md`.
+Forbidden scope: global file-mode wiring, social/governance service logic, battle finish projection logic, frontend code, git commit/push.
+Expected change:
+- Implement `FileMailRepository` for the rebuilt `MailRepository` contract.
+- Preserve owner-scoped list ordering and `(owner, id)` upsert behavior.
+- Persist unread state and optional source/governance/friend-request metadata.
+Architecture/domain-modeling impact:
+- Keep mail kinds and friend request statuses as ADTs at repository mapping boundaries.
+- No domain model changes expected.
+Side-effect boundary impact:
+- File I/O remains in the repository.
+Verification:
+- focused mail contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Saved mail survives repository reconstruction.
+- `markRead` is owner-scoped, returns the updated record, and persists unread=false.
+- Optional metadata round-trips when present.
+Risks:
+- This restores a repository only; global `SLAY_DEMO_STORAGE_MODE=file` remains disabled until all required repositories exist.
+
+Result:
+- Added `FileMailRepository` for rebuilt mail contracts.
+- `save` upserts by `(ownerHandle, mailId)`, `listByOwner` is owner scoped, and `markRead` persists the updated unread state.
+- File payload now round-trips optional battle/source, governance metadata, and friend-request metadata fields.
+- Added a temp-directory contract covering reload, owner scoping, metadata, upsert, and read-state persistence.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: only JSON persistence fields at repository boundary.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; immutable `MailRecord` copies are written through the repository.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Restore social friend-request file persistence with id generation and duplicate-pair behavior.
+
+## Current Ticket
+
+ID: ID-230
+Goal: Add rebuilt social friend-request file persistence with deterministic id generation and duplicate-pair protection.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database`, focused friend-request tests under `backend/src/test/scala/slaydemo/backend`, `.codex/agent-state.md`.
+Forbidden scope: global file-mode wiring, mail repository behavior, social route/service semantics, frontend code, git commit/push.
+Expected change:
+- Implement `FileFriendRequestRepository` for the rebuilt `FriendRequestRepository` contract.
+- Persist records by id and keep source/target duplicate checks in repository behavior.
+- Reconstruct `nextRequestId` from existing numeric ids to avoid restart collisions.
+Architecture/domain-modeling impact:
+- Keep request id, status, handles, and timestamps typed at repository boundaries.
+- No new domain state.
+Side-effect boundary impact:
+- File I/O remains in the repository.
+Verification:
+- focused friend request contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Existing records survive repository reconstruction.
+- `createIfAbsent` returns `AlreadyExists` for an existing source/target pair.
+- `nextRequestId` after reload does not reuse existing numeric ids.
+Risks:
+- Existing non-numeric legacy ids are preserved but do not advance the numeric counter.
+
+Result:
+- Added `FileFriendRequestRepository` for rebuilt social friend-request contracts.
+- Records persist by request id, while `createIfAbsent` checks existing source/target pairs before writing.
+- `nextRequestId` is reconstructed from persisted numeric `friend-...` ids after reload.
+- Added a temp-directory contract covering create, duplicate-pair idempotency, save/respond, reload, owner list, and id advancement.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: only file serialization parsing/rendering.
+- Boolean business results introduced: none; repository create result remains `FriendRequestStoreCreateResult`.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Restore battle result file persistence with typed result records and query filters.
+
+## Current Ticket
+
+ID: ID-231
+Goal: Add rebuilt battle-result file persistence with typed records and query filters.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/database`, focused battle-result tests under `backend/src/test/scala/slaydemo/backend`, `.codex/agent-state.md`.
+Forbidden scope: live battle runtime state, queue/room services, replay persistence, global file-mode wiring, frontend code, git commit/push.
+Expected change:
+- Implement `FileBattleResultRepository` for the rebuilt `BattleResultRepository` contract.
+- Persist full `BattleResultRecord` fields and upsert by `BattleResultId`.
+- Support handle and battle id filters plus limit semantics.
+Architecture/domain-modeling impact:
+- Preserve typed battle ids, handles, ratings, scores, and durations at repository boundaries.
+- No live runtime persistence is introduced.
+Side-effect boundary impact:
+- File I/O remains in the repository.
+Verification:
+- focused battle-result contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Saved results survive repository reconstruction.
+- Re-saving the same battle+handle replaces the existing result.
+- List filters and limit match the in-memory/Postgres contract.
+Risks:
+- This persists finished battle results only; active battles remain process-memory runtime state by design.
+
+Result:
+- Added `FileBattleResultRepository` for rebuilt battle result contracts.
+- Finished results persist with all current `BattleResultRecord` fields and upsert by `BattleResultId`.
+- Handle/battle filters, newest-first ordering, nullable placement, current loadout, and limit behavior are covered.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: only serialization fields at repository boundary.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; file I/O is repository-only.
+- Scope respected: yes.
+
+Next ticket:
+- Restore replay file persistence for replay catalog and comments.
+
+## Current Ticket
+
+ID: ID-232
+Goal: Add rebuilt replay file persistence for replay catalog records, settlements, and comments.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database`, focused replay tests under `backend/src/test/scala/slaydemo/backend`, `.codex/agent-state.md`.
+Forbidden scope: replay route/service API semantics, battle result projection logic, global file-mode wiring, frontend code, git commit/push.
+Expected change:
+- Implement `FileReplayRepository` for the rebuilt `ReplayRepository` contract.
+- Persist replay records, settlements, comments, and frames JSON safely.
+- Reconstruct comment ids from persisted numeric ids to avoid restart collisions.
+Architecture/domain-modeling impact:
+- Keep replay ids, comments, settlements, ratings, score, duration, and handles typed at repository boundaries.
+- No service/domain changes expected.
+Side-effect boundary impact:
+- File I/O remains in the repository.
+Verification:
+- focused replay contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Replay records with settlements and frames survive repository reconstruction.
+- Comments are listed in the existing latest-window chronological order.
+- `nextCommentId` after reload does not reuse persisted numeric ids.
+Risks:
+- This stores settlements as a top-level file section rather than nested inside replay records to keep parsing flat and explicit.
+
+Result:
+- Added `FileReplayRepository` for rebuilt replay contracts.
+- Replays, comments, and settlements persist in separate top-level arrays; `framesJson` is stored as base64 to avoid parsing nested frame JSON.
+- Comment id generation is reconstructed from persisted numeric ids.
+- Added a temp-directory contract covering frames JSON, ratings, settlements, list behavior, comment ordering, and id advancement after reload.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: only flat file serialization fields.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Restore forum file persistence for topics, replies, and vote mutations.
+
+## Current Ticket
+
+ID: ID-233
+Goal: Add rebuilt forum file persistence for topics, replies, topic votes, and reply votes.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database`, focused forum tests under `backend/src/test/scala/slaydemo/backend`, `.codex/agent-state.md`.
+Forbidden scope: forum route/service API semantics, Postgres forum behavior, global file-mode wiring, frontend code, git commit/push.
+Expected change:
+- Implement `FileForumRepository` for the rebuilt `ForumRepository` contract.
+- Persist topic aggregate state as flat topic/reply/vote sections.
+- Implement repository vote mutation methods without routing through whole-topic `saveTopic`.
+- Reconstruct numeric topic/reply id counters from persisted ids.
+Architecture/domain-modeling impact:
+- Preserve `ForumTopicRecord`, `ForumReplyRecord`, `ForumVotes`, and `ForumVoteChoice` domain values.
+- No new primitive business result types; mutation errors remain `ForumVoteMutationError`.
+Side-effect boundary impact:
+- File I/O remains in the repository.
+Verification:
+- focused forum contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Topics/replies/votes survive repository reconstruction.
+- Topic/reply vote mutations update only the affected vote and return explicit missing-topic/reply errors.
+- Next topic/reply ids do not reuse persisted numeric ids after reload.
+Risks:
+- Text fields are base64 encoded in the file payload to keep flat parsing robust.
+
+Result:
+- Added `FileForumRepository` for rebuilt forum contracts.
+- Topics, replies, topic votes, and reply votes persist as flat sections while reconstructing immutable `ForumTopicRecord` aggregates on load.
+- Vote mutation methods update the affected vote path directly and keep explicit `ForumVoteMutationError` results.
+- Numeric topic/reply id counters are reconstructed from persisted ids.
+- Added a temp-directory contract covering text with braces/quotes, replies, topic/reply votes, missing reply errors, and id advancement after reload.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: only base64 file serialization fields.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Restore governance file persistence for adjustments and review notifications.
+
+## Current Ticket
+
+ID: ID-234
+Goal: Add rebuilt governance file persistence for contribution adjustments and review notifications.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database`, focused governance tests under `backend/src/test/scala/slaydemo/backend`, `.codex/agent-state.md`.
+Forbidden scope: governance route/service API semantics, mail repository behavior, global file-mode wiring, frontend code, git commit/push.
+Expected change:
+- Implement `FileGovernanceRepository` for the rebuilt combined `GovernanceRepository` contract.
+- Persist adjustments and review notifications in legacy-compatible separate files.
+- Reconstruct numeric adjustment/review id counters from persisted records.
+Architecture/domain-modeling impact:
+- Preserve governance ADTs/value objects at repository boundaries.
+- No new domain state or Boolean business result.
+Side-effect boundary impact:
+- File I/O remains in the repository.
+Verification:
+- focused governance contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Adjustments and notifications survive repository reconstruction.
+- Notification filters by kind and target type remain explicit.
+- Next generated ids do not reuse persisted numeric ids after reload.
+Risks:
+- This restores repository behavior only; mail snapshot writes remain owned by governance service and mail repository.
+
+Result:
+- Added `FileGovernanceRepository` for the rebuilt combined governance repository contract.
+- Contribution adjustments and review notifications persist in legacy-compatible separate JSON files under the selected root.
+- Numeric adjustment/review/mail-review id counters are reconstructed from persisted rows.
+- Added a temp-directory contract covering adjustment persistence, review notification filters, text with braces/quotes, and id advancement after reload.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: only JSON persistence fields.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Wire `StorageConfig.File` to the rebuilt file repositories and remove the intentional startup rejection.
+
+## Current Ticket
+
+ID: ID-235
+Goal: Enable rebuilt file-mode repository wiring after all required file repositories exist.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/BackendRepositories.scala`, `backend/src/test/scala/slaydemo/backend/BackendRepositoryWiringContractTest.scala`, `backend/README.md`, `.codex/agent-state.md`.
+Forbidden scope: repository implementation behavior, service/route contracts, frontend code, destructive data migration, git commit/push.
+Expected change:
+- Add file repository factories to `BackendRepositoryFactories`.
+- Wire `StorageConfig.File(root)` to all rebuilt file repositories using legacy-compatible filenames under `SLAY_DEMO_DATA_DIR`.
+- Update repository wiring contract from file-mode rejection to file-mode construction.
+- Update backend README so file mode is no longer documented as unimplemented.
+Architecture/domain-modeling impact:
+- No domain model changes; this is application wiring.
+Side-effect boundary impact:
+- File I/O remains in file repositories; wiring only selects implementations.
+Verification:
+- focused repository wiring contract
+- `npm run backend:test-contracts`
+- scan for remaining `not implemented`
+- `git diff --check`
+Acceptance criteria:
+- `BackendRepositories.fromStorage(StorageConfig.File(root))` no longer throws.
+- File mode calls only file factories.
+- Memory and Postgres wiring behavior stays unchanged.
+Risks:
+- Live file-mode startup may create default `bot-profiles.json` if missing, matching the file bot repository seed behavior.
+
+Result:
+- Added file factories to `BackendRepositoryFactories`.
+- Wired `StorageConfig.File(root)` to all rebuilt file repositories using legacy-compatible filenames under `SLAY_DEMO_DATA_DIR`.
+- Updated repository wiring contract so file mode is a constructed mode, not a startup rejection.
+- Added a live file-mode construction smoke using default factories in a temp directory.
+- Updated `backend/README.md` to document file mode as implemented.
+- Re-scan found no remaining real `not implemented` backend path; the only `unsupported` hits are the storage-config negative test for unknown modes.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BackendRepositoryWiringContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `rg -n "TODO|not implemented|unsupported|UnsupportedOperationException|sys\\.error|\\?\\?\\?" backend\\src\\main\\scala backend\\src\\test\\scala -g "*.scala"`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; wiring maps typed `StorageConfig.File` to repository factories.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Run an API-level file-mode backend smoke with a temporary data directory and `/health.storageMode=file`.
+
+## Current Ticket
+
+ID: ID-236
+Goal: Verify the rebuilt backend can start in explicit file mode through the real HTTP app boundary.
+Allowed scope: command-only verification, `.codex/agent-state.md`.
+Forbidden scope: source edits unless the smoke exposes a defect, persistent data directories, git commit/push.
+Expected change:
+- No production source change expected.
+- Start backend on a temporary port with `SLAY_DEMO_STORAGE_MODE=file` and a temp `SLAY_DEMO_DATA_DIR`.
+- Confirm `/health` reports `storageMode=file`.
+- Confirm a file-backed route can respond after repository construction.
+Architecture/domain-modeling impact:
+- None expected.
+Side-effect boundary impact:
+- Smoke data must be temporary and deleted after the backend process stops.
+Verification:
+- file-mode HTTP smoke
+- cleanup of started process/listener
+Acceptance criteria:
+- Backend starts in file mode without throwing.
+- Health reports file mode.
+- Bot profiles route returns seeded profiles from file repository startup.
+Risks:
+- SBT startup is slower than contract tests and must not leave a background process running.
+
+Result:
+- Started the real backend HTTP app in explicit file mode on temporary port `18081`.
+- Used a temporary `SLAY_DEMO_DATA_DIR`.
+- `/health` returned `storageMode=file`.
+- `/bots/profiles` returned 5 seeded bot profiles, proving file repositories constructed through the live app boundary.
+- Confirmed no listener remained on port `18081`; the temporary data directory was removed.
+
+Verification passed:
+- file-mode backend HTTP smoke with `SLAY_DEMO_STORAGE_MODE=file`
+- `Get-NetTCPConnection -LocalPort 18081 -State Listen` returned no listener after cleanup
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; command-only verification plus worklog.
+
+Next ticket:
+- Run a final backend/frontend build verification sweep and inspect remaining oversized backend modules for the next safe refactor ticket.
+
+## Current Ticket
+
+ID: ID-237
+Goal: Verify the current full-stack build surface and identify the next safe backend architecture refactor.
+Allowed scope: command-only verification, `.codex/agent-state.md`; source edits only if verification exposes an immediate defect.
+Forbidden scope: broad BattleState refactor without a smaller ticket, git commit/push.
+Expected change:
+- Run current build checks.
+- Inspect largest backend modules and explicit side-effect hotspots.
+- Choose the next scoped refactor ticket.
+Architecture/domain-modeling impact:
+- None expected in this ticket.
+Side-effect boundary impact:
+- None expected in this ticket.
+Verification:
+- `npm run build`
+- current backend contract status already known
+- line-count and side-effect hotspot scan
+Acceptance criteria:
+- Build result is known and reported.
+- Next refactor target is selected based on evidence.
+Risks:
+- If build fails due unrelated frontend issue, report and decide whether it is in scope.
+
+Result:
+- `npm run build` passed.
+- Largest backend module scan selected `BattleStateService.scala` as the next safe architecture target.
+- Side-effect hotspot scan found the largest remaining concentration in battle runtime service code; no new immediate build break found.
+- Read-only battle service seam audit recommended first extracting only initial spawn/pickup layout helpers.
+
+Verification passed:
+- `npm run build`
+- backend line-count scan
+- backend side-effect hotspot scan
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; command-only verification and worklog.
+
+Next ticket:
+- Extract pure initial battle layout helpers from `BattleStateService.scala` without changing runtime behavior.
+
+## Current Ticket
+
+ID: ID-238
+Goal: Extract initial battle spawn/pickup layout helpers from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleInitialLayout.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle tick progression, projectile damage, weapon reload/fire behavior, bot AI decisions, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `spawnPointFor` and `initialPickups` into a package-private pure helper object.
+- Update call sites to use the helper.
+- Preserve generated values and ordering exactly.
+Architecture/domain-modeling impact:
+- Reduces god-service pressure by moving pure immutable initial layout data out of the runtime service.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; moved helpers remain pure and side-effect-free.
+Verification:
+- focused backend compile
+- focused battle state runtime contract
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contracts pass.
+- Initial spawn positions and pickup definitions are unchanged.
+Risks:
+- A typo in copied constants could shift spawn/pickup placement; verify by keeping the move mechanical and running battle contracts.
+
+Result:
+- Added `BattleInitialLayout` as a package-private pure helper.
+- Moved `spawnPointFor` and `initialPickups` out of `InMemoryBattleStateService`.
+- Updated `BattleStateService.scala` to import and call the helper without changing call sites or runtime flow.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; existing layout flags were moved unchanged.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure stepped movement/collision scanning from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-239
+Goal: Extract pure stepped player movement/collision scanning from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleMotionRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile motion/damage, weapon fire/reload behavior, bot decision rules, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `SteppedMotionResult`, stepped scan internals, `normalizeMovement`, `findMotionDestination`, and `resolveSteppedMotion` into a package-private pure helper object.
+- Keep movement constants, collision geometry, and slide-along-axis behavior unchanged.
+Architecture/domain-modeling impact:
+- Isolates pure movement rules from stateful battle runtime orchestration.
+- No API or domain model change.
+Side-effect boundary impact:
+- None; movement helper remains pure and uses no repository/clock/random/global mutation.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contracts pass.
+- Movement collision and sliding behavior remain unchanged.
+Risks:
+- Movement is used by skills, recoil, bot navigation, and player input; keep the move mechanical and verify with battle runtime contracts.
+
+Result:
+- Added `BattleMotionRules` as a package-private pure movement helper.
+- Moved `SteppedMotionResult`, stepped scan internals, `normalizeMovement`, `findMotionDestination`, and `resolveSteppedMotion` out of `InMemoryBattleStateService`.
+- Kept collision, sliding, and movement distance logic unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; existing movement result flags moved unchanged.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure battle command input normalization from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-240
+Goal: Extract pure battle command input normalization from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleInputRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: skill state transitions, weapon firing/reload rules, projectile motion/damage, bot decision rules, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `applyCommandToPlayer`, `normalizeAim`, `maxClientCommandSeq`, and `lastClientCommandSeq` into a package-private pure helper object.
+- Preserve skill-key primary-fire suppression and weapon-switch application exactly.
+Architecture/domain-modeling impact:
+- Isolates API command-to-player-state translation from stateful runtime orchestration.
+- No domain model or route contract change.
+Side-effect boundary impact:
+- None; command normalization remains pure and side-effect-free.
+Verification:
+- focused battle command route contract
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Existing battle command and runtime contracts pass.
+- Skill commands still suppress primary fire in the normalized player input.
+Risks:
+- This helper depends on weapon switch rules; import the existing weapon rule boundary rather than duplicating weapon switch logic.
+
+Result:
+- Added `BattleInputRules` as a package-private pure input helper.
+- Moved command-to-player normalization, aim normalization, last command sequence lookup, and primary-fire suppression for skill commands out of `InMemoryBattleStateService`.
+- Kept weapon switch handling delegated to the existing weapon rules boundary.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest" "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; input flags were moved unchanged from the request DTO interpretation.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure projectile motion/blocking path calculation from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-241
+Goal: Extract pure projectile motion and blocker calculation from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileMotionRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile damage, kill/score/event ordering, rocket splash behavior, weapon firing/reload behavior, bot decision rules, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `ProjectileMotionResult`, projectile blocker internals, `resolveProjectileMotion`, and `firstProjectileBlock` into a package-private pure helper object.
+- Preserve projectile speed factor, wall/out-of-bounds blocker priority, and segment end semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure projectile path math from stateful projectile impact orchestration.
+- No API or domain model change.
+Side-effect boundary impact:
+- None; projectile path calculation remains pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contracts pass.
+- Projectile damage/terminal handling remains owned by `BattleStateService.scala` for now.
+Risks:
+- This path affects all weapon projectile travel; keep damage and terminal event order out of scope.
+
+Result:
+- Added `BattleProjectileMotionRules` as a package-private pure projectile path helper.
+- Moved projectile motion result, blocker internals, and blocker priority logic out of `InMemoryBattleStateService`.
+- Kept projectile damage, terminal append, kill/score, and rocket splash ordering in the state service.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; projectile terminal reason remains the existing ADT.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure bot control decision rules from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-242
+Goal: Extract pure bot control decision rules from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleBotRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot profile generation, queue seating, player movement execution, weapon damage/reload implementation, projectile handling, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `applyBotControl`, `shouldBotReload`, `canBotFireAtTarget`, and `botFireRangeForTarget` into a package-private pure helper object.
+- Preserve target preference, patrol behavior, human-opening-fire delay, and reload decision exactly.
+Architecture/domain-modeling impact:
+- Isolates pure bot input decision logic from stateful runtime tick orchestration.
+- No API or domain model change.
+Side-effect boundary impact:
+- None; bot decision rules remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contracts pass.
+- Bot control behavior remains unchanged.
+Risks:
+- Bot control depends on weapon rules and initial layout helpers; import existing rule boundaries instead of duplicating constants or logic.
+
+Result:
+- Added `BattleBotRules` as a package-private pure bot decision helper.
+- Moved bot target selection, patrol movement, human-opening-fire delay, range decision, and reload decision out of `InMemoryBattleStateService`.
+- Kept player movement execution and tick progression in the state service.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; private bot predicates were moved unchanged and do not hide API/business outcomes.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess the remaining battle state service seams before touching projectile damage or finish projection.
+
+## Current Ticket
+
+ID: ID-243
+Goal: Reassess remaining `BattleStateService.scala` responsibilities after the safe pure-helper extractions.
+Allowed scope: command-only inspection, subagent read-only inspection, `.codex/agent-state.md`.
+Forbidden scope: source edits until the next small ticket is selected, git commit/push.
+Expected change:
+- Measure updated file sizes and remaining method clusters.
+- Identify the next safe ticket without crossing into projectile damage/finish projection unless explicitly justified.
+Architecture/domain-modeling impact:
+- None in this read-only ticket.
+Side-effect boundary impact:
+- None in this read-only ticket.
+Verification:
+- method/line-count scan
+- read-only seam audit
+Acceptance criteria:
+- Updated `BattleStateService.scala` size and remaining clusters are known.
+- Next ticket has a narrow allowed scope and risk profile.
+Risks:
+- Remaining high-risk clusters may require better tests before extraction rather than immediate movement.
+
+Result:
+- `BattleStateService.scala` is now 1,376 lines after the safe helper extractions.
+- Remaining clusters are session bootstrap/authorization, skill application, weapon firing/reload/projectile creation, pickup collection/respawn, runtime stepping, player timers/movement/stamina, projectile hit/damage/terminal creation, finish projection, and in-memory synchronization.
+- Read-only seam audit recommended extracting only bounded retention helpers next.
+- Projectile damage/kill ordering and finish projection remain high-risk and should not be touched without narrower tests.
+
+Verification passed:
+- backend services line-count scan
+- `BattleStateService.scala` method cluster scan
+- read-only subagent seam audit
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; read-only inspection and worklog.
+
+Next ticket:
+- Extract bounded runtime history retention helpers.
+
+## Current Ticket
+
+ID: ID-244
+Goal: Extract pure runtime history retention helpers from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleRetentionRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile damage/kill ordering, terminal event construction, pickup behavior, player state transitions, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `retainRecentProjectileTerminals` and `retainRecentEvents` into a package-private pure helper object.
+- Preserve `takeRight(InMemoryBattleStateCatalog.*Count)` semantics exactly.
+Architecture/domain-modeling impact:
+- Separates generic bounded history retention policy from stateful runtime orchestration.
+- No API or domain model change.
+Side-effect boundary impact:
+- None; retention helpers remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle runtime contracts covering bounded terminal/event history pass.
+- No projectile damage or event construction logic changes.
+Risks:
+- Low; a wrong retained count would be caught by runtime history contracts.
+
+Result:
+- Added `BattleRetentionRules` as a package-private pure helper.
+- Moved projectile terminal and battle event bounded history retention out of `InMemoryBattleStateService`.
+- Preserved `takeRight(InMemoryBattleStateCatalog.*Count)` semantics exactly.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add a focused rocket splash damage contract before any future projectile damage extraction.
+
+## Current Ticket
+
+ID: ID-245
+Goal: Add focused runtime coverage for rocket splash damage reporting before future projectile damage refactors.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: production battle logic, projectile damage implementation, weapon constants, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Add a battle runtime contract proving a direct rocket hit damages nearby splash targets.
+- Assert the terminal target/hp/damage report remains tied to the direct hit target.
+Architecture/domain-modeling impact:
+- Test-only risk hardening; no domain model or API change.
+Side-effect boundary impact:
+- None; test uses in-memory battle service and deterministic clock.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- New contract fails if rocket splash stops damaging nearby targets.
+- New contract fails if direct-hit terminal reporting switches to a splash target.
+Risks:
+- Setup must avoid accidental battle finish and avoid relying on bot AI movement; use non-bot stationary targets.
+
+Result:
+- Added a deterministic three-player rocket splash runtime contract.
+- The test proves a direct rocket hit damages a nearby splash target.
+- The test also proves the terminal target/hp/damage report remains tied to the direct-hit player.
+- No production code changed.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test uses existing battle value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; test-only plus worklog.
+
+Next ticket:
+- Extract pure runtime time/decrement helpers from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-246
+Goal: Extract pure runtime time and decrement helpers from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleTimeRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: runtime tick orchestration, stamina/reload/cooldown behavior changes, projectile damage, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `elapsedAt`, `elapsedRateDeltaDouble`, `elapsedRateDelta`, `decrementInt`, and `decrementLong` into a package-private pure helper object.
+- Preserve all clamping and rounding semantics exactly.
+Architecture/domain-modeling impact:
+- Separates generic runtime time math from stateful battle orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; helpers remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering stamina, cooldowns, reload, pickup respawn, slow fields, projectiles, and finish timing pass.
+Risks:
+- These helpers are widely used; keep the move mechanical and avoid changing numeric behavior.
+
+Result:
+- Added `BattleTimeRules` as a package-private pure helper.
+- Moved runtime elapsed, rate-delta, and decrement helper functions out of `InMemoryBattleStateService`.
+- Preserved existing clamp and rounding behavior exactly.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; helper inputs remain runtime numeric values at the services layer.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure player lifecycle cleanup and winner selection helpers.
+
+## Current Ticket
+
+ID: ID-247
+Goal: Extract pure player lifecycle cleanup and winner selection helpers from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattlePlayerLifecycleRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: finish projection side effects, room lifecycle sink behavior, death/damage application order, respawn behavior changes, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `clearFinishedPlayerRuntime`, `clearDeadPlayerRuntime`, and `winnerFor` into a package-private pure helper object.
+- Preserve runtime cleanup fields and winner selection semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure player lifecycle cleanup from stateful battle orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; helpers remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering death cleanup, no respawn, finish cleanup, and winner selection pass.
+Risks:
+- These helpers are called from both death and finish paths; keep field updates mechanical.
+
+Result:
+- Added `BattlePlayerLifecycleRules` as a package-private pure helper.
+- Moved finished/dead player runtime cleanup and winner selection out of `InMemoryBattleStateService`.
+- Kept finish projection and room lifecycle side effects in the state service.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; existing alive/hp winner predicate moved unchanged.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure pickup collection and respawn rules from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-248
+Goal: Extract pure pickup collection and respawn rules from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattlePickupRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: pickup constants, weapon inventory semantics, battle event factory behavior, projectile damage, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `collectPickups` and `advancePickups` into a package-private pure helper object.
+- Preserve contact radius, nearest-player choice, medkit clamp, weapon equip/refill, event creation, and respawn timing exactly.
+Architecture/domain-modeling impact:
+- Separates pickup state transitions from stateful runtime tick orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; pickup rules remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering weapon pickup, medkit heal, pickup events, and respawn timing pass.
+Risks:
+- Pickup rules touch player, pickup, and event slices at once; move mechanically and keep event factory calls unchanged.
+
+Result:
+- Added `BattlePickupRules` as a package-private pure helper.
+- Moved pickup collection and pickup respawn advancement out of `InMemoryBattleStateService`.
+- Preserved contact radius, nearest-player choice, medkit clamping, weapon equip/refill, event creation, and respawn timing.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; immutable state copy/update remains explicit.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure projectile player-hit targeting before any projectile damage extraction.
+
+## Current Ticket
+
+ID: ID-249
+Goal: Extract pure projectile player-hit targeting from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileTargetingRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile damage/kill ordering, rocket splash application, terminal construction fields, weapon firing/reload behavior, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `ProjectilePlayerHit` and `findProjectilePlayerHit` into a package-private pure helper object.
+- Preserve hit radius, owner exclusion, alive filtering, first-distance target choice, and contact point calculation exactly.
+Architecture/domain-modeling impact:
+- Separates pure projectile targeting from stateful projectile impact orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; targeting remains pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering pistol/Gatling hits and rocket splash terminal target reporting pass.
+Risks:
+- This affects all projectile hit detection; keep damage and terminal construction out of scope.
+
+Result:
+- Added `BattleProjectileTargetingRules` as a package-private pure helper.
+- Moved projectile player-hit result and targeting calculation out of `InMemoryBattleStateService`.
+- Preserved hit radius, owner exclusion, alive filtering, contact point calculation, and nearest-hit selection.
+- Initial compile exposed a missing collision import in the new helper; fixed it and reran checks.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure projectile terminal construction and retention append rules.
+
+## Current Ticket
+
+ID: ID-250
+Goal: Extract pure projectile terminal construction and append rules from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileTerminalRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile damage/kill ordering, rocket splash target selection, weapon firing/reload behavior, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `ProjectileDamageReport`, `terminalForProjectile`, and `appendProjectileTerminal` into a package-private pure helper object.
+- Preserve terminal owner fallback, hp before/after, damage, ttl, start/end, and retained terminal semantics exactly.
+Architecture/domain-modeling impact:
+- Separates projectile terminal view construction from stateful projectile impact orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; terminal construction remains pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering pistol/Gatling terminal fields, rocket splash terminal reporting, and terminal retention pass.
+Risks:
+- Terminal fields are frontend-visible; keep this as a mechanical move only.
+
+Result:
+- Added `BattleProjectileTerminalRules` as a package-private pure helper.
+- Moved projectile damage report value, terminal construction, and retained terminal append out of `InMemoryBattleStateService`.
+- Kept projectile damage, kill credit, rocket splash, and impact ordering in the state service.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure player runtime timer/movement/stamina advancement rules.
+
+## Current Ticket
+
+ID: ID-251
+Goal: Extract pure player runtime timer, movement, heat, reload, and stamina advancement rules from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattlePlayerRuntimeRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot decision rules, projectile damage, weapon firing/projectile creation, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `advancePlayerTimers`, `advanceWeaponHeat`, `movePlayer`, and `advanceStamina` into a package-private pure helper object.
+- Preserve cooldown, reload, heat, movement, slow-field, and stamina semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure per-player runtime progression from stateful battle tick orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; player runtime rules remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering movement, sprint stamina, reload, heat cooldown, slow field expiry, and death/finish cleanup pass.
+Risks:
+- This helper is used every runtime tick; keep the move mechanical and preserve elapsed-time arguments.
+
+Result:
+- Added `BattlePlayerRuntimeRules` as a package-private pure helper.
+- Moved per-player timer, weapon heat/reload, movement, slow-field movement, and stamina advancement out of `InMemoryBattleStateService`.
+- Preserved elapsed-time arguments and all numeric semantics.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; immutable player copy/update remains explicit.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract shared pure aggregate player replacement helper before larger skill/weapon extractions.
+
+## Current Ticket
+
+ID: ID-252
+Goal: Extract the shared pure player replacement helper from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleAggregateUpdateRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: skill behavior, weapon firing/reload behavior, projectile damage, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `replacePlayer` into a package-private pure helper object.
+- Keep all call sites using the same immutable state copy semantics.
+Architecture/domain-modeling impact:
+- Provides a shared pure aggregate update helper for subsequent scoped extractions.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; helper remains pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Existing runtime contracts pass.
+Risks:
+- Low; this is a mechanical helper move used by multiple paths.
+
+Result:
+- Added `BattleAggregateUpdateRules` as a package-private pure helper.
+- Moved shared `replacePlayer` out of `InMemoryBattleStateService`.
+- Kept immutable aggregate copy semantics unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure skill command application rules.
+
+## Current Ticket
+
+ID: ID-253
+Goal: Extract pure Blink/Dash/Freeze skill command application rules from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleSkillCommandRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: skill constants, weapon firing/reload behavior, projectile damage, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `CommandApplication`, `applyBlinkCommand`, `applyDashCommand`, `applyFreezeCommand`, `skillOutcome`, `updateSkill`, `isBlinkTargetAllowed`, and `blinkDestination` into a package-private pure helper object.
+- Preserve skill availability, target validation, cooldown/active updates, slow-field creation, and outcomes exactly.
+Architecture/domain-modeling impact:
+- Separates pure skill command transitions from stateful battle orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; skill command rules remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- focused battle skill rules contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering dash/blink/freeze outcomes and skill-fire suppression pass.
+Risks:
+- Skill outcomes are API-visible; keep this as a mechanical move only.
+
+Result:
+- Added `BattleSkillCommandRules` as a package-private pure helper.
+- Moved Blink/Dash/Freeze command application, skill outcome construction, skill cooldown/active updates, and blink target helpers out of `InMemoryBattleStateService`.
+- Kept command orchestration in the state service.
+- A first focused command used the wrong test main name for skill rules and failed with `ClassNotFoundException`; the correct `slaydemo.backend.battle.services.BattleSkillRulesContractTest` passed.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleSkillRulesContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; skill outcomes remain explicit ADTs.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure projectile factory/spread/birth helpers from weapon fire flow.
+
+## Current Ticket
+
+ID: ID-254
+Goal: Extract pure projectile factory, spread, and birth-position helpers from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileFactoryRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: weapon ammo/reload/heat state transitions, recoil behavior, projectile motion/damage, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `weaponProjectiles`, `projectileId`, `spreadDirection`, `rotate`, `resolvePistolShot`, `pistolProjectile`, and `projectileBirthPosition` into a package-private pure helper object.
+- Preserve projectile ids, spread distribution, birth clearance, speed/damage/radius/TTL/splash fields exactly.
+Architecture/domain-modeling impact:
+- Separates pure projectile construction from weapon firing state transitions.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; projectile factory remains pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering pistol/Gatling/rocket/shotgun projectile ids, travel alignment, and weapon behavior pass.
+Risks:
+- Projectile fields are frontend-visible and affect feel; keep this as a mechanical move only.
+
+Result:
+- Added `BattleProjectileFactoryRules` as a package-private pure helper.
+- Moved projectile factory, spread, birth-position, and pistol projectile construction out of `InMemoryBattleStateService`.
+- Kept weapon ammo/reload/heat/recoil state transitions in the state service for this ticket.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure weapon fire state transitions.
+
+## Current Ticket
+
+ID: ID-255
+Goal: Extract pure weapon fire, recoil, held-fire sequence, and requested reload rules from the oversized battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponFireRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile motion/damage, projectile factory fields, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `applyPrimaryFire`, `applyWeaponRecoil`, `resolveRequestedReloads`, `runtimeFireCommandSeq`, and `chargeGatlingWeapon` into a package-private pure helper object.
+- Preserve ammo, reload, heat, recoil, held-fire command sequence, and projectile append behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure weapon fire transitions from stateful battle orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; weapon fire rules remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering pistol reload, Gatling heat, rocket/shotgun fire, held fire, and skill-fire suppression pass.
+Risks:
+- Weapon behavior is player-visible and previously bug-prone; keep this as a mechanical move only.
+
+Result:
+- Added `BattleWeaponFireRules` as a package-private pure helper.
+- Moved primary fire handling, recoil, requested reload handling, runtime fire sequence generation, and Gatling charging out of `InMemoryBattleStateService`.
+- Kept projectile motion/damage and finish projection in the state service.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; immutable state updates remain explicit.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure projectile impact, splash damage, kill credit, and damage report rules.
+
+## Current Ticket
+
+ID: ID-256
+Goal: Extract pure projectile impact, splash damage, kill credit, and damage report rules from the battle state service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileImpactRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile motion/targeting, terminal field construction, weapon firing/reload, finish projection, routes, repositories, frontend, database/data cleanup, git commit/push.
+Expected change:
+- Move `applyProjectileImpact`, `applyRocketProjectileImpact`, and `damageProjectileTarget` into a package-private pure helper object.
+- Preserve direct-hit vs splash ordering, owner exclusion, kill credit, kill event emission, dead-player cleanup, and damage reports exactly.
+Architecture/domain-modeling impact:
+- Separates pure projectile impact state transitions from runtime orchestration.
+- No domain model or API change.
+Side-effect boundary impact:
+- None; impact rules remain pure and side-effect-free.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Runtime contracts covering direct hit, rocket splash, terminal reports, kill credit, no respawn, and event retention pass.
+Risks:
+- This is the most sensitive combat split so far; rely on recently added rocket splash contract plus existing hit/kill contracts and keep the move mechanical.
+
+Result:
+- Added `BattleProjectileImpactRules` as a package-private pure helper.
+- Moved projectile impact dispatch, rocket splash application, damage application, kill credit, kill event emission, dead-player cleanup, and damage report creation out of `InMemoryBattleStateService`.
+- Kept projectile motion/targeting, terminal construction, weapon fire, and finish projection in their existing boundaries.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; immutable state transitions remain explicit.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Run a verification/risk sweep after the battle service decomposition.
+
+## Current Ticket
+
+ID: ID-257
+Goal: Verify the backend/frontend build surface and scan remaining backend risks after battle service decomposition.
+Allowed scope: command-only verification, `.codex/agent-state.md`; source edits only if verification exposes an immediate defect.
+Forbidden scope: broad refactors, git commit/push, destructive data cleanup.
+Expected change:
+- Run current full build/check commands.
+- Scan for TODO/not implemented/unsafe placeholders.
+- Measure largest backend files after the decomposition.
+- Confirm git status for user-visible pending changes.
+Architecture/domain-modeling impact:
+- None expected; verification-only ticket.
+Side-effect boundary impact:
+- None expected.
+Verification:
+- `npm run build`
+- `npm run backend:test-contracts`
+- placeholder scan
+- line-count scan
+- `git diff --check`
+Acceptance criteria:
+- Build/check status is known.
+- Remaining major risks are identified.
+Risks:
+- If full build exposes a frontend warning only, record it without broad frontend changes unless it is a defect.
+
+Result:
+- `BattleStateService.scala` is now 603 lines after decomposition.
+- Full frontend build passed with existing Vite warnings.
+- Backend contract runner passed.
+- Placeholder scan found no production `TODO`/`not implemented`/`???`; only the storage config unknown-mode negative test mentions `unsupported`.
+- Largest remaining production backend files are now routes/projection/repositories, led by `BattleRoutes.scala` at 876 lines and `BattleFinishProjectionService.scala` at 700 lines.
+- Git status remains intentionally uncommitted because the user asked to pause git operations.
+
+Verification passed:
+- `npm run build`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+- placeholder scan
+- line-count scan
+- `git status --short`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; verification-only plus worklog.
+
+Next ticket:
+- Read-only seam audit for the largest remaining route module, `BattleRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-258
+Goal: Inspect `BattleRoutes.scala` and identify a safe small route-layer decomposition ticket.
+Allowed scope: command-only inspection, subagent read-only inspection, `.codex/agent-state.md`.
+Forbidden scope: route source edits until a small ticket is selected, API behavior changes, frontend changes, git commit/push.
+Expected change:
+- Understand current route responsibilities and route contract coverage.
+- Select one safe route-layer extraction or decide to defer if risk is high.
+Architecture/domain-modeling impact:
+- None in this read-only ticket.
+Side-effect boundary impact:
+- None in this read-only ticket.
+Verification:
+- route method/line-count scan
+- route contract/test scan
+Acceptance criteria:
+- Next route ticket has a narrow scope and verification plan.
+Risks:
+- Route modules are API-facing; avoid changing JSON shape or auth/session behavior without focused tests.
+
+Result:
+- `BattleRoutes.scala` is 876 lines and owns public handlers, method/CORS wrappers, queue parsing/rendering, command parsing, room snapshot/heartbeat handling, state/SSE streaming, query/path helpers, ad hoc JSON parsing, and error rendering.
+- Focused coverage exists for battle command route parsing via `BattleCommandRouteContractTest`.
+- Read-only route seam audit recommended first extracting only battle command request parsing.
+
+Verification passed:
+- route method/line-count scan
+- route contract/test scan
+- read-only subagent seam audit
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; read-only inspection and worklog.
+
+Next ticket:
+- Extract battle command request parsing into `BattleCommandRequestParser`.
+
+## Current Ticket
+
+ID: ID-259
+Goal: Extract battle command request parsing from the large battle routes module.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleCommandRequestParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: route response JSON rendering, queue join/leave parsing, room/state/SSE behavior, services, repositories, frontend, git commit/push.
+Expected change:
+- Move `parseCommandRequest`, `BattleCommandRequestParseError`, and command-only reader helpers into a package-private parser object.
+- Update `commands` route to call the parser.
+- Preserve strict command-field parsing behavior exactly.
+Architecture/domain-modeling impact:
+- Separates API request parsing from HTTP route orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parsing remains pure and route HTTP side effects remain in `BattleRoutes`.
+Verification:
+- focused battle command route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle command route contract passes, including string/number/boolean strictness.
+- No queue, room, state, or response rendering behavior changes.
+Risks:
+- `BattleJsonValue` visibility must remain usable by the new parser in the same package.
+
+Result:
+- Added `BattleCommandRequestParser` as a package-private parser object.
+- Moved command request parsing and command-only strict JSON readers out of `BattleRoutes`.
+- Updated `/battle/commands` to call the parser.
+- Widened `BattleJsonValue` and `BattleCommandRequestParseError` to `private[routes]` so the parser can use them inside the same routes package.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parsing maps into existing value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused join-route coverage before extracting queue join parsing.
+
+## Current Ticket
+
+ID: ID-260
+Goal: Add focused route coverage for `/battle/queue/join` before extracting join parsing.
+Allowed scope: new route contract test under `backend/src/test/scala/slaydemo/backend/battle/routes`, backend contract runner if needed, `.codex/agent-state.md`.
+Forbidden scope: production route behavior, services, repositories, frontend, git commit/push.
+Expected change:
+- Add a contract test covering valid join, invalid handle, missing session, invalid session, and handle mismatch responses.
+- Register the new route contract in the backend contract runner if required.
+Architecture/domain-modeling impact:
+- Test-only; no domain model change.
+Side-effect boundary impact:
+- Test-only HTTP server boundary.
+Verification:
+- focused join route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- New test passes against current behavior.
+- Future parser extraction has focused coverage for auth/error mapping.
+Risks:
+- Test fixtures must avoid relying on real queue implementation or identity repository.
+
+Result:
+- Added `BattleJoinRouteContractTest` covering valid join, visitor-like invalid handle, missing session, invalid session, and handle mismatch.
+- Registered the join route contract in `BackendContractTestRunner`.
+- First focused run exposed a bad test assumption: `visitor-demo` is playable under current exact-key visitor policy. Updated the test to use `visitor`, which is actually rejected by `HandlePolicy`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test uses existing value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none beyond test HTTP server.
+- Scope respected: yes; test-only plus runner.
+
+Next ticket:
+- Extract queue join request parsing from `BattleRoutes`.
+
+## Current Ticket
+
+ID: ID-261
+Goal: Extract queue join request parsing from `BattleRoutes`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleJoinCommandParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: join response rendering, join authorization behavior, queue service behavior, room/state/SSE routes, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move `parseJoinCommand` and the JSON reader helpers it needs into a package-private parser object.
+- Update `join` route to call the parser.
+- Preserve handle/session/rating/avatar/skin/queueRequestId parsing and error mapping exactly.
+Architecture/domain-modeling impact:
+- Separates join request parsing from HTTP route orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parsing remains pure and route HTTP side effects remain in `BattleRoutes`.
+Verification:
+- focused join route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Join route contract passes.
+- No response JSON or auth behavior changes.
+Risks:
+- Shared wide JSON readers are also used by leave/room parsing; duplicate only the parser-local behavior needed for join to avoid broad route changes.
+
+Result:
+- Added `BattleJoinCommandParser` as a package-private parser object.
+- Moved queue join request parsing and join-only JSON readers out of `BattleRoutes`.
+- Updated `/battle/queue/join` to call the parser.
+- Widened `BattleQueueJoinCommandParseError` to `private[routes]` for package-local parser use.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parsing maps into existing battle queue command fields.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Run a global backend risk scan and choose the next highest-priority small ticket.
+
+## Current Ticket
+
+ID: ID-262
+Goal: Scan the rebuilt backend for remaining high-priority risks before the next edit.
+Allowed scope: command-only inspection, `.codex/agent-state.md`.
+Forbidden scope: source edits, tests edits, frontend edits, git commit/push.
+Expected change:
+- Re-measure large backend files after recent decomposition.
+- Scan for placeholders, unsupported branches, and suspicious unimplemented code.
+- Select one narrow follow-up ticket based on evidence.
+Architecture/domain-modeling impact:
+- None in this read-only ticket.
+Side-effect boundary impact:
+- None in this read-only ticket.
+Verification:
+- backend Scala file line-count scan
+- placeholder/unsupported scan
+- status review
+Acceptance criteria:
+- Next ticket has a narrow scope and verification plan.
+Risks:
+- Large files may still be legitimate orchestration modules; do not refactor solely by line count.
+
+Result:
+- Backend Scala file scan found no new placeholder or unimplemented production branches.
+- Placeholder scan only matched the expected storage config negative test for unsupported modes.
+- Largest production backend files after current work: `BattleRoutes.scala` 772 lines, `BattleFinishProjectionService.scala` 700 lines, `ReplayRoutes.scala` 606 lines, and `BattleStateService.scala` 603 lines.
+- Current battle queue freshness and non-reused battle id risks already have service code and contract coverage in `BattleQueueRuntimeContractTest`.
+- Launched read-only sidecar audits for route and finish projection decomposition; they are advisory and not blocking this ticket.
+
+Verification passed:
+- backend Scala line-count scan
+- placeholder/unsupported scan
+- status review
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; source was read-only.
+
+Next ticket:
+- Extract battle JSON object parsing out of `BattleRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-263
+Goal: Extract battle route JSON object parsing from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleJsonObjectParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: route response rendering, command/join parsing behavior, queue/state/SSE behavior, services, repositories, frontend, git commit/push.
+Expected change:
+- Move `BattleJsonValue`, `BattleJsonParseError`, and `BattleJsonObjectParser` into a dedicated package-private route parser file.
+- Keep `BattleRoutes.readJsonObject` behavior and error mapping unchanged.
+Architecture/domain-modeling impact:
+- Separates pure JSON parsing from HTTP route orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parsing remains pure and route HTTP effects remain in `BattleRoutes`.
+Verification:
+- focused battle command route contract
+- focused battle join route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Command and join route contracts still pass.
+- No route response JSON, auth, queue, state, or SSE behavior changes.
+Risks:
+- The parser result type visibility must remain usable by `BattleRoutes` while keeping internals package-local.
+
+Result:
+- Added `BattleJsonObjectParser.scala`.
+- Moved `BattleJsonValue`, `BattleJsonParseError`, and `BattleJsonObjectParser` out of `BattleRoutes.scala`.
+- Kept battle JSON parsing package-private to the battle routes package.
+- `BattleRoutes.scala` dropped from 772 lines to 588 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; this was a mechanical route parser extraction.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure battle finish projection planning from write orchestration.
+
+## Current Ticket
+
+ID: ID-264
+Goal: Extract pure battle finish projection planning from `BattleFinishProjectionService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`, `.codex/agent-state.md`.
+Forbidden scope: repository write behavior, mail write behavior, artifact status behavior, route behavior, database schema/repositories, frontend, git commit/push.
+Expected change:
+- Move `BattleSettlement`, `BattleFinishProjectionPlan`, `BattlePreviousRatings`, `BattleFinishProjectionPlanner`, and private replay-frame JSON rendering helpers into a dedicated planner file.
+- Leave `DefaultBattleFinishProjector`, outcome ADTs, repository calls, mail calls, reporter calls, and artifact retry/skip orchestration in the service file.
+- Preserve behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure projection planning from effectful repository/mail write orchestration.
+- Keeps domain-like settlement/replay plan generation passive and testable.
+Side-effect boundary impact:
+- Strengthens boundaries: planner stays pure; service remains the side-effect coordinator.
+Verification:
+- focused finish projection plan contract
+- focused finish projection write contract
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Finish projection plan/write contracts pass.
+- Broad backend contracts pass.
+- No route, repository, persistence, or frontend behavior changes.
+Risks:
+- The planner contains hand-rendered replay JSON and Chinese labels; preserve encoding and avoid logic changes.
+
+Result:
+- Added `BattleFinishProjectionPlanner.scala`.
+- Moved `BattleSettlement`, `BattleFinishProjectionPlan`, `BattlePreviousRatings`, `BattleFinishProjectionPlanner`, and replay-frame JSON helpers out of `BattleFinishProjectionService.scala`.
+- Kept `DefaultBattleFinishProjector`, artifact write outcomes, repository writes, mail writes, failure reporting, and artifact retry/skip orchestration in the service file.
+- `BattleFinishProjectionService.scala` dropped from 700 lines to 218 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; this was a behavior-preserving extraction.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; side-effect orchestration stayed in `DefaultBattleFinishProjector`.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused finish projection replay-frame boundary coverage before splitting replay rendering further.
+
+## Current Ticket
+
+ID: ID-265
+Goal: Add finish projection contract coverage for replay-frame fallback and normalization boundaries.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: production code, write projection tests, routes, repositories, frontend, git commit/push.
+Expected change:
+- Add test coverage for fallback replay frames when no captured frames exist.
+- Add test coverage for replay frame elapsed clamping/sorting/deduplication when captured frames exist.
+Architecture/domain-modeling impact:
+- Test-only; protects a pure planner boundary before further extraction.
+Side-effect boundary impact:
+- None; test-only.
+Verification:
+- focused finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- New tests fail only if replay frame boundary behavior regresses.
+- No production behavior changes.
+Risks:
+- Existing replay frame JSON checks are string-based; keep assertions focused and avoid brittle full JSON snapshots.
+
+Result:
+- Added fallback replay-frame coverage for states with no captured replay frames.
+- Added captured replay-frame normalization coverage for elapsed clamping, sorting, duplicate elapsed replacement, and playback frame count.
+- Corrected the test fixture to use the existing `ProjectileKind.PistolBullet` ADT case.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test-only fixture data uses existing value objects and ADTs.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure battle replay frame JSON rendering from the finish projection planner.
+
+## Current Ticket
+
+ID: ID-266
+Goal: Extract replay frame JSON rendering from `BattleFinishProjectionPlanner`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleReplayFramesJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: projection scoring/settlement logic, repository writes, mail writes, routes, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move replay frame JSON serialization and its local helpers into a dedicated package-private pure renderer.
+- Keep `BattleFinishProjectionPlanner` responsible for settlement/replay record planning.
+- Preserve replay JSON output exactly.
+Architecture/domain-modeling impact:
+- Further separates pure domain projection planning from serialization rendering.
+- No public API, persistence, or domain behavior change.
+Side-effect boundary impact:
+- None; both planner and renderer remain pure.
+Verification:
+- focused finish projection plan contract
+- focused finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Existing and newly added replay-frame planner contracts pass.
+- No route, repository, persistence, or frontend behavior changes.
+Risks:
+- Replay JSON is hand-rendered; this must be a mechanical extraction with no formatting changes.
+
+Waiting list:
+- Frontend battle aim sync: when the player moves while the mouse is stationary, gun/barrel aim appears to keep pointing at the previous mouse world coordinate. Audit/fix should ensure current mouse screen position is reprojected against the updated camera/world each frame or each command sample.
+
+Result:
+- Added `BattleReplayFramesJsonRenderer.scala`.
+- Moved replay frame JSON rendering, fallback frame construction, captured-frame normalization, and local JSON escaping helpers out of `BattleFinishProjectionPlanner`.
+- Updated `BattleFinishProjectionPlanner` to call `BattleReplayFramesJsonRenderer.render(state, projectedDuration(state))`.
+- `BattleFinishProjectionPlanner.scala` is now 284 lines; `BattleReplayFramesJsonRenderer.scala` is 216 lines; `BattleFinishProjectionService.scala` remains 213 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect the largest remaining backend modules and select the next high-value small ticket.
+
+## Current Ticket
+
+ID: ID-267
+Goal: Reassess the largest remaining backend modules after projection decomposition.
+Allowed scope: command-only inspection, read-only subagent inspection, `.codex/agent-state.md`.
+Forbidden scope: source edits, tests edits, frontend edits, git commit/push.
+Expected change:
+- Compare remaining large backend modules by responsibility and test coverage.
+- Select one narrow follow-up ticket that improves correctness or architecture with low behavioral risk.
+Architecture/domain-modeling impact:
+- None in this read-only ticket.
+Side-effect boundary impact:
+- None in this read-only ticket.
+Verification:
+- backend Scala line-count scan
+- placeholder/unsupported scan
+- read-only module seam audit
+Acceptance criteria:
+- Next ticket has a narrow scope, allowed files, verification commands, and risks.
+Risks:
+- Route modules may be large but acceptable API boundaries; prioritize correctness and side-effect boundaries over line count alone.
+
+Result:
+- Largest remaining production backend modules are `ReplayRoutes.scala`, `BattleStateService.scala`, `BattleRoutes.scala`, and `ForumRoutes.scala`.
+- Placeholder scan found no production placeholders; only the expected storage config unsupported-mode negative test matched.
+- Local inspection found `ReplayRoutes.scala` owns route dispatch, target parsing, command parsing, JSON parsing, catalog/detail/comment rendering, and error mapping, but there is no focused replay route contract yet.
+- Frontend aim sync issue is kept in the waiting list and intentionally not pulled into this backend ticket stream.
+
+Verification passed:
+- backend Scala line-count scan
+- placeholder/unsupported scan
+- local replay route/service/test coverage scan
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; source was read-only.
+
+Next ticket:
+- Add focused replay route contract coverage before decomposing `ReplayRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-268
+Goal: Add focused route coverage for replay catalog/detail/comment/record behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/replay/routes/ReplayRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route code, replay service/repository code, frontend, git commit/push.
+Expected change:
+- Add route-level tests for replay catalog/detail rendering, comment posting, invalid replay id handling, and replay record request parsing/rejection.
+- Register the route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects API behavior before route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Replay route contract passes against current behavior.
+- No production behavior changes.
+Risks:
+- Route response checks should assert stable contract-relevant fields without brittle full JSON snapshots.
+
+Result:
+- Added `ReplayRouteContractTest`.
+- Covered valid replay record POST parsing with raw `frames` JSON, settlement-specific detail rendering through `?handle=`, invalid single-segment replay id path mapping, and comment POST success/error mapping.
+- Registered replay route contract in `BackendContractTestRunner`.
+- Initial invalid id test used `bad%2Fid`, which the HTTP path layer treats as an extra segment and therefore maps to 404; changed it to `bad%20id` to exercise the intended single-segment invalid replay-id branch.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing value objects and ADTs.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Make battle finish projection exception-safe at the state service boundary.
+
+## Current Ticket
+
+ID: ID-269
+Goal: Prevent battle finish projection from getting stuck in `InProgress` when a projector throws.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: routes, repositories/database implementations, frontend, build/dependency files, git commit/push.
+Expected change:
+- Add a runtime contract with a throwing `BattleFinishProjector`.
+- Convert non-fatal projector exceptions at the state-service boundary into a failed projection outcome/status instead of leaving the stored battle in `FinishProjectionStatus.InProgress`.
+Architecture/domain-modeling impact:
+- Keeps the in-memory application service state machine explicit and recoverable.
+- No domain model or API shape change expected.
+Side-effect boundary impact:
+- Contains projector exceptions at the effectful projection boundary.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Throwing projector does not leave battle artifact projection in progress.
+- Existing finish projection status mapping contracts still pass.
+- Backend contracts remain green.
+Risks:
+- Need to preserve existing `DefaultBattleFinishProjector` partial artifact retry semantics.
+
+Result:
+- Added a runtime contract with a `ThrowOnceThenProjector`.
+- Confirmed the test failed before the production fix because `projection boom` escaped from `currentState`.
+- Updated `InMemoryBattleStateService.completeProjection` to call a projection boundary helper that converts `NonFatal` projector exceptions into `BattleFinishProjectionOutcome.Failed(...)`.
+- The failed projection now leaves artifact status pending and status retryable; a subsequent read can retry and move to ready when the projector succeeds.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond existing in-memory service state transition.
+- Side effects inside domain: none; exception handling is at application service boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay route JSON parsing now that replay route contract coverage exists.
+
+## Current Ticket
+
+ID: ID-270
+Goal: Extract replay route JSON object parsing from `ReplayRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayJsonObjectParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay route rendering, command parsing behavior, service/repository/domain logic, frontend, git commit/push.
+Expected change:
+- Move `ReplayJsonValue`, `ReplayJsonParseError`, and `ReplayJsonObjectParser` into a dedicated package-private route parser file.
+- Preserve permissive replay route parser behavior, including raw JSON capture for `frames`.
+Architecture/domain-modeling impact:
+- Separates pure JSON parsing from replay HTTP route orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parsing remains pure and route HTTP effects remain in `ReplayRoutes`.
+Verification:
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay route contract passes.
+- No response JSON, service call, or parser behavior changes.
+Risks:
+- Replay route parser has raw JSON capture behavior used for `frames`; preserve it exactly.
+
+Result:
+- Added `ReplayJsonObjectParser.scala`.
+- Moved `ReplayJsonValue`, `ReplayJsonParseError`, and `ReplayJsonObjectParser` out of `ReplayRoutes.scala`.
+- Preserved raw JSON capture behavior used for `frames`.
+- `ReplayRoutes.scala` dropped from 606 lines to 421 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay route request command parsing.
+
+## Current Ticket
+
+ID: ID-271
+Goal: Extract replay record/comment request parsing from `ReplayRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: response rendering, HTTP status/error mapping, replay service/repository/domain logic, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move `parseReplayRecordCommand`, `parseReplayCommentCommand`, and their JSON reader/validation helpers into a package-private parser object.
+- Keep route-level parse error ADTs package-private so `ReplayRoutes` can preserve status/error mapping.
+- Preserve current permissive numeric/boolean/string reader behavior.
+Architecture/domain-modeling impact:
+- Separates pure request parsing from replay HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parsing remains pure and HTTP/service effects remain in `ReplayRoutes`.
+Verification:
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay route contract passes.
+- No response JSON, service call, or error mapping behavior changes.
+Risks:
+- Parser helper behavior is permissive and frontend-facing; preserve numeric-to-string and string-boolean parsing exactly.
+
+Result:
+- Added `ReplayCommandParsers.scala`.
+- Moved replay record/comment command parsing and JSON reader helpers out of `ReplayRoutes.scala`.
+- Updated route target parsing to use the parser's package-private `parseReplayId`.
+- Widened replay route parse error ADTs to `private[routes]`.
+- `ReplayRoutes.scala` dropped from 421 lines to 285 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay route response JSON rendering.
+
+## Current Ticket
+
+ID: ID-272
+Goal: Extract replay route response rendering from `ReplayRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: request parsing, HTTP status/error mapping, replay service/repository/domain logic, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move replay catalog/detail/comment response rendering and selected-settlement rendering into a package-private renderer object.
+- Leave `ReplayRoutes` responsible for HTTP dispatch, query/path parsing, service calls, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates response formatting from replay HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; rendering remains pure and HTTP effects remain in `ReplayRoutes`.
+Verification:
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay route contract passes.
+- No response JSON, service call, or error mapping behavior changes.
+Risks:
+- Settlement-specific detail rendering is frontend-facing; preserve selected handle fallback behavior.
+
+Result:
+- Added `ReplayRouteJsonRenderer.scala`.
+- Moved replay catalog/detail/comment response rendering and selected-settlement response behavior out of `ReplayRoutes.scala`.
+- Left replay HTTP dispatch, query/path parsing, service calls, and error mapping in `ReplayRoutes`.
+- `ReplayRoutes.scala` dropped from 285 lines to 210 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused coverage for remaining battle route queue/status/room/state boundaries.
+
+## Current Ticket
+
+ID: ID-273
+Goal: Add focused route coverage for battle status/leave/room/state endpoints before further `BattleRoutes` decomposition.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/battle/routes/BattleRoomStateRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service code, repositories/database implementations, frontend, git commit/push.
+Expected change:
+- Add route-level tests for queue status, queue leave, room snapshot, room heartbeat, and state read error/success behavior.
+- Register the new route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects remaining API-facing battle routes before route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with recording service doubles.
+Verification:
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- New battle route contract passes against current behavior.
+- No production behavior changes.
+Risks:
+- Keep route assertions contract-focused and avoid brittle full JSON snapshots.
+
+Result:
+- Added `BattleRoomStateRouteContractTest`.
+- Covered queue status, queue leave, room snapshot, room heartbeat, state read success, and state read not-found mapping through HTTP route boundaries.
+- Registered the new battle room/state route contract in `BackendContractTestRunner`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing value objects and ADTs.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle queue/room response JSON rendering from `BattleRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-274
+Goal: Extract battle queue/room response JSON rendering from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleQueueRoomJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: request parsing, HTTP status/error mapping, state JSON rendering, services, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move queue/room snapshot JSON rendering helpers into a package-private renderer object.
+- Leave `BattleRoutes` responsible for HTTP dispatch, query/path parsing, service calls, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates response formatting from battle HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; rendering remains pure and HTTP effects remain in `BattleRoutes`.
+Verification:
+- focused battle join route contract
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle route contracts pass.
+- No response JSON, service call, or error mapping behavior changes.
+Risks:
+- Queue bootstrap/session rendering is frontend-facing; preserve optional field behavior exactly.
+
+Result:
+- Added `BattleQueueRoomJsonRenderer.scala`.
+- Moved queue snapshot and room snapshot response JSON rendering out of `BattleRoutes.scala`.
+- Left BattleRoutes responsible for HTTP dispatch, path/query parsing, service calls, and error mapping.
+- `BattleRoutes.scala` dropped from 588 lines to 509 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect forum route coverage and add focused contract coverage before decomposition.
+
+## Current Ticket
+
+ID: ID-275
+Goal: Inspect `ForumRoutes.scala` and define the safest forum route coverage ticket.
+Allowed scope: command-only inspection, `.codex/agent-state.md`.
+Forbidden scope: source edits, tests edits, frontend edits, git commit/push.
+Expected change:
+- Understand forum route responsibilities and existing service coverage.
+- Select one focused forum route contract ticket if coverage is missing.
+Architecture/domain-modeling impact:
+- None in this read-only ticket.
+Side-effect boundary impact:
+- None in this read-only ticket.
+Verification:
+- forum route/service/test scan
+Acceptance criteria:
+- Next forum route ticket has a narrow scope and verification plan.
+Risks:
+- Forum routes are API-facing; avoid decomposition before route behavior is characterized.
+
+Result:
+- `ForumRoutes.scala` currently owns HTTP dispatch, path/query parsing, request body parsing, command parsing, response JSON rendering, and error mapping.
+- Existing `ForumServiceContractTest` covers service/repository behavior but there is no focused forum route contract.
+- The safest next step is to add route-level coverage before any production decomposition.
+- The frontend battle aim sync issue remains in the waiting list and is intentionally not included in this backend ticket.
+
+Verification passed:
+- Inspected `ForumRoutes.scala`, `ForumService.scala`, `ForumServiceContractTest.scala`, `ForumTypes.scala`, existing route contracts, and `BackendContractTestRunner.scala`.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; source was read-only.
+
+Next ticket:
+- Add focused forum route contract coverage before decomposing `ForumRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-276
+Goal: Add focused route coverage for forum list/detail/create/reply/vote behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/forum/routes/ForumRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/repository code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for listing topics with viewer resolution, loading topic detail, creating topics, adding replies, setting/clearing topic votes, setting reply votes, and key validation/error mappings.
+- Register the forum route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects API behavior before route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Forum route contract passes against current behavior.
+- No production behavior changes.
+- Contract assertions cover stable route behavior without brittle full JSON snapshots.
+Risks:
+- Forum request parsing is permissive regex-based JSON parsing; tests should protect current frontend-facing behavior without over-specifying insignificant field order.
+
+Result:
+- Added `ForumRouteContractTest`.
+- Covered forum topic list/detail viewer resolution, create-topic parsing and visitor rejection, reply creation parsing, topic vote set/clear parsing, reply vote parsing, invalid vote, and service mutation error mappings.
+- Registered forum route contract in `BackendContractTestRunner`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing forum value objects and ADTs.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum route response JSON rendering from `ForumRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-277
+Goal: Extract forum route response JSON rendering from `ForumRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: request parsing, HTTP dispatch, HTTP status/error mapping, forum service/repository/domain code, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move topic list/detail/reply response JSON rendering helpers into a package-private renderer object.
+- Leave `ForumRoutes` responsible for HTTP dispatch, path/query parsing, request parsing, service calls, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates pure response formatting from forum HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; rendering remains pure and HTTP effects remain in `ForumRoutes`.
+Verification:
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum route contract passes.
+- No response JSON, service call, or error mapping behavior changes.
+Risks:
+- Forum response field names are frontend-facing; preserve optional vote/null behavior exactly.
+
+Result:
+- Added `ForumRouteJsonRenderer.scala`.
+- Moved topic list/detail/reply response rendering out of `ForumRoutes.scala`.
+- Left forum HTTP dispatch, path/query parsing, request parsing, service calls, and error mapping in `ForumRoutes`.
+- `ForumRoutes.scala` dropped to 469 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum route request body JSON parsing.
+
+## Current Ticket
+
+ID: ID-278
+Goal: Extract forum request body JSON parsing from `ForumRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRequestBodyParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: command parsing semantics, HTTP dispatch, HTTP status/error mapping, response rendering, forum service/repository/domain code, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move `ForumRequestFields`, JSON string field extraction, vote field extraction, and JSON string unescape into a package-private pure parser.
+- Keep `ForumRoutes` responsible for reading the HTTP request body and mapping parser errors to HTTP responses.
+- Preserve current permissive route parser behavior.
+Architecture/domain-modeling impact:
+- Separates pure body parsing from forum HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- Body reading remains in the route; parser is pure string-to-fields.
+Verification:
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum route contract passes.
+- No request parsing, service call, or error mapping behavior changes.
+Risks:
+- The current parser is regex-based and intentionally permissive; preserve malformed/empty-body behavior exactly.
+
+Result:
+- Added `ForumRequestBodyParser.scala`.
+- Moved `ForumRequestFields`, string field extraction, vote field extraction, and JSON string unescape out of `ForumRoutes.scala`.
+- `ForumRoutes` now reads the HTTP request body and delegates pure string parsing to the parser.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; body reading stayed at route boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum route command parsing from `ForumRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-279
+Goal: Extract forum route command parsing from `ForumRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/forum/routes/ForumCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: request body JSON parser behavior, HTTP dispatch, HTTP status/error mapping, response rendering, forum service/repository/domain code, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move create-topic, add-reply, topic-vote, reply-vote command parsing and parse error ADTs into a package-private pure parser.
+- Keep `ForumRoutes` responsible for service calls and HTTP status/error mapping.
+- Preserve validation semantics for visitor handles, invalid authors, invalid vote, empty body/title/tag, and missing topic/reply ids.
+Architecture/domain-modeling impact:
+- Separates typed command construction from forum HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; command parsing remains pure and HTTP/service effects remain in `ForumRoutes`.
+Verification:
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum route contract passes.
+- No service call, validation, response, or error mapping behavior changes.
+Risks:
+- Visitor handle and playable-handle policy are user-facing; preserve route-level rejection semantics exactly.
+
+Result:
+- Added `ForumCommandParsers.scala`.
+- Moved forum create-topic, add-reply, topic-vote, reply-vote command parsing and parse error ADTs out of `ForumRoutes.scala`.
+- `ForumRoutes` now keeps HTTP dispatch, body reading, service calls, and status/error mapping.
+- `ForumRoutes.scala` dropped to 303 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining largest backend modules and pick the next protected decomposition or correctness ticket.
+
+## Current Ticket
+
+ID: ID-280
+Goal: Reassess the largest remaining backend modules after forum route decomposition.
+Allowed scope: command-only inspection, read-only subagent inspection, `.codex/agent-state.md`.
+Forbidden scope: source edits, tests edits, frontend edits, git commit/push.
+Expected change:
+- Compare remaining large backend modules by responsibility, risk, and existing contract coverage.
+- Select one narrow follow-up ticket that improves correctness or architecture with low behavioral risk.
+Architecture/domain-modeling impact:
+- None in this read-only ticket.
+Side-effect boundary impact:
+- None in this read-only ticket.
+Verification:
+- backend Scala line-count scan
+- targeted module/coverage scan
+Acceptance criteria:
+- Next ticket has a narrow scope, allowed files, verification commands, and risks.
+Risks:
+- Some large files are repository adapters where line count may reflect necessary SQL/serialization mapping rather than poor domain boundaries.
+
+Result:
+- Largest remaining production backend modules are `BattleStateService.scala`, `BattleRoutes.scala`, several repository adapters, and `BattleResultRoutes.scala`.
+- `ForumRoutes.scala` is now 303 lines after protected decomposition.
+- Local scan found `BattleRoutes.scala` still contains old private JSON reader helpers left over after `BattleCommandRequestParser` and `BattleJoinCommandParser` extractions.
+- The safest next ticket is a narrow dead-code cleanup in `BattleRoutes.scala`, protected by existing battle route contracts.
+- Read-only subagents were closed because they did not return before the next safe local ticket was clear.
+
+Verification passed:
+- backend Scala line-count scan
+- targeted `BattleRoutes.scala` helper reference scan
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; source was read-only.
+
+Next ticket:
+- Remove stale private JSON reader helpers from `BattleRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-281
+Goal: Remove stale private JSON reader helpers from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle command/join parser behavior, HTTP dispatch, HTTP status/error mapping, services, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Delete unused private helper methods left behind after command/join parser extraction.
+- Keep the helpers still used by leave/heartbeat/path/query handling.
+Architecture/domain-modeling impact:
+- Reduces route module surface without changing domain or API behavior.
+Side-effect boundary impact:
+- None; dead-code removal only.
+Verification:
+- focused battle join route contract
+- focused battle command route contract
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle route contracts pass.
+- No response, parsing, or service-call behavior changes.
+Risks:
+- Must not remove `readString`, `nonEmptyText`, or numeric helpers still transitively needed by live route code.
+
+Result:
+- Removed stale private JSON reader helpers from `BattleRoutes.scala`.
+- Kept live helpers used by leave/heartbeat/state/path/query handling.
+- `BattleRoutes.scala` dropped to 427 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; dead-code removal only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle room path/query and heartbeat command parsing.
+
+## Current Ticket
+
+ID: ID-282
+Goal: Extract battle room path/query and heartbeat command parsing from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoomRouteParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: join/command parser behavior, state stream behavior, queue/state services, response rendering, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move room snapshot path extraction, heartbeat path extraction, route path normalization, query parsing, URL decoding, and heartbeat command construction into a package-private parser/helper object.
+- Leave `BattleRoutes` responsible for HTTP dispatch, body reading, service calls, and error mapping.
+- Preserve room snapshot and heartbeat route behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure route target/command parsing from HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and route keeps HTTP/service effects.
+Verification:
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes.
+- No room snapshot, heartbeat, status, or state behavior changes.
+Risks:
+- `/api` prefix normalization and legacy `invalid_room_id` behavior are frontend-facing; preserve them exactly.
+
+Result:
+- Added `BattleRoomRouteParsers.scala`.
+- Moved room snapshot target parsing, heartbeat route recognition, heartbeat command construction, URL decoding, query parsing, route path normalization, and state path battle-id extraction out of `BattleRoutes.scala`.
+- `BattleRoutes` keeps HTTP dispatch, body reading, service calls, and error mapping.
+- `BattleRoutes.scala` dropped to 351 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser builds existing value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parsing helper is pure.
+- Scope respected: yes; helper also owns shared path/query primitives used by room and state routes.
+
+Next ticket:
+- Extract remaining battle route status/leave/state request parsers.
+
+## Current Ticket
+
+ID: ID-283
+Goal: Extract remaining battle route status/leave/state request parsers from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRouteRequestParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: room heartbeat parser behavior, join/command parser behavior, state stream writer behavior, queue/state services, response rendering, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move status ticket-id parsing, leave request parsing, state battle-id parsing, and state-stream battle-id query parsing into a package-private pure parser.
+- Leave `BattleRoutes` responsible for HTTP dispatch, body reading, service calls, stream writing, and error mapping.
+- Preserve current query/path/body parsing semantics.
+Architecture/domain-modeling impact:
+- Separates typed request target parsing from HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and route keeps HTTP/service effects.
+Verification:
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes.
+- No queue status, leave, state read, or state stream request behavior changes.
+Risks:
+- Status/leave/state parser semantics are small but frontend-facing; preserve empty-string trimming and numeric ticket body behavior.
+
+Result:
+- Added `BattleRouteRequestParsers.scala`.
+- Moved status ticket-id parsing, leave request parsing, state battle-id parsing, and state-stream battle-id query parsing out of `BattleRoutes.scala`.
+- `BattleRoutes` now keeps HTTP dispatch, body reading, service calls, stream writing, and error mapping.
+- `BattleRoutes.scala` dropped to 329 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser builds existing value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect route contract gaps for the remaining large API modules.
+
+## Current Ticket
+
+ID: ID-284
+Goal: Inspect route contract gaps for remaining large API modules.
+Allowed scope: command-only inspection, `.codex/agent-state.md`.
+Forbidden scope: source edits, tests edits, frontend edits, git commit/push.
+Expected change:
+- Identify whether `BattleResultRoutes.scala` and `GovernanceRoutes.scala` have focused route contracts.
+- Select one narrow route contract ticket before further API route decomposition.
+Architecture/domain-modeling impact:
+- None in this read-only ticket.
+Side-effect boundary impact:
+- None in this read-only ticket.
+Verification:
+- route/test coverage scan
+Acceptance criteria:
+- Next route ticket has a narrow scope, allowed files, verification commands, and risks.
+Risks:
+- Avoid decomposing uncovered API modules before their frontend-facing behavior is characterized.
+
+Result:
+- `BattleResultRoutes.scala` and `GovernanceRoutes.scala` do not have focused route contracts.
+- Existing coverage is service-level only: `BattleResultServiceContractTest` and `GovernanceServiceContractTest`.
+- `BattleResultRoutes.scala` is battle-flow critical and currently owns dispatch, query parsing, request parsing, response rendering, and error mapping.
+- The safest next ticket is to add a focused battle result route contract before decomposing it.
+
+Verification passed:
+- Inspected `BattleResultRoutes.scala`, `GovernanceRoutes.scala`, `BattleResultService.scala`, `BattleResultServiceContractTest.scala`, and `BackendContractTestRunner.scala`.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; source was read-only.
+
+Next ticket:
+- Add focused battle result route contract coverage.
+
+## Current Ticket
+
+ID: ID-285
+Goal: Add focused route coverage for battle result list/record behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/battle/routes/BattleResultRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/repository code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for result listing with filters, invalid handle short-circuit behavior, valid result recording command parsing, and record validation errors.
+- Register the battle result route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects API behavior before route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused battle result route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle result route contract passes against current behavior.
+- No production behavior changes.
+- Assertions cover stable fields and service commands without brittle full JSON snapshots.
+Risks:
+- Result record parsing is permissive for numeric/string/boolean fields; test representative frontend-facing cases without over-specifying every malformed JSON path.
+
+Result:
+- Added `BattleResultRouteContractTest`.
+- Covered result list filters and rendering, visitor handle list short-circuit, valid result record command parsing, visitor record rejection, and invalid battle id rejection.
+- Registered battle result route contract in `BackendContractTestRunner`.
+- Initial invalid-handle list test used a handle value that current lookup policy accepts; corrected it to the visitor handle path that the route actually short-circuits.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing battle result value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle result route JSON object parser.
+
+## Current Ticket
+
+ID: ID-286
+Goal: Extract battle result route JSON object parsing from `BattleResultRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultJsonObjectParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle result command parsing semantics, HTTP dispatch, HTTP status/error mapping, response rendering, services, repositories, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move `ResultJsonValue`, `ResultJsonParseError`, and `ResultJsonObjectParser` into a dedicated package-private parser file.
+- Preserve current JSON parser behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure JSON parsing from battle result HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parsing remains pure and route HTTP effects remain in `BattleResultRoutes`.
+Verification:
+- focused battle result route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result route contract passes.
+- No request parsing, response, service call, or error mapping behavior changes.
+Risks:
+- Parser supports escaped strings, booleans, null, and finite numbers; preserve edge behavior while moving it.
+
+Result:
+- Added `BattleResultJsonObjectParser.scala`.
+- Moved `ResultJsonValue`, `ResultJsonParseError`, and `ResultJsonObjectParser` out of `BattleResultRoutes.scala`.
+- Preserved current result record JSON parsing behavior.
+- `BattleResultRoutes.scala` dropped to 239 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle result list and record command parsing.
+
+## Current Ticket
+
+ID: ID-287
+Goal: Extract battle result list/query and record command parsing from `BattleResultRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: JSON object parser behavior, HTTP dispatch, HTTP status/error mapping, response rendering, battle result service/repository code, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move list query parsing, visitor/invalid handle list short-circuit decision, record command parsing, and record parse error ADT into a package-private parser.
+- Leave `BattleResultRoutes` responsible for HTTP dispatch, service calls, response rendering, and error mapping.
+- Preserve current list filter and record parsing semantics.
+Architecture/domain-modeling impact:
+- Separates typed request/query parsing from battle result HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and route keeps HTTP/service effects.
+Verification:
+- focused battle result route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result route contract passes.
+- No list, record, response, service call, or error mapping behavior changes.
+Risks:
+- The list route treats unparseable/visitor handles as an empty successful result; preserve this frontend-facing behavior exactly.
+
+Result:
+- Added `BattleResultCommandParsers.scala`.
+- Moved result list query parsing, visitor/invalid handle list short-circuit decision, record command parsing, and parse error ADT out of `BattleResultRoutes.scala`.
+- `BattleResultRoutes` now keeps HTTP dispatch, service calls, response rendering, and error mapping.
+- `BattleResultRoutes.scala` dropped to 111 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser builds existing value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle result route response rendering.
+
+## Current Ticket
+
+ID: ID-288
+Goal: Extract battle result route response JSON rendering from `BattleResultRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: JSON object parser behavior, command/list parser behavior, HTTP dispatch, HTTP status/error mapping, battle result service/repository code, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move result list and single-record response rendering into a package-private renderer object.
+- Leave `BattleResultRoutes` responsible for HTTP dispatch, service calls, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates pure response formatting from battle result HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; rendering remains pure and route HTTP effects remain in `BattleResultRoutes`.
+Verification:
+- focused battle result route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result route contract passes.
+- No response JSON, service call, or error mapping behavior changes.
+Risks:
+- Result response fields are frontend-facing; preserve field names and null handling exactly.
+
+Result:
+- Added `BattleResultRouteJsonRenderer.scala`.
+- Moved result list and single-record response rendering out of `BattleResultRoutes.scala`.
+- `BattleResultRoutes` now keeps HTTP dispatch, service calls, and error mapping.
+- `BattleResultRoutes.scala` dropped to 78 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused governance route contract coverage.
+
+## Current Ticket
+
+ID: ID-289
+Goal: Add focused route coverage for governance adjustment and admin notification behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/governance/routes/GovernanceRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/repository code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for contribution adjustment list/create behavior and validation errors.
+- Add route-level tests for admin notification list filters, invalid-filter short-circuit behavior, create behavior, and validation errors.
+- Register the governance route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects API behavior before route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with recording service doubles.
+Verification:
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Governance route contract passes against current behavior.
+- No production behavior changes.
+- Assertions cover stable route behavior without brittle full JSON snapshots.
+Risks:
+- Governance routes use regex request parsing; tests should protect representative contract behavior without over-specifying every malformed JSON edge.
+
+Result:
+- Added `GovernanceRouteContractTest`.
+- Covered contribution adjustment list/create and validation errors.
+- Covered admin notification list filters, invalid-filter empty success path, create behavior, and validation errors.
+- Registered governance route contract in `BackendContractTestRunner`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing governance value objects and ADTs.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract governance request body parsing.
+
+## Current Ticket
+
+ID: ID-290
+Goal: Extract governance request body parsing from `GovernanceRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceRequestBodyParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance command parsing semantics, HTTP dispatch, HTTP status/error mapping, response rendering, services, repositories, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move contribution adjustment and review notification raw JSON body parsing into a package-private pure parser.
+- Keep `GovernanceRoutes` responsible for reading HTTP bodies and mapping parser errors to responses.
+- Preserve current regex-based parsing behavior.
+Architecture/domain-modeling impact:
+- Separates pure request-body parsing from governance HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- Body reading remains at route boundary; parser is pure.
+Verification:
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance route contract passes.
+- No request parsing, service call, response, or error mapping behavior changes.
+Risks:
+- Existing regex parser only handles simple string fields plus numeric delta; preserve that behavior exactly.
+
+Result:
+- Added `GovernanceRequestBodyParser.scala`.
+- Moved contribution adjustment and review notification raw JSON body parsing and request DTOs out of `GovernanceRoutes.scala`.
+- `GovernanceRoutes` now reads HTTP bodies and delegates pure body parsing.
+- `GovernanceRoutes.scala` dropped to 276 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; body reading stayed at route boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Extract governance command parsing.
+
+## Current Ticket
+
+ID: ID-291
+Goal: Extract governance command parsing from `GovernanceRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: request body parser behavior, HTTP dispatch, HTTP status/error mapping, response rendering, governance services/repositories, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move contribution adjustment command parsing, review notification command parsing, helper validation, and command parse error ADTs into a package-private pure parser.
+- Leave `GovernanceRoutes` responsible for HTTP dispatch, service calls, response rendering, and error mapping.
+- Preserve current command validation semantics.
+Architecture/domain-modeling impact:
+- Separates typed command construction from governance HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; command parsing remains pure and HTTP/service effects remain in `GovernanceRoutes`.
+Verification:
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance route contract passes.
+- No command parsing, response, service call, or error mapping behavior changes.
+Risks:
+- Admin actor, visitor target, nonzero delta, review kind/target/body validation are user-facing; preserve them exactly.
+
+Result:
+- Added `GovernanceCommandParsers.scala`.
+- Moved contribution adjustment and review notification command parsing, helper validation, and parse error ADTs out of `GovernanceRoutes.scala`.
+- `GovernanceRoutes` now keeps HTTP dispatch, service calls, response rendering, and error mapping.
+- `GovernanceRoutes.scala` dropped to 200 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser builds existing value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract governance route response rendering.
+
+## Current Ticket
+
+ID: ID-292
+Goal: Extract governance route response JSON rendering from `GovernanceRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: request body parser behavior, command parser behavior, HTTP dispatch, HTTP status/error mapping, governance services/repositories, tests unless compile exposes a narrow issue, frontend, git commit/push.
+Expected change:
+- Move adjustment list/result, notification list/result, and governance mail response rendering into a package-private renderer object.
+- Leave `GovernanceRoutes` responsible for HTTP dispatch, query parsing, service calls, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates pure response formatting from governance HTTP orchestration.
+- No domain model or API contract change.
+Side-effect boundary impact:
+- None; renderer is pure and route HTTP/service effects remain in `GovernanceRoutes`.
+Verification:
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance route contract passes.
+- No response JSON, service call, or error mapping behavior changes.
+Risks:
+- Governance mail metadata fields are frontend-facing; preserve field names and optional metadata behavior exactly.
+
+Result:
+- Added `GovernanceRouteJsonRenderer.scala`.
+- Moved adjustment list/result, notification list/result, and governance mail response rendering out of `GovernanceRoutes.scala`.
+- `GovernanceRoutes` now keeps HTTP dispatch, query parsing, service calls, and error mapping.
+- `GovernanceRoutes.scala` dropped to 130 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused social route contract coverage.
+
+## Current Ticket
+
+ID: ID-293
+Goal: Add focused route coverage for social friend request list/create/respond behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/social/routes/SocialRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/repository code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for owner list parsing/rendering and visitor rejection.
+- Add route-level tests for create parsing/rendering and validation errors.
+- Add route-level tests for respond parsing/rendering and error mappings.
+- Register the social route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects API behavior before route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused social route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Social route contract passes against current behavior.
+- No production behavior changes.
+- Assertions cover stable route behavior without brittle full JSON snapshots.
+Risks:
+- Friend request mail metadata fields are frontend-facing; cover representative fields but avoid full snapshots.
+
+Result:
+- Added `SocialRouteContractTest` and registered it in `BackendContractTestRunner`.
+- Covered friend request list owner parsing/rendering, missing-owner error, and visitor rejection.
+- Covered friend request create parsing/rendering, visitor rejection, and service validation error mapping.
+- Covered friend request respond decision parsing, invalid decision rejection, not-found mapping, forbidden mapping, and notification metadata rendering.
+- Fixed the test sequencing so service-call count assertions are made before later service-error requests intentionally add calls.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing friend request/mail value objects and enums.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract social route command parsing.
+
+## Current Ticket
+
+ID: ID-294
+Goal: Extract social friend request query/body command parsing from `SocialRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/routes/SocialRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/social/routes/SocialCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: response rendering, HTTP dispatch, HTTP status/error mapping, social service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move owner query parsing, create handle parsing, respond command parsing, and social route parse-error ADTs into a package-private pure parser.
+- Leave `SocialRoutes` responsible for HTTP dispatch, body reading, service calls, response rendering, and error mapping.
+- Preserve current missing/visitor/invalid handle and decision parsing semantics.
+Architecture/domain-modeling impact:
+- Separates typed request command construction from social HTTP orchestration.
+- No social domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and HTTP/service effects remain in `SocialRoutes`.
+Verification:
+- focused social route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Social route contract passes.
+- No list/create/respond response, service call, or error mapping behavior changes.
+Risks:
+- Visitor-like handle policy is shared across route boundaries; preserve exact `HandlePolicy` behavior while moving code.
+
+Result:
+- Added `SocialCommandParsers.scala`.
+- Moved owner query parsing, create handle parsing, respond command parsing, and social route parse-error ADTs out of `SocialRoutes.scala`.
+- Preserved visitor-like handle policy, invalid decision precedence, and existing error mapping.
+- `SocialRoutes.scala` dropped to 181 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser builds existing `PlayerHandle`, `FriendRequestId`, and `FriendRequestDecision` values.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; query/body parsing is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract social route response rendering.
+
+## Current Ticket
+
+ID: ID-295
+Goal: Extract social friend request response JSON rendering from `SocialRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/routes/SocialRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/social/routes/SocialRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: command parser behavior, HTTP dispatch, HTTP status/error mapping, social service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move friend request list, create result, respond result, request record, and friend-request mail rendering into a package-private pure renderer object.
+- Leave `SocialRoutes` responsible for HTTP dispatch, request body parsing, service calls, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates pure response formatting from social HTTP orchestration.
+- No social domain model or API contract change.
+Side-effect boundary impact:
+- None; renderer is pure and route HTTP/service effects remain in `SocialRoutes`.
+Verification:
+- focused social route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Social route contract passes.
+- No response JSON, service call, or error mapping behavior changes.
+Risks:
+- Friend request mail metadata fields are frontend-facing; preserve field names, optional field omission, and null handling exactly.
+
+Result:
+- Added `SocialRouteJsonRenderer.scala`.
+- Moved friend request list/create/respond result rendering, request record rendering, and friend-request mail rendering out of `SocialRoutes.scala`.
+- `SocialRoutes` now keeps HTTP dispatch, request body parsing, service calls, and error mapping.
+- `SocialRoutes.scala` dropped to 105 lines.
+- Closed the read-only backend route/service scan subagent after incorporating its next-ticket recommendation.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused mail route contract coverage before splitting `MailRoutes`.
+
+## Current Ticket
+
+ID: ID-296
+Goal: Add focused route coverage for mail list and mark-read behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/mail/routes/MailRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/repository code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for `GET /mails` owner parsing/rendering, missing owner, visitor rejection, and representative friend/governance metadata fields.
+- Add route-level tests for `POST /mails/read` body parsing, missing mail id, visitor rejection, successful service call, and mail-not-found mapping.
+- Register the mail route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects API behavior before mail route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Mail route contract passes against current behavior.
+- No production behavior changes.
+- Assertions cover stable route behavior without brittle full JSON snapshots.
+Risks:
+- Mail JSON includes multiple optional metadata variants; cover representative fields while avoiding over-specification.
+
+Result:
+- Added `MailRouteContractTest`.
+- Covered `GET /mails` owner parsing, missing-owner and visitor rejection, and representative friend/governance metadata rendering.
+- Covered `POST /mails/read` successful mark-read command parsing, bad JSON body, missing owner, missing mail id, visitor rejection, and mail-not-found mapping.
+- Registered the mail route contract in `BackendContractTestRunner`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing mail/player value objects and mail enums.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract mail route command parsing.
+
+## Current Ticket
+
+ID: ID-297
+Goal: Extract mail route owner/query and mark-read command parsing from `MailRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/routes/MailRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/mail/routes/MailCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: response rendering, HTTP dispatch, HTTP status/error mapping, mail service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move mail owner query parsing, mark-read command parsing, mail id parsing, query params, and route parse-error ADTs into a package-private pure parser.
+- Leave `MailRoutes` responsible for HTTP dispatch, body reading, service calls, response rendering, and error mapping.
+- Preserve current missing-owner, visitor, invalid-owner, missing-mail-id, and query decoding semantics.
+Architecture/domain-modeling impact:
+- Separates typed request command construction from mail HTTP orchestration.
+- No mail domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and HTTP/service effects remain in `MailRoutes`.
+Verification:
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail route contract passes.
+- No list/read response, service call, or error mapping behavior changes.
+Risks:
+- `InvalidOwner` is currently effectively unreachable for non-empty playable handles because `PlayerHandle.forLookup` is permissive; preserve current code path without adding stricter validation.
+
+Result:
+- Added `MailCommandParsers.scala`.
+- Moved owner query parsing, mark-read command parsing, mail id parsing, query decoding, and mail route parse-error ADTs out of `MailRoutes.scala`.
+- Preserved current missing-owner, visitor-owner, invalid-owner, missing-mail-id, and query decoding behavior.
+- `MailRoutes.scala` dropped to 133 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser builds existing `PlayerHandle` and `MailId` values.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract mail route response rendering.
+
+## Current Ticket
+
+ID: ID-298
+Goal: Extract mail list response JSON rendering from `MailRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/routes/MailRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/mail/routes/MailRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: command parser behavior, HTTP dispatch, HTTP status/error mapping, mail service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move mail list, mail record, optional source fields, friend request metadata, governance metadata, and JSON object/string rendering into a package-private pure renderer.
+- Leave `MailRoutes` responsible for HTTP dispatch, request body parsing, service calls, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates pure response formatting from mail HTTP orchestration.
+- No mail domain model or API contract change.
+Side-effect boundary impact:
+- None; renderer is pure and route HTTP/service effects remain in `MailRoutes`.
+Verification:
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail route contract passes.
+- No list/read response, service call, or error mapping behavior changes.
+Risks:
+- Optional metadata fields are frontend-facing; preserve omission/null behavior and field names exactly.
+
+Result:
+- Added `MailRouteJsonRenderer.scala`.
+- Moved mail list rendering, mail record rendering, optional source fields, friend request metadata, governance metadata, and JSON object/string helpers out of `MailRoutes.scala`.
+- `MailRoutes` now keeps HTTP dispatch, request body parsing, service calls, and error mapping.
+- `MailRoutes.scala` dropped to 86 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused identity route contract coverage before splitting `IdentityRoutes`.
+
+## Current Ticket
+
+ID: ID-299
+Goal: Add focused route coverage for identity register/session/current/accounts behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/identity/routes/IdentityRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/repository code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for registration command parsing/rendering, invalid handle/password/skin errors, and handle-taken mapping.
+- Add route-level tests for session issue parsing/rendering and invalid-credentials mapping.
+- Add route-level tests for current session via `Authorization` and `X-Session-Token`, missing/invalid session errors, and accounts list rendering.
+- Register the identity route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects auth/session API behavior before identity route decomposition.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused identity route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Identity route contract passes against current behavior.
+- No production behavior changes.
+- Assertions cover stable route behavior without brittle full JSON snapshots.
+Risks:
+- Auth/session routes are high-impact; keep tests representative and avoid changing production behavior during this coverage ticket.
+
+Result:
+- Added `IdentityRouteContractTest`.
+- Covered registration command parsing/rendering, invalid handle/password/skin errors, and handle-taken mapping.
+- Covered session issue command parsing/rendering and invalid-credentials mapping.
+- Covered current session parsing from `Authorization` and `X-Session-Token`, missing/invalid session errors, and accounts list rendering.
+- Registered the identity route contract in `BackendContractTestRunner`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.identity.routes.IdentityRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing identity value objects/enums/API DTOs.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test doubles.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract identity registration/session command parsing.
+
+## Current Ticket
+
+ID: ID-300
+Goal: Extract identity registration and session command parsing from `IdentityRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/routes/IdentityRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/identity/routes/IdentityCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: current-session header parsing, response rendering, HTTP dispatch, HTTP status/error mapping, identity service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move registration command parsing, session command parsing, and parse-error ADTs into a package-private pure parser.
+- Leave `IdentityRoutes` responsible for HTTP dispatch, body reading, service calls, current-session header parsing, response rendering, and error mapping.
+- Preserve current invalid-handle/password/skin and invalid-credentials semantics.
+Architecture/domain-modeling impact:
+- Separates typed auth command construction from identity HTTP orchestration.
+- No identity domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and HTTP/service effects remain in `IdentityRoutes`.
+Verification:
+- focused identity route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity route contract passes.
+- No registration/session/current/accounts response, service call, or error mapping behavior changes.
+Risks:
+- Auth routes are sensitive; keep this as a mechanical extraction and avoid changing validation policy.
+
+Result:
+- Added `IdentityCommandParsers.scala`.
+- Moved registration/session command parsing and parse-error ADTs out of `IdentityRoutes.scala`.
+- Preserved invalid handle/password/skin and invalid-credentials behavior.
+- `IdentityRoutes.scala` dropped to 175 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.identity.routes.IdentityRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser builds existing identity command/value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract identity route response rendering.
+
+## Current Ticket
+
+ID: ID-301
+Goal: Extract identity route response JSON rendering from `IdentityRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/routes/IdentityRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/identity/routes/IdentityRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: command parser behavior, current-session header parsing, HTTP dispatch, HTTP status/error mapping decisions, identity service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move auth response construction/rendering, account summary list rendering, and error JSON rendering into a package-private pure renderer.
+- Leave `IdentityRoutes` responsible for HTTP dispatch, body reading, service calls, current-session header parsing, and choosing status/error codes.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates pure response formatting from identity HTTP orchestration.
+- No identity domain model or API contract change.
+Side-effect boundary impact:
+- None; renderer is pure and route HTTP/service effects remain in `IdentityRoutes`.
+Verification:
+- focused identity route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity route contract passes.
+- No register/session/current/accounts response, service call, or error mapping behavior changes.
+Risks:
+- Auth response fields are frontend-facing; preserve field names and escaping exactly.
+
+Result:
+- Added `IdentityRouteJsonRenderer.scala`.
+- Moved auth response construction/rendering, account summary list rendering, and error JSON rendering out of `IdentityRoutes.scala`.
+- `IdentityRoutes` now keeps HTTP dispatch, body reading, service calls, current-session header parsing, and status/error mapping decisions.
+- `IdentityRoutes.scala` dropped to 153 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.identity.routes.IdentityRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; renderer consumes existing DTO/domain values.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract identity session token header parsing.
+
+## Current Ticket
+
+ID: ID-302
+Goal: Extract identity current-session token parsing from `IdentityRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/routes/IdentityRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/identity/routes/IdentitySessionTokenParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: command parser behavior, response rendering, HTTP dispatch, HTTP status/error mapping, identity service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move `Authorization` and `X-Session-Token` value parsing into a package-private pure parser.
+- Keep `IdentityRoutes` responsible for reading HTTP headers from `HttpExchange` and passing raw optional header values to the parser.
+- Preserve current precedence: `Authorization` token if parseable, otherwise `X-Session-Token`.
+Architecture/domain-modeling impact:
+- Separates header parsing policy from identity HTTP orchestration.
+- No identity domain model or API contract change.
+Side-effect boundary impact:
+- Header reads remain at the route boundary; parser is pure.
+Verification:
+- focused identity route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity route contract passes.
+- No current-session response, service call, or error mapping behavior changes.
+Risks:
+- Header precedence is frontend/API-facing; preserve it exactly.
+
+Result:
+- Added `IdentitySessionTokenParser.scala`.
+- Moved `Authorization` and `X-Session-Token` string parsing out of `IdentityRoutes.scala`.
+- Kept HTTP header reads at the route boundary and preserved `Authorization` token precedence before `X-Session-Token`.
+- `IdentityRoutes.scala` dropped to 145 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.identity.routes.IdentityRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser returns existing `SessionToken` value object.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; header parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract governance route list query parsing.
+
+## Current Ticket
+
+ID: ID-303
+Goal: Extract governance contribution/notification list query parsing from `GovernanceRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceQueryParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: request body parser behavior, command parser behavior, response rendering, HTTP dispatch, HTTP status/error mapping, governance services/repositories, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move query string decoding, contribution adjustment `limit` parsing, and admin notification `kind`/`targetType`/`limit` parsing into a package-private pure parser.
+- Preserve current invalid notification filter behavior: invalid non-empty `kind` or `targetType` returns an empty successful list without calling the service.
+- Leave `GovernanceRoutes` responsible for HTTP dispatch, service calls, response rendering, and error mapping.
+Architecture/domain-modeling impact:
+- Separates typed list-query construction from governance HTTP orchestration.
+- No governance domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and HTTP/service effects remain in `GovernanceRoutes`.
+Verification:
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance route contract passes.
+- No list/create response, service call, or error mapping behavior changes.
+Risks:
+- Invalid filter empty-success semantics are frontend-facing; preserve this exactly.
+
+Result:
+- Added `GovernanceQueryParsers.scala`.
+- Moved contribution adjustment list limit parsing, admin notification list filter parsing, query decoding, and invalid-filter empty-result decision out of `GovernanceRoutes.scala`.
+- Preserved the route behavior where invalid non-empty notification `kind`/`targetType` returns a successful empty list without calling the service.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond primitive query `limit` already present at the HTTP boundary.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; query parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused bot profile route contract coverage.
+
+## Current Ticket
+
+ID: ID-304
+Goal: Add focused route coverage for bot profile catalog behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/bots/routes/BotProfileRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/repository code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for `GET /bots/profiles` rendering and service call behavior.
+- Add route-level tests for `HEAD` success and unsupported method error mapping.
+- Register the bot profile route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects API behavior before optional route renderer extraction.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused bot profile route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Bot profile route contract passes against current behavior.
+- No production behavior changes.
+- Assertions cover stable route behavior without brittle full JSON snapshots.
+Risks:
+- Bot profile route is small; avoid broad cleanup beyond adding coverage.
+
+Result:
+- Added `BotProfileRouteContractTest`.
+- Covered `GET /bots/profiles` rendering and service-call behavior.
+- Covered `HEAD` success without service calls and unsupported method error mapping.
+- Registered the bot profile route contract in `BackendContractTestRunner`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.bots.routes.BotProfileRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing bot profile value objects and enums.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test double calls.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract bot profile route response rendering.
+
+## Current Ticket
+
+ID: ID-305
+Goal: Extract bot profile response JSON rendering from `BotProfileRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/bots/routes/BotProfileRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/bots/routes/BotProfileRouteJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: HTTP dispatch, HTTP status/error mapping, bot profile service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move bot profile list/profile/skin rendering and JSON object/string helpers into a package-private pure renderer.
+- Leave `BotProfileRoutes` responsible for HTTP dispatch, service call, and error mapping.
+- Preserve response JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates pure response formatting from bot profile HTTP orchestration.
+- No bot profile domain model or API contract change.
+Side-effect boundary impact:
+- None; renderer is pure and route HTTP/service effects remain in `BotProfileRoutes`.
+Verification:
+- focused bot profile route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Bot profile route contract passes.
+- No profile response, service call, or error mapping behavior changes.
+Risks:
+- Bot profile JSON is frontend-facing; preserve field names exactly.
+
+Result:
+- Added `BotProfileRouteJsonRenderer.scala`.
+- Moved bot profile list/profile/skin rendering and JSON object/string helpers out of `BotProfileRoutes.scala`.
+- `BotProfileRoutes` now keeps HTTP dispatch, service call, and error mapping.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.bots.routes.BotProfileRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; extraction only.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused health route contract coverage.
+
+## Current Ticket
+
+ID: ID-306
+Goal: Add focused route coverage for health endpoint behavior.
+Allowed scope: new `backend/src/test/scala/slaydemo/backend/shared/routes/HealthRouteContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add route-level tests for health `GET` response rendering and service call behavior.
+- Add route-level tests for `HEAD` success and unsupported method error mapping.
+- Register the health route contract in the backend contract runner.
+Architecture/domain-modeling impact:
+- Test-only; protects the health API boundary.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording service double.
+Verification:
+- focused health route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Health route contract passes against current behavior.
+- No production behavior changes.
+- Assertions cover stable health response fields and status codes.
+Risks:
+- Health route is small; do not expand into config/storage behavior already covered by storage config contracts.
+
+Result:
+- Added `HealthRouteContractTest`.
+- Covered health `GET` response rendering/service-call behavior, `HEAD` success without service calls, and unsupported method mapping.
+- Registered health route contract in `BackendContractTestRunner`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.shared.routes.HealthRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing health/service/storage value objects and enums.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test double calls.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum route path/query target parsing.
+
+## Current Ticket
+
+ID: ID-307
+Goal: Extract forum route path and viewer query parsing from `ForumRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRouteTargetParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: request body parser behavior, command parser behavior, response rendering, HTTP dispatch decisions, forum service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move forum route path normalization, path segment decoding, collection/replies/votes path checks, topic/reply id extraction, query decoding, and viewer handle resolution into a package-private pure parser.
+- Leave `ForumRoutes` responsible for HTTP method dispatch, body reading, service calls, response rendering, and error mapping.
+- Preserve current `/api` stripping, URL decoding, viewer/author query fallback, and visitor filtering semantics.
+Architecture/domain-modeling impact:
+- Separates route target/query interpretation from forum HTTP orchestration.
+- No forum domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and HTTP/service effects remain in `ForumRoutes`.
+Verification:
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum route contract passes.
+- No list/detail/mutation response, service call, or error mapping behavior changes.
+Risks:
+- Forum path handling is frontend-facing; preserve the exact `/api` prefix behavior and decoded topic/reply id semantics.
+
+Result:
+- Added `ForumRouteTargetParsers.scala`.
+- Moved forum path normalization, `/api` prefix stripping, path segment decoding, collection/reply/vote target checks, topic/reply id extraction, query decoding, and viewer handle resolution out of `ForumRoutes.scala`.
+- Preserved viewer/author query fallback and visitor filtering semantics.
+- `ForumRoutes.scala` dropped to 222 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond HTTP boundary path/query strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; target parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum route error code/status mapping.
+
+## Current Ticket
+
+ID: ID-308
+Goal: Extract forum route error code/status mapping from `ForumRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRouteErrorMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: route target parsing, request body parser behavior, command parser behavior, response rendering, HTTP dispatch decisions, forum service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move create topic parse error code/status mapping and mutation parse/service error code/status mapping into a package-private pure mapper.
+- Leave `ForumRoutes` responsible for choosing when to call the mapper and sending HTTP responses.
+- Preserve current error code and status semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure route error mapping from forum HTTP orchestration.
+- No forum domain model or API contract change.
+Side-effect boundary impact:
+- None; mapper is pure and HTTP/service effects remain in `ForumRoutes`.
+Verification:
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum route contract passes.
+- No list/detail/mutation response, service call, or error mapping behavior changes.
+Risks:
+- Forum error codes are frontend-facing; preserve every code/status pair exactly.
+
+Result:
+- Added `ForumRouteErrorMapper.scala`.
+- Moved forum create-topic parse error mapping and mutation parse/service error mapping out of `ForumRoutes.scala`.
+- Preserved every existing forum route error code/status pair.
+- `ForumRoutes.scala` dropped to 178 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; mapper only returns existing HTTP boundary status/code values.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; mapper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Add focused battle state stream route contract coverage.
+
+## Current Ticket
+
+ID: ID-309
+Goal: Add focused route coverage for battle state stream behavior before extracting the stream writer.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/battle/routes/BattleRoomStateRouteContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: production route/service/runtime code, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Add a route-level test for `GET /battle/state/stream?battleId=...` producing an SSE state event for a finished state and closing cleanly.
+- Keep existing queue/room/state route tests passing.
+Architecture/domain-modeling impact:
+- Test-only; protects a route-side streaming side-effect boundary before extraction.
+Side-effect boundary impact:
+- Test-only HTTP route boundary with a recording battle state service.
+Verification:
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle room/state route contract passes.
+- Stream test observes `event: state` and rendered battle id/phase without hanging.
+- No production behavior changes.
+Risks:
+- SSE streams can hang if the fixture uses an active state; use a finished state so the writer exits after one frame.
+
+Result:
+- Extended `BattleRoomStateRouteContractTest` with a state-stream route check.
+- The new test uses a finished battle state, observes an SSE `event: state` frame, verifies rendered battle id/finished phase, and confirms the stream closes.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test fixtures use existing battle value objects and enums.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none beyond recording test double state.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle state stream writer.
+
+## Current Ticket
+
+ID: ID-310
+Goal: Extract battle state SSE writing from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleStateStreamWriter.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle state/runtime rules, command parsing, room/queue parsing, response JSON rendering, route status/error mapping, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move state stream frame writing, sleep cadence, output closing, and IO/interrupt handling into a package-private route adapter.
+- Leave `BattleRoutes` responsible for HTTP dispatch, stream headers, initial state lookup, and error mapping.
+- Preserve current SSE frame format and stop conditions.
+Architecture/domain-modeling impact:
+- Separates side-effectful streaming adapter from battle HTTP orchestration.
+- No battle domain model or API contract change.
+Side-effect boundary impact:
+- Streaming side effects remain in the route layer but are isolated in a clearly named adapter.
+Verification:
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes, including state stream test.
+- No state read, stream response, or error mapping behavior changes.
+Risks:
+- SSE lifecycle is sensitive; preserve output close and interrupted-thread handling.
+
+Result:
+- Added `BattleStateStreamWriter.scala`.
+- Moved SSE frame writing, 33ms cadence, output flushing/closing, IO ignore behavior, and interrupted-thread restoration out of `BattleRoutes.scala`.
+- `BattleRoutes` now owns stream headers, initial state lookup, and error mapping; stream output side effects are isolated in a named route adapter.
+- `BattleRoutes.scala` dropped to 295 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; adapter uses existing battle state value objects.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; stream side effects remain in route adapter layer.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle route error mapping.
+
+## Current Ticket
+
+ID: ID-311
+Goal: Extract battle route error code/status mapping from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRouteErrorMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: route request parsers, command parsers, state stream writer, response JSON rendering, battle services/runtime, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move join parse/authorization, queue status, command request/submit, state read, room target, and room service error mapping into a package-private pure mapper.
+- Leave `BattleRoutes` responsible for HTTP dispatch, parser/service calls, and sending the mapped HTTP response.
+- Preserve current error code/status/message semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure route error mapping from battle HTTP orchestration.
+- No battle domain model or API contract change.
+Side-effect boundary impact:
+- None; mapper is pure and HTTP/service effects remain in `BattleRoutes`.
+Verification:
+- focused battle route contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle join, command, and room/state route contracts pass.
+- No route response, service call, or error mapping behavior changes.
+Risks:
+- Battle route errors are frontend-facing; preserve all existing codes/statuses/messages.
+
+Result:
+- Added `BattleRouteErrorMapper.scala`.
+- Moved battle join parse/authorization, queue status, command request/submit, state read, room target, and room service error mapping out of `BattleRoutes.scala`.
+- Preserved current error code/status/message semantics.
+- `BattleRoutes.scala` dropped to 280 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing HTTP status/code/message boundary values.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; mapper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay route target/query parsing.
+
+## Current Ticket
+
+ID: ID-312
+Goal: Extract replay route target and query parsing from `ReplayRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRouteTargetParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay command parser behavior, JSON object parser behavior, response rendering, HTTP dispatch decisions, replay service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move replay route target parsing, `/api` prefix stripping, URL decoding, list/comment limit query parsing, and viewer handle query parsing into a package-private pure parser.
+- Leave `ReplayRoutes` responsible for HTTP method dispatch, body reading, service calls, response rendering, and error mapping.
+- Preserve current target matching, invalid replay id, limit default, and handle lookup behavior.
+Architecture/domain-modeling impact:
+- Separates route target/query interpretation from replay HTTP orchestration.
+- No replay domain model or API contract change.
+Side-effect boundary impact:
+- None; parser is pure and HTTP/service effects remain in `ReplayRoutes`.
+Verification:
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay route contract passes.
+- No catalog/detail/comment response, service call, or error mapping behavior changes.
+Risks:
+- Replay route paths are frontend-facing; preserve `/api` prefix behavior and decoded path segment semantics.
+
+Result:
+- Added `ReplayRouteTargetParsers.scala`.
+- Moved replay target parsing, `/api` prefix stripping, URL decoding, limit query parsing, and replay handle query parsing out of `ReplayRoutes.scala`.
+- Preserved collection/detail/comment target matching and invalid replay id behavior.
+- `ReplayRoutes.scala` dropped to 164 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond HTTP boundary path/query strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; target parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay route error mapping.
+
+## Current Ticket
+
+ID: ID-313
+Goal: Extract replay route error code/status mapping from `ReplayRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRouteErrorMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: route target parser behavior, command parser behavior, JSON object parser behavior, response rendering, HTTP dispatch decisions, replay service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move replay target, record parse/service, and comment parse/service error mapping into a package-private pure mapper.
+- Leave `ReplayRoutes` responsible for HTTP dispatch, parser/service calls, and sending mapped responses.
+- Preserve current error code/status/message semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure route error mapping from replay HTTP orchestration.
+- No replay domain model or API contract change.
+Side-effect boundary impact:
+- None; mapper is pure and HTTP/service effects remain in `ReplayRoutes`.
+Verification:
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay route contract passes.
+- No catalog/detail/comment response, service call, or error mapping behavior changes.
+Risks:
+- Replay error codes are frontend-facing; preserve every code/status pair exactly.
+
+Result:
+- Added `ReplayRouteErrorMapper.scala`.
+- Moved replay target, record parse/service, and comment parse/service error mapping out of `ReplayRoutes.scala`.
+- Preserved every replay route error code/status/message pair.
+- `ReplayRoutes.scala` dropped to 133 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing HTTP status/code/message boundary values.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; mapper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Move replay command parse error ADTs out of `ReplayRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-314
+Goal: Move replay command parse error ADTs to the replay command parser boundary.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayRoutes.scala`, `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayCommandParsers.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay route target parsing, JSON object parser behavior, response rendering, error code/status mapping semantics, replay service/repository code, tests unless compile exposes a narrow issue, frontend, database/schema/data changes, git commit/push.
+Expected change:
+- Move `ReplayRecordCommandParseError` and `ReplayCommentCommandParseError` enum definitions from `ReplayRoutes.scala` into `ReplayCommandParsers.scala`.
+- Leave `ReplayRoutes` focused on HTTP dispatch, parser/service calls, and response sending.
+- Preserve parse error ADT names/cases and existing mapper behavior exactly.
+Architecture/domain-modeling impact:
+- Places parser result ADTs with the parser that produces them.
+- Keeps explicit parse failure types and avoids Boolean/string failure results.
+Side-effect boundary impact:
+- None; ADT relocation only, no HTTP/service/database behavior changes.
+Verification:
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay route contract passes.
+- `ReplayRoutes.scala` no longer owns command parse error enum definitions.
+Risks:
+- Package-private visibility must still allow `ReplayRouteErrorMapper` and parser methods to reference the ADTs.
+
+Result:
+- Moved `ReplayRecordCommandParseError` and `ReplayCommentCommandParseError` into `ReplayCommandParsers.scala`.
+- `ReplayRoutes.scala` no longer owns replay command parser result ADTs.
+- Kept the explicit parse error enum names/cases unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; explicit parse error ADTs remain.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Pending remaining backend architecture scan.
+
+## Current Ticket
+
+ID: ID-315
+Goal: Replace battle arena obstacle string kind with an explicit enum.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle collision rules, projectile/movement behavior, route/API JSON rendering, frontend, database/schema/data changes, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Add a package-private `ArenaObstacleKind` enum for the finite obstacle kinds currently represented as raw strings.
+- Change `ArenaObstacle.kind` from `String` to `ArenaObstacleKind`.
+- Preserve all obstacle ids, positions, sizes, and ordering.
+Architecture/domain-modeling impact:
+- Removes a finite domain state from raw string representation.
+- Keeps arena catalog immutable and passive.
+Side-effect boundary impact:
+- None; catalog data only.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- No movement/collision/projectile behavior changes.
+Risks:
+- Current code does not appear to branch on `kind`; if hidden callers rely on string equality, compile should surface it.
+
+Result:
+- Added `ArenaObstacleKind` with `Wall` and `Crate`.
+- Changed `ArenaObstacle.kind` from raw `String` to `ArenaObstacleKind`.
+- Preserved all arena obstacle ids, coordinates, dimensions, and ordering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; removed a string finite state.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract initial battle state construction from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-316
+Goal: Extract initial battle state construction from `BattleStateService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleSessionStateFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: tick/update runtime rules, projectile/weapon/skill/pickup behavior, queue room construction, route/API JSON rendering, frontend, database/schema/data changes, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move initial aggregate creation, descriptor fallback seat construction, and initial player state construction into a package-private pure factory.
+- Keep `InMemoryBattleStateService` responsible for lookup, storage, synchronization, command handling, and projection lifecycle.
+- Preserve start time, duration, pickups, initial replay frame, spawn points, default weapon/skills, hp/stamina, and player ordering exactly.
+Architecture/domain-modeling impact:
+- Reduces `BattleStateService` god-service pressure by moving pure initialization logic to a named boundary.
+- Keeps state construction as immutable value assembly.
+Side-effect boundary impact:
+- None; factory is pure and service retains synchronized mutable map/projection effects.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Existing command/runtime/finish projection behavior remains unchanged.
+Risks:
+- Initial replay frame and startedAt fallback semantics are frontend/replay visible; preserve them exactly.
+
+Result:
+- Added `BattleSessionStateFactory.scala`.
+- Moved initial aggregate creation, descriptor fallback seat construction, and initial player state construction out of `BattleStateService.scala`.
+- `InMemoryBattleStateService` now delegates initialization to the pure factory and keeps storage/synchronization/projection responsibilities.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; state construction remains immutable value assembly.
+- Side effects inside domain: none; synchronized mutable state remains in the service.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle room bootstrap construction from `BattleQueueService.scala`.
+
+## Current Ticket
+
+ID: ID-317
+Goal: Extract battle room session/bootstrap construction from `BattleQueueService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleRoomBootstrapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join/status/leave semantics, room heartbeat lifecycle, battle state runtime, route/API JSON rendering, frontend, database/schema/data changes, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move roster, human bootstrap seat, bot bootstrap seat, and bot profile mapping into a package-private pure bootstrapper.
+- Leave `InMemoryBattleQueueService` responsible for queue mutation, room lifecycle, timing, id allocation, and snapshots.
+- Preserve battle id generation call site, seat ordering, bot ids/hero ids/profiles, and session timestamps exactly.
+Architecture/domain-modeling impact:
+- Reduces queue service god-service pressure by separating pure session descriptor construction from stateful queue orchestration.
+- Keeps queue state mutation inside the service boundary.
+Side-effect boundary impact:
+- None; bootstrapper is pure and receives generated ids/time as inputs.
+Verification:
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Legacy bot profile bootstrap contract remains green.
+Risks:
+- Bot seat/profile mapping and battle id ownership are frontend-visible through room snapshots; preserve exactly.
+
+Result:
+- Added `BattleRoomBootstrapper.scala`.
+- Moved roster construction, human bootstrap seats, bot bootstrap seats, bot hero slots, and legacy bot profile mapping out of `BattleQueueService.scala`.
+- `InMemoryBattleQueueService` still owns queue mutation, room lifecycle, timing, battle id generation, and snapshots.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; bootstrapper is pure value assembly.
+- Side effects inside domain: none; state mutation remains in queue service.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect replay file repository codec extraction.
+
+## Current Ticket
+
+ID: ID-318
+Goal: Extract replay file payload JSON rendering from `FileReplayRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/FileReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/ReplayFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay file parsing, file read/write/atomic move behavior, replay repository API semantics, replay service/route code, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure payload/replay/comment/settlement rendering and render-only helpers into a package-private renderer.
+- Leave `FileReplayRepository` responsible for locking, in-memory state, disk I/O, parsing, comment id counter, and sort decisions.
+- Preserve schema name, field names, base64 frames encoding, nullable rendering, and output ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service file repository contract passes.
+- Persisted replay/comment/settlement round trip behavior remains unchanged.
+Risks:
+- Rendered JSON is persisted data; preserve schema and base64/escape behavior exactly.
+
+Result:
+- Added `ReplayFileJsonRenderer.scala`.
+- Moved replay file payload/replay/comment/settlement rendering and render-only helpers out of `FileReplayRepository.scala`.
+- `FileReplayRepository` still owns sorting, locking, file I/O, parsing, and comment id state.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay file payload JSON parsing from `FileReplayRepository.scala`.
+
+## Current Ticket
+
+ID: ID-319
+Goal: Extract replay file payload JSON parsing from `FileReplayRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/FileReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/ReplayFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay file rendering, file read/write/atomic move behavior, replay repository API semantics, replay service/route code, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure raw JSON array extraction, replay/comment/settlement parsing, base64 frames decoding, and parse-only helpers into a package-private parser.
+- Leave `FileReplayRepository` responsible for locking, in-memory state, disk I/O, comment id counter, and settlement sorting/attachment.
+- Preserve permissive legacy parse behavior for malformed/missing fields.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from repository file I/O.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service file repository contract passes.
+- Persisted replay/comment/settlement reload behavior remains unchanged.
+Risks:
+- The parser is intentionally permissive; do not tighten malformed payload handling in this ticket.
+
+## Current Ticket
+
+ID: ID-500
+Goal: Extract battle finish projection label/text rules from `BattleFinishProjectionPlanner.scala`.
+Why this matters:
+- `BattleFinishProjectionPlanner` currently mixes settlement assembly, replay record assembly, time formatting, and user-facing labels.
+- Moving pure label construction out of the planner reduces the service module size without changing persistence or runtime behavior.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`
+- new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionLabelRules.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- projection artifact writers, repositories, database config/schema/data, battle runtime rules, frontend/rendering/assets, tests unless a compile failure requires a narrow update, git commit/push.
+Expected change:
+- Move finished-at formatting, settlement/replay labels, highlight/timeline text, players line, and replay title/result label helpers into a package-private pure rules object.
+- Keep `BattleFinishProjectionPlanner` responsible for assembling settlements and replay records.
+- Preserve existing wire text exactly.
+Architecture/domain-modeling impact:
+- Separates pure presentation-label rules from projection orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; DB/repository writes remain outside the planner.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Projection plan contract still passes.
+- Backend compiles.
+- Full backend contract suite still passes.
+- Planner no longer owns pure label helper implementation.
+Risks:
+- User-facing mojibake/legacy text is part of current contract; preserve it byte-for-byte where moved.
+
+Result:
+- Added `BattleFinishProjectionLabelRules.scala`.
+- Moved finished-at formatting, settlement/replay labels, highlight/timeline text, players line, replay title/result label, and server fallback label values out of `BattleFinishProjectionPlanner.scala`.
+- `BattleFinishProjectionPlanner.scala` now stays focused on settlement/replay record assembly and delegates presentation text to pure package-private rules.
+- Planner length reduced to 186 lines; new label rules object is 69 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Verification note:
+- The initially planned focused command omitted the test package and failed with `ClassNotFoundException`; the corrected package-qualified command passed.
+
+Self-review:
+- Primitive business types introduced: none beyond existing label strings at the presentation boundary.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; timestamp formatting remains in the service presentation rules, not the domain model.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect the next largest backend service/database adapter and choose a narrow split that does not touch frontend rendering or assets.
+
+## Current Ticket
+
+ID: ID-501
+Goal: Move battle finish replay record assembly out of `BattleFinishProjectionPlanner.scala`.
+Why this matters:
+- Planner still owns a detailed `ReplayRecord` field mapping after the label extraction.
+- Replay ownership/settlement mapping already lives in `BattleFinishProjectionReplayRules`; the top-level replay record mapping belongs with that replay-specific rule module.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionReplayRules.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- replay repositories, projection artifact writers, database config/schema/data, battle runtime mechanics, frontend/rendering/assets, tests unless a compile failure requires a narrow update, git commit/push.
+Expected change:
+- Move pure `ReplayRecord` construction from the planner into `BattleFinishProjectionReplayRules`.
+- Keep replay frame JSON rendering behavior and replay settlement mapping unchanged.
+- Leave planner responsible for settlement planning and plan assembly only.
+Architecture/domain-modeling impact:
+- Narrows the planner and groups replay-specific projection mapping with replay rules.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; this remains pure mapping before repository writes.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Projection plan contract still passes.
+- Backend compiles.
+- Full backend contract suite still passes.
+- Planner no longer contains the detailed `ReplayRecord(...)` mapping.
+Risks:
+- Replay field mapping is API/persistence-facing; preserve every field source and playback-availability rule exactly.
+
+Result:
+- Moved top-level `ReplayRecord` assembly from `BattleFinishProjectionPlanner.scala` to `BattleFinishProjectionReplayRules.scala`.
+- `BattleFinishProjectionPlanner.scala` now delegates replay construction to `BattleFinishProjectionReplayRules.replayRecord`.
+- Preserved replay owner selection, frame JSON rendering, frame-count playback rule, settlement mapping, and every field source.
+- Planner length reduced from 186 lines after ID-500 to 148 lines.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; replay record mapping is pure and repository writes remain elsewhere.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large modules and choose the next narrow architecture or domain-modeling ticket.
+
+## Current Ticket
+
+ID: ID-502
+Goal: Consolidate repeated skill availability gating inside `BattleSkillCommandRules.scala`.
+Why this matters:
+- Blink, Dash, and Freeze each repeat the same player lookup, missing-skill, and cooldown branching.
+- The repeated branches make future skill behavior fixes riskier because availability semantics can drift per skill.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleSkillCommandRules.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- skill balance constants/catalog values, battle runtime mechanics outside skill command rules, routes/API, database/data, frontend/rendering/assets, tests unless a compile failure requires a narrow update, git commit/push.
+Expected change:
+- Introduce a small private helper that gates a command on player existence and skill availability.
+- Keep Blink/Dash/Freeze target validation, movement/field creation, cooldown writes, and outcome wire values unchanged.
+Architecture/domain-modeling impact:
+- Keeps skill availability result as explicit `SkillOutcomeReason`, not Boolean branching spread across commands.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; rules remain pure state-in/state-out transformations.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleSkillRulesContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Skill rule contract still passes.
+- Battle runtime contract still passes.
+- Backend compiles and full backend contracts pass.
+- Repeated availability branches are centralized without changing command behavior.
+Risks:
+- Skill failure ordering is user-visible; preserve `SkillNotOwned` before `Cooldown` and do not alter target validation ordering after availability passes.
+
+Result:
+- Added `withAvailableSkill` and `unavailableSkill` helpers inside `BattleSkillCommandRules.scala`.
+- Blink, Dash, and Freeze now share the same player lookup and availability-failure path.
+- Preserved per-skill target validation, movement/field creation, cooldown updates, and command outcomes.
+- Removed repeated `.contains` checks around `availabilityFailure`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleSkillRulesContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; state updates remain explicit copy/replace operations.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect remaining battle service modules for a similarly narrow no-new-file refactor or focused contract gap.
+
+## Current Ticket
+
+ID: ID-503
+Goal: Centralize command submission storage in `InMemoryBattleStateService.acceptCommand`.
+Why this matters:
+- `acceptCommand` repeats `battles = battles.updated(...)` in every command branch.
+- A future branch could accidentally return without persisting the advanced battle state, especially after finish-projection preparation.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- battle runtime mechanics/rules, queue service, repositories/database/data, routes/API shape, frontend/rendering/assets, tests unless a compile failure requires a narrow update, git commit/push.
+Expected change:
+- Add a small private helper that stores the selected `StoredBattle` and returns `CommandSubmission`.
+- Replace repeated manual `battles.updated` branches with that helper.
+- Preserve all command errors, ignored/applied responses, projection candidates, and applied-state storage behavior.
+Architecture/domain-modeling impact:
+- Keeps mutation at the application service boundary and makes it explicit.
+- No domain model changes.
+Side-effect boundary impact:
+- In-memory service mutation remains in `InMemoryBattleStateService`; no new side effects.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle runtime contract still passes.
+- Backend compiles.
+- Full backend contract suite still passes.
+- `acceptCommand` has one explicit helper for storing submission state.
+Risks:
+- Applied commands must still store `advanced.copy(state = nextState)`, while rejected/ignored commands store `advanced`.
+
+Result:
+- Added `storeCommandSubmission` inside `InMemoryBattleStateService`.
+- Replaced repeated command-branch `battles.updated(request.battleId, ...)` calls with the helper.
+- Preserved rejected/ignored branches storing `advanced` and applied commands storing `advanced.copy(state = nextState)`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; in-memory service mutation remains explicit at the service boundary.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Use explorer findings plus local scan to pick the next narrow backend architecture ticket.
+
+## Current Ticket
+
+ID: ID-504
+Goal: Extract battle finish projection failure reporter boundary from `BattleFinishProjectionService.scala`.
+Why this matters:
+- `BattleFinishProjectionService.scala` currently mixes projector orchestration, projection outcomes, artifact write status, and the console failure reporter implementation.
+- The console reporter is an effectful boundary and should be isolated from the core projection orchestration file.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionService.scala`
+- new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionFailureReporter.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- projection artifact write behavior, repositories, database config/schema/data, battle runtime mechanics, frontend/rendering/assets, tests unless a compile failure requires a narrow update, git commit/push.
+Expected change:
+- Move `BattleFinishProjectionFailureReporter` and `ConsoleBattleFinishProjectionFailureReporter` into their own service-boundary file.
+- Keep `DefaultBattleFinishProjector` constructor default and reporter behavior unchanged.
+- Do not change failure message construction, artifact outcome mapping, or projection retry behavior.
+Architecture/domain-modeling impact:
+- Makes the console side-effect boundary explicit and separate from projection orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- Console output remains in an adapter-like reporter implementation; no new side effects.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Projection write contract still passes.
+- Backend compiles.
+- Full backend contract suite still passes.
+- Service file no longer defines the concrete console reporter.
+Risks:
+- Default reporter wiring is relied on by production construction; preserve constructor default exactly.
+
+Result:
+- Added `BattleFinishProjectionFailureReporter.scala`.
+- Moved `BattleFinishProjectionFailureReporter` and `ConsoleBattleFinishProjectionFailureReporter` out of `BattleFinishProjectionService.scala`.
+- Kept `DefaultBattleFinishProjector` default constructor argument pointing to `ConsoleBattleFinishProjectionFailureReporter`.
+- Projection service file now owns projector orchestration/outcome mapping, while console reporting is isolated as an explicit boundary.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; console output remains in an explicit service-boundary reporter.
+- Scope respected: yes.
+
+Next ticket:
+- Evaluate queue leave semantics only if existing tests make expected behavior clear; otherwise continue with low-risk backend adapter cleanup.
+
+## Current Ticket
+
+ID: ID-505
+Goal: Prevent queue leave from removing active or finished battle tickets.
+Why this matters:
+- Existing contracts already require old tickets to remain queryable after a room becomes active or finished.
+- `BattleQueueLeaveRules.leave` currently removes any known ticket, which can erase active/finished status if a late cancel/leave request arrives after battle start.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueServiceContracts.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueLeaveRules.scala`
+- `backend/src/test/scala/slaydemo/backend/BattleQueueRuntimeContractTest.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- queue join/start timing, battle runtime mechanics, routes/API JSON shape unless compile requires a narrow update, repositories/database/data, frontend/rendering/assets, git commit/push.
+Expected change:
+- Add an explicit leave outcome for tickets whose room is no longer waiting.
+- Leave active/finished room state, participants, tickets, and queue request mappings unchanged.
+- Preserve waiting-room leave behavior and missing-ticket behavior.
+Architecture/domain-modeling impact:
+- Replaces an implicit false-ish leave result with an explicit finite outcome.
+- No domain model data shape changes beyond the service outcome enum.
+Side-effect boundary impact:
+- In-memory queue mutation remains inside queue service; this ticket narrows when mutation is allowed.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Waiting ticket leave still succeeds and removes the ticket.
+- Missing ticket leave still returns `TicketNotFound`.
+- Active and finished ticket leave returns the new explicit outcome and status remains queryable with original phase.
+Risks:
+- The HTTP leave endpoint currently returns only `{left:boolean}`; preserving that shape means the new non-waiting outcome maps to `left:false` through existing comparison.
+
+Result:
+- Added explicit `BattleQueueLeaveOutcome.NotWaiting`.
+- `BattleQueueLeaveRules.leave` now leaves rooms, tickets, and queue-request mappings unchanged when the ticket belongs to an active or finished room.
+- Waiting ticket leave and missing ticket behavior remain unchanged.
+- Added queue runtime contracts for active-ticket and finished-ticket leave attempts.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; added explicit enum outcome instead of reusing a Boolean.
+- Domain mutation introduced: no new mutation; queue mutation is now narrower and remains in service state.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Move to low-risk backend adapter cleanup: inspect file JSON scanner duplication or Postgres transaction helpers before editing.
+
+## Current Ticket
+
+ID: ID-506
+Goal: Move replay Postgres transaction helper into `PostgresSupport`.
+Why this matters:
+- `PostgresReplayRepository` owns a local transaction helper even though transaction setup/commit/rollback is shared database adapter infrastructure.
+- Moving that helper to `PostgresSupport` makes transaction side effects explicit at the shared database boundary and avoids duplicating it in future repositories.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/shared/database/PostgresSupport.scala`
+- `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRepository.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- Forum transaction helper, SQL statements, DDL/schema definitions, repository API semantics, replay row mapping, database data, frontend/rendering/assets, tests unless compile requires a narrow update, git commit/push.
+Expected change:
+- Add `PostgresSupport.withTransaction(connection)(body)` using the same auto-commit/commit/rollback/finally behavior as the replay repository helper.
+- Replace the replay repository local helper with the shared helper.
+- Preserve replay save transaction scope exactly.
+Architecture/domain-modeling impact:
+- Keeps transaction side effects in the database adapter/support layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Transaction side effects remain explicit database infrastructure behavior.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Replay service contract still passes.
+- Backend compiles.
+- Full backend contract suite still passes.
+- `PostgresReplayRepository` no longer defines a local transaction helper.
+Risks:
+- Preserve the `NonFatal` rollback behavior from the replay repository helper exactly; do not change forum transaction semantics in this ticket.
+
+Result:
+- Added `PostgresSupport.withTransaction(connection)(body)`.
+- Replaced `PostgresReplayRepository`'s local transaction helper with the shared support helper.
+- Preserved replay save transaction scope and `NonFatal` rollback behavior.
+- Left `PostgresForumRepository` untouched because its existing helper catches `Throwable`; that needs a separate semantic decision/ticket.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; transaction side effects stay in database support.
+- Scope respected: yes.
+
+Next ticket:
+- Consider migrating `PostgresForumRepository` transaction handling only after deciding whether to preserve its catch-all rollback semantics or align to `NonFatal`.
+
+## Current Ticket
+
+ID: ID-507
+Goal: Extract atomic file write helper for battle result and mail file repositories.
+Why this matters:
+- File repositories repeat the same create-parent/write-temp/atomic-move/fallback sequence.
+- Centralizing this side-effect boundary reduces drift while keeping repository logic focused on records and payload rendering.
+Allowed scope:
+- new `backend/src/main/scala/slaydemo/backend/shared/database/AtomicFileWrite.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/database/FileBattleResultRepository.scala`
+- `backend/src/main/scala/slaydemo/backend/mail/database/FileMailRepository.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- other file repositories, parser/renderer behavior, repository API semantics, database config/schema/data, frontend/rendering/assets, tests unless compile requires a narrow update, git commit/push.
+Expected change:
+- Add a shared helper that writes UTF-8 payloads to `<target>.tmp`, then moves with `REPLACE_EXISTING` and `ATOMIC_MOVE`, falling back to non-atomic replace when atomic move is unsupported.
+- Replace battle result and mail repository local write sequences with the helper.
+- Preserve payload ordering and load behavior.
+Architecture/domain-modeling impact:
+- Moves file-system side-effect mechanics to shared database infrastructure.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains explicit adapter infrastructure; repositories still decide when to persist.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle result and mail service contracts pass.
+- Backend compiles.
+- Full backend contract suite passes.
+- The two repositories no longer duplicate atomic write implementation.
+Risks:
+- File write behavior is persistence-facing; preserve temp file naming, charset, open options, and move fallback exactly.
+
+Result:
+- Added `AtomicFileWrite.writeUtf8`.
+- Replaced duplicate atomic write sequences in `FileBattleResultRepository` and `FileMailRepository`.
+- Preserved payload ordering, UTF-8 encoding, `<target>.tmp` temp file naming, write options, atomic move, and non-atomic fallback.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Verification note:
+- The first attempt ran the two SBT focused tests in parallel and the Mail run hit a Windows/SBT target jar copy lock. Rerunning Mail sequentially passed.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; file-write effects are in shared database infrastructure.
+- Scope respected: yes.
+
+Next ticket:
+- Continue migrating the same atomic file write helper to one or two more file repositories, or inspect route/service modules for higher-priority correctness gaps.
+
+## Current Ticket
+
+ID: ID-508
+Goal: Reuse atomic file write helper in bot profile and friend request file repositories.
+Why this matters:
+- `FileBotProfileRepository` and `FileFriendRequestRepository` still duplicate the same atomic write side-effect sequence already extracted in ID-507.
+- Migrating them in a second small batch keeps behavior reviewable while reducing persistence-boundary drift.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/bots/database/FileBotProfileRepository.scala`
+- `backend/src/main/scala/slaydemo/backend/social/database/FileFriendRequestRepository.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- other file repositories, parser/renderer behavior, repository API semantics, database config/schema/data, frontend/rendering/assets, tests unless compile requires a narrow update, git commit/push.
+Expected change:
+- Replace local atomic write sequences with `AtomicFileWrite.writeUtf8`.
+- Preserve payload ordering, seed-default behavior, id counter behavior, load behavior, temp file naming, charset, and move fallback.
+Architecture/domain-modeling impact:
+- Keeps file-write mechanics in shared database infrastructure.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains explicit adapter infrastructure.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BotProfileServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Bot profile and friend request service contracts pass.
+- Backend compiles.
+- Full backend contract suite passes.
+- The two repositories no longer duplicate atomic write implementation.
+Risks:
+- Bot profile default seeding writes during load; preserve that timing and only change the mechanics of the write.
+
+Result:
+- Reused `AtomicFileWrite.writeUtf8` in `FileBotProfileRepository`.
+- Reused `AtomicFileWrite.writeUtf8` in `FileFriendRequestRepository`.
+- Preserved bot profile default seeding, friend request id counter advancement, payload ordering, and load behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BotProfileServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; file-write effects are in shared database infrastructure.
+- Scope respected: yes.
+
+Next ticket:
+- Continue the same atomic file write migration for another small pair only if the repository behavior is identical and focused contracts are available.
+
+## Current Ticket
+
+ID: ID-509
+Goal: Reuse atomic file write helper in identity and replay file repositories.
+Why this matters:
+- `FileIdentityAccountRepository` and `FileReplayRepository` still duplicate the atomic write sequence already extracted to shared infrastructure.
+- Migrating them in a small pair reduces file persistence drift while keeping identity/replay behavior covered by focused contracts.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/identity/database/FileIdentityAccountRepository.scala`
+- `backend/src/main/scala/slaydemo/backend/replay/database/FileReplayRepository.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- other file repositories, parser/renderer behavior, repository API semantics, password/session logic, replay ordering/id logic, database config/schema/data, frontend/rendering/assets, tests unless compile requires a narrow update, git commit/push.
+Expected change:
+- Replace local atomic write sequences with `AtomicFileWrite.writeUtf8`.
+- Preserve identity password/session compatibility, active-account behavior, replay/comment id counters, payload ordering, and load behavior.
+Architecture/domain-modeling impact:
+- Keeps file-write mechanics in shared database infrastructure.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains explicit adapter infrastructure.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Identity and replay service contracts pass.
+- Backend compiles.
+- Full backend contract suite passes.
+- The two repositories no longer duplicate atomic write implementation.
+Risks:
+- Identity persistence is sensitive because it stores password secrets/session state; do not change render/load/authentication semantics.
+
+Result:
+- Reused `AtomicFileWrite.writeUtf8` in `FileIdentityAccountRepository`.
+- Reused `AtomicFileWrite.writeUtf8` in `FileReplayRepository`.
+- Preserved identity password/session compatibility and replay/comment ordering/id-counter behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; file-write effects are in shared database infrastructure.
+- Scope respected: yes.
+
+Next ticket:
+- Finish the atomic file write migration for forum/governance if their persistence behavior matches the shared helper exactly.
+
+## Current Ticket
+
+ID: ID-510
+Goal: Reuse atomic file write helper in forum and governance file repositories.
+Why this matters:
+- `FileForumRepository` and `FileGovernanceRepository` still duplicate the atomic write sequence already extracted to shared infrastructure.
+- This finishes the main file repository write-boundary cleanup in another small, verified batch.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/forum/database/FileForumRepository.scala`
+- `backend/src/main/scala/slaydemo/backend/governance/database/FileGovernanceRepository.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- parser/renderer behavior, repository API semantics, forum/governance id counters, database config/schema/data, frontend/rendering/assets, tests unless compile requires a narrow update, git commit/push.
+Expected change:
+- Replace local atomic write sequences with `AtomicFileWrite.writeUtf8`.
+- Preserve forum topic/reply/vote ordering, governance adjustment/notification ordering, id counter behavior, load behavior, temp file naming, charset, and move fallback.
+Architecture/domain-modeling impact:
+- Keeps file-write mechanics in shared database infrastructure.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains explicit adapter infrastructure.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Forum and governance service contracts pass.
+- Backend compiles.
+- Full backend contract suite passes.
+- These repositories no longer duplicate atomic write implementation.
+Risks:
+- Governance persists two separate files; preserve each target path and payload independently.
+
+Result:
+- Reused `AtomicFileWrite.writeUtf8` in `FileForumRepository`.
+- Reused `AtomicFileWrite.writeUtf8` in `FileGovernanceRepository` for both adjustments and review notifications.
+- Preserved forum topic/reply/vote ordering, governance adjustment/notification ordering, id counters, and separate governance target paths.
+- Repository-local atomic write duplication is now gone; only `AtomicFileWrite` owns `Files.writeString`, atomic move, and fallback.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Additional scan:
+- `rg` found `Files.writeString`, `ATOMIC_MOVE`, `StandardOpenOption`, and `AtomicMoveNotSupportedException` only in `AtomicFileWrite.scala`.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; file-write effects are in shared database infrastructure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large modules now that file-write duplication is removed.
+
+## Current Ticket
+
+ID: ID-511
+Goal: Remove duplicated projectile/pickup JSON field mapping in `BattleReplayFramesJsonRenderer.scala`.
+Why this matters:
+- Captured replay frames and fallback final-state frames currently duplicate projectile and pickup JSON rendering logic.
+- The duplicated mappings are persistence/API-facing replay data; keeping one field mapping reduces drift risk.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleReplayFramesJsonRenderer.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- replay frame timeline selection, replay record projection, frontend rendering/assets, database/repository code, tests unless compile requires a narrow update, git commit/push.
+Expected change:
+- Add private helper methods that render projectile and pickup JSON from shared field values.
+- Make both captured-frame and fallback-state overloads delegate to those helpers.
+- Preserve every JSON key, value source, ordering, and optional field behavior.
+Architecture/domain-modeling impact:
+- No domain model changes; this keeps serialization mapping centralized inside the renderer.
+Side-effect boundary impact:
+- No side effects; renderer remains pure.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Projection plan contract still passes, including replay JSON assertions.
+- Backend compiles.
+- Full backend contract suite passes.
+- Projectile/pickup render overloads no longer duplicate field maps.
+Risks:
+- Replay JSON field order is part of current snapshots; preserve it exactly.
+
+Result:
+- Added shared private projectile-frame and pickup-frame JSON helpers inside `BattleReplayFramesJsonRenderer.scala`.
+- Captured replay-frame overloads and fallback state overloads now delegate to the same field mapping.
+- Preserved JSON keys, value sources, ordering, optional `weaponKind`, and replay frame timeline behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer remains pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess large battle service modules and choose the next narrow pure-rule cleanup or contract gap.
+
+## Current Ticket
+
+ID: ID-512
+Goal: Remove duplicated hero JSON field mapping in `BattleReplayFramesJsonRenderer.scala`.
+Why this matters:
+- Captured replay hero frames and fallback player-state frames duplicate the same hero JSON field mapping.
+- Centralizing hero mapping keeps replay JSON schema changes from drifting between captured and fallback frame paths.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleReplayFramesJsonRenderer.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- replay frame timeline selection, life-state domain modeling, replay record projection, frontend rendering/assets, database/repository code, tests unless compile requires a narrow update, git commit/push.
+Expected change:
+- Add a private helper that renders hero JSON from shared field values.
+- Make captured-frame and fallback-state hero overloads delegate to that helper.
+- Preserve every JSON key, value source, ordering, life-state string, and eliminated-at behavior.
+Architecture/domain-modeling impact:
+- No domain model changes; serialization mapping is centralized inside the renderer.
+Side-effect boundary impact:
+- No side effects; renderer remains pure.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Projection plan contract still passes, including replay JSON assertions.
+- Backend compiles.
+- Full backend contract suite passes.
+- Hero render overloads no longer duplicate field maps.
+Risks:
+- Replay JSON field order and `alive`/`lifeState` values are API-facing; preserve them exactly.
+
+Result:
+- Added a shared private hero-frame JSON helper in `BattleReplayFramesJsonRenderer.scala`.
+- Captured replay hero frames and fallback player-state frames now delegate to the same field mapping.
+- Preserved existing JSON keys, ordering, alive/life-state calculation, and eliminated-at behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; helper parameters mirror existing serialization boundary values.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer remains pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend architecture hotspots and pick the next narrow, verified cleanup.
+
+## Current Ticket
+
+ID: ID-513
+Goal: Remove duplicated replay-frame top-level JSON field mapping in `BattleReplayFramesJsonRenderer.scala`.
+Why this matters:
+- Captured replay frames and fallback frames duplicate the same top-level replay-frame JSON keys.
+- A shared helper reduces schema drift risk without changing gameplay, persistence, frontend, or projection selection behavior.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleReplayFramesJsonRenderer.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- replay timeline selection, captured frame recording, projectile/hero/pickup semantics, battle rules, frontend rendering/assets, database/repository code, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Add one private helper that renders a replay-frame object from prepared hero/projectile/pickup JSON arrays.
+- Make captured-frame and fallback-state replay-frame render paths delegate to it.
+- Preserve every JSON key, ordering, and value source exactly.
+Architecture/domain-modeling impact:
+- No domain model changes; serialization mapping stays pure and centralized.
+Side-effect boundary impact:
+- No side effects; renderer remains pure.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Projection plan contract still passes, including replay JSON assertions.
+- Backend compiles.
+- Full backend contract suite passes.
+- Captured and fallback frame render paths share the top-level field map.
+Risks:
+- Replay JSON key order is API-facing; preserve field order exactly.
+
+Result:
+- Added a shared private replay-frame object renderer in `BattleReplayFramesJsonRenderer.scala`.
+- Captured replay frames and fallback frames now share the same top-level JSON key mapping.
+- Preserved existing JSON keys, ordering, event-message lookup, and value sources.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond serialization-boundary JSON strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer remains pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend architecture hotspots and choose the next narrow verified ticket.
+
+## Current Ticket
+
+ID: ID-514
+Goal: Replace regex object extraction in `ForumFileJsonObjectScanner.scala` with depth-aware scanning.
+Why this matters:
+- Forum file repository parsing currently uses a regex to extract objects from JSON arrays.
+- A depth-aware scanner is more robust for persisted payloads with strings containing JSON punctuation or future nested fields, while keeping file I/O in the repository boundary.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/forum/database/ForumFileJsonObjectScanner.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- forum schema/rendering/parsing field semantics, repository API behavior, Postgres repositories, services/routes, battle/replay renderer, frontend/assets, database data changes, git commit/push.
+Expected change:
+- Replace the object-regex extraction with a local scanner that tracks object depth, strings, and escapes.
+- Preserve the old return shape: extracted chunks do not include the outer `{` and `}`.
+- Keep existing matching-delimiter behavior unchanged.
+Architecture/domain-modeling impact:
+- No domain model changes; this is pure repository parsing support.
+Side-effect boundary impact:
+- No new side effects; file I/O remains in `FileForumRepository`.
+Verification commands:
+- Baseline: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- After change: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Forum service file repository contract still passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Scanner no longer relies on regex object extraction.
+Risks:
+- Returning full objects instead of old inner chunks could subtly affect parsers; preserve inner chunk shape in this ticket.
+
+Result:
+- Replaced regex object extraction in `ForumFileJsonObjectScanner.scala` with a depth-aware scanner.
+- Scanner now tracks object depth, string literals, and escaped characters.
+- Preserved the old parser input shape by returning object inner chunks without outer braces.
+
+Verification passed:
+- Baseline before edit: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- After edit: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parsing support still works on raw JSON boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; scanner is pure support code.
+- Scope respected: yes.
+
+Next ticket:
+- Apply the same depth-aware scanner hardening to replay file object extraction.
+
+## Current Ticket
+
+ID: ID-515
+Goal: Replace regex object extraction in `ReplayFileJsonObjectScanner.scala` with depth-aware scanning.
+Why this matters:
+- Replay file repository parsing currently uses a regex to extract objects from JSON arrays.
+- Replay records can carry escaped JSON-derived strings and large encoded frame payloads; depth-aware extraction reduces persisted-data parsing drift risk.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/replay/database/ReplayFileJsonObjectScanner.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- replay schema/rendering/parsing field semantics, repository API behavior, Postgres repositories, services/routes, battle replay renderer, frontend/assets, database data changes, git commit/push.
+Expected change:
+- Replace regex object extraction with a local scanner that tracks object depth, string literals, and escapes.
+- Preserve old return shape: extracted chunks do not include outer `{` and `}`.
+- Keep matching-delimiter behavior unchanged.
+Architecture/domain-modeling impact:
+- No domain model changes; this is pure repository parsing support.
+Side-effect boundary impact:
+- No new side effects; file I/O remains in `FileReplayRepository`.
+Verification commands:
+- Baseline: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- After change: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Replay service file repository contract still passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Scanner no longer relies on regex object extraction.
+Risks:
+- Returning full objects instead of old inner chunks could subtly affect parsers; preserve inner chunk shape in this ticket.
+
+Result:
+- Replaced regex object extraction in `ReplayFileJsonObjectScanner.scala` with a depth-aware scanner.
+- Scanner now tracks object depth, string literals, and escaped characters.
+- Preserved the old parser input shape by returning object inner chunks without outer braces.
+
+Verification passed:
+- Baseline before edit: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- After edit: `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parsing support still works on raw JSON boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; scanner is pure support code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess whether the next ticket should address explicit forum create-topic business results or route JSON response duplication.
+
+## Current Ticket
+
+ID: ID-516
+Goal: Make forum topic creation return an explicit business result.
+Why this matters:
+- `ForumService.createTopic` currently returns `ForumTopicView` directly, while reply/vote mutations expose explicit failure ADTs.
+- Service callers can bypass route parsing, so invalid/visitor authors and blank typed wrappers should be represented as service-level business failures.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/forum/services/ForumService.scala`
+- `backend/src/main/scala/slaydemo/backend/forum/routes/ForumMutationRouteHandler.scala`
+- `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRouteErrorMapper.scala`
+- `backend/src/test/scala/slaydemo/backend/ForumServiceContractTest.scala`
+- `backend/src/test/scala/slaydemo/backend/forum/routes/ForumRouteContractTest.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- forum persistence schema/repository behavior, command parser request syntax, frontend/assets, battle/replay services, database data changes, git commit/push.
+Expected change:
+- Add a `ForumCreateTopicError` enum in the service layer.
+- Change `ForumService.createTopic` to return `Either[ForumCreateTopicError, ForumTopicView]`.
+- Validate title/body/tag/author inside `DefaultForumService` before persistence.
+- Map service-level create errors to the same route status/code semantics as parse-level create errors.
+- Update focused service and route contracts.
+Architecture/domain-modeling impact:
+- Replaces an implicit success-only business outcome with an explicit ADT result.
+- Keeps validation in the service boundary and persistence side effects after validation.
+Side-effect boundary impact:
+- Repository writes remain in service orchestration and happen only after validation succeeds.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Forum service and route contracts pass.
+- Backend compiles.
+- Full backend contract suite passes.
+- Topic creation persistence only happens for `Right` results.
+Risks:
+- This touches a public service trait, so tests and route stubs must be updated consistently.
+
+Result:
+- Added `ForumCreateTopicError` as an explicit service-layer create-topic result ADT.
+- Changed `ForumService.createTopic` to return `Either[ForumCreateTopicError, ForumTopicView]`.
+- `DefaultForumService` now validates title/body/tag/author before calling the repository.
+- `ForumMutationRouteHandler` maps service-level create failures to the same HTTP code/status family as parse failures.
+- Updated forum service and route contracts, including invalid create requests not persisting topics.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; create failures are an enum.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; repository write remains service-side and happens after validation.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess route error JSON duplication or another explicit service result gap.
+
+## Current Ticket
+
+ID: ID-517
+Goal: Make battle result recording return an explicit business result.
+Why this matters:
+- `BattleResultService.record` currently returns a `BattleResultRecord` even when a non-playable handle is not persisted.
+- A success-looking return value hides a meaningful business failure and makes caller behavior ambiguous.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleResultService.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultRoutes.scala`
+- `backend/src/test/scala/slaydemo/backend/BattleResultServiceContractTest.scala`
+- `backend/src/test/scala/slaydemo/backend/VisitorHandleGuardrailContractTest.scala`
+- `backend/src/test/scala/slaydemo/backend/battle/routes/BattleResultRouteContractTest.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- battle result persistence schema/repository behavior, battle finish projection writers, replay services, frontend/assets, database data changes, git commit/push.
+Expected change:
+- Add a `BattleResultRecordError` enum.
+- Change `BattleResultService.record` to return `Either[BattleResultRecordError, BattleResultRecord]`.
+- Validate/normalize record owner handle before building and saving the result.
+- Map service-level record failures to the same route status/code semantics as parse-level failures.
+- Update focused service, visitor guardrail, and route contracts.
+Architecture/domain-modeling impact:
+- Replaces an implicit success-only/skip-persistence outcome with an explicit ADT result.
+- Keeps record normalization and persistence orchestration in the service layer.
+Side-effect boundary impact:
+- Repository writes remain in the service and happen only after validation succeeds.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.VisitorHandleGuardrailContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Focused service/route/visitor contracts pass.
+- Backend compiles.
+- Full backend contract suite passes.
+- Visitor/invalid battle result records return `Left` and do not write to repositories.
+Risks:
+- This touches a public service trait, so all route stubs and direct service tests must be updated consistently.
+
+Result:
+- Added `BattleResultRecordError` as an explicit service-layer record-result ADT.
+- Changed `BattleResultService.record` to return `Either[BattleResultRecordError, BattleResultRecord]`.
+- `DefaultBattleResultService` now validates and normalizes owner handles before building/saving records.
+- `BattleResultRoutes` maps service-level record failures to the same HTTP status/code family as parse failures.
+- Updated battle result service, visitor guardrail, and battle result route contracts.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.VisitorHandleGuardrailContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; record failures are an enum.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; repository write remains service-side and happens after validation.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining service result gaps or route JSON response duplication.
+
+## Current Ticket
+
+ID: ID-518
+Goal: Normalize mail owner handles at the service boundary.
+Why this matters:
+- `MailService` route calls already parse handles, but direct service calls can pass `PlayerHandle` values with surrounding whitespace.
+- The current implementation may create/read welcome mail under an unnormalized owner key, producing dirty owner data.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/mail/services/MailService.scala`
+- `backend/src/test/scala/slaydemo/backend/MailServiceContractTest.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- mail repository schemas/parsers/renderers, routes, governance/social mail factories, frontend/assets, database data changes, git commit/push.
+Expected change:
+- Normalize playable owner handles with `PlayerHandle.forLookup` before list, welcome-mail creation, and mark-read repository calls.
+- Preserve visitor/non-playable behavior: list returns empty and mark-read returns `MailNotFound`.
+- Add focused service contract coverage for whitespace owner normalization.
+Architecture/domain-modeling impact:
+- Keeps handle validation/normalization at the service boundary and prevents persistence of dirty owner keys.
+Side-effect boundary impact:
+- Repository writes remain in service orchestration; welcome mail writes use normalized owner handles.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Mail service contract passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Direct calls with whitespace owner handles read/write under the trimmed playable handle.
+Risks:
+- Welcome-mail id derives from owner key; the normalized owner must be used consistently for list and mark-read.
+
+Result:
+- `DefaultMailService` now normalizes owner handles with `PlayerHandle.forLookup` before list, welcome-mail creation, and mark-read calls.
+- Non-playable owners still return empty list or `MailNotFound`.
+- Added mail service contract coverage for whitespace owner list/mark-read normalization.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; repository writes remain in the service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining owner-handle normalization or route error JSON duplication.
+
+## Current Ticket
+
+ID: ID-519
+Goal: Normalize friend-request handles at the service boundary.
+Why this matters:
+- Routes already normalize handles, but direct `FriendRequestService` calls can pass whitespace-padded handles.
+- Without service-boundary normalization, self-request checks and persisted source/target owners can drift from canonical handle keys.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestService.scala`
+- `backend/src/test/scala/slaydemo/backend/FriendRequestServiceContractTest.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- social repositories/file schema/routes, mail service/factory behavior, frontend/assets, database data changes, git commit/push.
+Expected change:
+- Normalize source/target/actor/owner handles with `PlayerHandle.forLookup` before create/respond/list logic.
+- Preserve existing error ADTs: invalid create handles remain `InvalidHandles`; invalid response actors remain `Forbidden` after request lookup.
+- Add focused service contract coverage for whitespace handle normalization and self-request rejection.
+Architecture/domain-modeling impact:
+- Keeps handle validation/normalization at the service boundary and prevents dirty social records.
+Side-effect boundary impact:
+- Repository/mail writes remain in the service and use normalized handles.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Friend request service contract passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Whitespace-padded handles persist/list/respond as canonical handles.
+Risks:
+- Duplicate detection depends on handle keys; normalization must happen before repository create/find operations.
+
+Result:
+- `DefaultFriendRequestService` now normalizes create source/target, respond actor, and list owner handles at the service boundary.
+- Dirty whitespace handles no longer bypass self-request detection or persist dirty source/target owners.
+- Added service contract coverage for normalized create/list/respond flow and whitespace self-request rejection.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; repository/mail writes remain in the service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining route error JSON duplication or service-boundary normalization gaps.
+
+## Current Ticket
+
+ID: ID-520
+Goal: Normalize battle queue join and heartbeat handles before queue state transitions.
+Why this matters:
+- Route parsing normalizes handles, but direct `BattleQueueService` calls can pass whitespace-padded handles.
+- Queue participant identity and heartbeat matching depend on handle keys; dirty handles can create duplicate participants or missed heartbeats.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueParticipantRules.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueJoinRules.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`
+- `backend/src/test/scala/slaydemo/backend/BattleQueueRuntimeContractTest.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- queue route parsing/authorization, room lifecycle timing, battle state runtime, frontend/assets, database data changes, git commit/push.
+Expected change:
+- Add queue participant handle normalization support.
+- Normalize join command handle before selecting rooms and drafting participants.
+- Normalize heartbeat handle matching so whitespace-padded direct calls still touch the intended participant.
+- Add focused queue runtime contract coverage.
+Architecture/domain-modeling impact:
+- Keeps handle normalization at the queue service boundary without changing queue result ADTs or route behavior.
+Side-effect boundary impact:
+- Queue state mutation remains inside `InMemoryBattleQueueService`; normalized values are used before mutation.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Queue runtime contract passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Join/heartbeat with whitespace handles stores and matches canonical handles.
+Risks:
+- Queue request idempotency and room reuse depend on ordering; normalize the command before both room selection and ticket drafting.
+
+Result:
+- Added queue participant handle normalization support.
+- `InMemoryBattleQueueService.join` now normalizes the join command before room selection, ticket drafting, and queue-request mapping.
+- Heartbeat handle matching now uses normalized handle keys.
+- Added queue runtime coverage for whitespace join and heartbeat handles.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; queue mutation remains in the service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend structure and route error JSON duplication.
+
+## Current Ticket
+
+ID: ID-521
+Goal: Add shared JSON error response support and migrate bot profile route.
+Why this matters:
+- Many routes hand-roll identical `{"error":...,"code":...}` response JSON.
+- Centralizing the response shape reduces route-layer drift while keeping route handlers focused on HTTP decisions.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/shared/routes/HttpRouteSupport.scala`
+- `backend/src/main/scala/slaydemo/backend/bots/routes/BotProfileRoutes.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- other route migrations, route error semantics/status codes, service/domain/repository behavior, frontend/assets, git commit/push.
+Expected change:
+- Add shared `sendJsonError(exchange, status, code, message)` to `HttpRouteSupport`.
+- Use it from `BotProfileRoutes` and remove the local duplicated error rendering helper.
+- Preserve JSON key order and escaping.
+Architecture/domain-modeling impact:
+- No domain model changes; route response formatting becomes shared infrastructure.
+Side-effect boundary impact:
+- HTTP response writing remains in route support.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.bots.routes.BotProfileRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Bot profile route contract passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Bot profile unsupported method error JSON remains compatible.
+Risks:
+- Error JSON shape is API-facing; preserve `"error"` then `"code"` ordering and escaping.
+
+Result:
+- Added `HttpRouteSupport.sendJsonError`.
+- Migrated `BotProfileRoutes` to the shared error sender.
+- Removed the local bot-profile error JSON helpers.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.bots.routes.BotProfileRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP response writing remains in shared route support.
+- Scope respected: yes.
+
+Next ticket:
+- Migrate another narrow route to shared JSON error response support.
+
+## Current Ticket
+
+ID: ID-522
+Goal: Migrate mail routes to shared JSON error response support.
+Why this matters:
+- `MailRoutes` duplicates the same error JSON rendering now provided by `HttpRouteSupport`.
+- Migrating one route at a time keeps API response compatibility easy to verify.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/mail/routes/MailRoutes.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- mail command parsing, mail service/repository behavior, other route migrations, frontend/assets, git commit/push.
+Expected change:
+- Replace local `jsonError` calls with `HttpRouteSupport.sendJsonError`.
+- Remove local mail-route error JSON helpers.
+- Preserve status codes, error codes, messages, key order, and escaping.
+Architecture/domain-modeling impact:
+- No domain model changes; route response formatting uses shared infrastructure.
+Side-effect boundary impact:
+- HTTP response writing remains in route support.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Mail route contract passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Mail route error responses remain compatible.
+Risks:
+- Error JSON is API-facing; this ticket must be a mechanical sender swap only.
+
+Result:
+- Migrated `MailRoutes` to `HttpRouteSupport.sendJsonError`.
+- Removed local mail-route error JSON helpers.
+- Note: one mechanical replacement was initially made with PowerShell, then the remaining cleanup was corrected with `apply_patch`; focused and full verification passed afterward.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP response writing remains in shared route support.
+- Scope respected: yes after correcting the helper cleanup; no out-of-scope files changed for this ticket.
+
+Next ticket:
+- Migrate another narrow route to shared JSON error response support.
+
+## Current Ticket
+
+ID: ID-523
+Goal: Migrate social routes to shared JSON error response support.
+Why this matters:
+- `SocialRoutes` duplicates the same route error JSON sender now available in `HttpRouteSupport`.
+- Keeping the migration route-scoped avoids broad response-surface changes in one step.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/social/routes/SocialRoutes.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- social command parsing, friend request service/repository behavior, other route migrations, frontend/assets, git commit/push.
+Expected change:
+- Replace local `jsonError` calls with `HttpRouteSupport.sendJsonError`.
+- Remove local social-route error JSON helpers.
+- Preserve status codes, error codes, messages, key order, and escaping.
+Architecture/domain-modeling impact:
+- No domain model changes; route response formatting uses shared infrastructure.
+Side-effect boundary impact:
+- HTTP response writing remains in route support.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Social route contract passes.
+- Backend compiles.
+- Full backend contract suite passes.
+- Social route error responses remain compatible.
+Risks:
+- Error JSON is API-facing; this ticket must remain a mechanical sender swap.
+
+Result:
+- Migrated `SocialRoutes` to `HttpRouteSupport.sendJsonError`.
+- Removed local social-route error JSON helpers.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP response writing remains in shared route support.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining route error migrations and broader test coverage.
+
+## Current Ticket
+
+ID: ID-524
+Goal: Delegate battle route JSON errors to shared route support.
+Why this matters:
+- Battle routes already have a local support object, but it still duplicates the JSON error rendering now centralized in `HttpRouteSupport`.
+- Delegating keeps battle route error mapping local while sharing the final wire-format renderer.
+Allowed scope:
+- `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRouteHttpSupport.scala`
+- `.codex/agent-state.md`
+Forbidden scope:
+- battle route error mapping semantics, command parsers, battle queue/state services, battle result routes, frontend/assets, git commit/push.
+Expected change:
+- Make `BattleRouteHttpSupport.jsonError` call `HttpRouteSupport.sendJsonError`.
+- Remove local battle-route JSON string helper.
+- Preserve status codes, error codes, messages, key order, and escaping.
+Architecture/domain-modeling impact:
+- No domain model changes; route response formatting uses shared infrastructure.
+Side-effect boundary impact:
+- HTTP response writing remains in route support.
+Verification commands:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle command/join/room-state route contracts pass.
+- Backend compiles.
+- Full backend contract suite passes.
+- Battle route error responses remain compatible.
+Risks:
+- This support object is shared by several battle route handlers; keep this a sender delegation only.
+
+Result:
+- `BattleRouteHttpSupport.jsonError` now delegates final JSON error writing to `HttpRouteSupport.sendJsonError`.
+- Removed the local battle-route JSON string helper.
+- Battle route error mapping and handler semantics were left unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `npm run build`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP response writing remains in route support.
+- Scope respected: yes.
+
+Next ticket:
+- Commit and push the current verified working tree for teammate handoff, per user request.
+
+## Current Ticket
+
+ID: ID-491
+Goal: Move battle skill runtime constants behind a dedicated skill catalog.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleSkillCommandRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleSkillCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: frontend/assets/rendering, weapon balance, movement/stamina rules, skill behavior semantics, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Introduce a package-private skill catalog with typed skill config values for Blink, Dash, and Freeze.
+- Replace direct skill-constant reads from `InMemoryBattleStateCatalog` inside `BattleSkillCommandRules`.
+- Remove the skill-only constants from `InMemoryBattleStateCatalog` once no references remain.
+Architecture/domain-modeling impact:
+- Narrows the generic battle catalog and gives skill runtime values a named, typed home.
+- No domain model or wire protocol changes.
+Side-effect boundary impact:
+- Pure config/rule change only; no new side effects.
+Verification:
+- focused battle skill rules contract
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Existing blink, dash, and freeze cooldown/range/duration behavior remains unchanged.
+- Backend compiles with no remaining references to moved skill constants in `InMemoryBattleStateCatalog`.
+Risks:
+- Skill constants are user-visible gameplay values; preserve exact numbers.
+
+## Current Ticket
+
+ID: ID-492
+Goal: Remove stale weapon inventory constants from `InMemoryBattleStateCatalog`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow issue.
+Forbidden scope: weapon firing constants, `BattleWeaponCatalog.scala`, battle runtime behavior, frontend/assets/rendering, database/storage, git commit/push.
+Expected change:
+- Remove old magazine/reserve/pickup/reload constants that were superseded by `BattleWeaponCatalog`.
+- Keep active fire/projectile/heat constants in place for a separate ticket.
+Architecture/domain-modeling impact:
+- Reduces dead configuration in the generic battle catalog and prevents future edits from changing unused values.
+- No domain or runtime behavior changes expected.
+Side-effect boundary impact:
+- Pure config cleanup only; no side effects.
+Verification:
+- `rg` stale inventory constant names
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Removed constants have no remaining references.
+- Backend compile and contract checks pass.
+Risks:
+- Only remove values already replaced by `BattleWeaponCatalog`; do not remove firing, projectile, heat, or recoil constants in this ticket.
+
+## Current Ticket
+
+ID: ID-493
+Goal: Move active weapon firing configuration behind `BattleWeaponCatalog`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponCatalog.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponFireRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileFactoryRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattlePlayerRuntimeRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: weapon inventory values, frontend/assets/rendering, map/movement/stamina rules, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Add typed weapon fire/projectile/heat config records to `BattleWeaponCatalog`.
+- Replace active firing, projectile, recoil, spread, pellet, and heat constant reads from `InMemoryBattleStateCatalog`.
+- Remove the moved firing constants from `InMemoryBattleStateCatalog` once no references remain.
+Architecture/domain-modeling impact:
+- Gives weapon firing values a weapon-specific typed home and further narrows the generic battle catalog.
+- No domain or wire protocol changes.
+Side-effect boundary impact:
+- Pure config/rule refactor; no persistence or external effects.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Existing pistol, rocket, gatling, and shotgun runtime contracts still pass.
+- No moved firing constant references remain in source.
+- Exact gameplay values are preserved.
+Risks:
+- This touches hot battle runtime paths; keep the rewrite mechanical and backed by existing runtime contracts.
+
+## Current Ticket
+
+ID: ID-494
+Goal: Move battle pickup configuration behind a dedicated pickup catalog.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattlePickupRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleInitialLayout.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattlePickupCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: frontend/assets/rendering, weapon inventory/fire config, map obstacles/spawns, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Introduce typed pickup config for contact radius, respawn duration, medkit heal amount, and initial pickup placements.
+- Replace pickup rule reads from `InMemoryBattleStateCatalog`.
+- Move initial pickup placement construction out of `BattleInitialLayout`.
+- Remove moved pickup constants from `InMemoryBattleStateCatalog`.
+Architecture/domain-modeling impact:
+- Separates pickup content from generic battle runtime catalog and keeps pickup transitions focused.
+- No domain or wire protocol changes.
+Side-effect boundary impact:
+- Pure config/rule refactor; no persistence or external effects.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Weapon and medkit pickup runtime contracts still pass.
+- No moved pickup constant references remain in source.
+- Exact pickup ids, positions, respawn duration, contact radius, and heal value are preserved.
+Risks:
+- Initial pickup placements are frontend-visible map content; preserve exact ids and coordinates.
+
+## Current Ticket
+
+ID: ID-495
+Goal: Move bot runtime tuning values behind a dedicated bot catalog.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleBotRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattlePlayerRuntimeRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleBotCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: bot AI decision structure, weapon/pickup/map config, frontend/assets/rendering, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Introduce typed bot config for movement speed, preferred range, range margins, fire ranges, and human opening fire delay.
+- Replace bot tuning reads from `InMemoryBattleStateCatalog`.
+- Remove moved bot constants from `InMemoryBattleStateCatalog`.
+Architecture/domain-modeling impact:
+- Separates bot AI tuning from generic battle catalog.
+- No domain or wire protocol changes.
+Side-effect boundary impact:
+- Pure config/rule refactor; no persistence or external effects.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Bot runtime control contract still passes.
+- No moved bot constant references remain in source.
+- Exact bot tuning values are preserved.
+Risks:
+- Bot behavior is visible in gameplay; preserve exact numeric thresholds.
+
+## Current Ticket
+
+ID: ID-496
+Goal: Move movement, stamina, and slow-field tuning values behind a movement catalog.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattlePlayerRuntimeRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileRuntimeRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleMovementCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: world size, collision radius, obstacles, spawn points, skill/weapon/pickup config, frontend/assets/rendering, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Introduce typed movement config for walk speed, sprint speed, stamina drain/recovery, and slow-field movement/projectile factors.
+- Replace movement and slow-field tuning reads from `InMemoryBattleStateCatalog`.
+- Remove moved movement constants from `InMemoryBattleStateCatalog`.
+Architecture/domain-modeling impact:
+- Separates movement tuning from the generic battle catalog without touching map/collision concerns.
+- No domain or wire protocol changes.
+Side-effect boundary impact:
+- Pure config/rule refactor; no persistence or external effects.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Walking, sprint, stamina, and slow-field runtime contracts still pass.
+- No moved movement constant references remain in source.
+- Exact tuning values are preserved.
+Risks:
+- Movement values directly affect player feel; preserve exact numbers.
+
+## Current Ticket
+
+ID: ID-497
+Goal: Move battle history retention and replay sampling values behind a history catalog.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleRetentionRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleReplayFrameRecorder.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleHistoryCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: fixed tick timing, battle duration, replay rendering format, finish projection, frontend/assets/rendering, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Introduce typed history config for retained projectile terminals, retained battle events, replay frame sample interval, and retained replay frames.
+- Replace history/replay retention reads from `InMemoryBattleStateCatalog`.
+- Remove moved history constants from `InMemoryBattleStateCatalog`.
+Architecture/domain-modeling impact:
+- Separates bounded history/replay retention policy from generic battle runtime catalog.
+- No domain or wire protocol changes.
+Side-effect boundary impact:
+- Pure config/rule refactor; no persistence or external effects.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Terminal/event/replay retention runtime contracts still pass.
+- No moved history constant references remain in source.
+- Exact retention counts and sample interval are preserved.
+Risks:
+- Replay and terminal retention are user-visible in result/replay flows; preserve exact values.
+
+## Current Ticket
+
+ID: ID-498
+Goal: Move battle runtime timing defaults behind a runtime catalog.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleRuntimeFinalizationRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleRuntimeFinishRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleRuntimeStepRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleStoredBattleAdvanceRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleRuntimeCatalog.scala`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: gameplay tuning, map/collision config, replay retention, frontend/assets/rendering, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Introduce typed runtime config for default battle duration and fixed tick step.
+- Replace timing reads from `InMemoryBattleStateCatalog`.
+- Remove moved timing constants from `InMemoryBattleStateCatalog`.
+Architecture/domain-modeling impact:
+- Separates runtime clock/tick policy from generic battle content catalog.
+- No domain or wire protocol changes.
+Side-effect boundary impact:
+- Pure config/rule refactor; no persistence or external effects.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Fixed-step catch-up and finish timing contracts still pass.
+- No moved runtime timing constant references remain in source.
+- Exact 33ms tick and 5-minute default duration are preserved.
+Risks:
+- Tick timing affects every battle update; keep replacement mechanical.
+
+## Current Ticket
+
+ID: ID-499
+Goal: Rename the remaining battle arena/map catalog out of `InMemoryBattleStateCatalog`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/InMemoryBattleStateCatalog.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleArenaCatalog.scala`, battle service files that currently reference `InMemoryBattleStateCatalog`, `.codex/agent-state.md`; tests only if compile exposes a narrow mismatch.
+Forbidden scope: map obstacle values, spawn point values, collision behavior, gameplay tuning, frontend/assets/rendering, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Move arena obstacle types, world size, zero vector, motion step size, spawn points, collision radii, projectile clearance, and obstacle definitions to `BattleArenaCatalog`.
+- Replace remaining `InMemoryBattleStateCatalog` references with `BattleArenaCatalog`.
+- Delete the obsolete `InMemoryBattleStateCatalog.scala` file after no references remain.
+Architecture/domain-modeling impact:
+- Removes misleading in-memory naming from pure arena/content configuration.
+- Keeps arena data package-private and typed.
+Side-effect boundary impact:
+- Pure config/rule refactor; no persistence or external effects.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Collision, movement, spawn, projectile, and runtime contracts still pass.
+- No `InMemoryBattleStateCatalog` references remain in source.
+- Exact arena values are preserved.
+Risks:
+- This touches many battle files mechanically; keep value definitions identical.
+
+Result:
+- Added `BattleArenaCatalog.scala`.
+- Moved arena obstacle types, world size, zero vector, floor tile size, border obstacle size, motion step size, map/theme ids, player collision radius, projectile clearance, projectile shooter advantage radius, arena obstacles, and spawn points into `BattleArenaCatalog`.
+- Replaced all remaining `InMemoryBattleStateCatalog` references across battle services.
+- Deleted obsolete `InMemoryBattleStateCatalog.scala`.
+
+Verification passed:
+- `rg -n "InMemoryBattleStateCatalog" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no new rule-level raw constants; arena content remains package-private static content.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend service/module size and choose the next narrow backend ticket.
+
+Result:
+- Added `BattleRuntimeCatalog.scala`.
+- Moved default battle duration and fixed tick step into typed runtime config.
+- Updated state service default duration, runtime step/finalization/finish tick calculation, and stored battle fixed-step catch-up to read from `BattleRuntimeCatalog`.
+- Removed moved timing constants from `InMemoryBattleStateCatalog`.
+
+Verification passed:
+- `rg -n "InMemoryBattleStateCatalog\.(DefaultBattleDuration|TickStepMs)|TickStepMs" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no; runtime timings use `DurationMillis`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining battle map/collision catalog responsibilities.
+
+Result:
+- Added `BattleHistoryCatalog.scala`.
+- Moved retained projectile terminal count, retained battle event count, replay frame sample interval, and retained replay frame count into typed history config.
+- Updated retention rules and replay frame recorder to read from `BattleHistoryCatalog`.
+- Removed moved history constants from `InMemoryBattleStateCatalog`.
+
+Verification passed:
+- `rg -n "InMemoryBattleStateCatalog\.(RetainedProjectileTerminalCount|RetainedBattleEventCount|ReplayFrameSampleIntervalMs|RetainedReplayFrameCount)" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: retained counts use `BattleHistoryCount`, replay interval uses `DurationMillis`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining battle catalog responsibilities and choose the next narrow backend ticket.
+
+Result:
+- Added `BattleMovementCatalog.scala`.
+- Moved walk speed, sprint speed, stamina drain/recovery rates, slow-field movement factor, and slow-field projectile factor into typed movement config.
+- Updated player movement/stamina runtime and projectile slow-field runtime to read from `BattleMovementCatalog`.
+- Removed moved movement constants from `InMemoryBattleStateCatalog`.
+
+Verification passed:
+- `rg -n "InMemoryBattleStateCatalog\.(WalkSpeed|SprintSpeed|StaminaDrainPerSecond|StaminaRecoverPerSecond|SlowFieldMovementFactor|SlowFieldProjectileFactor)" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: movement speed, stamina rate, and slow factor use local value wrappers.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining battle catalog responsibilities and choose the next narrow backend ticket.
+
+Result:
+- Added `BattleBotCatalog.scala`.
+- Moved bot move speed, preferred range, range margins, bot/human fire ranges, and human opening fire delay into typed bot config.
+- Updated `BattleBotRules` and `BattlePlayerRuntimeRules` to read bot values from `BattleBotCatalog`.
+- Removed moved bot constants from `InMemoryBattleStateCatalog`.
+
+Verification passed:
+- `rg -n "InMemoryBattleStateCatalog\.(BotMoveSpeed|BotPreferredRange|BotFireRange|BotHumanFireRange|BotHumanOpeningFireDelayMs)" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no raw bot config at rule call sites; move speed uses a local value wrapper and ranges/delay use existing value types.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining battle runtime catalog responsibilities and choose the next narrow backend ticket.
+
+Result:
+- Added `BattlePickupCatalog.scala`.
+- Moved pickup contact radius, respawn duration, medkit heal amount, and all initial pickup placements into typed pickup definitions.
+- Changed `BattleInitialLayout.initialPickups` to delegate to `BattlePickupCatalog`.
+- Changed `BattlePickupRules` to read pickup runtime values from `BattlePickupCatalog`.
+- Removed moved pickup constants from `InMemoryBattleStateCatalog`.
+
+Verification passed:
+- `rg -n "InMemoryBattleStateCatalog\.(PickupContactRadius|PickupRespawnMs|MedkitHeal)" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: pickup runtime values are represented as `Radius`, `DurationMillis`, and `HitPoints`; pickup ids/positions remain boundary/content data.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining battle catalog responsibilities and choose the next narrow backend ticket.
+
+Result:
+- Extended `BattleWeaponCatalog` with typed fire, projectile, recoil, and heat definitions.
+- Updated weapon fire rules to use weapon fire definitions for cooldown, recoil, projectile creation, spread, pellet count, and Gatling heat charging.
+- Updated projectile factory rules to accept a typed projectile definition instead of many primitive parameters.
+- Updated player runtime heat cooling to read the heat cool rate from weapon heat definitions.
+- Removed moved firing/projectile/heat constants from `InMemoryBattleStateCatalog`.
+- Preserved exact values for pistol, rocket, gatling, and shotgun firing behavior.
+
+Verification passed:
+- `rg -n "PistolFireCooldownMs|PistolDamage|PistolProjectileSpeed|PistolProjectileRadius|PistolProjectileLifetimeMs|PistolRecoilStrength|RocketCooldownMs|RocketProjectileSpeed|RocketDamage|RocketProjectileLifetimeMs|RocketProjectileRadius|RocketSplashRadius|RocketRecoilStrength|GatlingCooldownMs|GatlingProjectileSpeed|GatlingDamage|GatlingProjectileLifetimeMs|GatlingProjectileRadius|GatlingSpreadRadians|GatlingRecoilStrength|GatlingMaxHeat|GatlingHeatPerShot|GatlingCoolRatePerSecond|GatlingOverheatLockMs|ShotgunCooldownMs|ShotgunProjectileSpeed|ShotgunDamage|ShotgunProjectileLifetimeMs|ShotgunProjectileRadius|ShotgunPellets|ShotgunSpreadRadians|ShotgunRecoilStrength" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no raw fire constants at rule call sites; projectile speed, recoil, count, heat, and heat rate use local value wrappers.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining large battle catalog responsibilities and choose the next narrow backend ticket.
+
+Result:
+- Removed stale weapon inventory constants for magazine size, reserve ammo, pickup ammo, and reload time from `InMemoryBattleStateCatalog`.
+- Left firing, projectile, heat, and recoil constants untouched for a separate scoped ticket.
+
+Verification passed:
+- `rg -n "PistolMagazineSize|InitialPistolReserveAmmo|PistolPickupAmmo|PistolReloadMs|RocketReloadMs|RocketMagazineSize|RocketReserveAmmo|RocketPickupAmmo|GatlingReloadMs|GatlingMagazineSize|GatlingPickupAmmo|ShotgunReloadMs|ShotgunMagazineSize|ShotgunReserveAmmo|ShotgunPickupAmmo" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Move active weapon firing configuration behind a dedicated typed catalog.
+
+Result:
+- Added `BattleSkillCatalog.scala`.
+- Moved Blink, Dash, and Freeze runtime configuration into typed config records using `CooldownMillis`, `DurationMillis`, `Radius`, and a local `SkillDistance` wrapper.
+- Updated `BattleSkillCommandRules` to read skill range/distance/cooldown/duration values from `BattleSkillCatalog`.
+- Removed skill-only constants from `InMemoryBattleStateCatalog`; `rg` confirmed no old skill constant references remain.
+- Preserved exact values: Blink 250 range / 2200 cooldown / 240 active, Dash 180 distance / 5000 cooldown / 180 active, Freeze 150 radius / 520 cast range / 12000 cooldown / 10000 duration.
+
+Verification passed:
+- `rg -n "BlinkRange|BlinkCooldownMs|BlinkActiveMs|DashDistance|DashCooldownMs|DashActiveMs|FreezeRadius|FreezeCastRange|FreezeCooldownMs|FreezeDurationMs" backend\src\main\scala backend\src\test\scala` returned no matches.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.battle.services.BattleSkillRulesContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no new raw business primitives at rule call sites; skill distance is wrapped in `SkillDistance`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend foundations and choose the next narrow architecture or runtime coverage ticket.
+
+## Current Ticket
+
+ID: ID-490
+Goal: Cover projectile target collision across a large state-read gap.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`; production projectile runtime files only if the focused test exposes a real bug.
+Forbidden scope: frontend/assets/rendering, projectile visual effects, weapon balance changes, database/storage, unrelated battle refactors, git commit/push.
+Expected change:
+- Add a backend-only runtime contract proving that a projectile fired toward a target still resolves a hit when the next state read advances several fixed steps at once.
+- Compare the large-gap outcome with the existing small-step projectile behavior shape: hit terminal exists, target takes damage, projectile terminal contact is before the target center.
+Architecture/domain-modeling impact:
+- Test coverage only unless a runtime bug is found; preserves existing typed projectile terminal and player life models.
+Side-effect boundary impact:
+- Tests only; no new side effects expected.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- A pistol projectile fired directly at a target does not tunnel through the target across a large read gap.
+- The resulting terminal reason is `Hit`, target player id is recorded, and target HP is reduced once.
+- No frontend/rendering changes are made.
+Risks:
+- The test must avoid accidental held-fire extra shots; release primary before the large read gap.
+
+Result:
+- Added `projectileLargeReadGapMatchesSteppedCollision`.
+- Added a small `ProjectileHitOutcome` helper and `pistolHitOutcomeAfterReads` fixture helper.
+- Verified a pistol projectile fired at a target hits identically after one large read gap and after multiple smaller reads: target HP drops to 88, terminal reason is `Hit`, target id is recorded, no live owner projectile remains, and terminal contact position matches.
+- No production change was needed; fixed-step catch-up and segment-circle targeting already satisfied the contract.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond test clock read times.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining battle backend foundations and choose the next narrow runtime or architecture ticket.
+
+Paused:
+- User reported that the rebuilt backend is starting without the expected database configuration.
+- Local PostgreSQL service and credentials were verified read-only; the current backend process reports `storageMode=memory`.
+- Pausing this architecture cleanup ticket to fix the higher-priority startup configuration path.
+
+## Current Ticket
+
+ID: ID-482
+Goal: Make local backend startup load explicit Postgres settings from ignored `.env.local`.
+Allowed scope: `.env.local`, `backend/src/main/scala/slaydemo/backend/BackendApp.scala`, new `backend/src/main/scala/slaydemo/backend/BackendEnvironment.scala`, new `backend/src/test/scala/slaydemo/backend/BackendEnvironmentContractTest.scala`, `backend/src/test/scala/slaydemo/backend/BackendContractTestRunner.scala`, `backend/README.md`, `.codex/agent-state.md`.
+Forbidden scope: repository implementations, battle/runtime behavior, database schema/data deletion, frontend behavior, dependency versions, git commit/push.
+Expected change:
+- Keep storage selection explicit: Postgres still requires `SLAY_DEMO_STORAGE_MODE=postgres` plus `SLAY_DEMO_DATABASE_URL`.
+- Load local `.env.local` files at the application startup boundary so direct `cd backend; sbt run` can use ignored local DB settings.
+- Preserve process environment precedence over local files.
+- Add the verified local Postgres settings to ignored `.env.local` without tracking secrets in git.
+Architecture/domain-modeling impact:
+- Adds an infrastructure/startup config boundary only; no domain model changes.
+- Does not reintroduce generic `DATABASE_URL` as a storage trigger.
+Side-effect boundary impact:
+- File reads are confined to backend startup environment loading.
+- Domain, services, and repositories continue receiving typed config.
+Verification:
+- focused backend environment contract
+- `sbt compile`
+- read-only health smoke with explicit local env expected to report `storageMode=postgres`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Direct backend startup can read root `.env.local` when launched from `backend/`.
+- Current process env overrides local file values.
+- Generic `DATABASE_URL` remains ignored unless explicit storage mode and URL are present.
+Risks:
+- Local `.env.local` is ignored by git; other machines must provide their own DB credentials.
+
+Result:
+- Added `BackendEnvironment` as the startup-only dotenv loader.
+- `BackendApp.main` now loads root/launch-directory `.env` and `.env.local` before building typed backend config.
+- Process environment still overrides local file values.
+- Added backend environment contract coverage and included it in the full contract runner.
+- Updated backend README to document local dotenv loading and explicit Postgres mode.
+- Updated ignored `.env.local` with the verified local Postgres settings.
+- Restarted the local backend; `/api/health` now reports `storageMode:"postgres"`.
+
+Verification passed:
+- Read-only local Postgres connection check with `psql`.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BackendEnvironmentContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+- `Invoke-WebRequest http://127.0.0.1:8080/api/health` returned `{"status":"ok","service":"slay-demo-backend","port":8080,"storageMode":"postgres"}`.
+- `npm run dev:status` shows frontend on 5173 and backend on 8080.
+
+Self-review:
+- Primitive business types introduced: none; dotenv keys/values are startup boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; file reads are confined to startup config loading.
+- Scope respected: yes, with ignored `.env.local` edited for local runtime configuration.
+
+Next ticket:
+- Resume the paused governance file parsing extraction after confirming the user is done with runtime DB validation.
+
+## Current Ticket
+
+ID: ID-483
+Goal: Verify Postgres identity/login compatibility after restoring DB-backed startup.
+Allowed scope: read-only local database inspection, `backend/src/main/scala/slaydemo/backend/identity/**`, `backend-legacy/src/main/scala/**/identity/**`, `backend-legacy/src/main/scala/**/database/**`, identity-focused backend tests, `.codex/agent-state.md`.
+Forbidden scope: deleting or rewriting existing database rows, battle/runtime changes, frontend changes, non-identity repository rewrites, dependency versions, git commit/push.
+Expected change:
+- Determine whether old account login failure was caused only by memory-mode startup or by password/hash/storage incompatibility.
+- Preserve typed identity domain results and repository boundaries.
+- If a narrow compatibility bug exists, fix only that identity boundary and add focused coverage.
+Architecture/domain-modeling impact:
+- Identity password compatibility belongs in the identity application/repository boundary, not in routes or domain objects.
+- No primitive status/role modeling changes expected.
+Side-effect boundary impact:
+- Local DB inspection must be read-only unless a separate cleanup ticket is created.
+Verification:
+- focused identity contracts
+- `sbt compile`
+- `npm run backend:test-contracts` if code changes
+- optional read-only API/DB smoke against the running Postgres backend
+Acceptance criteria:
+- We can explain whether existing Postgres accounts should authenticate under the rebuilt backend.
+- Any discovered identity compatibility issue has a scoped fix and focused regression test.
+Risks:
+- The user's real password is not available; do not ask for or expose passwords unless absolutely necessary.
+
+Result:
+- Read-only identity DB inspection found 5 active stored accounts.
+- Existing DB shape matches the rebuilt repository schema.
+- Four active stored accounts still use the legacy plaintext password shape; one uses the rebuilt SHA-256 hash shape.
+- The rebuilt identity service already has an explicit legacy plaintext compatibility path and upgrades a legacy row only after successful login.
+- No invalid active handles, no too-short legacy passwords, and no missing session tokens were found.
+- `/api/identity/accounts` now returns the stored Postgres accounts plus builtin admin, confirming the running backend is reading the restored DB-backed identity repository.
+
+Verification passed:
+- Read-only SQL schema/count inspection against local Postgres.
+- `GET http://127.0.0.1:8080/api/identity/accounts`
+- Identity service coverage was included in the preceding full `npm run backend:test-contracts` pass.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes; no database rows were changed.
+
+Next ticket:
+- Resume backend architecture cleanup, starting with the paused governance file parsing extraction, unless runtime testing reveals a new concrete bug.
+
+## Current Ticket
+
+ID: ID-484
+Goal: Split battle aggregate state component models into focused object files.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/objects/BattleAggregateState.scala`, new files under `backend/src/main/scala/slaydemo/backend/battle/objects/` for player, weapon, projectile, pickup, replay frame, slow field, and event state models, `.codex/agent-state.md`.
+Forbidden scope: battle runtime rules, routes/JSON schemas, tests except compile-required fixes, gameplay constants, database/storage, frontend, git commit/push.
+Expected change:
+- Keep `BattleAggregateState` as the aggregate root file.
+- Move related immutable state case classes into focused same-package files without renaming public types or changing fields/methods.
+- Preserve package visibility and existing imports for downstream users.
+Architecture/domain-modeling impact:
+- Improves battle object layer cohesion without changing the domain model.
+- Keeps immutable passive state types and pure helper accessors unchanged.
+Side-effect boundary impact:
+- No side effects; pure file organization only.
+Verification:
+- `sbt compile`
+- focused battle runtime contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles with the same public battle state type names.
+- Battle state/runtime contracts still pass.
+- No gameplay behavior or wire schema changes.
+Risks:
+- Scala same-package type discovery should make this mechanical, but broad battle imports mean compile is the authoritative check.
+
+Result:
+- Kept `BattleAggregateState.scala` focused on the aggregate root.
+- Moved immutable component state models to same-package files:
+  - `BattleWeaponState.scala`
+  - `BattlePlayerState.scala`
+  - `BattleProjectileState.scala`
+  - `BattleSlowFieldState.scala`
+  - `BattlePickupState.scala`
+  - `BattleReplayFrameState.scala`
+  - `BattleEventState.scala`
+- Preserved all public type names, fields, and pure helper methods.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Remove pure battle weapon rules' dependency on `InMemoryBattleStateCatalog` by introducing a focused weapon definitions/catalog boundary.
+
+## Current Ticket
+
+ID: ID-485
+Goal: Move battle weapon inventory definitions behind a focused weapon catalog boundary.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponRules.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponCatalog.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile/fire/recoil values outside inventory/reload lookup, gameplay constants changes, battle routes/API, frontend/assets/rendering, database/storage, tests except compile-required focused coverage, git commit/push.
+Expected change:
+- Remove `BattleWeaponRules` direct dependency on `InMemoryBattleStateCatalog`.
+- Keep magazine sizes, reserves, pickup ammo, heat-vs-magazine resource, and reload durations exactly the same.
+- Keep weapon state creation, refill, auto-reload, and switch semantics unchanged.
+Architecture/domain-modeling impact:
+- Introduces an explicit pure weapon inventory catalog for weapon state rules.
+- Avoids coupling pure weapon inventory transitions to the in-memory battle state catalog namespace.
+Side-effect boundary impact:
+- No side effects; pure rules/catalog only.
+Verification:
+- `sbt compile`
+- focused battle runtime contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle weapon runtime contracts still pass.
+- No weapon numbers or wire/API behavior change.
+Risks:
+- Weapon ammo/reload behavior is gameplay-critical; preserve values exactly and rely on runtime contracts.
+
+Result:
+- Added `BattleWeaponCatalog.scala` with explicit pure inventory definitions for pistol, rocket launcher, gatling, and shotgun.
+- `BattleWeaponRules` now reads magazine, reserve, pickup ammo, reload, and heat/magazine resource settings through `BattleWeaponCatalog`.
+- Removed `BattleWeaponRules` direct dependency on `InMemoryBattleStateCatalog`.
+- Preserved weapon values exactly: pistol 12/48/+24/1000, rocket 1/3/+1/2500, gatling heat resource 0/0/+0/0, shotgun 6/18/+6/1200.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no new public primitive domain fields; catalog constants remain internal numeric configuration.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add backend-only battle parity coverage for noop skill commands suppressing accidental weapon fire.
+
+## Current Ticket
+
+ID: ID-486
+Goal: Cover noop skill commands suppressing accidental weapon fire.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`; production battle input/skill files only if the new focused tests expose a real bug.
+Forbidden scope: frontend/assets/rendering, gameplay constants, database/storage, unrelated battle runtime refactors, git commit/push.
+Expected change:
+- Add backend runtime contracts proving failed/noop skill commands still clear `primaryHeld` and do not fire on the next tick.
+- Cover cooldown, missing target, and out-of-range/no-direction style noop reasons without changing production behavior unless tests reveal a bug.
+Architecture/domain-modeling impact:
+- Strengthens explicit command outcome contract for skill inputs.
+- No domain model change expected.
+Side-effect boundary impact:
+- Tests only; no new side effects expected.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Noop skill commands with `primaryHeld=true` do not retain primary fire.
+- Noop skill commands do not consume ammo or create projectiles immediately or on the next runtime tick.
+- Existing skill outcome reasons remain unchanged.
+Risks:
+- Test helpers must avoid relying on frontend timing/render behavior; keep this backend-only.
+
+Result:
+- Added `noopSkillCommandsSuppressPrimaryFire` to `BattleStateRuntimeContractTest`.
+- Covered blink missing target, blink out of range, blink cooldown, freeze missing target, and freeze cooldown.
+- Each noop case asserts:
+  - outcome remains `Noop` with the expected reason
+  - `primaryHeld` is cleared
+  - pistol ammo is not consumed
+  - no live projectile or projectile terminal is created immediately or on the next tick
+- No production change was needed; existing backend input suppression already satisfied the stronger contract.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add backend-only battle parity coverage for projectile movement through slow fields.
+
+## Current Ticket
+
+ID: ID-487
+Goal: Cover projectile movement through active slow fields.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`; production projectile/slow-field runtime files only if the new focused test exposes a real bug.
+Forbidden scope: frontend/assets/rendering, weapon/projectile constants, unrelated battle runtime refactors, database/storage, git commit/push.
+Expected change:
+- Add a backend runtime contract proving an active freeze slow field applies the projectile speed factor to a newly fired pistol projectile.
+- Keep the test backend-only and independent of visual/projectile rendering.
+Architecture/domain-modeling impact:
+- Strengthens runtime state transition coverage without domain model changes.
+Side-effect boundary impact:
+- Tests only; no new side effects expected.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Projectile travel distance inside an active slow field is lower than the clear-field control case.
+- The expected first-tick slowed movement is locked by runtime contract.
+Risks:
+- Test must avoid nearby targets/obstacles so it validates slow-field movement rather than collision.
+
+Result:
+- Added `activeSlowFieldSlowsProjectiles` to `BattleStateRuntimeContractTest`.
+- The test compares a clear-field pistol shot with an otherwise equivalent shot whose projectile starts inside an active freeze slow field.
+- Locked clear first-tick travel at about `76.2` px from the player center and slowed first-tick travel at about `53.1` px.
+- No production change was needed; existing projectile runtime already applies the slow-field projectile factor.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add backend-only battle parity coverage for deterministic pickup contention.
+
+## Current Ticket
+
+ID: ID-488
+Goal: Cover deterministic pickup contention when two players touch the same pickup in one runtime step.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`; production pickup rules only if the new focused test exposes a real bug.
+Forbidden scope: frontend/assets/rendering, pickup map layout/constants, unrelated battle runtime refactors, database/storage, git commit/push.
+Expected change:
+- Add a backend runtime contract for two human players spawning on the same weapon pickup.
+- Assert only one deterministic player receives the weapon, the pickup is consumed once, and a single pickup event is emitted.
+Architecture/domain-modeling impact:
+- Strengthens pickup state transition coverage without domain model changes.
+Side-effect boundary impact:
+- Tests only; no new side effects expected.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Same-step pickup contention has one winner.
+- The consumed pickup has a respawn timer.
+- Only one pickup event is produced for the pickup.
+Risks:
+- Current deterministic tie-break follows player vector order; the test should document that behavior without introducing new product semantics.
+
+Result:
+- Added `sameTickPickupContentionHasSingleWinner` to `BattleStateRuntimeContractTest`.
+- Two human players spawn on `pickup-gatling-1` in the same runtime step.
+- The contract locks current deterministic behavior:
+  - first player receives Gatling
+  - second player does not receive a duplicate weapon
+  - pickup is consumed once with a positive respawn timer
+  - exactly one pickup event is emitted and targets the winner
+- No production change was needed; existing pickup fold behavior satisfied the contract.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add backend-only battle parity coverage for ignored commands from eliminated players during active battles.
+
+## Current Ticket
+
+ID: ID-489
+Goal: Cover ignored commands from eliminated players during active battles.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`; production command acceptance/runtime files only if the new focused test exposes a real bug.
+Forbidden scope: frontend/assets/rendering, battle finish/projection changes, unrelated runtime refactors, database/storage, git commit/push.
+Expected change:
+- Extend active-battle elimination coverage so a dead player command with movement, sprint, reload, primary fire, and skill intent is ignored.
+- Assert the command reason remains `PlayerDead` and state does not restore dead player inputs or create projectiles.
+Architecture/domain-modeling impact:
+- Strengthens `BattleCommandStatus.Ignored` / `BattleCommandReason.PlayerDead` behavior coverage without domain model changes.
+Side-effect boundary impact:
+- Tests only; no new side effects expected.
+Verification:
+- focused battle runtime contracts
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Dead-player command is accepted as ignored rather than applied.
+- Dead-player runtime fields remain cleared.
+- No ammo/projectile/runtime side effects are produced by the ignored command.
+Risks:
+- The setup is intentionally multi-player so battle remains active; keep it scoped to active-battle dead command behavior.
+
+Result:
+- Extended `eliminationClearsDeadPlayerRuntimeBeforeBattleFinish` so an eliminated player command with movement, sprint, reload, primary fire, and freeze intent is ignored.
+- Asserted `BattleCommandStatus.Ignored` with `BattleCommandReason.PlayerDead`.
+- Asserted dead-player runtime fields remain cleared, accepted command sequence is unchanged, ammo is unchanged, and no projectile/terminal side effects are created.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Add backend-only battle parity coverage for projectile collision across a large read gap.
+
+## Current Ticket
+
+ID: ID-334
+Goal: Introduce a local transaction helper in `PostgresForumRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumRepository.scala`, `.codex/agent-state.md`.
+Forbidden scope: `PostgresForumSchema.scala`, shared `PostgresSupport.scala`, forum repository interface/domain objects, SQL semantics, forum services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Replace repeated connect/setAutoCommit/commit/rollback/restore/close blocks in `saveTopic`, `setTopicVote`, and `setReplyVote` with a repository-local `withTransaction` helper.
+- Preserve rollback, commit, previous auto-commit restoration, and connection close behavior exactly.
+- Leave all forum SQL and row mapping behavior unchanged.
+Architecture/domain-modeling impact:
+- Makes the repository side-effect boundary more explicit without adding a global abstraction.
+- No domain model changes.
+Side-effect boundary impact:
+- Transaction side effects remain inside the Postgres adapter and are named explicitly.
+Verification:
+- `sbt compile`
+- focused forum service contract
+- focused forum route contract if available
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service/route contracts pass.
+- Backend contract runner remains green.
+- No SQL/query behavior changes.
+Risks:
+- Transaction cleanup is correctness-critical; preserve rollback and auto-commit restoration semantics.
+
+Result:
+- Added a repository-local `withTransaction` helper in `PostgresForumRepository.scala`.
+- Replaced repeated transaction boilerplate in `saveTopic`, `setTopicVote`, and `setReplyVote`.
+- Forum SQL, repository API semantics, vote branching, rollback, commit, auto-commit restoration, and connection close behavior were preserved.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; existing private existence checks are repository query helpers.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; transaction effects remain in the Postgres adapter.
+- Scope respected: yes.
+
+Next ticket:
+- Extract Postgres forum row/read mapping from `PostgresForumRepository.scala`.
+
+## Current Ticket
+
+ID: ID-335
+Goal: Extract Postgres forum row/read mapping from `PostgresForumRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumRecordReader.scala`, `.codex/agent-state.md`.
+Forbidden scope: schema/table definitions, mutation SQL, transaction helper semantics, `ForumRepository` API, forum domain object definitions, forum services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `readTopicById`, topic row mapping, replies reading, topic/reply votes reading, and vote row mapping into a package-private reader object.
+- Leave `PostgresForumRepository` responsible for repository API, connection management, transactions, mutation SQL, existence checks, and update/write orchestration.
+- Preserve every selected column name, ordering clause, vote wire parse behavior, and missing-topic semantics exactly.
+Architecture/domain-modeling impact:
+- Separates JDBC read mapping from repository orchestration inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC reads remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused forum service contract
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service/route contracts pass.
+- Backend contract runner remains green.
+- No SQL/query behavior changes.
+Risks:
+- Reader still performs JDBC effects; keep it package-private and preserve row/order semantics exactly.
+
+Result:
+- Added `PostgresForumRecordReader.scala`.
+- Moved forum topic lookup, topic row mapping, reply loading, topic/reply vote loading, and vote row mapping out of `PostgresForumRepository.scala`.
+- `PostgresForumRepository` still owns repository API, connection management, transactions, mutation SQL, existence checks, and write orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC reads remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and choose the next narrow route/service extraction ticket.
+
+## Current Ticket
+
+ID: ID-336
+Goal: Extract battle route HTTP boilerplate from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRouteHttpSupport.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle services, route parser/renderer semantics, route error mapper behavior, public API paths/status codes, state stream writer, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `handlePost`, `handleGet`, `readJsonObject`, and JSON error response helpers into a package-private support object.
+- Leave `BattleRoutes` focused on endpoint orchestration.
+- Preserve CORS handling, OPTIONS behavior, unsupported-method error mapping, request body parser error message, response JSON shape, and `HttpExchange.close()` timing exactly.
+Architecture/domain-modeling impact:
+- Separates route transport boilerplate from battle route use-case orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- HTTP response/request side effects remain in route layer and are explicitly named.
+Verification:
+- `sbt compile`
+- focused battle join route contract
+- focused battle command route contract
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused battle route contracts pass.
+- Backend contract runner remains green.
+- Public route behavior remains unchanged.
+Risks:
+- `HttpExchange.close()` behavior is sensitive; support helper must preserve close-once behavior for handled post/get requests.
+
+Result:
+- Added `BattleRouteHttpSupport.scala`.
+- Moved post/get HTTP wrappers, request-body JSON object parsing, and JSON error response helpers out of `BattleRoutes.scala`.
+- `BattleRoutes` still owns endpoint orchestration, route branching, state stream handling, room handling, and service calls.
+- A scoped compile failure from an incorrect `BattleJsonValue` import was fixed within the ticket.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond route JSON boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP effects remain in route layer.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle queue internal runtime model and snapshot mapping from `BattleQueueService.scala`.
+
+## Current Ticket
+
+ID: ID-337
+Goal: Extract battle queue internal runtime model and snapshot mapping from `BattleQueueService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueRuntimeModel.scala`, `.codex/agent-state.md`.
+Forbidden scope: matchmaking behavior, room lifecycle behavior, `BattleRoomBootstrapper`, battle state service, public queue service trait/API objects, route/API behavior, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move private queue runtime records (`QueueRoom`, `QueueParticipantEntry`, `TicketRecord`) and pure queue/room snapshot projection into package-private service-layer helpers.
+- Leave mutable maps, locking, clock, ID generation, queue request reuse, room advancement, heartbeat updates, and battle session bootstrap inside `InMemoryBattleQueueService`.
+- Preserve snapshot fields, participant ordering, server-time refresh semantics, and room phase behavior exactly.
+Architecture/domain-modeling impact:
+- Reduces `BattleQueueService.scala` size while keeping runtime state typed and service-layer scoped.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; extraction is pure model/projection code.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Matchmaking and snapshot behavior remain unchanged.
+Risks:
+- Visibility changes can accidentally expose internals; keep helpers `private[services]` and behavior-identical.
+
+Result:
+- Added `BattleQueueRuntimeModel.scala`.
+- Moved `QueueRoom`, `QueueParticipantEntry`, `TicketRecord`, and pure queue/room snapshot projection out of `BattleQueueService.scala`.
+- `InMemoryBattleQueueService` still owns mutable maps, locking, clock use, ID generation, queue request reuse, room advancement, heartbeat updates, and battle session bootstrap.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted snapshot projection is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining repository/file-adapter extraction opportunities.
+
+## Current Ticket
+
+ID: ID-338
+Goal: Extract battle result file JSON rendering from `FileBattleResultRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/database/FileBattleResultRepository.scala`, new `backend/src/main/scala/slaydemo/backend/battle/database/BattleResultFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle result file parsing, file read/write/atomic move behavior, repository API semantics, battle result services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure battle result payload rendering, record rendering, nullable string rendering, and render-only escaping into a package-private renderer.
+- Leave `FileBattleResultRepository` responsible for locking, in-memory state, disk I/O, parsing, ordering, and filtering.
+- Preserve schema name, field names, null rendering, escaping, and output ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- `sbt compile`
+- focused battle result service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result file repository contract passes.
+- Persisted battle result reload behavior remains unchanged.
+Risks:
+- Rendered JSON is persisted data; preserve nullable field and escaping semantics exactly.
+
+Result:
+- Added `BattleResultFileJsonRenderer.scala`.
+- Moved battle result file payload rendering, record rendering, nullable string rendering, and render-only escaping out of `FileBattleResultRepository.scala`.
+- `FileBattleResultRepository` still owns locking, in-memory state, disk I/O, parsing, ordering, and filtering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond file-format strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle result file JSON parsing from `FileBattleResultRepository.scala`.
+
+## Current Ticket
+
+ID: ID-339
+Goal: Extract battle result file JSON parsing from `FileBattleResultRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/database/FileBattleResultRepository.scala`, new `backend/src/main/scala/slaydemo/backend/battle/database/BattleResultFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle result file rendering, file read/write/atomic move behavior, repository API semantics, ordering/filtering semantics, battle result services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure result-object extraction, battle result record parsing, field extraction, nullable parsing, boolean/number parsing, and parse-only unescaping into a package-private parser.
+- Leave `FileBattleResultRepository` responsible for locking, in-memory state, disk I/O, ordering, filtering, and map assembly.
+- Preserve permissive parse behavior, nullable field semantics, and string unescape behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from repository file I/O.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- `sbt compile`
+- focused battle result service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result file repository contract passes.
+- Persisted battle result reload behavior remains unchanged.
+Risks:
+- The parser is intentionally permissive and regex-based; do not tighten malformed payload handling in this ticket.
+
+Result:
+- Added `MailFileJsonParser.scala`.
+- Moved mail object extraction, record parsing, governance/friend-request metadata parsing, field extraction, nullable parsing, boolean/number parsing, and parse-only unescaping out of `FileMailRepository.scala`.
+- `FileMailRepository` still owns locking, in-memory maps, disk I/O, owner-scoped keying, ordering, filtering, and map assembly.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond parse boundary strings/numbers/booleans.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect social/friend request file repository for the next pure serialization/deserialization extraction.
+
+## Current Ticket
+
+ID: ID-342
+Goal: Extract friend request file JSON rendering from `FileFriendRequestRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database/FileFriendRequestRepository.scala`, new `backend/src/main/scala/slaydemo/backend/social/database/FriendRequestFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: friend request file parsing, file read/write/atomic move behavior, repository API semantics, request id sequencing, pair lookup/order semantics, social services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure friend request payload rendering, record rendering, and render-only escaping into a package-private renderer.
+- Leave `FileFriendRequestRepository` responsible for locking, in-memory state, disk I/O, parsing, ID sequencing, ordering, and pair lookup.
+- Preserve schema name, field names, enum wire values, null rendering, escaping, and output ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request file repository contract passes.
+- Persisted friend request reload behavior remains unchanged.
+Risks:
+- Rendered JSON is persisted data; preserve status wire values and respondedAt null semantics exactly.
+
+Result:
+- Added `FriendRequestFileJsonRenderer.scala`.
+- Moved friend request file payload rendering, record rendering, and render-only escaping out of `FileFriendRequestRepository.scala`.
+- `FileFriendRequestRepository` still owns locking, in-memory state, disk I/O, parsing, ID sequencing, ordering, and pair lookup.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond file-format strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract friend request file JSON parsing from `FileFriendRequestRepository.scala`.
+
+## Current Ticket
+
+ID: ID-343
+Goal: Extract friend request file JSON parsing from `FileFriendRequestRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database/FileFriendRequestRepository.scala`, new `backend/src/main/scala/slaydemo/backend/social/database/FriendRequestFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: friend request file rendering, file read/write/atomic move behavior, repository API semantics, request id sequencing, pair lookup/order semantics, social services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure request-object extraction, record parsing, status wire parsing fallback, long/nullable-long extraction, and parse-only unescaping into a package-private parser.
+- Leave `FileFriendRequestRepository` responsible for locking, in-memory state, disk I/O, ID sequencing, ordering, pair lookup, and map assembly.
+- Preserve permissive parse behavior, missing-status default-to-pending behavior, nullable `respondedAt`, and string unescape behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from repository file I/O.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request file repository contract passes.
+- Persisted friend request reload behavior and next-id advancement remain unchanged.
+Risks:
+- Missing status intentionally defaults to pending for legacy data; preserve that compatibility.
+
+Result:
+- Added `FriendRequestFileJsonParser.scala`.
+- Moved friend request object extraction, record parsing, missing-status fallback, long/nullable-long extraction, and parse-only unescaping out of `FileFriendRequestRepository.scala`.
+- `FileFriendRequestRepository` still owns locking, in-memory maps, disk I/O, ID sequencing, ordering, pair lookup, and map assembly.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond parse boundary strings/numbers.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect Postgres friend request repository for schema/row-mapping extraction.
+
+## Current Ticket
+
+ID: ID-344
+Goal: Extract Postgres friend request schema initialization from `PostgresFriendRequestRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database/PostgresFriendRequestRepository.scala`, new `backend/src/main/scala/slaydemo/backend/social/database/PostgresFriendRequestSchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: query SQL outside schema initialization, repository API semantics, row binding/mapping, social services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `social_friend_requests` table creation, add-column migrations, duplicate-pair check, and index creation into a package-private schema initializer.
+- Leave `PostgresFriendRequestRepository` responsible for repository operations, query SQL, row binding, and row mapping.
+- Preserve every DDL statement, duplicate-pair fallback behavior, and index name exactly.
+Architecture/domain-modeling impact:
+- Separates database schema bootstrap from repository behavior inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Schema side effects remain in database adapter code and are explicitly named.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service contract passes.
+- Backend contract runner remains green.
+- No DDL/query behavior changes.
+Risks:
+- Duplicate-pair detection controls whether a unique index is created; preserve the branching exactly.
+
+Result:
+- Added `PostgresFriendRequestSchema.scala`.
+- Moved `social_friend_requests` table creation, add-column migrations, duplicate-pair check, and index creation out of `PostgresFriendRequestRepository.scala`.
+- `PostgresFriendRequestRepository` still owns repository operations, query SQL, row binding, and row mapping.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond database schema strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; DDL effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract Postgres friend request row/bind mapping from `PostgresFriendRequestRepository.scala`.
+
+## Current Ticket
+
+ID: ID-345
+Goal: Extract Postgres friend request row/bind mapping from `PostgresFriendRequestRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database/PostgresFriendRequestRepository.scala`, new `backend/src/main/scala/slaydemo/backend/social/database/PostgresFriendRequestRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: SQL statements, DDL/schema definitions, repository API semantics, social services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move friend request JDBC parameter binding, result-set mapping, status decoding, and nullable responded-at handling into a package-private mapper.
+- Leave `PostgresFriendRequestRepository` responsible for connection management, SQL choice, and query orchestration.
+- Preserve every bind index, selected column name, invalid-status error behavior, and null semantics exactly.
+Architecture/domain-modeling impact:
+- Separates JDBC mapping from repository orchestration inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC statement/result-set effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service contract passes.
+- Backend contract runner remains green.
+- No SQL/DDL/query behavior changes.
+Risks:
+- Bind order and invalid database status behavior are storage-facing; preserve them exactly.
+
+Result:
+- Added `PostgresFriendRequestRecordMapper.scala`.
+- Moved friend request JDBC binding, row mapping, status decoding, and nullable responded-at handling out of `PostgresFriendRequestRepository.scala`.
+- `PostgresFriendRequestRepository` still owns connection management, SQL choice, and query orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC mapping remains in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining Postgres adapter mapping/schema extraction opportunities.
+
+## Current Ticket
+
+ID: ID-346
+Goal: Extract Postgres mail row/bind mapping from `PostgresMailRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database/PostgresMailRepository.scala`, new `backend/src/main/scala/slaydemo/backend/mail/database/PostgresMailRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: SQL statements, DDL/schema definitions, repository API semantics, mail services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move mail JDBC parameter binding, optional string binding, result-set reading, metadata reading, kind/status decoding, and optional column handling into a package-private mapper.
+- Leave `PostgresMailRepository` responsible for connection management, SQL choice, and query orchestration.
+- Preserve every bind index, selected column name, metadata error behavior, and null/blank semantics exactly.
+Architecture/domain-modeling impact:
+- Separates JDBC mapping from repository orchestration inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC statement/result-set effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail service contract passes.
+- Backend contract runner remains green.
+- No SQL/DDL/query behavior changes.
+Risks:
+- Metadata validation throws specific database corruption errors; preserve those semantics exactly.
+
+Result:
+- Added `PostgresMailRecordMapper.scala`.
+- Moved mail JDBC binding, optional string binding, record/metadata reading, mail kind/status decoding, and optional column handling out of `PostgresMailRepository.scala`.
+- `PostgresMailRepository` still owns connection management, SQL choice, and query orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC mapping remains in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect Postgres governance adapter for row/bind mapping extraction.
+
+## Current Ticket
+
+ID: ID-347
+Goal: Extract Postgres governance row/bind mapping from `PostgresGovernanceRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/PostgresGovernanceRepository.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/PostgresGovernanceRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: SQL statements, DDL/schema definitions, repository API semantics, governance services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move contribution-adjustment binding, review-notification binding, optional query string-pair binding, adjustment reading, notification reading, and review enum decoding into a package-private mapper.
+- Leave `PostgresGovernanceRepository` responsible for connection management, SQL choice, ID generation, and query orchestration.
+- Preserve every bind index, selected column name, invalid enum error behavior, null/blank semantics, and source fallback exactly.
+Architecture/domain-modeling impact:
+- Separates JDBC mapping from repository orchestration inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC statement/result-set effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service contract passes.
+- Backend contract runner remains green.
+- No SQL/DDL/query behavior changes.
+Risks:
+- Invalid enum database values intentionally fail loudly; preserve those errors exactly.
+
+Result:
+- Added `PostgresGovernanceRecordMapper.scala`.
+- Moved contribution-adjustment binding, review-notification binding, optional string-pair binding, adjustment reading, notification reading, and review enum decoding out of `PostgresGovernanceRepository.scala`.
+- `PostgresGovernanceRepository` still owns connection management, SQL choice, ID generation, and query orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC mapping remains in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess battle service large-file split options while continuing low-risk adapter cleanup.
+
+## Current Ticket
+
+ID: ID-348
+Goal: Extract Postgres identity account schema initialization from `PostgresIdentityAccountRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/database/PostgresIdentityAccountRepository.scala`, new `backend/src/main/scala/slaydemo/backend/identity/database/PostgresIdentityAccountSchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: identity authentication SQL, password/hash handling, file identity repository, identity service/routes, repository API semantics, row mapping, database data/migrations beyond existing DDL relocation, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `identity_accounts` table creation and index creation into a package-private schema initializer.
+- Leave `PostgresIdentityAccountRepository` responsible for authentication queries, account updates, password handling, and row mapping.
+- Preserve every DDL statement and index name exactly.
+Architecture/domain-modeling impact:
+- Separates database schema bootstrap from repository behavior inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Schema side effects remain in database adapter code and are explicitly named.
+Verification:
+- `sbt compile`
+- focused identity service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity service contract passes.
+- Backend contract runner remains green.
+- No authentication/password/query behavior changes.
+Risks:
+- Identity is sensitive; this ticket must not touch password or auth query semantics.
+
+Result:
+- Added `PostgresIdentityAccountSchema.scala`.
+- Moved `identity_accounts` table creation and index creation out of `PostgresIdentityAccountRepository.scala`.
+- `PostgresIdentityAccountRepository` still owns authentication SQL, password/hash handling, account updates, and row mapping.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond database schema strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; DDL effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract heartbeat helper predicates from `BattleQueueService.scala`.
+
+## Current Ticket
+
+ID: ID-349
+Goal: Extract battle queue heartbeat room resolution and participant matching helpers.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle queue public API/domain objects, matchmaking behavior, room lifecycle behavior, `BattleRoomBootstrapper`, battle state service, routes/API behavior, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Extract heartbeat room-id resolution from `heartbeat` into a private helper using existing `tickets`.
+- Extract participant match/touch logic from `updateHeartbeat` into private helpers.
+- Preserve `MissingRoomId`, `RoomNotFound`, ticket-vs-handle matching, last-seen update, and room map update behavior exactly.
+Architecture/domain-modeling impact:
+- Keeps mutable runtime state inside the service while making pure lookup/matching steps explicit.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper extraction only.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Heartbeat behavior remains unchanged.
+Risks:
+- Heartbeat `MissingRoomId` and participant matching semantics are user-visible; preserve them exactly.
+
+Result:
+- Extracted `roomIdForHeartbeat`, `heartbeatMatches`, and `touchHeartbeatParticipant` in `BattleQueueService.scala`.
+- `heartbeat` still advances rooms inside the lock, resolves explicit room id before ticket-derived room id, returns the same `MissingRoomId`/`RoomNotFound` errors, updates room maps the same way, and projects snapshots unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; extracted matching predicate is private control flow, not a public business result.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; runtime map mutation remains in queue service.
+- Scope respected: yes.
+
+Next ticket:
+- Extract finish projection settlement construction helpers from `BattleFinishProjectionPlanner.scala`.
+
+## Current Ticket
+
+ID: ID-350
+Goal: Extract finish projection settlement construction helpers from `BattleFinishProjectionPlanner.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`, `.codex/agent-state.md`.
+Forbidden scope: projection service, battle repositories, replay renderer, result/replay object definitions, route JSON, battle runtime rules, localized/user-facing string changes, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Extract pure settlement build context and playable human settlement construction from `buildSettlements`.
+- Leave settlement ordering, placement lookup, rating math, result labels, replay generation, and server fallback behavior unchanged.
+- Preserve all label/string literals byte-for-byte.
+Architecture/domain-modeling impact:
+- Keeps finish projection planning pure while making result construction easier to audit.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; planner remains pure except existing timestamp formatting behavior.
+Verification:
+- `sbt compile`
+- focused battle finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle finish projection plan contract passes.
+- Backend contract runner remains green.
+- Settlement/replay labels and numeric results remain unchanged.
+Risks:
+- Finish projection contains user-facing localized strings; do not alter literals while moving code.
+
+Result:
+- Added `BattleSettlementBuildContext`.
+- Extracted settlement context construction and `playableSettlementFor` from `buildSettlements`.
+- `buildSettlements` still preserves placement ordering, playable-human filtering, rating math, string labels, replay generation, and server fallback semantics.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted helpers are pure planning code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract finish projection status/outcome mapping from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-351
+Goal: Extract finish projection status/outcome mapping from `BattleStateService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, `.codex/agent-state.md`.
+Forbidden scope: finish projector implementations, queue service, battle runtime rules, domain objects, routes/API behavior, repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Extract pure mapping from `BattleFinishProjectionOutcome` to `BattleArtifactStatus` and `FinishProjectionStatus` into private helpers.
+- Leave locking, projector call timing, retry behavior, stored state update order, and lifecycle sink behavior unchanged.
+- Preserve failed/in-progress/persisted/partially-ready semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure projection decision logic from mutable in-memory state update code.
+- No domain model changes.
+Side-effect boundary impact:
+- Projector invocation and map mutation remain where they are; extraction has no new side effects.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Finish projection retry/status behavior remains unchanged.
+Risks:
+- Projection retry semantics are important: failed must remain retryable and partial artifact readiness must map exactly.
+
+Result:
+- Extracted `artifactStatusAfterProjection`, `finishProjectionStatusAfter`, and `readyOrFailedProjectionStatus` from `completeProjection`.
+- `completeProjection` still calls the projector before taking the lock, preserves the in-progress guard, updates the stored battle inside the lock, and returns the updated state unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted helpers are pure status mapping.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining large files and adapter cleanup opportunities.
+
+## Current Ticket
+
+ID: ID-352
+Goal: Extract pure battle settlement scoring rules from `BattleFinishProjectionPlanner.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleSettlementScoringRules.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionService.scala` only for the compile-exposed default-rating reference, `.codex/agent-state.md`.
+Forbidden scope: settlement text labels, replay construction, finish projector implementations, route/API behavior, repositories, queue/runtime behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move default rating, placement score table, placement score calculation, and rating delta calculation into a package-private pure helper.
+- Leave settlement ordering, replay selection, labels, timestamps, and persistence projection behavior unchanged.
+- Preserve score and rating math exactly.
+Architecture/domain-modeling impact:
+- Separates pure scoring policy from projection orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; extracted helper is pure and remains inside battle services.
+Verification:
+- `sbt compile`
+- focused finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Finish projection plan contract passes.
+- Backend contract runner remains green.
+- Settlement score/rating behavior remains unchanged.
+Risks:
+- Rating/placement math is user-visible in battle results; extraction must be mechanical.
+
+Result:
+- Added `BattleSettlementScoringRules.scala`.
+- Moved default rating, placement score table, placement score calculation, and rating delta calculation out of `BattleFinishProjectionPlanner.scala`.
+- Updated the compile-exposed default-rating fallback in `BattleFinishProjectionService.scala` to use the extracted pure helper.
+- Settlement ordering, replay construction, labels, timestamps, and projection persistence were left unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted helper is pure scoring policy.
+- Scope respected: yes; `BattleFinishProjectionService.scala` was touched only for the compile-exposed default-rating reference.
+
+Next ticket:
+- Use explorer identity findings to pick a narrow identity storage boundary ticket or continue large-file reassessment.
+
+## Current Ticket
+
+ID: ID-353
+Goal: Add identity file storage format characterization coverage before parser/renderer extraction.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/IdentityServiceContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: production identity repositories, password hashing/authentication logic, session token generation, SQL/schema/migrations, frontend, git commit/push.
+Expected change:
+- Extend existing identity service contract checks to assert the file repository schema marker, persisted field names, hashed password field, and empty session-token reload semantics.
+- Keep all production code unchanged.
+Architecture/domain-modeling impact:
+- No production architecture changes; this pins storage-boundary behavior before extraction.
+Side-effect boundary impact:
+- Test-only filesystem side effects remain in temporary directories.
+Verification:
+- focused identity service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Identity service contract passes.
+- Backend contract runner remains green.
+- Test covers file storage format details needed for safe parser/renderer extraction.
+Risks:
+- Tests should characterize current behavior without tightening unrelated formatting too much.
+
+Result:
+- Extended `IdentityServiceContractTest` to pin identity file storage format details.
+- Covered schema marker, persisted field names, hashed password field, raw plaintext absence for hash rows, empty session-token persistence, and empty session-token reload as `None`.
+- Production identity code was left unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; test-only storage strings characterize an existing file format.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; test filesystem effects use temp directories.
+- Scope respected: yes.
+
+Next ticket:
+- Extract identity file JSON rendering from `FileIdentityAccountRepository.scala`.
+
+## Current Ticket
+
+ID: ID-354
+Goal: Extract identity file JSON rendering from `FileIdentityAccountRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/database/FileIdentityAccountRepository.scala`, new `backend/src/main/scala/slaydemo/backend/identity/database/IdentityAccountFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: identity file parsing, password hash/plaintext upgrade behavior, session token generation, Postgres identity repository/schema, identity services/routes, database data/migrations, frontend, git commit/push.
+Expected change:
+- Move pure identity file payload rendering, account rendering, and render-only escaping into a package-private renderer.
+- Leave `FileIdentityAccountRepository` responsible for locking, in-memory state, disk I/O, parsing, and repository semantics.
+- Preserve schema name, field names, password field, empty session-token representation, active flag rendering, escaping, and ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- `sbt compile`
+- focused identity service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity service contract passes, including storage format characterization added in ID-353.
+- Backend contract runner remains green.
+Risks:
+- Rendered JSON is persisted account data and includes password secrets; preserve field names and escaping exactly.
+
+Result:
+- Added `IdentityAccountFileJsonRenderer.scala`.
+- Moved identity account file payload rendering, stored-account rendering, and render-only escaping out of `FileIdentityAccountRepository.scala`.
+- Widened `FileStoredIdentityAccount` only to `private[database]` so the package-private renderer can consume the storage record.
+- `FileIdentityAccountRepository` still owns locking, in-memory state, disk I/O, parsing, hash/plaintext upgrade behavior, and session semantics.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing storage-boundary password/session strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract identity file JSON parsing from `FileIdentityAccountRepository.scala`.
+
+## Current Ticket
+
+ID: ID-355
+Goal: Extract identity file JSON parsing from `FileIdentityAccountRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/database/FileIdentityAccountRepository.scala`, new `backend/src/main/scala/slaydemo/backend/identity/database/IdentityAccountFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: identity file rendering, password hash/plaintext upgrade behavior, session token generation, Postgres identity repository/schema, identity services/routes, database data/migrations, frontend, git commit/push.
+Expected change:
+- Move pure identity file account-object extraction, stored-account parsing, field extraction, boolean parsing, parse-only unescaping, and legacy fallback defaults into a package-private parser.
+- Leave `FileIdentityAccountRepository` responsible for locking, in-memory state, disk I/O, password matching/upgrades, and repository semantics.
+- Preserve permissive parse behavior, `userId` UUID fallback, default display name, default skin, empty session-token parsing, active default, and string unescape behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- `sbt compile`
+- focused identity service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity service contract passes, including legacy plaintext upgrade and file storage format coverage.
+- Backend contract runner remains green.
+Risks:
+- The parser is intentionally permissive and supports legacy plaintext secrets; extraction must not tighten malformed-field handling or password semantics.
+
+Result:
+- Added `IdentityAccountFileJsonParser.scala`.
+- Moved identity account object extraction, stored-account parsing, field extraction, boolean parsing, parse-only unescaping, and parse fallback defaults out of `FileIdentityAccountRepository.scala`.
+- `FileIdentityAccountRepository` still owns locking, in-memory state, disk I/O, password hash/plaintext matching, upgrades, and session semantics.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing storage-boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract identity Postgres account row mapper.
+
+## Current Ticket
+
+ID: ID-356
+Goal: Extract identity Postgres account row mapper.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/database/PostgresIdentityAccountRepository.scala`, new `backend/src/main/scala/slaydemo/backend/identity/database/PostgresIdentityAccountRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: authentication SQL, legacy plaintext SQL, password bind values, session token update SQL, insert field order, schema/index/migration code, identity services/routes, file repository, frontend, git commit/push.
+Expected change:
+- Move only `ResultSet` to `IdentityAccount` mapping into a package-private mapper.
+- Preserve selected column names, `SkinId.Blue` default, `SessionToken.fromString` behavior, and active status exactly.
+- Leave all SQL and bind ordering untouched.
+Architecture/domain-modeling impact:
+- Separates JDBC row mapping from repository query orchestration inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC effects remain in repository/database adapter code; mapper performs boundary mapping only.
+Verification:
+- `sbt compile`
+- focused identity service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity service contract passes.
+- Backend contract runner remains green.
+- No authentication or session SQL changes.
+Risks:
+- Identity login is sensitive; this ticket must remain a mechanical read-mapper extraction.
+
+Result:
+- Added `PostgresIdentityAccountRecordMapper.scala`.
+- Moved `ResultSet` to `IdentityAccount` mapping out of `PostgresIdentityAccountRepository.scala`.
+- Preserved selected column names, `SkinId.Blue` fallback, `SessionToken.fromString`, and active status mapping.
+- Authentication SQL, legacy plaintext SQL, session update SQL, insert field order, and schema code were not changed.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC mapping remains in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay Postgres transaction helper.
+
+## Current Ticket
+
+ID: ID-357
+Goal: Extract replay Postgres transaction helper.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRepository.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay SQL statements, bind/read mapping, schema/index/migration code, replay services/routes, battle finish projection, database data, frontend, git commit/push.
+Expected change:
+- Replace inline auto-commit/commit/rollback boilerplate in `saveReplay` with a repository-local `withTransaction` helper.
+- Preserve SQL, statement execution order, settlement replacement order, commit/rollback behavior, and auto-commit restoration exactly.
+Architecture/domain-modeling impact:
+- Makes the database side-effect boundary more explicit inside the replay repository.
+- No domain model changes.
+Side-effect boundary impact:
+- Transaction effects remain in repository adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- No SQL or persistence behavior changes.
+Risks:
+- Replay save writes both replay record and settlements; transaction scope must remain exactly around both operations.
+
+Result:
+- Added a repository-local `withTransaction` helper to `PostgresReplayRepository.scala`.
+- `saveReplay` now wraps replay upsert and settlement replacement through that helper.
+- SQL, bind/read mapping, statement execution order, settlement replacement order, commit/rollback behavior, and auto-commit restoration were preserved.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; transaction effects remain in repository adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract pure battle queue participant/room selection helpers.
+
+## Current Ticket
+
+ID: ID-358
+Goal: Extract pure battle queue participant/input helpers from `BattleQueueService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueParticipantRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue room lifecycle timing, ticket/request reuse semantics, battle session bootstrap, route/API behavior, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move optional text normalization, handle-key matching, heartbeat participant matching, and heartbeat participant touch into a package-private pure helper.
+- Leave locking, mutable maps, room/ticket creation, queue request reuse, room activation, and snapshots unchanged.
+Architecture/domain-modeling impact:
+- Separates deterministic participant normalization/matching from mutable queue orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and remains inside battle services.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Queue join, heartbeat, and room lifecycle behavior remain unchanged.
+Risks:
+- Heartbeat matching drives last-seen updates; extraction must preserve ticket-or-handle matching exactly.
+
+Result:
+- Added `BattleQueueParticipantRules.scala`.
+- Moved optional text normalization, handle-key matching, heartbeat participant matching, and heartbeat participant touch out of `BattleQueueService.scala`.
+- Removed the unused private `normalizeQueueRequestId` helper while preserving public join command behavior.
+- Queue locks, mutable maps, ticket/room creation, request reuse, activation, and snapshots were left unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; helper predicates expose existing queue matching facts.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle queue room selection helpers.
+
+## Current Ticket
+
+ID: ID-359
+Goal: Extract pure battle queue room selection helpers from `BattleQueueService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueRoomSelectionRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue room lifecycle timing, ticket/request reuse maps, battle session bootstrap, room creation/id generation, route/API behavior, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move open waiting room filtering/sorting and reusable-room selection into a package-private pure helper.
+- Preserve the rule that a same-handle different queue request starts a fresh waiting room instead of joining an existing room.
+- Leave mutable state updates, room creation, ticket creation, room activation, and snapshots unchanged.
+Architecture/domain-modeling impact:
+- Separates deterministic room selection policy from mutable queue orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and remains inside battle services.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Queue room selection behavior remains unchanged.
+Risks:
+- Same-handle request isolation and open-room ordering are user-visible matchmaking behavior; extraction must be mechanical.
+
+Result:
+- Added `BattleQueueRoomSelectionRules.scala`.
+- Moved open waiting room filtering/sorting and reusable-room selection out of `BattleQueueService.scala`.
+- Preserved the same-handle different-request fresh-room rule and existing oldest-open-room ordering.
+- Room/ticket creation, request maps, room activation, session bootstrap, and snapshots were left unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; helper predicates expose existing room selection facts.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess largest backend files and pick the next low-risk split.
+
+## Current Ticket
+
+ID: ID-360
+Goal: Extract replay Postgres settlement query helper.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplaySettlementQueries.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay record upsert SQL, replay list/find SQL, comment SQL, schema/index/migration code, replay services/routes, battle finish projection, database data, frontend, git commit/push.
+Expected change:
+- Move settlement delete/insert replacement and settlement list query into a package-private database helper.
+- Preserve every settlement SQL statement, bind order, ordering clause, and mapper call exactly.
+- Keep `saveReplay` transaction scope around replay upsert and settlement replacement.
+Architecture/domain-modeling impact:
+- Separates replay settlement persistence details from top-level replay repository orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- No replay persistence behavior changes.
+Risks:
+- Settlement replacement is transactional with replay save; helper must keep using the caller-provided connection.
+
+Result:
+- Added `PostgresReplaySettlementQueries.scala`.
+- Moved replay settlement delete/insert replacement and settlement list query out of `PostgresReplayRepository.scala`.
+- `saveReplay` still uses one transaction around replay upsert and settlement replacement through the caller-provided connection.
+- Settlement SQL, bind order, ordering clause, and mapper calls were preserved.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay Postgres comment query helper.
+
+## Current Ticket
+
+ID: ID-361
+Goal: Extract replay Postgres comment query helper.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayCommentQueries.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay record SQL, settlement SQL, schema/index/migration code, replay services/routes, battle finish projection, database data, frontend, git commit/push.
+Expected change:
+- Move replay comment insert/upsert and comment list query into a package-private database helper.
+- Preserve comment SQL, bind order, list ordering, limit clamp, and mapper call exactly.
+- Leave comment id generation and repository API behavior unchanged.
+Architecture/domain-modeling impact:
+- Separates replay comment persistence details from top-level replay repository orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- No replay comment persistence behavior changes.
+Risks:
+- Comment ordering is user-visible; preserve the descending-inner/ascending-outer query exactly.
+
+Result:
+- Added `PostgresReplayCommentQueries.scala`.
+- Moved replay comment upsert and comment list query out of `PostgresReplayRepository.scala`.
+- Preserved comment SQL, bind order, limit clamp, descending inner ordering, ascending outer ordering, and mapper call.
+- Comment id generation and repository API behavior were left unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-362
+Goal: Extract forum Postgres topic/reply write and existence helpers.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumTopicQueries.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum vote write SQL, forum read queries, schema/index/migration code, forum services/routes, database data, frontend, git commit/push.
+Expected change:
+- Move topic upsert, reply upsert, topic existence check, reply existence check, and topic timestamp update into a package-private database helper.
+- Preserve every SQL statement, bind order, and result-set behavior exactly.
+- Leave transaction scope and repository API behavior unchanged.
+Architecture/domain-modeling impact:
+- Separates forum topic/reply persistence details from top-level repository orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused forum service and route contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum focused contracts pass.
+- Backend contract runner remains green.
+- No forum persistence behavior changes.
+Risks:
+- Topic updated-at changes affect ordering; preserve timestamp update SQL and transaction usage exactly.
+
+Result:
+- Added `PostgresForumTopicQueries.scala`.
+- Moved topic upsert, reply upsert, topic existence check, reply existence check, and topic timestamp update out of `PostgresForumRepository.scala`.
+- Preserved SQL statements, bind order, result-set behavior, and transaction usage.
+- Forum vote write SQL was intentionally left in the repository for the next focused ticket.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none; existence checks remain explicit helper predicates.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum Postgres vote write helper.
+
+## Current Ticket
+
+ID: ID-363
+Goal: Extract forum Postgres vote write helper.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumVoteQueries.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum topic/reply upsert/existence helpers, forum read queries, schema/index/migration code, forum services/routes, database data, frontend, git commit/push.
+Expected change:
+- Move topic vote write/delete and reply vote write/delete SQL into a package-private database helper.
+- Preserve every SQL statement, bind order, vote wire value mapping, voter key mapping, and delete semantics exactly.
+- Leave transaction scope, existence checks, timestamp update, and post-mutation readback unchanged.
+Architecture/domain-modeling impact:
+- Separates forum vote persistence details from repository orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused forum service and route contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum focused contracts pass.
+- Backend contract runner remains green.
+- No forum vote persistence behavior changes.
+Risks:
+- Vote key mapping affects dedupe; preserve `ForumVoterKey.fromHandle` usage exactly.
+
+Result:
+- Added `PostgresForumVoteQueries.scala`.
+- Moved topic vote write/delete and reply vote write/delete SQL out of `PostgresForumRepository.scala`.
+- Preserved SQL statements, bind order, `ForumVoterKey.fromHandle`, `ForumVoteChoice.wireValue`, delete semantics, transaction scope, and post-mutation readback.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-364
+Goal: Extract friend request notification mail factory.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestService.scala`, new `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestMailFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: friend request repository semantics, mail repository persistence, route/API behavior, social objects, mail objects, database/file adapters, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure request/response mail construction, friend request mail metadata construction, and friend-request-status to mail-status mapping into a package-private factory.
+- Leave `DefaultFriendRequestService` responsible for validation, repository mutations, mail repository saves, and result ADTs.
+- Preserve mail ids, owner handles, subjects, excerpts, sender labels, unread/important flags, source metadata, created-at choices, and friend request metadata exactly.
+Architecture/domain-modeling impact:
+- Separates pure notification construction from effectful service orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- Mail persistence remains in the service via `MailRepository`; factory has no side effects.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service contract passes.
+- Backend contract runner remains green.
+- No friend request or mail notification behavior changes.
+Risks:
+- Mail ids and metadata are user-visible and may drive dedupe; extraction must be mechanical.
+
+Result:
+- Added `FriendRequestMailFactory.scala`.
+- Moved pure request mail construction, response mail construction, friend request mail metadata construction, and friend-request-status to mail-status mapping out of `FriendRequestService.scala`.
+- `DefaultFriendRequestService` still owns validation, repository mutations, mail repository saves, and result ADT construction.
+- Mail ids, owners, subjects, excerpts, sender labels, unread/important flags, source metadata, created-at choices, and friend request metadata were preserved.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing mail subject/path/id strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; factory is pure and mail persistence remains in service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-365
+Goal: Extract battle state JSON support helpers.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleStateJson.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleStateJsonSupport.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle state field selection, JSON field names, route dispatch, battle runtime services, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure common JSON rendering helpers (`renderObject`, `jsonString`, vector rendering, optional primitive rendering, optional string field rendering) into a package-private support object.
+- Leave `BattleStateJson` responsible for state/player/projectile/pickup/event/command DTO shape.
+- Preserve JSON output exactly.
+Architecture/domain-modeling impact:
+- Separates generic JSON support from battle state DTO rendering.
+- No domain model changes.
+Side-effect boundary impact:
+- No side effects; pure route serialization helper only.
+Verification:
+- `sbt compile`
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes.
+- Backend contract runner remains green.
+- Battle state JSON remains behaviorally unchanged.
+Risks:
+- Frontend depends on battle state field names and null semantics; extraction must preserve output exactly.
+
+Result:
+- Added `BattleStateJsonSupport.scala`.
+- Moved common pure JSON helpers out of `BattleStateJson.scala`: object rendering, string escaping wrapper, vector rendering, optional primitive rendering, and optional string fields.
+- `BattleStateJson` still owns the battle state/player/projectile/pickup/event/command DTO shape and field names.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing JSON boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; support helper is pure route serialization.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-366
+Goal: Extract governance notification mail factory.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/services/GovernanceServices.scala`, new `backend/src/main/scala/slaydemo/backend/governance/services/GovernanceMailFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance repository semantics, mail repository persistence, route/API behavior, governance objects, mail objects, database/file adapters, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure contribution-adjustment mail snapshot construction, review-notification mail snapshot construction, excerpt formatting, review target label, and delta formatting into a package-private factory.
+- Leave `DefaultGovernanceService` responsible for command-to-record construction, repository mutations, mail persistence, and limit clamping.
+- Preserve mail ids, owner handles, subjects, excerpts, sender labels, unread/important flags, created-at values, and governance metadata exactly.
+Architecture/domain-modeling impact:
+- Separates pure notification construction from effectful service orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- Mail persistence remains in the service via `MailRepository`; factory has no side effects.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service contract passes.
+- Backend contract runner remains green.
+- No governance notification behavior changes.
+Risks:
+- Notification text and metadata are user-visible; extraction must be mechanical.
+
+Result:
+- Added `GovernanceMailFactory.scala`.
+- Moved contribution mail snapshot construction, review mail snapshot construction, contribution/review excerpt formatting, review target label, and delta formatting out of `GovernanceServices.scala`.
+- `DefaultGovernanceService` still owns command-to-record construction, repository mutations, mail persistence, and limit clamping.
+- Mail ids, owners, subjects, excerpts, sender labels, unread/important flags, created-at values, and governance metadata were preserved.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing notification text/path/id strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; factory is pure and mail persistence remains in service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-367
+Goal: Extract battle queue ticket snapshot lookup helpers.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueTicketSnapshots.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue request stale cleanup, mutable maps, room lifecycle timing, room/ticket creation, battle session bootstrap, route/API behavior, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure snapshot lookup for any ticket and waiting-only ticket into a package-private helper.
+- Leave request dedupe cleanup, mutable map updates, locking, and room lifecycle unchanged.
+- Preserve snapshot projection through existing `BattleQueueSnapshots.toQueueSnapshot`.
+Architecture/domain-modeling impact:
+- Separates deterministic ticket snapshot lookup from mutable queue orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and remains inside battle services.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Queue status and queue request reuse behavior remain unchanged.
+Risks:
+- Waiting-only idempotency depends on phase filtering; preserve `MatchmakingRoomPhase.Waiting` exactly.
+
+Result:
+- Added `BattleQueueTicketSnapshots.scala`.
+- Moved pure ticket snapshot lookup and waiting-only ticket snapshot lookup out of `BattleQueueService.scala`.
+- Request dedupe cleanup, mutable map updates, locking, room lifecycle, and room/ticket creation were left unchanged.
+- Snapshot projection still goes through `BattleQueueSnapshots.toQueueSnapshot`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle queue room lifecycle helper.
+
+## Current Ticket
+
+ID: ID-368
+Goal: Extract pure battle queue room lifecycle helper.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueRoomLifecycleRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle id generation, room/ticket creation, queue request reuse, snapshots, route/API behavior, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the pure room-start predicate and active-room construction into a package-private helper.
+- Keep `newBattleId()` invocation and mutable `rooms` map updates in `InMemoryBattleQueueService`.
+- Preserve waiting-room deadline semantics, participant bootstrap mapping, and session descriptor construction exactly.
+Architecture/domain-modeling impact:
+- Separates deterministic room lifecycle transition construction from mutable queue orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- Battle id generation remains in service; helper is pure once given the battle id.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Queue countdown/activation behavior remains unchanged.
+Risks:
+- Countdown activation is user-visible; preserve `now >= deadline` and non-empty participant rules exactly.
+
+Result:
+- Added `BattleQueueRoomLifecycleRules.scala`.
+- Moved the pure room-start predicate and active-room construction out of `BattleQueueService.scala`.
+- `InMemoryBattleQueueService` still owns `newBattleId()` invocation, mutable `rooms` updates, and room/ticket creation.
+- Waiting-room deadline semantics, participant bootstrap mapping, and session descriptor construction were preserved.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; room-start predicate exposes existing lifecycle rule.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; battle id generation remains in service and helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-369
+Goal: Extract battle player state JSON renderer.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleStateJson.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattlePlayerStateJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: top-level battle state JSON fields, projectile/pickup/event rendering, route dispatch, battle runtime services, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move player, weapon, and skill JSON rendering into a package-private pure renderer.
+- Preserve current weapon fallback behavior, field names, weapon/skill wire values, and null/number semantics exactly.
+- Leave `BattleStateJson` responsible for top-level battle state and remaining entity rendering.
+Architecture/domain-modeling impact:
+- Separates player DTO rendering from top-level battle state rendering.
+- No domain model changes.
+Side-effect boundary impact:
+- No side effects; pure route serialization only.
+Verification:
+- `sbt compile`
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes.
+- Backend contract runner remains green.
+- Player JSON remains behaviorally unchanged.
+Risks:
+- Frontend depends on player weapon/ammo/stamina fields; extraction must be mechanical.
+
+Result:
+- Added `BattlePlayerStateJsonRenderer.scala`.
+- Moved player, weapon, and skill JSON rendering out of `BattleStateJson.scala`.
+- Preserved current-weapon fallback, player field names, weapon/skill wire values, and null/number semantics.
+- `BattleStateJson` still owns top-level battle state, projectile, pickup, event, and command outcome rendering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing JSON boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure route serialization.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-370
+Goal: Extract battle entity state JSON renderer.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleStateJson.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleEntityStateJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: top-level battle state JSON fields, player/weapon/skill rendering, route dispatch, battle runtime services, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move projectile, projectile terminal, slow field, pickup, event, and event participant JSON rendering into a package-private pure renderer.
+- Preserve field names, wire values, null semantics, and numeric/string rendering exactly.
+- Leave `BattleStateJson` responsible for top-level battle state and command accepted rendering.
+Architecture/domain-modeling impact:
+- Separates battle entity DTO rendering from top-level battle state rendering.
+- No domain model changes.
+Side-effect boundary impact:
+- No side effects; pure route serialization only.
+Verification:
+- `sbt compile`
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes.
+- Backend contract runner remains green.
+- Entity JSON remains behaviorally unchanged.
+Risks:
+- Projectile terminal and pickup JSON are frontend-sensitive; extraction must be mechanical.
+
+Result:
+- Added `BattleEntityStateJsonRenderer.scala`.
+- Moved projectile, projectile terminal, slow field, pickup, event, and event participant JSON rendering out of `BattleStateJson.scala`.
+- Preserved field names, wire values, null semantics, and numeric/string rendering.
+- `BattleStateJson` still owns top-level battle state and command accepted rendering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing JSON boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure route serialization.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-371
+Goal: Extract battle finish projection player helper rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlayerRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: settlement text labels, rating/scoring rules, replay construction, finish projector implementations, repositories, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure player placement ordering, playable-human filtering predicate, safe display name, and safe handle helper into a package-private helper.
+- Leave settlement labels, highlight/timeline strings, replay record fields, timestamp formatting, and scoring unchanged.
+Architecture/domain-modeling impact:
+- Separates player ordering/identity policy from projection orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Finish projection plan contract passes.
+- Backend contract runner remains green.
+- Settlement ordering and playable human filtering remain unchanged.
+Risks:
+- Placement ordering is user-visible; extraction must preserve sort keys exactly.
+
+Result:
+- Added `BattleFinishProjectionPlayerRules.scala`.
+- Moved player placement ordering, playable-human filtering, safe display name, and safe handle helpers out of `BattleFinishProjectionPlanner.scala`.
+- `BattleFinishProjectionPlanner` still owns settlement planning, replay construction, labels, timestamp formatting, and scoring orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-372
+Goal: Extract battle finish projection time helper rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionTimeRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: settlement text labels, timestamp label formatting, rating/scoring rules, player ordering/filtering rules, replay construction fields, finish projector implementations, repositories, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure projected duration, projected finished-at, and elapsed clamping helpers into a package-private helper.
+- Leave display timestamp formatting and all settlement/replay content unchanged.
+Architecture/domain-modeling impact:
+- Separates projection time calculation from settlement/replay orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Finish projection plan contract passes.
+- Backend contract runner remains green.
+- Projected duration and finished-at behavior remains unchanged.
+Risks:
+- Replay and result timestamps are user-visible; preserve fallback behavior when `startedAt` is zero.
+
+Result:
+- Added `BattleFinishProjectionTimeRules.scala`.
+- Moved projected duration, projected finished-at, and elapsed clamping helpers out of `BattleFinishProjectionPlanner.scala`.
+- `BattleFinishProjectionPlanner` still owns timestamp label formatting and settlement/replay orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-373
+Goal: Extract battle finish projection replay settlement helper rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPlanner.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionReplayRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay title/result labels, replay frame rendering, settlement text labels, rating/scoring rules, player ordering/filtering rules, time rules, finish projector implementations, repositories, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure replay owner settlement selection and replay settlement record mapping into a package-private helper.
+- Leave replay record construction, frame rendering, labels, and persisted field values unchanged.
+Architecture/domain-modeling impact:
+- Separates replay settlement mapping from projection orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Finish projection plan contract passes.
+- Backend contract runner remains green.
+- Replay owner fallback and settlement record values remain unchanged.
+Risks:
+- Replay owner selection controls which result owns the replay; preserve winner/head fallback exactly.
+
+Result:
+- Added `BattleFinishProjectionReplayRules.scala`.
+- Moved replay owner settlement selection and replay settlement record mapping out of `BattleFinishProjectionPlanner.scala`.
+- `BattleFinishProjectionPlanner` still owns replay record construction, frame rendering, titles, labels, and persisted field wiring.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-374
+Goal: Extract battle finish projection mail factory.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionMailFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: projection outcome ADTs, artifact write retry semantics, previous rating lookup, planner behavior, repositories, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure battle settlement mail and rating mail construction plus replay source path encoding into a package-private factory.
+- Leave `DefaultBattleFinishProjector` responsible for repository writes, failure reporting, previous rating lookup, and outcome combination.
+Architecture/domain-modeling impact:
+- Separates pure notification rendering from projection persistence orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- Mail repository writes remain in the projector; factory has no side effects.
+Verification:
+- `sbt compile`
+- focused battle finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle finish projection write contract passes.
+- Backend contract runner remains green.
+- Mail IDs, kinds, subjects, excerpts, source paths, and labels remain unchanged.
+Risks:
+- Mail content is user-visible; preserve exact strings and URL encoding behavior.
+
+Result:
+- Added `BattleFinishProjectionMailFactory.scala`.
+- Moved battle settlement mail, rating mail, replay source path encoding, and rating delta signing out of `DefaultBattleFinishProjector`.
+- `DefaultBattleFinishProjector` still owns repository writes, failure reporting, previous rating lookup, and artifact outcome combination.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond mail/url boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; factory is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-375
+Goal: Move battle projection artifact outcome combination beside the artifact outcome ADT.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionService.scala`, `.codex/agent-state.md`.
+Forbidden scope: projection outcome enum cases, artifact write retry semantics, mail factory, previous rating lookup, planner behavior, repositories, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure result/replay artifact write outcome combination from `DefaultBattleFinishProjector` into a companion object near `BattleProjectionArtifactWriteOutcome`.
+- Leave repository writes, failure reporting, exception handling, and projection result cases unchanged.
+Architecture/domain-modeling impact:
+- Keeps the ADT-specific combination rule beside the ADT instead of inside the effectful projector.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; combination helper is pure.
+Verification:
+- `sbt compile`
+- focused battle finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle finish projection write contract passes.
+- Backend contract runner remains green.
+- All result/replay success/failure combinations map to the same `BattleFinishProjectionOutcome` cases and messages.
+Risks:
+- A swapped result/replay failure branch would change retry semantics; preserve cases exactly.
+
+Result:
+- Moved result/replay artifact write outcome combination to `BattleProjectionArtifactWriteOutcome.combine`.
+- Removed the effectful projector's private `combineArtifactOutcomes` helper.
+- Repository write order, failure reporting, and projection outcome cases remain unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; combination helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-376
+Goal: Extract projectile runtime advancement from `BattleStateService`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleProjectileRuntimeRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projectile factory/fire rules, projectile impact/targeting/motion semantics, player movement/stamina, pickup collection, battle finish/projection logic, repositories, routes/API behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the pure projectile advancement fold and its local accumulator out of `BattleStateService` into a package-private runtime rules object.
+- Leave the tick pipeline order unchanged: requested reloads -> held fire -> projectiles -> pickups -> finalize.
+- Preserve projectile TTL clamping, slow-field speed factor, hit/block/expired priority, impact position, and active projectile retention exactly.
+Architecture/domain-modeling impact:
+- Reduces `BattleStateService` toward orchestration and keeps projectile state transition in a focused pure helper.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Projectile advancement behavior remains unchanged.
+Risks:
+- Projectile runtime is gameplay-critical; preserve existing branch order and positions exactly.
+
+Result:
+- Added `BattleProjectileRuntimeRules.scala`.
+- Moved projectile advancement fold and its accumulator out of `BattleStateService`.
+- `BattleStateService` still owns tick orchestration and keeps the runtime pipeline order unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; state transition is explicit input state -> output state.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-377
+Goal: Extract battle finish projection status rules from `BattleStateService`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionStatusRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: finish projector repository writes, artifact projection invocation/catch behavior, command acceptance, battle runtime tick pipeline, room lifecycle notifications, routes/API behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the finish projection status ADT and pure artifact/projection status transition rules into a package-private helper.
+- Leave `BattleStateService` responsible for lock-protected stored battle updates and invoking `finishProjector`.
+Architecture/domain-modeling impact:
+- Keeps projection status finite states explicit as an ADT while moving pure transition logic out of the effectful in-memory service.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Artifact status merge and projection retry status behavior remain unchanged.
+Risks:
+- Projection retry behavior depends on `Pending`, `InProgress`, `NotConfigured`, and `Failed`; preserve case mapping exactly.
+
+Result:
+- Added `BattleFinishProjectionStatusRules.scala`.
+- Moved the package-private `BattleFinishProjectionStatus` ADT and pure artifact/projection status transition helpers out of `BattleStateService`.
+- `BattleStateService` still owns lock-protected stored battle mutation and finish projector invocation/catch behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; transition helper is explicit input status/outcome -> output status.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-378
+Goal: Extract battle queue leave transition rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueLeaveRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join behavior, heartbeat behavior, room start/session creation, ID generation, ticket snapshot rendering, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move leave ticket lookup/removal, queue-request cleanup, and room participant update/removal into a pure package-private transition helper.
+- Leave `InMemoryBattleQueueService` responsible for synchronization and assigning updated maps to its mutable state.
+Architecture/domain-modeling impact:
+- Makes queue leave a visible old maps + command -> new maps + explicit outcome transition.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Missing-ticket, queue-request cleanup, empty waiting room removal, and non-empty/started room participant update behavior remain unchanged.
+Risks:
+- Leave behavior affects matchmaking cleanup; preserve removal conditions exactly.
+
+Result:
+- Added `BattleQueueLeaveRules.scala`.
+- Moved queue leave ticket lookup/removal, queue-request cleanup, and room participant update/removal into a pure transition helper.
+- `InMemoryBattleQueueService` still owns synchronization and mutable map assignment.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; transition helper returns explicit updated maps and outcome.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-379
+Goal: Extract battle queue join assembly rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueJoinRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue room selection, ID generation, room start/session creation, leave behavior, heartbeat behavior, ticket snapshot rendering, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure participant/entry/ticket assembly and queue-request map update for joins into a package-private helper.
+- Leave `InMemoryBattleQueueService` responsible for synchronization, ID generation, selecting/creating rooms, advancing rooms, and assigning updated maps.
+Architecture/domain-modeling impact:
+- Makes join assembly explicit and separates immutable value construction from queue service side effects.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Participant avatar/skin normalization, entry fields, ticket fields, queue-request mapping, and snapshot entry remain unchanged.
+Risks:
+- Join snapshots expose participant and ticket ids immediately; preserve entry/ticket relationship exactly.
+
+Result:
+- Added `BattleQueueJoinRules.scala`.
+- Moved participant, queue entry, ticket record, and queue-request map construction for joins into a pure helper.
+- `InMemoryBattleQueueService` still owns synchronization, room selection/creation, ID generation, room advancement, and mutable map assignment.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper constructs immutable values/maps.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-380
+Goal: Extract battle slow-field runtime advancement.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleSlowFieldRuntimeRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: player movement slow-field effects, projectile slow-field effects, skill casting, projectile runtime, pickup collection, battle finish/projection logic, queue behavior, routes/API behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure slow-field TTL decrement/filtering out of `BattleStateService` into a package-private helper.
+- Leave tick pipeline order unchanged.
+Architecture/domain-modeling impact:
+- Keeps timed slow-field state transition explicit and separate from service orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Slow fields still decrement by delta and are removed when TTL reaches zero.
+Risks:
+- Slow fields affect movement/projectile modifiers; preserve pipeline position and TTL filtering exactly.
+
+Result:
+- Added `BattleSlowFieldRuntimeRules.scala`.
+- Moved slow-field TTL decrement/filtering out of `BattleStateService`.
+- `BattleStateService` still owns the tick pipeline order and calls the helper in the same position.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing elapsed delta input.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns a copied aggregate state.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-381
+Goal: Extract held-primary-fire runtime advancement.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleHeldFireRuntimeRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: weapon fire/cooldown/ammo/reload rules, command input parsing, skill casting, projectile runtime, player movement, battle finish/projection logic, queue behavior, routes/API behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the pure fold that resolves held primary fire out of `BattleStateService` into a package-private helper.
+- Leave weapon fire semantics in `BattleWeaponFireRules` and tick pipeline order unchanged.
+Architecture/domain-modeling impact:
+- Separates runtime held-input state transition from service orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Held fire still iterates snapshot players, re-reads current player state, only fires for alive `primaryHeld` players, and uses the same runtime command sequence.
+Risks:
+- Held fire affects automatic firing/reload behavior; preserve fold order and current-state re-read exactly.
+
+Result:
+- Added `BattleHeldFireRuntimeRules.scala`.
+- Moved held primary fire resolution out of `BattleStateService`.
+- `BattleStateService` still calls the helper at the same tick pipeline point after requested reloads and before projectile advancement.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns a copied aggregate state via existing fire rules.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-382
+Goal: Move player runtime advancement into `BattlePlayerRuntimeRules`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattlePlayerRuntimeRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot decision semantics, player movement/stamina math, weapon timer/reload rules, slow-field runtime, projectile runtime, battle finish/projection logic, queue behavior, routes/API behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the pure aggregate-level player advancement helper from `BattleStateService` into `BattlePlayerRuntimeRules`.
+- Leave the helper's internal ordering unchanged: timers -> bot control for live bots -> movement for live players -> dead runtime cleanup.
+- Leave `BattleStateService` tick pipeline order unchanged.
+Architecture/domain-modeling impact:
+- Keeps player runtime state transition in the player runtime rules module instead of the effectful service.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Player timers, bot control, movement, stamina, and dead cleanup behavior remain unchanged.
+Risks:
+- Player advancement is gameplay-critical; preserve map order and elapsed inputs exactly.
+
+Result:
+- Moved aggregate-level `advancePlayers` into `BattlePlayerRuntimeRules.scala`.
+- `BattleStateService` still calls `advancePlayers` at the same tick pipeline point.
+- The player advancement order remains timers -> bot control -> movement/dead cleanup.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing elapsed delta input.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns a copied aggregate state.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-383
+Goal: Extract battle runtime step finalization rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleRuntimeFinalizationRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: tick elapsed calculation, step loop accumulation, player/projectile/pickup advancement order, finish projection logic, room lifecycle notification, queue behavior, routes/API behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure final runtime step phase selection and replay-frame update logic out of `BattleStateService`.
+- Leave tick loop orchestration and call position unchanged.
+Architecture/domain-modeling impact:
+- Keeps active/finished runtime finalization as a pure state transition helper.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Finished-state handling, active-state winner reset, tick/elapsed/serverTime values, and replay frame retention remain unchanged.
+Risks:
+- Finalization controls battle finish and replay frames; preserve branch conditions and copied fields exactly.
+
+Result:
+- Added `BattleRuntimeFinalizationRules.scala`.
+- Moved runtime final step phase selection and replay frame update logic out of `BattleStateService`.
+- `BattleStateService` still owns tick elapsed calculation, runtime pipeline order, and room lifecycle notification.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing elapsed input.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns a copied aggregate state.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-384
+Goal: Extract single-step battle runtime pipeline from `BattleStateService`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleRuntimeStepRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: stored battle map mutation, lock/time accumulation loop, room lifecycle notification, finish projection logic, individual player/weapon/projectile/pickup rule semantics, queue behavior, routes/API behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure `advanceStateStep` logic into a package-private runtime step helper.
+- Leave `InMemoryBattleStateService` responsible for deciding how many steps to run, storing results, and notifying room lifecycle.
+- Preserve runtime pipeline order exactly.
+Architecture/domain-modeling impact:
+- Separates pure single-step battle state transition from the effectful in-memory service.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Finished-state server time update and active pipeline order remain unchanged.
+Risks:
+- Single-step pipeline is gameplay-critical; preserve order and elapsed math exactly.
+
+Result:
+- Added `BattleRuntimeStepRules.scala`.
+- Moved pure single-step runtime pipeline out of `BattleStateService`.
+- `BattleStateService` still owns lock-protected battle storage, elapsed accumulation/multi-step loop, room lifecycle notification, and finish projection.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond existing elapsed delta inputs.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns a copied aggregate state.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-385
+Goal: Extract battle queue heartbeat rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueHeartbeatRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join/leave behavior, room start/session creation, ticket snapshots, ID generation, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move heartbeat room-id resolution and participant last-seen update into a pure package-private helper.
+- Leave `InMemoryBattleQueueService` responsible for synchronization, room lookup, map assignment, and response construction.
+Architecture/domain-modeling impact:
+- Keeps heartbeat transition explicit and outside the mutable service shell.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Heartbeat room-id fallback and participant matching/touch behavior remain unchanged.
+Risks:
+- Heartbeat keeps realtime room participants fresh; preserve request room-id precedence over ticket lookup.
+
+Result:
+- Added `BattleQueueHeartbeatRules.scala`.
+- Moved heartbeat room-id resolution and participant last-seen update out of `BattleQueueService`.
+- `InMemoryBattleQueueService` still owns synchronization, room lookup, mutable map assignment, and response construction.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns resolved id/updated room.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-386
+Goal: Extract battle queue active session lookup rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueSessionLookupRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join/leave/heartbeat behavior, room start/session creation, room finish marking, ticket snapshots, ID generation, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure active battle session lookup and `BattleSessionSeed` projection from rooms into a package-private helper.
+- Leave `InMemoryBattleQueueService` responsible for synchronization and advancing rooms before lookup.
+Architecture/domain-modeling impact:
+- Separates session seed projection from mutable queue service state management.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Active session lookup still returns the first matching session with current server time and matching command ownership entries.
+Risks:
+- Battle state initialization depends on this seed; preserve vector/head ordering and server time override exactly.
+
+Result:
+- Added `BattleQueueSessionLookupRules.scala`.
+- Moved active battle session lookup and `BattleSessionSeed` projection out of `BattleQueueService`.
+- `InMemoryBattleQueueService` still owns synchronization and advancing rooms before lookup.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper is a pure rooms -> optional seed projection.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-387
+Goal: Move queue room finish transition into lifecycle rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueRoomLifecycleRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join/leave/heartbeat behavior, room start/session creation behavior, ticket snapshots, ID generation, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the pure rooms-map update for marking a room finished into `BattleQueueRoomLifecycleRules`.
+- Leave `InMemoryBattleQueueService` responsible for synchronization and assigning the returned map.
+Architecture/domain-modeling impact:
+- Keeps room lifecycle transitions together and outside the mutable service shell.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; lifecycle helper is pure.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Mark-finished still preserves existing `finishedAt` and ignores missing rooms.
+Risks:
+- Battle state service relies on this callback; preserve idempotent finished-at behavior exactly.
+
+Result:
+- Moved room finish map transition into `BattleQueueRoomLifecycleRules.markFinished`.
+- `InMemoryBattleQueueService.markBattleFinished` now only synchronizes and assigns the returned room map.
+- Missing rooms are still ignored and existing `finishedAt` is preserved.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns an updated immutable rooms map.
+- Side effects inside domain: none; helper is pure and package-private.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-388
+Goal: Centralize replay frames JSON Base64 codec.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/ReplayFileJsonRenderer.scala`, `backend/src/main/scala/slaydemo/backend/replay/database/ReplayFileJsonParser.scala`, `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRecordMapper.scala`, new `backend/src/main/scala/slaydemo/backend/replay/support/ReplayFramesJsonCodec.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay record schema/field names, replay parser object extraction behavior, replay repository query/write behavior, replay service behavior, route/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move duplicated `framesJsonB64` encode/decode behavior into one package helper.
+- Preserve UTF-8 Base64 encoding and invalid/null decode fallback to `"[]"`.
+Architecture/domain-modeling impact:
+- Reduces duplicated serialization boundary logic without changing replay domain values.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; codec is pure.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- File and Postgres replay frame encoding/decoding remain byte-for-byte compatible.
+Risks:
+- Replay playback depends on frame JSON; preserve fallback and encoding exactly.
+
+Result:
+- Added `ReplayFramesJsonCodec.scala`.
+- Replaced duplicated replay frame JSON Base64 encode/decode logic in file renderer, file parser, and Postgres replay record mapper.
+- Invalid or null decode input still falls back to `"[]"`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond serialization boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; codec is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-389
+Goal: Move battle route parser error ADTs beside their parsers.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, `backend/src/main/scala/slaydemo/backend/battle/routes/BattleJoinCommandParser.scala`, `backend/src/main/scala/slaydemo/backend/battle/routes/BattleCommandRequestParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: parser behavior, route response mapping, route paths/method dispatch, route renderers, services, repositories, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `BattleQueueJoinCommandParseError` into `BattleJoinCommandParser.scala`.
+- Move `BattleCommandRequestParseError` into `BattleCommandRequestParser.scala`.
+- Leave enum cases and all route matching behavior unchanged.
+Architecture/domain-modeling impact:
+- Keeps parser-specific finite-state error ADTs beside parser logic instead of the HTTP route shell.
+- No public API behavior changes.
+Side-effect boundary impact:
+- No side-effect changes; route shell remains effectful HTTP boundary.
+Verification:
+- `sbt compile`
+- focused battle join route contract
+- focused battle command route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle join and command route contracts pass.
+- Backend contract runner remains green.
+- Error enum cases and mapped API errors remain unchanged.
+Risks:
+- Route error mapper depends on the enum names; preserve package and case names exactly.
+
+Result:
+- Moved `BattleQueueJoinCommandParseError` to `BattleJoinCommandParser.scala`.
+- Moved `BattleCommandRequestParseError` to `BattleCommandRequestParser.scala`.
+- Removed parser-specific ADTs from `BattleRoutes.scala`; route matching and error mapper cases remain unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; ADTs remain passive finite states.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-390
+Goal: Clean stale `BattleStateService` imports after runtime extraction.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, `.codex/agent-state.md`.
+Forbidden scope: service logic, runtime rules, projection rules, queue/routes/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Remove wildcard imports from `BattleStateService` that became unused after moving runtime logic into helper modules.
+- Keep only imports needed by command application, runtime step orchestration, finish time notification, and projection failure handling.
+Architecture/domain-modeling impact:
+- Clarifies `BattleStateService` as a mutable/effectful shell with a smaller dependency surface.
+- No domain model changes.
+Side-effect boundary impact:
+- No side-effect changes.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- No behavior changes.
+Risks:
+- Removing a still-needed wildcard import would fail compile; do not change logic in this ticket.
+
+Result:
+- Removed stale runtime wildcard imports from `BattleStateService.scala`.
+- Kept only command application, runtime step orchestration, finish-time notification, aggregate update, and projection failure dependencies.
+- No logic changed.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-391
+Goal: Move queue waiting-room construction into lifecycle rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueRoomLifecycleRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join/leave/heartbeat behavior, room start/session creation behavior, room selection rules, ID generation, ticket snapshots, routes/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure `QueueRoom` waiting-room value construction into `BattleQueueRoomLifecycleRules`.
+- Leave `InMemoryBattleQueueService` responsible for generating room ids and assigning the new room into its map.
+Architecture/domain-modeling impact:
+- Keeps room lifecycle value construction with other room lifecycle transitions.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; lifecycle helper is pure.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- New waiting rooms keep the same timestamps, capacity, duration, phase, finishedAt, and battleSession values.
+Risks:
+- Join timing depends on starts/deadline values; preserve now + matchmakingDuration exactly.
+
+Result:
+- Added `BattleQueueRoomLifecycleRules.newWaitingRoom`.
+- Moved waiting `QueueRoom` value construction out of `InMemoryBattleQueueService.createRoom`.
+- `InMemoryBattleQueueService` still owns room id generation and inserting the room into the map.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper constructs an immutable `QueueRoom`.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and select the next low-risk architecture ticket.
+
+## Current Ticket
+
+ID: ID-392
+Goal: Extract battle queue request reuse transition rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueRequestReuseRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join assembly, leave behavior, heartbeat behavior, room selection/start/session creation, ID generation, route/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move queue request id reuse lookup and stale-request cleanup decision into a package-private pure helper.
+- Leave `InMemoryBattleQueueService` responsible for synchronization and assigning the returned `queueRequests` map.
+- Preserve idempotent reuse only while the mapped ticket still belongs to a waiting room.
+Architecture/domain-modeling impact:
+- Makes request reuse an explicit old maps + command -> snapshot + new request map transition.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure and package-private.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Stale request ids are still forgotten when they no longer map to a waiting ticket.
+Risks:
+- Queue idempotency is user-visible; preserve waiting-only snapshot semantics exactly.
+
+Result:
+- Added `BattleQueueRequestReuseRules.scala`.
+- Moved queue request id reuse lookup and stale-request cleanup decision out of `InMemoryBattleQueueService`.
+- `InMemoryBattleQueueService` still owns synchronization and assigning the returned `queueRequests` map.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns immutable transition data.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract in-memory battle queue ID allocation from `BattleQueueService.scala`.
+
+## Current Ticket
+
+ID: ID-393
+Goal: Extract in-memory battle queue ID allocation rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueIdAllocator.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue join/leave/reuse/heartbeat behavior, room selection/start/session creation, battle id generation, route/API behavior, battle runtime, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move ticket/room/player counter formatting and increment rules into a package-private immutable allocator.
+- Leave `InMemoryBattleQueueService` responsible for synchronization and storing the current allocator state.
+- Preserve exact generated ID formats and initial counter values.
+Architecture/domain-modeling impact:
+- Makes local queue id allocation an explicit immutable state transition.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; allocator methods are pure.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Ticket, room, and player ids keep the same `ticket-%06d`, `room-%06d`, and `player-%06d` formats.
+Risks:
+- Queue contracts rely on deterministic ids; preserve initial value `1L` and increment order.
+
+Result:
+- Added `BattleQueueIdAllocator.scala`.
+- Moved ticket, room, and player local id formatting/increment rules out of `InMemoryBattleQueueService`.
+- Kept allocator state immutable; `InMemoryBattleQueueService` stores and advances the current allocator under its existing lock.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; allocator transition returns a copied value.
+- Side effects inside domain: none; allocator methods are pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract Postgres bot profile schema initialization.
+
+## Current Ticket
+
+ID: ID-394
+Goal: Extract Postgres bot profile schema initialization.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/bots/database/PostgresBotProfileRepository.scala`, new `backend/src/main/scala/slaydemo/backend/bots/database/PostgresBotProfileSchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot profile SQL query semantics, default seeding behavior, row/bind mapping, file/in-memory repositories, services/routes, database data changes, frontend, dependency changes, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `bot_profiles` table and index creation into a package-private schema helper.
+- Keep repository construction order as schema initialization followed by default seeding.
+- Preserve DDL text, column names, primary key, index name, and index ordering exactly.
+Architecture/domain-modeling impact:
+- Separates schema side effects from repository query orchestration.
+- No domain model changes.
+Side-effect boundary impact:
+- Postgres DDL remains in the database adapter layer.
+Verification:
+- `sbt compile`
+- focused bot profile service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Bot profile contract passes.
+- Backend contract runner remains green.
+- `PostgresBotProfileRepository` no longer owns raw schema initialization statements.
+Risks:
+- DDL compatibility is storage-facing; preserve existing table/index definitions exactly.
+
+Result:
+- Added `PostgresBotProfileSchema.scala`.
+- Moved `bot_profiles` table and index creation out of `PostgresBotProfileRepository`.
+- Kept repository construction order as schema initialization followed by default profile seeding.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BotProfileServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; DDL stays in database adapter.
+- Scope respected: yes.
+
+Next ticket:
+- Extract Postgres bot profile row and bind mapping.
+
+## Current Ticket
+
+ID: ID-395
+Goal: Extract Postgres bot profile row and bind mapping.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/bots/database/PostgresBotProfileRepository.scala`, new `backend/src/main/scala/slaydemo/backend/bots/database/PostgresBotProfileRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot profile schema initialization, SQL query strings, default seeding behavior, file/in-memory repositories, services/routes, database data changes, frontend, dependency changes, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move JDBC `PreparedStatement` binding and `ResultSet` reading into a package-private mapper.
+- Preserve bind order, selected column names, and tone fallback semantics exactly.
+- Leave repository responsible for connection management, statement SQL, execute calls, seeding, and returned records.
+Architecture/domain-modeling impact:
+- Keeps database wire conversion explicit at the adapter boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC binding/reading remains in database adapter; connection/statement effects stay in repository.
+Verification:
+- `sbt compile`
+- focused bot profile service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Bot profile contract passes.
+- Backend contract runner remains green.
+- `PostgresBotProfileRepository` no longer directly owns `PreparedStatement`/`ResultSet` mapping helpers.
+Risks:
+- JDBC bind order and enum fallback are storage-facing; preserve them exactly.
+
+Result:
+- Added `PostgresBotProfileRecordMapper.scala`.
+- Moved bot profile `PreparedStatement` binding, `ResultSet` collection, row mapping, and tone fallback parsing out of `PostgresBotProfileRepository`.
+- `PostgresBotProfileRepository` now owns connection/statement orchestration, SQL strings, seeding, and return values only.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BotProfileServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary conversion.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; mapper is database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend large files and pick the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-396
+Goal: Extract battle command acceptance response construction.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleCommandAcceptanceFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: command authorization rules, command application rules, skill behavior, movement/projectile/runtime tick behavior, finish projection behavior, queue behavior, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure construction of ignored/applied `BattleCommandAccepted` values out of `InMemoryBattleStateService`.
+- Preserve accepted tick, command sequence, server time, status, reasons, and outcomes exactly.
+- Leave service responsible for authorization branching, state mutation, and projection scheduling.
+Architecture/domain-modeling impact:
+- Separates response value construction from mutable battle state orchestration.
+- No public domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Command acceptance payload semantics remain unchanged.
+Risks:
+- Accepted command sequence is user-visible; preserve `lastClientCommandSeq` behavior exactly.
+
+Result:
+- Added `BattleCommandAcceptanceFactory.scala`.
+- Moved ignored/applied `BattleCommandAccepted` value construction out of `InMemoryBattleStateService`.
+- Service still owns authorization branching, state mutation, command application, and projection scheduling.
+- First compile attempt failed because the helper imported `lastClientCommandSeq` and outcome type from the wrong locations; fixed within the ticket.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle stored-state private models from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-397
+Goal: Extract battle state service internal immutable models.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateServiceModels.scala`, `.codex/agent-state.md`.
+Forbidden scope: state initialization behavior, command handling behavior, runtime advancement, finish projection behavior, queue lifecycle notifications, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `StoredBattle`, `StateRead`, and `CommandSubmission` immutable internal service models out of `InMemoryBattleStateService`.
+- Preserve field names, field types, construction sites, and package-private visibility.
+- Leave service orchestration and all behavior unchanged.
+Architecture/domain-modeling impact:
+- Makes service state and result envelopes explicit immutable data instead of nested service-local classes.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No side effects; data model extraction only.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- No behavior or wire output changes.
+Risks:
+- Nested private models become package-private; keep names scoped to `services` and avoid expanding use beyond this ticket.
+
+Result:
+- Added `BattleStateServiceModels.scala`.
+- Moved `StoredBattle`, `StateRead`, and `CommandSubmission` immutable service models out of `InMemoryBattleStateService`.
+- Service orchestration and all construction sites are unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; extracted models remain immutable case classes.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract stored battle advancement transition from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-398
+Goal: Extract stored battle advancement transition.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleStoredBattleAdvanceRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: command handling semantics, runtime step rules, finish projection behavior, queue service behavior, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move safe-time clamping, tick accumulation, repeated step advancement, remainder calculation, and room-finish notification decision into a package-private pure helper.
+- Return an explicit notification value when a battle transitions to finished instead of calling the room lifecycle sink inside the transition.
+- Leave `InMemoryBattleStateService` responsible for invoking side-effecting room lifecycle sink and assigning stored state.
+Architecture/domain-modeling impact:
+- Makes stored battle advancement an explicit old stored state + time -> new stored state + optional domain notification transition.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- Room lifecycle sink call remains in the service; advancement helper is pure.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Room-finished notifications still fire exactly when phase first transitions to finished.
+Risks:
+- Tick accumulation and remainder handling are gameplay-critical; preserve safe-time and step ordering exactly.
+
+Result:
+- Added `BattleStoredBattleAdvanceRules.scala`.
+- Moved safe-time clamping, tick accumulation, step advancement, pending remainder calculation, and finished-room notification decision out of `InMemoryBattleStateService`.
+- `InMemoryBattleStateService` now only invokes the room lifecycle sink when the pure transition returns a notification.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns immutable transition/result values.
+- Side effects inside domain: none; sink invocation remains in service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess `BattleStateService.scala` after advancement extraction and select the next narrow split.
+
+## Current Ticket
+
+ID: ID-399
+Goal: Extract stored battle initialization from session seed.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleStoredBattleInitializationRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: session lookup behavior, battle state factory behavior, command handling, runtime advancement, finish projection behavior, queue behavior, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure `BattleSessionSeed` -> initial `StoredBattle` construction into a package-private helper.
+- Preserve initial state creation, command ownership map construction, pending projection status, last-updated time, and pending step value exactly.
+- Leave `InMemoryBattleStateService` responsible for session lookup and inserting the stored battle into its mutable map.
+Architecture/domain-modeling impact:
+- Makes stored battle initialization an explicit pure transition from seed + duration + time to immutable stored state.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; session lookup and map assignment remain in service.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Initial battle state and command ownership behavior remain unchanged.
+Risks:
+- Initialization controls command authorization; preserve the ownership map exactly.
+
+Result:
+- Added `BattleStoredBattleInitializationRules.scala`.
+- Moved `BattleSessionSeed` plus duration/time to initial `StoredBattle` construction out of `InMemoryBattleStateService`.
+- Service still owns session lookup and mutable battle cache insertion.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns immutable stored state.
+- Side effects inside domain: none; lookup and map assignment stay in service.
+- Scope respected: yes.
+
+Next ticket:
+- Extract command application orchestration from `BattleStateService.scala`.
+
+## Current Ticket
+
+ID: ID-400
+Goal: Extract battle command application orchestration.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleCommandApplicationRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: input normalization semantics, skill behavior, weapon behavior, movement/projectile/runtime tick behavior, finish projection behavior, queue behavior, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the pure base input update plus blink/dash/freeze application fold out of `InMemoryBattleStateService`.
+- Preserve skill application order, outcome concatenation, and base player replacement exactly.
+- Leave service responsible for authorization, state cache assignment, and response/projection scheduling.
+Architecture/domain-modeling impact:
+- Separates deterministic command state transition orchestration from mutable battle service coordination.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Backend contract runner remains green.
+- Command application behavior remains unchanged.
+Risks:
+- Skill application order is user-visible; preserve blink, dash, freeze order exactly.
+
+Result:
+- Added `BattleCommandApplicationRules.scala`.
+- Moved base input update, player replacement, blink/dash/freeze command fold, and outcome concatenation out of `InMemoryBattleStateService`.
+- `BattleStateService` now delegates command application after authorization and keeps mutable state assignment/response/projection scheduling.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns immutable command application result.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle finish projection preparation rules.
+
+## Current Ticket
+
+ID: ID-401
+Goal: Extract battle finish projection preparation rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionPreparationRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projector execution, projection outcome handling, runtime advancement, command handling, queue lifecycle notifications, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure transition deciding whether a finished battle should enter projection `InProgress` into a package-private helper.
+- Return updated stored state plus optional projection candidate explicitly.
+- Preserve artifact-ready handling, pending/failed retry behavior, and in-progress/not-configured no-op behavior exactly.
+Architecture/domain-modeling impact:
+- Separates projection preparation state machine from mutable service orchestration.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; projector execution remains in service.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- focused finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state and finish projection write contracts pass.
+- Backend contract runner remains green.
+- Projection preparation status behavior remains unchanged.
+Risks:
+- Projection readiness controls replay/result artifact visibility; preserve status transitions exactly.
+
+Result:
+- Added `BattleFinishProjectionPreparationRules.scala`.
+- Moved finish projection preparation state transition out of `InMemoryBattleStateService`.
+- Service still owns projector execution, locking, mutable battle cache updates, and result handling.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns immutable preparation result.
+- Side effects inside domain: none; projector execution remains in service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend large files and choose the next low-risk split.
+
+## Current Ticket
+
+ID: ID-402
+Goal: Deduplicate battle projection throwable failure message formatting.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFailureMessageFormatter.scala`, `.codex/agent-state.md`.
+Forbidden scope: projection status transitions, artifact write behavior, repositories, command/runtime behavior, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move duplicated `Throwable` -> failure message formatting into a package-private helper.
+- Preserve exact fallback behavior and message format: `ClassName: detail`.
+- Leave projection outcome/status handling unchanged.
+Architecture/domain-modeling impact:
+- Centralizes a shared pure formatting rule at the services boundary.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; formatter is pure.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- focused finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused contracts and full backend contract runner remain green.
+- Projection failure messages are formatted exactly as before.
+Risks:
+- Failure text may be observed in logs/status; preserve exact string construction.
+
+Result:
+- Added `BattleFailureMessageFormatter.scala`.
+- Replaced duplicated Throwable failure message formatting in `BattleStateService` and `DefaultBattleFinishProjector`.
+- Preserved the previous `ClassName: detail` output format and fallback behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; formatter is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle finish projection completion rules.
+
+## Current Ticket
+
+ID: ID-403
+Goal: Extract battle finish projection completion rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionCompletionRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projector execution, projection preparation behavior, runtime advancement, command handling, queue behavior, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure application of `BattleFinishProjectionOutcome` to `StoredBattle` artifact/status fields into a package-private helper.
+- Preserve existing `BattleFinishProjectionStatusRules` usage and artifact status transition semantics exactly.
+- Leave `InMemoryBattleStateService` responsible for lock ownership, stale-state checks, and mutable battle map assignment.
+Architecture/domain-modeling impact:
+- Keeps projection completion as an explicit immutable state transition.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- focused finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused contracts and full backend contract runner remain green.
+- Projection completion status behavior remains unchanged.
+Risks:
+- Artifact status drives frontend artifact availability; preserve transitions exactly.
+
+Result:
+- Added `BattleFinishProjectionCompletionRules.scala`.
+- Moved applying a `BattleFinishProjectionOutcome` to stored battle artifact/status fields out of `InMemoryBattleStateService`.
+- Service still owns locking, stale-status checks, mutable map assignment, and returned state selection.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns copied immutable stored state.
+- Side effects inside domain: none; map assignment remains in service.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend architecture hotspots after battle state service split.
+
+## Current Ticket
+
+ID: ID-404
+Goal: Extract replay record construction from replay service.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/services/ReplayService.scala`, new `backend/src/main/scala/slaydemo/backend/replay/services/ReplayRecordFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay id validation, frame normalization/parser behavior, repository save/list/load behavior, comment behavior, routes/API parsing, database/file repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure construction of `ReplayRecord` from `ReplayRecordCommand` and `ReplayFrameJson.Normalized` into a package-private factory.
+- Preserve nullable/blank metadata normalization, frame count, playback availability, and rating defaults exactly.
+- Leave `DefaultReplayService` responsible for validation, playable-handle filtering, and repository side effects.
+Architecture/domain-modeling impact:
+- Separates pure replay domain record assembly from application service orchestration.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; factory is pure.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- Replay record construction behavior remains unchanged.
+Risks:
+- Replay artifact metadata is user-visible; preserve trim/empty handling exactly.
+
+Result:
+- Added `ReplayRecordFactory.scala`.
+- Moved pure `ReplayRecordCommand` plus normalized replay frames to `ReplayRecord` construction out of `DefaultReplayService`.
+- `DefaultReplayService` still owns replay id validation, frame normalization, playable-handle filtering, and repository save behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; factory returns immutable replay record.
+- Side effects inside domain: none; repository save remains in service.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay frame timeline selection rules from battle replay rendering.
+
+## Current Ticket
+
+ID: ID-405
+Goal: Extract battle replay frame timeline selection rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleReplayFramesJsonRenderer.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleReplayFrameTimelineRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay frame JSON field rendering, hero/projectile/pickup/event message rendering, finish projection planning semantics, battle runtime frame capture, replay repositories/routes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move replay frame elapsed clamping, sorting, duplicate elapsed replacement, and fallback frame elapsed selection into a package-private pure helper.
+- Preserve duplicate elapsed behavior where the last frame for an elapsed time wins.
+- Leave JSON rendering and event message rendering in `BattleReplayFramesJsonRenderer`.
+Architecture/domain-modeling impact:
+- Separates replay timeline selection from JSON serialization.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused battle finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle finish projection plan contract passes.
+- Backend contract runner remains green.
+- Replay frame ordering and fallback elapsed selection remain unchanged.
+Risks:
+- Replay playback frame ordering is user-visible; preserve clamping and duplicate replacement exactly.
+
+Result:
+- Added `BattleReplayFrameTimelineRules.scala`.
+- Moved replay frame elapsed clamping, sorting, duplicate elapsed replacement, and fallback elapsed timeline selection out of `BattleReplayFramesJsonRenderer`.
+- `BattleReplayFramesJsonRenderer` now keeps JSON rendering and event message rendering only.
+- First compile attempt failed because a removed method left one extra closing brace in the renderer; fixed within the ticket.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; helper returns immutable timeline values.
+- Side effects inside domain: none; helper is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay file JSON object array scanner.
+
+## Current Ticket
+
+ID: ID-406
+Goal: Extract replay file JSON object array scanner.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/ReplayFileJsonParser.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/ReplayFileJsonObjectScanner.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay record/comment/settlement field parsing, file repository I/O, replay services/routes, Postgres repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move low-level raw JSON array object extraction and matching-delimiter scanning into a package-private helper.
+- Preserve permissive extraction behavior and object regex exactly.
+- Leave domain field parsing in `ReplayFileJsonParser`.
+Architecture/domain-modeling impact:
+- Separates replay file deserialization into raw JSON scanning and domain record parsing.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; file I/O remains in `FileReplayRepository`.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- Persisted replay JSON loading behavior remains unchanged.
+Risks:
+- Persisted replay compatibility depends on permissive scanner behavior; preserve delimiter and regex logic exactly.
+
+Result:
+- Added `ReplayFileJsonObjectScanner.scala`.
+- Moved raw JSON object-array extraction and matching-delimiter scanning out of `ReplayFileJsonParser`.
+- `ReplayFileJsonParser` still owns replay/comment/settlement field parsing and domain record construction.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond raw parser boundary strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; scanner is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract governance file repository ID advancement rules.
+
+## Current Ticket
+
+ID: ID-407
+Goal: Extract governance file repository ID allocation and advancement rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/FileGovernanceRepository.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/GovernanceFileIdRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance JSON parsing/rendering, file read/write/atomic move behavior, repository API semantics, governance services/routes, Postgres repository, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move governance file id formatting, numeric id parsing, next-id allocation, and next-id advancement into a package-private immutable helper.
+- Leave `FileGovernanceRepository` responsible for locking, in-memory maps, file I/O, sorting, and persistence calls.
+- Preserve prefixes, zero-padding, initial counters, and mail/notification shared review counter behavior exactly.
+Architecture/domain-modeling impact:
+- Makes file repository id allocation an explicit immutable state transition.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service contract passes.
+- Backend contract runner remains green.
+- Generated governance ids remain unchanged.
+Risks:
+- Generated ids are persisted and user-visible; preserve counter advancement from both notification id and mail id exactly.
+
+Result:
+- Added `GovernanceFileIdRules.scala`.
+- Moved governance adjustment/review id allocation, zero-padded formatting, numeric id parsing, and counter advancement into immutable `GovernanceFileIdCounters`.
+- `FileGovernanceRepository` now stores and advances counters under its existing lock while keeping file I/O, sorting, maps, and persistence calls.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; id counter helper returns copied state.
+- Side effects inside domain: none; file effects remain in repository.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum file repository ID allocation and advancement rules.
+
+## Current Ticket
+
+ID: ID-408
+Goal: Extract forum file repository ID allocation and advancement rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/FileForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/ForumFileIdRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum JSON parsing/rendering, topic/reply/vote mutation semantics, file read/write/atomic move behavior, forum services/routes, Postgres repository, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move forum topic/reply id formatting, numeric id parsing, next-id allocation, and next-id advancement into a package-private immutable helper.
+- Leave `FileForumRepository` responsible for locking, in-memory maps, file I/O, sorting, vote mutations, and persistence calls.
+- Preserve prefixes, zero-padding width, initial counters, and counter advancement from loaded/saved records exactly.
+Architecture/domain-modeling impact:
+- Makes file repository id allocation an explicit immutable state transition.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; helper is pure.
+Verification:
+- `sbt compile`
+- focused forum service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service contract passes.
+- Backend contract runner remains green.
+- Generated forum ids remain unchanged.
+Risks:
+- Forum ids are persisted and user-visible; preserve prefixes and 12-digit zero-padding exactly.
+
+Result:
+- Added `ForumFileIdRules.scala`.
+- Moved forum topic/reply id allocation, zero-padded formatting, numeric id parsing, and counter advancement into immutable `ForumFileIdCounters`.
+- `FileForumRepository` now stores and advances counters under its existing lock while keeping file I/O, sorting, vote mutations, maps, and persistence calls.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; id counter helper returns copied state.
+- Side effects inside domain: none; file effects remain in repository.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend hotspots and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-409
+Goal: Extract battle state route endpoint handler.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleStateRouteHandler.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle command routes, queue/room route behavior, parsers/renderers, battle services/runtime behavior, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `state`, state read, and state stream endpoint handling out of `BattleRoutes` into a package-private route helper.
+- Preserve CORS, OPTIONS/HEAD behavior, unsupported-method errors, SSE headers, response body lifecycle, and exchange close behavior exactly.
+- Leave `BattleRoutes` as constructor/wiring plus other endpoint families.
+Architecture/domain-modeling impact:
+- Keeps HTTP state endpoint orchestration in route layer while reducing mixed endpoint responsibilities in `BattleRoutes`.
+- No domain model changes.
+Side-effect boundary impact:
+- HTTP response writing remains in routes; no new external effects.
+Verification:
+- `sbt compile`
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes.
+- Backend contract runner remains green.
+- State read and state stream response behavior remains unchanged.
+Risks:
+- SSE headers and exchange close behavior are sensitive; preserve lifecycle exactly.
+
+Result:
+- Added `BattleStateRouteHandler.scala`.
+- Moved state endpoint dispatch, state read handling, and state stream handling out of `BattleRoutes`.
+- Preserved CORS, OPTIONS/HEAD behavior, SSE headers, stream writer invocation, and exchange close lifecycle.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP effects remain in route layer.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle room route endpoint handler.
+
+## Current Ticket
+
+ID: ID-410
+Goal: Extract battle room route endpoint handler.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoomRouteHandler.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle state route behavior, command/join/status/leave routes, parsers/renderers, queue service behavior, battle runtime, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `rooms`, room snapshot, room heartbeat, and room snapshot result handling out of `BattleRoutes`.
+- Preserve CORS, OPTIONS behavior, unsupported-method errors, JSON parse errors, heartbeat command construction, room error mapping, and exchange close behavior exactly.
+- Leave `BattleRoutes` as constructor/wiring plus other endpoint families.
+Architecture/domain-modeling impact:
+- Keeps HTTP room endpoint orchestration in route layer while reducing mixed endpoint responsibilities in `BattleRoutes`.
+- No domain model changes.
+Side-effect boundary impact:
+- HTTP response writing remains in routes; no new external effects.
+Verification:
+- `sbt compile`
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle room/state route contract passes.
+- Backend contract runner remains green.
+- Room snapshot and heartbeat response behavior remains unchanged.
+Risks:
+- Exchange close and JSON error behavior are client-visible; preserve lifecycle exactly.
+
+Result:
+- Added `BattleRoomRouteHandler.scala`.
+- Moved room endpoint dispatch, room snapshot handling, room heartbeat handling, and room snapshot result rendering out of `BattleRoutes`.
+- Preserved CORS, OPTIONS behavior, JSON parse errors, route/room error mapping, and exchange close lifecycle.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP effects remain in route layer.
+- Scope respected: yes.
+
+Next ticket:
+- Extract battle command route endpoint handler.
+
+## Current Ticket
+
+ID: ID-411
+Goal: Extract battle command route endpoint handler.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleCommandRouteHandler.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue/join/status/leave routes, room/state route behavior, command parser/renderer semantics, battle services/runtime behavior, database/repositories, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move command POST handling out of `BattleRoutes` into a package-private route helper.
+- Preserve bad JSON errors, command parse error mapping, command submit error mapping, accepted response rendering, and `handlePost` lifecycle exactly.
+- Leave `BattleRoutes` as constructor/wiring plus other endpoint families.
+Architecture/domain-modeling impact:
+- Keeps HTTP command endpoint orchestration in route layer while reducing mixed endpoint responsibilities in `BattleRoutes`.
+- No domain model changes.
+Side-effect boundary impact:
+- HTTP response writing remains in routes; no new external effects.
+Verification:
+- `sbt compile`
+- focused battle command route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle command route contract passes.
+- Backend contract runner remains green.
+- Command route behavior remains unchanged.
+Risks:
+- Command submission errors are frontend-visible; preserve mapping and status codes exactly.
+
+Result:
+- Added `BattleCommandRouteHandler.scala`.
+- Moved command POST bad-JSON handling, command parsing, service submission, error mapping, and accepted response rendering out of `BattleRoutes`.
+- `BattleRoutes.commands` now delegates to the command route handler.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP effects remain in route layer.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend hotspots and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-412
+Goal: Extract Postgres identity account JDBC binding and result helpers.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/database/PostgresIdentityAccountRepository.scala`, `backend/src/main/scala/slaydemo/backend/identity/database/PostgresIdentityAccountRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: identity SQL query strings, authentication/password migration semantics, identity service behavior, schema changes, routes/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move create-statement binding and optional/vector account result reading into `PostgresIdentityAccountRecordMapper`.
+- Preserve selected columns, bind order, session-token fallback, skin fallback, and active-account filtering exactly.
+- Leave repository responsible for connections, SQL strings, query orchestration, and create/auth business result mapping.
+Architecture/domain-modeling impact:
+- Keeps JDBC wire conversion centralized in the database adapter mapper.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- JDBC statement/result effects remain in database adapter; no new external effects.
+Verification:
+- `sbt compile`
+- focused identity service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity service contract passes.
+- Backend contract runner remains green.
+- Identity auth/create/list behavior remains unchanged.
+Risks:
+- Bind order is storage-facing; preserve exact insert column order.
+
+Result:
+- Extended `PostgresIdentityAccountRecordMapper` with create-statement binding, optional account reading, and vector account reading helpers.
+- `PostgresIdentityAccountRepository` now keeps SQL/connection orchestration while delegating JDBC wire conversion to the mapper.
+- Preserved create bind order, `SkinId` wire rendering, empty session-token fallback, and account read fallbacks.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary conversion.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; mapper stays in database adapter.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend hotspots and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-413
+Goal: Extract builtin admin identity policy from `DefaultIdentityService`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/identity/services/IdentityService.scala`, new `backend/src/main/scala/slaydemo/backend/identity/services/BuiltinAdminIdentity.scala`, `.codex/agent-state.md`.
+Forbidden scope: identity repository/database behavior, password hash semantics, session storage semantics, route/API parsing, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move builtin admin handle, password hash, user id, handle matching, and immutable account construction into a package-private identity service policy object.
+- Keep `DefaultIdentityService` responsible for session issuance, builtin session tracking, repository orchestration, and legacy password upgrade flow.
+- Preserve builtin admin handle/password/hash/user id/skin/session behavior exactly.
+Architecture/domain-modeling impact:
+- Makes the builtin identity business policy explicit and reusable without mixing constants into the application service orchestration.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; the extracted policy is pure and service-layer only.
+Verification:
+- `sbt compile`
+- focused identity service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Identity service contract passes.
+- Backend contract runner remains green.
+- Builtin admin registration reservation, login, current-session, and active-account summary behavior remains unchanged.
+Risks:
+- Admin password hash and handle comparison are behavior-facing; preserve exact values and case-insensitive handle key matching.
+
+Result:
+- Added `BuiltinAdminIdentity.scala` as a package-private pure identity service policy.
+- Moved builtin admin handle, password hash, user id, handle matching, and immutable account construction out of `DefaultIdentityService`.
+- `DefaultIdentityService` still owns builtin session tracking, session issuance, repository orchestration, and legacy plaintext password upgrade flow.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.IdentityServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; builtin ids and hashes are wrapped in existing value types.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted policy is pure service-layer code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess backend hotspots and use explorer findings to choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-414
+Goal: Extract public battle queue service contracts from `BattleQueueService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueServiceContracts.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue state transition behavior, route/API response semantics, battle runtime/session behavior, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `BattleQueueStatusError`, `BattleRoomError`, `BattleQueueLeaveOutcome`, `BattleRoomLifecycleSink`, `NoopBattleRoomLifecycleSink`, `BattleQueueService`, `BattleQueueJoinCommand`, and `RealtimeRoomHeartbeatCommand` into a dedicated service contracts file.
+- Leave `InMemoryBattleQueueService` responsible only for in-memory queue orchestration and existing state mutation.
+- Preserve names, package, visibility, ADT cases, command fields, and method signatures exactly.
+Architecture/domain-modeling impact:
+- Separates queue service public contract/ADT definitions from mutable in-memory implementation.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; implementation mutation remains inside `InMemoryBattleQueueService`.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contract passes.
+- Backend contract runner remains green.
+- Existing route/service imports continue resolving without package-name changes.
+Risks:
+- Top-level definitions are widely imported by routes/tests; preserve exact package and names.
+
+Result:
+- Added `BattleQueueServiceContracts.scala` for the public queue service contract, queue/room error ADTs, leave outcome ADT, room lifecycle sink, join command, and heartbeat command.
+- Removed those top-level definitions from `BattleQueueService.scala`, leaving it focused on `InMemoryBattleQueueService` orchestration.
+- Preserved package, names, cases, command fields, and method signatures.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; existing DTO string options were only moved.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; existing queue service mutation stayed in implementation.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract replay identifier policy from `ReplayService.scala` into its own service-layer file.
+
+## Current Ticket
+
+ID: ID-415
+Goal: Extract replay identifier policy from `ReplayService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/services/ReplayService.scala`, new `backend/src/main/scala/slaydemo/backend/replay/services/ReplayIdentifierPolicy.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay record/comment behavior, replay repository/database behavior, route/API response semantics, battle finish projection, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `ReplayIdentifierPolicy` into its own service-layer file while preserving package, object name, max length, allowed characters, and public methods exactly.
+- Leave `DefaultReplayService` responsible for record/comment orchestration and repository effects.
+Architecture/domain-modeling impact:
+- Keeps replay id validation as an explicit pure policy shared by service and route parsing.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; policy remains pure.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service and route contracts pass.
+- Backend contract runner remains green.
+- Existing imports of `ReplayIdentifierPolicy` continue resolving without caller changes.
+Risks:
+- Route command parsers import this object from `replay.services`; preserve same package/object name.
+
+Result:
+- Added `ReplayIdentifierPolicy.scala`.
+- Moved the replay id max-length and allowed-character policy out of `ReplayService.scala`.
+- Preserved package/object name and `isSafeReplayId` / `isSafeIdentifier` behavior for service and route callers.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; existing string boundary validation was only moved.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract queue join/status/leave route handling from `BattleRoutes.scala`.
+
+## Current Ticket
+
+ID: ID-416
+Goal: Extract queue join/status/leave route handling from `BattleRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/routes/BattleRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/battle/routes/BattleQueueRouteHandler.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue service behavior, battle room/state/command route handlers, API response JSON/error mappings, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move battle queue join, status, and leave endpoint handling into a private route handler.
+- Keep `BattleRoutes` as route wiring that delegates queue, room, state, and command endpoints.
+- Preserve `handlePost`/`handleGet`, parse order, authorization order, queue service calls, status codes, and response JSON exactly.
+Architecture/domain-modeling impact:
+- Keeps API boundary code split by endpoint group and reduces the route god-class pressure.
+- No domain model changes.
+Side-effect boundary impact:
+- HTTP effects remain in the routes layer; queue mutation remains in the queue service.
+Verification:
+- `sbt compile`
+- focused battle join route contract
+- focused battle room/state route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused route contracts pass.
+- Backend contract runner remains green.
+- `BattleRoutes` delegates join/status/leave without changing behavior.
+Risks:
+- Join auth and leave response JSON are user-facing; preserve exact existing ordering and payloads.
+
+Result:
+- Added `BattleQueueRouteHandler.scala` for join, status, and leave endpoint handling.
+- `BattleRoutes` now wires/delegates queue, room, state, and command route groups instead of containing endpoint logic itself.
+- Preserved join parse/authorization order, status lookup behavior, leave JSON payload, `handlePost`/`handleGet`, and existing error mappings.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleJoinRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; existing leave response boolean was only moved at API boundary.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP effects remain in route layer.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend hotspots and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-417
+Goal: Extract forum mutation route handling from `ForumRoutes.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRoutes.scala`, new `backend/src/main/scala/slaydemo/backend/forum/routes/ForumMutationRouteHandler.scala`, new `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRouteHttpSupport.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum service/repository behavior, command parser semantics, route target parser semantics, API response JSON/error mappings, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move topic creation, reply creation, topic vote, and reply vote POST handling into a private mutation route handler.
+- Move existing forum route body parsing and JSON error rendering helpers into a small route support object used by both route classes.
+- Keep `ForumRoutes` responsible for method dispatch and GET list/detail handling.
+- Preserve statuses, error codes, parse order, service calls, and rendered topic wrapper payloads exactly.
+Architecture/domain-modeling impact:
+- Splits route boundary orchestration by read vs mutation concerns without changing domain/service models.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- HTTP effects remain in route layer; service/repository effects remain unchanged.
+Verification:
+- `sbt compile`
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum route contract passes.
+- Backend contract runner remains green.
+- Forum mutation endpoint behavior remains unchanged.
+Risks:
+- Mutation errors are user-facing; preserve exact status/code/message behavior.
+
+Result:
+- Added `ForumMutationRouteHandler.scala` for topic create, reply create, topic vote, and reply vote POST handling.
+- Added `ForumRouteHttpSupport.scala` for existing forum request-body parsing and JSON error rendering.
+- `ForumRoutes` now keeps method dispatch and GET list/detail handling while delegating mutations.
+- Preserved forum route statuses, error codes/messages, parse order, service calls, and topic wrapper rendering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; HTTP effects remain in route layer.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend hotspots and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-418
+Goal: Extract backend route context metadata from `BackendApp.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/BackendApp.scala`, new `backend/src/main/scala/slaydemo/backend/BackendRouteCatalog.scala`, `.codex/agent-state.md`.
+Forbidden scope: server startup behavior, route handler registration behavior, service/repository construction, API route paths, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `BackendRouteContext`, base route context list, and API alias expansion into a dedicated backend route catalog.
+- Keep `BackendApp.BaseRouteContexts` and `BackendApp.RouteContexts` as delegating vals for existing package-private callers/tests.
+- Preserve exact route path order and `/api` alias semantics.
+Architecture/domain-modeling impact:
+- Separates route metadata from backend startup orchestration.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; route metadata remains pure.
+Verification:
+- `sbt compile`
+- focused route context contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Route context contract passes.
+- Backend contract runner remains green.
+- Route path metadata remains byte-for-byte equivalent in order/content.
+Risks:
+- Route handler table validation depends on route context order; preserve exact ordering.
+
+Result:
+- Added `BackendRouteCatalog.scala` with `BackendRouteContext`, base route contexts, and `/api` alias expansion.
+- `BackendApp.BaseRouteContexts` and `BackendApp.RouteContexts` now delegate to the catalog for existing callers/tests.
+- Preserved the route path order and alias semantics.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BackendRouteContextContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; existing route path strings were only moved to route metadata.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; catalog is pure metadata.
+- Scope respected: yes.
+
+Next ticket:
+- Extract backend route handler table and registration from `BackendApp.scala`.
+
+## Current Ticket
+
+ID: ID-419
+Goal: Extract backend route handler table and registration from `BackendApp.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/BackendApp.scala`, new `backend/src/main/scala/slaydemo/backend/BackendRouteRegistry.scala`, `.codex/agent-state.md`.
+Forbidden scope: service/repository construction, route path changes, route context metadata changes, HTTP endpoint implementation behavior, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `BackendRouteHandler`, route handler table construction, and `HttpServer.createContext` registration/metadata validation into a dedicated backend route registry.
+- Keep `BackendApp.start` responsible for config, service construction, server creation, executor, and lifecycle.
+- Preserve exact handler path order and route-to-handler mapping.
+Architecture/domain-modeling impact:
+- Separates backend startup orchestration from route registration table assembly.
+- No domain model changes.
+Side-effect boundary impact:
+- `HttpServer.createContext` side effects remain at the backend startup boundary, now in a clearly named registry helper.
+Verification:
+- `sbt compile`
+- focused route context contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Route context contract passes.
+- Backend contract runner remains green.
+- Handler table validation still compares handler paths against route catalog metadata.
+Risks:
+- Handler path order must continue to match route catalog order exactly.
+
+Result:
+- Added `BackendRouteRegistry.scala` with `BackendRouteHandler`, route handler table construction, and route context/handler path validation before `HttpServer.createContext`.
+- `BackendApp.start` now delegates route table assembly and registration to the registry.
+- Preserved route-to-handler mapping and path order.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BackendRouteContextContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; existing route path strings stay in route-boundary metadata.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; `HttpServer.createContext` remains at backend startup boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend hotspots and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-420
+Goal: Extract replay frame JSON array counting parser from `ReplayFrameJson.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/support/ReplayFrameJson.scala`, new `backend/src/main/scala/slaydemo/backend/replay/support/ReplayJsonArrayCounter.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay service behavior, replay storage/routes, frame JSON acceptance semantics, battle replay rendering, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the private JSON root-array counting parser out of `ReplayFrameJson` into a package-private support object.
+- Keep `ReplayFrameJson.normalize` behavior and error ADT unchanged.
+- Preserve accepted JSON syntax, invalid JSON rejection, and frame-count behavior exactly.
+Architecture/domain-modeling impact:
+- Separates replay frame normalization from low-level JSON scanning.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No side effects; parser remains pure support code.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- Replay frame count/invalid-frame behavior remains unchanged.
+Risks:
+- Parser acceptance is behavior-facing for replay persistence; move code without changing rules.
+
+Result:
+- Added `ReplayJsonArrayCounter.scala` with the existing root-array parser/counting logic.
+- `ReplayFrameJson.normalize` now delegates frame counting to that support object and keeps the same error/normalized output behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; JSON parser primitives remain support-layer parsing details.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining parser/adapter hotspots and choose the next low-risk extraction.
+
+## Current Ticket
+
+ID: ID-421
+Goal: Extract governance file JSON object-array scanner.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/GovernanceFileJsonParser.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/GovernanceFileJsonObjectScanner.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance repository behavior, field parsing semantics, JSON rendering, Postgres adapters, service/routes, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the raw JSON array/object scanning helpers out of `GovernanceFileJsonParser`.
+- Leave adjustment and review-notification field parsing in `GovernanceFileJsonParser`.
+- Preserve permissive file JSON parsing behavior exactly.
+Architecture/domain-modeling impact:
+- Separates low-level file payload scanning from governance record construction.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No side effects; parser remains pure database-adapter support.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service contract passes.
+- Backend contract runner remains green.
+- Governance file parsing behavior remains unchanged.
+Risks:
+- File parser permissiveness is storage compatibility behavior; move scanner code without tightening malformed payload handling.
+
+Result:
+- Added `GovernanceFileJsonObjectScanner.scala` with the existing raw array/object chunk scanning helpers.
+- `GovernanceFileJsonParser` now keeps governance adjustment/notification field parsing and delegates object extraction to the scanner.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser strings remain database-adapter parsing details.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining parser/adapter hotspots and choose the next low-risk extraction.
+
+## Current Ticket
+
+ID: ID-422
+Goal: Extract bot profile file JSON object scanner.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/bots/database/BotProfileFileJsonParser.scala`, new `backend/src/main/scala/slaydemo/backend/bots/database/BotProfileFileJsonObjectScanner.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot profile repository behavior, bot field parsing semantics, JSON rendering, Postgres adapters, service/routes, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move profile object extraction, scanning recursion, and scan state out of `BotProfileFileJsonParser`.
+- Leave bot profile field parsing, tone fallback, and fallback order behavior unchanged.
+- Preserve permissive file JSON parsing behavior exactly.
+Architecture/domain-modeling impact:
+- Separates low-level file payload scanning from bot profile record construction.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No side effects; parser remains pure database-adapter support.
+Verification:
+- `sbt compile`
+- focused bot profile service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Bot profile service contract passes.
+- Backend contract runner remains green.
+- Bot profile file parsing behavior remains unchanged.
+Risks:
+- Fallback profile order depends on extracted chunk order; preserve scanner ordering exactly.
+
+Result:
+- Added `BotProfileFileJsonObjectScanner.scala` with the existing profile object extraction scanner and scan state.
+- `BotProfileFileJsonParser` now delegates object extraction to the scanner and keeps field parsing, tone fallback, and `zipWithIndex` fallback order behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BotProfileServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; scanner primitives are database-adapter parsing details.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining parser/adapter hotspots and choose the next low-risk extraction.
+
+## Current Ticket
+
+ID: ID-423
+Goal: Extract forum file JSON object-array scanner.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/ForumFileJsonParser.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/ForumFileJsonObjectScanner.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum repository behavior, field parsing semantics, JSON rendering, Postgres adapters, service/routes, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move the forum file raw array/object scanning helpers out of `ForumFileJsonParser`.
+- Leave forum topic/reply/vote field parsing and base64 decoding in `ForumFileJsonParser`.
+- Preserve the current chunk shape returned to field parsers exactly.
+Architecture/domain-modeling impact:
+- Separates low-level file payload scanning from forum record construction.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No side effects; parser remains pure database-adapter support.
+Verification:
+- `sbt compile`
+- focused forum service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service contract passes.
+- Backend contract runner remains green.
+- Forum file parsing behavior remains unchanged.
+Risks:
+- Current parser returns object body chunks without braces; preserve that compatibility detail.
+
+Result:
+- Added `ForumFileJsonObjectScanner.scala` with the existing forum file array/object scanning helpers.
+- `ForumFileJsonParser` now delegates raw chunk extraction to the scanner and keeps field parsing/base64 decoding.
+- Preserved the object-body chunk shape used by the existing regex field parsers.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; parser strings remain database-adapter parsing details.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining parser/adapter hotspots and choose the next low-risk extraction.
+
+## Current Ticket
+
+ID: ID-424
+Goal: Extract forum topic repository ordering rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/InMemoryForumRepository.scala`, `backend/src/main/scala/slaydemo/backend/forum/database/FileForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/ForumTopicOrderingRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum service behavior, vote/reply mutation behavior, file persistence format, Postgres repository queries, route/API behavior, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move duplicated recent-first forum topic ordering from file and in-memory repositories into a package-private database helper.
+- Preserve ordering by `updatedAt` descending and `createdAt` descending tie-breaker exactly.
+Architecture/domain-modeling impact:
+- Centralizes repository ordering policy while keeping it in the database adapter layer.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; repository mutation and file I/O remain unchanged.
+Verification:
+- `sbt compile`
+- focused forum service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service contract passes.
+- Backend contract runner remains green.
+- In-memory/file forum topic list/persist ordering remains unchanged.
+Risks:
+- Topic ordering is user-visible; preserve exact comparison and sort direction.
+
+Result:
+- Added `ForumTopicOrderingRules.scala` for recent-first topic ordering.
+- `InMemoryForumRepository.listTopics`, `FileForumRepository.listTopics`, and file persist ordering now use the shared ordering helper.
+- Preserved `updatedAt` descending with `createdAt` descending tie-breaker.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; ordering comparator remains a repository sorting predicate, not a business outcome.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining adapter/service hotspots and choose the next low-risk extraction.
+
+## Current Ticket
+
+ID: ID-425
+Goal: Extract friend request handle visibility and creation rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestService.scala`, new `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestVisibilityRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: friend request repository behavior, mail creation/persistence, route/API behavior, social object ADTs, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move playable-handle visibility checks and self/visitor create guard into a pure service-layer rules object.
+- Keep `DefaultFriendRequestService` responsible for repository orchestration, timestamps, and mail persistence.
+- Preserve create/list/find/respond visibility behavior exactly.
+Architecture/domain-modeling impact:
+- Makes friend request visibility policy explicit without changing public service/domain types.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; extracted rules are pure.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service contract passes.
+- Backend contract runner remains green.
+- Visitor/self-request guard behavior remains unchanged.
+Risks:
+- Visitor handle guardrails are user-facing; preserve `HandlePolicy.isPlayableIdentityHandle(handle.value)` semantics.
+
+Result:
+- Added `FriendRequestVisibilityRules.scala` with pure create guard, visibility, and playable-handle checks.
+- `DefaultFriendRequestService` now delegates list/find/respond filtering and create validation to the rules object.
+- Repository orchestration, timestamps, mail persistence, and result ADTs remain in the service.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; extracted predicates are validation facts, not command outcomes.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining adapter/service hotspots and choose the next low-risk extraction.
+
+## Current Ticket
+
+ID: ID-426
+Goal: Extract live backend repository factory construction from `BackendRepositories.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/BackendRepositories.scala`, new `backend/src/main/scala/slaydemo/backend/BackendLiveRepositoryFactories.scala`, `.codex/agent-state.md`.
+Forbidden scope: repository APIs, storage selection semantics, database connection configuration, repository implementations, route/service behavior, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move concrete in-memory/file/Postgres repository constructor wiring into a package-private live factory object.
+- Keep `BackendRepositories.fromStorage` responsible for selecting repository factories by `StorageConfig`.
+- Preserve all file names, demo bot defaults, and Postgres factory wiring exactly.
+Architecture/domain-modeling impact:
+- Separates storage-mode selection from concrete live adapter construction.
+- No domain model or public API changes.
+Side-effect boundary impact:
+- No new side effects; factory construction remains in backend composition code.
+Verification:
+- `sbt compile`
+- focused backend repository wiring contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Backend repository wiring contract passes.
+- Backend contract runner remains green.
+- Default live factories still construct the same repository implementations.
+Risks:
+- Repository factory wiring is startup-facing; preserve every constructor and file path exactly.
+
+Result:
+- Added `BackendLiveRepositoryFactories.scala`.
+- Moved concrete in-memory, file, and Postgres repository constructor wiring out of `BackendRepositories.scala`.
+- `BackendRepositoryFactories.live` now delegates to the live factory object while `BackendRepositories.fromStorage` remains responsible for selecting repositories by `StorageConfig`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BackendRepositoryWiringContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; repository construction remains in backend composition code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining adapter/service hotspots and choose the next low-risk extraction.
+
+## Current Ticket
+
+ID: ID-427
+Goal: Extract replay repository ordering rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/FileReplayRepository.scala`, `backend/src/main/scala/slaydemo/backend/replay/database/InMemoryReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/ReplayRepositoryOrderingRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay repository APIs, JSON file parser/renderer, Postgres repository, replay services/routes, persisted schema/data, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move replay list ordering, file comment ordering, file settlement ordering, and in-memory comment ordering into a package-private pure rules object.
+- Preserve in-memory comment ordering by timestamp only and file comment ordering by timestamp then comment id.
+- Keep locking, file I/O, id counters, and persistence orchestration inside repositories.
+Architecture/domain-modeling impact:
+- Makes repository ordering policy explicit and shared without changing domain types.
+- No public API/domain model changes.
+Side-effect boundary impact:
+- No new side effects; extracted ordering rules are pure.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service contract passes.
+- Backend contract runner remains green.
+- Replay list/comment/settlement ordering behavior remains unchanged.
+Risks:
+- Equal-timestamp comment ordering differs between file and in-memory paths today; preserve that exact behavior in this ticket.
+
+Result:
+- Added `ReplayRepositoryOrderingRules.scala`.
+- Moved replay recent-first ordering, file comment chronological ordering, file settlement ordering, and in-memory comment chronological ordering out of the replay repositories.
+- `FileReplayRepository` and `InMemoryReplayRepository` still own locking, mutable repository state, id counters, file I/O, and persistence orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; ordering comparators are repository sorting predicates, not command outcomes.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted rules are pure database-layer ordering rules.
+- Scope respected: yes.
+
+Next ticket:
+- Use the read-only scan results to choose the next low-risk route adapter or service-boundary ticket.
+
+## Current Ticket
+
+ID: ID-428
+Goal: Replace forum request regex parsing with shared JSON object parsing.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/routes/ForumRequestBodyParser.scala`, `backend/src/main/scala/slaydemo/backend/shared/json/JsonObjectParser.scala`, `backend/src/test/scala/slaydemo/backend/forum/routes/ForumRouteContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum service/repository behavior, forum route handlers outside request body parsing, database/schema/data changes, frontend, unrelated JSON parsers, git commit/push.
+Expected change:
+- Add shared parser support for string-or-null object fields without changing existing string-only parser callers.
+- Rewrite forum request body parsing to use the shared parser instead of regex field extraction.
+- Preserve empty body, `{}`, string fields, and `vote: null` as valid forum request shapes.
+- Reject malformed/non-string JSON fields at the route boundary.
+Architecture/domain-modeling impact:
+- Moves forum route parsing onto the shared typed JSON boundary parser.
+- No domain model changes.
+Side-effect boundary impact:
+- No new side effects; parsing remains pure route-adapter logic.
+Verification:
+- `sbt compile`
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum route contract passes.
+- Backend contract runner remains green.
+- `vote: null` still clears votes and malformed/non-string fields are rejected before service calls.
+Risks:
+- Current regex parser is permissive for malformed JSON with at least one string field; this ticket intentionally tightens that route boundary.
+
+Result:
+- Added `JsonObjectParser.parseNullableStringFields` while preserving `parseStringFields` for existing callers.
+- Replaced forum request body regex extraction with the shared JSON object parser.
+- Preserved `vote: null` as the vote-clearing signal and added a route contract for rejecting non-string fields before service calls.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond route boundary JSON field values.
+- Boolean business results introduced: none; `voteSeen` is existing request parse metadata.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parsing remains pure route-adapter logic.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary ticket from the scan results.
+
+## Current Ticket
+
+ID: ID-429
+Goal: Extract battle finish projection artifact writers.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionArtifactWriters.scala`, `.codex/agent-state.md`.
+Forbidden scope: projection plan construction, scoring/rating rules, replay frame rendering, repository APIs, tests unless compile exposes a narrow issue, database/schema/data changes, frontend, git commit/push.
+Expected change:
+- Move direct result/mail artifact writes and replay artifact writes out of `DefaultBattleFinishProjector`.
+- Keep projector responsible for phase checks, previous-rating lookup, plan construction, retry/status decisions, failure reporting, and outcome combination.
+- Preserve partial failure outcomes and artifact skip behavior exactly.
+Architecture/domain-modeling impact:
+- Narrows the projector from direct adapter writes toward orchestration.
+- No public service/domain model changes.
+Side-effect boundary impact:
+- Repository writes remain in service-layer writer classes with explicit write names.
+Verification:
+- `sbt compile`
+- focused battle finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle finish projection write contract passes.
+- Backend contract runner remains green.
+- Result/mail/replay writes and partial failure behavior remain unchanged.
+Risks:
+- Partial failure labeling is user-facing in backend status; preserve `result:` and `replay:` reporting behavior.
+
+Result:
+- Added `BattleFinishProjectionArtifactWriters.scala`.
+- Moved result/mail writes into `BattleResultProjectionArtifactWriter`.
+- Moved replay writes into `BattleReplayProjectionArtifactWriter`.
+- `DefaultBattleFinishProjector` now delegates artifact writes while preserving phase checks, previous-rating lookup, plan construction, retry/status decisions, failure reporting, and outcome combination.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; repository writes remain in service-layer writer classes.
+- Scope respected: yes.
+
+Next ticket:
+- Continue scanning backend hotspots for low-risk parser, repository ordering, or explicit domain-state work.
+
+## Current Ticket
+
+ID: ID-430
+Goal: Model mail read and importance states as explicit enums.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/objects/MailTypes.scala`, `backend/src/main/scala/slaydemo/backend/mail/database/InMemoryMailRepository.scala`, `backend/src/main/scala/slaydemo/backend/mail/database/FileMailRepository.scala`, `.codex/agent-state.md`.
+Forbidden scope: mail wire JSON fields, Postgres schema/query semantics, mail routes/services/factories except compile-required mechanical fixes, non-mail domains, frontend, git commit/push.
+Expected change:
+- Replace `MailRecord` primary Boolean business fields with `MailReadState` and `MailImportance` enums.
+- Preserve `.unread` and `.important` Boolean views for existing JSON/database wire compatibility.
+- Preserve Boolean constructor compatibility for existing factories/parsers/tests.
+- Update mark-read persistence code to transition through the explicit read-state enum.
+Architecture/domain-modeling impact:
+- Removes domain-level Boolean primitive state from `MailRecord` while keeping boundary booleans at serializers/database adapters.
+Side-effect boundary impact:
+- No new side effects; repository updates remain in repository layer.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail service and route contracts pass.
+- Backend contract runner remains green.
+- Persisted/API `unread` and `important` booleans remain unchanged.
+Risks:
+- Scala named-argument constructor compatibility is broad; preserve existing `MailRecord(... unread = ..., important = ...)` call sites.
+
+Result:
+- Added `MailReadState` and `MailImportance` enums.
+- Changed `MailRecord` primary state from Boolean fields to typed `readState` and `importance`.
+- Preserved Boolean constructor compatibility and `.unread` / `.important` views for JSON/database wire compatibility.
+- Updated in-memory and file repository mark-read transitions to use `MailRecord.markRead`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no; mail read/importance state now use enums.
+- Boolean business results introduced: no; Boolean views remain only for existing wire/API/database compatibility.
+- Domain mutation introduced: no; `markRead` returns a copied record.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Continue scanning for remaining primitive business state or low-risk backend boundary cleanup.
+
+## Current Ticket
+
+ID: ID-431
+Goal: Model governance mail snapshot read and importance states as explicit enums.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/objects/GovernanceTypes.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance repository schemas/parsers/renderers, governance services/routes except compile-required mechanical fixes, mail domain changes, database/data changes, frontend, git commit/push.
+Expected change:
+- Replace `GovernanceMailSnapshot` primary Boolean state fields with `MailReadState` and `MailImportance`.
+- Preserve Boolean constructor compatibility and `.unread` / `.important` views for route JSON and mail persistence compatibility.
+- Reuse the mail domain enums instead of introducing duplicate governance-only state types.
+Architecture/domain-modeling impact:
+- Removes another Boolean primitive state from a backend domain DTO while keeping boundary wire booleans.
+Side-effect boundary impact:
+- No side effects; this is a pure object-model change.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service and route contracts pass.
+- Backend contract runner remains green.
+- Governance mail JSON still renders `unread` and `important` as booleans.
+Risks:
+- Constructor/copy compatibility is broad; preserve current call sites that pass Boolean `unread` and `important`.
+
+Result:
+- Changed `GovernanceMailSnapshot` primary state from Boolean fields to `MailReadState` and `MailImportance`.
+- Reused the mail domain enums and preserved Boolean constructor compatibility.
+- Preserved `.unread` and `.important` views for governance route JSON and mail persistence compatibility.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: no; governance mail snapshot read/importance state now uses enums.
+- Boolean business results introduced: no; Boolean views remain for existing wire/API compatibility.
+- Domain mutation introduced: no.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Continue scanning for remaining primitive business state or low-risk backend boundary cleanup.
+
+## Current Ticket
+
+ID: ID-432
+Goal: Isolate Postgres friend request random id generation behind an explicit generator.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database/PostgresFriendRequestRepository.scala`, new `backend/src/main/scala/slaydemo/backend/social/database/FriendRequestIdGenerator.scala`, `.codex/agent-state.md`.
+Forbidden scope: friend request service contract, repository trait, file/in-memory repository ids, SQL schema/query behavior, routes, mail factories, database/data changes, frontend, git commit/push.
+Expected change:
+- Add a package-private friend request id generator abstraction for the Postgres adapter.
+- Move `UUID.randomUUID` out of `PostgresFriendRequestRepository.nextRequestId`.
+- Preserve the generated id wire shape `friend-${uuid}` and default constructor behavior.
+Architecture/domain-modeling impact:
+- Makes random id generation an explicit adapter dependency instead of hidden repository logic.
+- No public repository/service/domain API changes.
+Side-effect boundary impact:
+- Random generation remains in the database adapter package, behind a clearly named generator.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- focused social route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service and social route contracts pass.
+- Backend contract runner remains green.
+- Postgres friend request ids still use the same `friend-` UUID format.
+Risks:
+- This is not covered by live Postgres tests; preserve behavior mechanically and rely on compile plus factory wiring.
+
+Result:
+- Added `FriendRequestIdGenerator.scala`.
+- Moved Postgres friend request UUID generation into `RandomFriendRequestIdGenerator`.
+- `PostgresFriendRequestRepository.nextRequestId` now delegates to an explicit generator dependency while preserving the `friend-${uuid}` id format and default constructor behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; random generation remains in database adapter package behind an explicit generator.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary or domain-modeling cleanup.
+
+## Current Ticket
+
+ID: ID-433
+Goal: Isolate Postgres forum random topic/reply id generation behind an explicit generator.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/ForumIdGenerator.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum repository trait, file/in-memory ids, SQL schema/query behavior, forum service/routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Add a package-private forum id generator abstraction for the Postgres adapter.
+- Move `UUID.randomUUID` out of `PostgresForumRepository.nextTopicId` and `nextReplyId`.
+- Preserve generated id wire shapes `topic-${uuid}` and `reply-${uuid}` and default constructor behavior.
+Architecture/domain-modeling impact:
+- Makes random id generation an explicit adapter dependency.
+- No public repository/service/domain API changes.
+Side-effect boundary impact:
+- Random generation remains in the database adapter package, behind a clearly named generator.
+Verification:
+- `sbt compile`
+- focused forum service contract
+- focused forum route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service and route contracts pass.
+- Backend contract runner remains green.
+- Postgres forum ids still use the same `topic-`/`reply-` UUID formats.
+Risks:
+- This is not covered by live Postgres tests; preserve behavior mechanically and rely on compile plus factory wiring.
+
+Result:
+- Added `ForumIdGenerator.scala`.
+- Moved Postgres forum topic/reply UUID generation into `RandomForumIdGenerator`.
+- `PostgresForumRepository.nextTopicId` and `nextReplyId` now delegate to an explicit generator dependency while preserving `topic-${uuid}` and `reply-${uuid}` formats.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.forum.routes.ForumRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; random generation remains in database adapter package behind an explicit generator.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary or domain-modeling cleanup.
+
+## Current Ticket
+
+ID: ID-434
+Goal: Isolate Postgres replay comment random id generation behind an explicit generator.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/ReplayCommentIdGenerator.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay repository trait, file/in-memory comment ids, SQL schema/query behavior, replay services/routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Add a package-private replay comment id generator abstraction for the Postgres adapter.
+- Move `UUID.randomUUID` out of `PostgresReplayRepository.nextCommentId`.
+- Preserve generated id wire shape `comment-${uuid}` and default constructor behavior.
+Architecture/domain-modeling impact:
+- Makes random id generation an explicit adapter dependency.
+- No public repository/service/domain API changes.
+Side-effect boundary impact:
+- Random generation remains in the database adapter package, behind a clearly named generator.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service and route contracts pass.
+- Backend contract runner remains green.
+- Postgres replay comment ids still use the same `comment-` UUID format.
+Risks:
+- This is not covered by live Postgres tests; preserve behavior mechanically and rely on compile plus factory wiring.
+
+Result:
+- Added `ReplayCommentIdGenerator.scala`.
+- Moved Postgres replay comment UUID generation into `RandomReplayCommentIdGenerator`.
+- `PostgresReplayRepository.nextCommentId` now delegates to an explicit generator dependency while preserving the `comment-${uuid}` format.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; random generation remains in database adapter package behind an explicit generator.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary or domain-modeling cleanup.
+
+## Current Ticket
+
+ID: ID-435
+Goal: Isolate Postgres governance random id generation behind an explicit generator.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/PostgresGovernanceRepository.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/GovernanceIdGenerator.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance repository trait, file/in-memory ids, SQL schema/query behavior, governance services/routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Add a package-private governance id generator abstraction for the Postgres adapter.
+- Move `UUID.randomUUID` out of `PostgresGovernanceRepository.nextAdjustmentId` and `nextReviewIds`.
+- Preserve generated id wire shapes for adjustments, review notifications, and review mails.
+Architecture/domain-modeling impact:
+- Makes random id generation an explicit adapter dependency.
+- No public repository/service/domain API changes.
+Side-effect boundary impact:
+- Random generation remains in the database adapter package, behind a clearly named generator.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service and route contracts pass.
+- Backend contract runner remains green.
+- Postgres governance ids still use the same UUID-backed formats.
+Risks:
+- This is not covered by live Postgres tests; preserve behavior mechanically and rely on compile plus factory wiring.
+
+Result:
+- Added `GovernanceIdGenerator.scala`.
+- Moved Postgres governance adjustment/review UUID generation into `RandomGovernanceIdGenerator`.
+- `PostgresGovernanceRepository.nextAdjustmentId` and `nextReviewIds` now delegate to an explicit generator dependency while preserving UUID-backed id formats and shared review notification/mail suffixes.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; random generation remains in database adapter package behind an explicit generator.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary or domain-modeling cleanup.
+
+## Current Ticket
+
+ID: ID-436
+Goal: Extract friend request repository ordering rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/database/InMemoryFriendRequestRepository.scala`, `backend/src/main/scala/slaydemo/backend/social/database/FileFriendRequestRepository.scala`, new `backend/src/main/scala/slaydemo/backend/social/database/FriendRequestOrderingRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: friend request repository API, JSON parser/renderer, Postgres SQL ordering, services/routes, mail factories, database/data changes, frontend, git commit/push.
+Expected change:
+- Move recent-first owner list ordering and file pair-candidate ordering into a package-private pure rules object.
+- Preserve pending/accepted/rejected pair ordering, recency tie-breaks, and id tie-breaks exactly.
+- Keep locking, id counters, file I/O, and persistence orchestration inside repositories.
+Architecture/domain-modeling impact:
+- Makes repository ordering policy explicit and shared without changing public types.
+Side-effect boundary impact:
+- No new side effects; extracted ordering rules are pure database-layer predicates.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- focused social route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service and social route contracts pass.
+- Backend contract runner remains green.
+- Owner list and duplicate-pair resolution ordering remains unchanged.
+Risks:
+- Pair-candidate ordering controls duplicate friend-request behavior; preserve status and recency order exactly.
+
+Result:
+- Added `FriendRequestOrderingRules.scala`.
+- Moved owner list recent-first ordering out of in-memory and file friend request repositories.
+- Moved file duplicate-pair candidate ordering out of `FileFriendRequestRepository`.
+- Repositories still own locking, id counters, file I/O, persistence, and pair-index maintenance.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; ordering predicates are repository sorting facts, not command outcomes.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted rules are pure database-layer ordering rules.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary or domain-modeling cleanup.
+
+## Current Ticket
+
+ID: ID-437
+Goal: Extract governance repository ordering rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/InMemoryGovernanceRepository.scala`, `backend/src/main/scala/slaydemo/backend/governance/database/FileGovernanceRepository.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/GovernanceRepositoryOrderingRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance repository API, JSON parser/renderer, Postgres SQL ordering, services/routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Move adjustment recent-first ordering and review-notification recent-first ordering into a package-private pure rules object.
+- Preserve created-at descending and id ascending tie-break behavior exactly.
+- Keep locking, id counters, file I/O, and persistence orchestration inside repositories.
+Architecture/domain-modeling impact:
+- Makes governance repository ordering policy explicit and shared.
+Side-effect boundary impact:
+- No new side effects; extracted ordering rules are pure database-layer predicates.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service and route contracts pass.
+- Backend contract runner remains green.
+- List and persisted file ordering remains unchanged.
+Risks:
+- Ordering affects API list order and persisted file diff stability; preserve tie-breaks exactly.
+
+Result:
+- Added `GovernanceRepositoryOrderingRules.scala`.
+- Moved adjustment recent-first ordering out of file and in-memory governance repositories.
+- Moved review-notification recent-first ordering out of file and in-memory governance repositories.
+- Repositories still own locking, id counters, file I/O, persistence, and filtering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; ordering predicates are repository sorting facts, not command outcomes.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted rules are pure database-layer ordering rules.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary or domain-modeling cleanup.
+
+## Current Ticket
+
+ID: ID-438
+Goal: Extract battle result repository ordering rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/database/InMemoryBattleResultRepository.scala`, `backend/src/main/scala/slaydemo/backend/battle/database/FileBattleResultRepository.scala`, new `backend/src/main/scala/slaydemo/backend/battle/database/BattleResultRepositoryOrderingRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle result repository API, JSON parser/renderer, Postgres SQL ordering, battle result services/routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Move battle result recent-first ordering into a package-private pure rules object.
+- Preserve finished-at descending and result id ascending tie-break behavior exactly.
+- Keep locking, file I/O, filtering, and persistence orchestration inside repositories.
+Architecture/domain-modeling impact:
+- Makes battle result repository ordering policy explicit and shared.
+Side-effect boundary impact:
+- No new side effects; extracted ordering rule is pure database-layer predicate.
+Verification:
+- `sbt compile`
+- focused battle result service contract
+- focused battle result route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result service and route contracts pass.
+- Backend contract runner remains green.
+- List and persisted file ordering remains unchanged.
+Risks:
+- Ordering affects leaderboard/history API order and file diff stability; preserve tie-breaks exactly.
+
+Result:
+- Added `BattleResultRepositoryOrderingRules.scala`.
+- Moved battle result recent-first ordering out of file and in-memory battle result repositories.
+- Repositories still own locking, filtering, file I/O, and persistence.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; ordering predicate is a repository sorting fact, not a command outcome.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted rule is pure database-layer ordering.
+- Scope respected: yes.
+
+Next ticket:
+- Continue with the next low-risk backend boundary or domain-modeling cleanup.
+
+## Current Ticket
+
+ID: ID-439
+Goal: Extract mail repository ordering rules.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database/InMemoryMailRepository.scala`, `backend/src/main/scala/slaydemo/backend/mail/database/FileMailRepository.scala`, new `backend/src/main/scala/slaydemo/backend/mail/database/MailRepositoryOrderingRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: mail repository API, JSON parser/renderer, Postgres SQL ordering, mail service/routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Move in-memory list ordering, file list ordering, and file persistence ordering into a package-private pure rules object.
+- Preserve the existing difference between in-memory list, file list, and file persistence tie-break behavior.
+- Keep locking, owner scoping, file I/O, mark-read, and persistence orchestration inside repositories.
+Architecture/domain-modeling impact:
+- Makes mail repository ordering policy explicit and less likely to be accidentally normalized.
+Side-effect boundary impact:
+- No new side effects; extracted ordering rules are pure database-layer predicates/keys.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail service and route contracts pass.
+- Backend contract runner remains green.
+- Existing list and file persistence ordering behavior remains unchanged.
+Risks:
+- The two file ordering paths intentionally differ on id tie-break direction; preserve that exact behavior.
+
+Result:
+- Added `MailRepositoryOrderingRules.scala`.
+- Moved in-memory mail list ordering, file mail list ordering, and file mail persistence ordering out of repositories.
+- Preserved the existing tie-break difference between file list and file persistence ordering.
+- Repositories still own locking, owner scoping, mark-read updates, file I/O, and persistence.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; ordering predicates/keys are repository sorting facts, not command outcomes.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; extracted rules are pure database-layer ordering rules.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend hotspots and choose the next small, verified cleanup.
+
+## Current Ticket
+
+ID: ID-440
+Goal: Replace friend request mail factory unread Boolean with `MailReadState`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestMailFactory.scala`, `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestService.scala`, `.codex/agent-state.md`.
+Forbidden scope: mail repository/domain internals, friend request repository behavior, routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Change `FriendRequestMailFactory.requestMail` to accept `MailReadState` instead of raw `Boolean`.
+- Update service call sites to pass `MailReadState.Unread` for newly created requests and `MailReadState.Read` after response.
+- Preserve rendered/persisted mail unread booleans through existing `MailRecord` compatibility view.
+Architecture/domain-modeling impact:
+- Removes a service-layer Boolean business state from friend request mail creation.
+Side-effect boundary impact:
+- No new side effects; mail persistence remains in `DefaultFriendRequestService`.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- focused social route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service and social route contracts pass.
+- Backend contract runner remains green.
+- Target request mail is unread on create and read after response as before.
+Risks:
+- Request mail read state affects social UI badges; preserve exact read/unread transitions.
+
+Result:
+- `FriendRequestMailFactory.requestMail` now accepts `MailReadState` instead of a raw unread Boolean.
+- `DefaultFriendRequestService` now passes `MailReadState.Unread` when creating a new friend request and `MailReadState.Read` after the request is accepted/rejected.
+- Existing `MailRecord` unread wire compatibility remains unchanged via `MailReadState.unreadFlag`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; mail persistence remains in the service/repository boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining mail factories and constructors that still express read/importance state through raw Booleans.
+
+## Current Ticket
+
+ID: ID-441
+Goal: Replace battle finish projection mail read/importance Booleans with typed mail states.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleFinishProjectionMailFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle result repository behavior, finish projection write orchestration, mail repository/domain internals, routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Build battle settlement and rating mails with `MailReadState` and `MailImportance` instead of raw `unread`/`important` Boolean literals.
+- Preserve existing wire/persistence values: settlement mails remain unread and important; rating mails remain unread and normal importance.
+Architecture/domain-modeling impact:
+- Removes primitive business state from one projection mail factory while keeping the state typed at the construction boundary.
+Side-effect boundary impact:
+- No new side effects; factory remains pure and persistence stays in the projection service/repository boundary.
+Verification:
+- `sbt compile`
+- focused battle finish projection write contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle finish projection write contract passes.
+- Full backend contract runner remains green.
+- Mail wire behavior is unchanged.
+Risks:
+- The case class has both typed and Boolean-compatible constructors; use explicit named typed parameters to avoid accidental Boolean compatibility paths.
+
+Result:
+- `BattleFinishProjectionMailFactory` now constructs battle settlement and rating mails with `MailReadState.Unread`.
+- Settlement mails use `MailImportance.Important`; rating mails use `MailImportance.Normal`.
+- Existing `sourceBattleId`, replay link, source label, and metadata behavior are unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; factory remains pure and persistence stays in projection service/repository code.
+- Scope respected: yes.
+
+Next ticket:
+- Replace governance mail snapshot creation Booleans with typed mail read/importance states.
+
+## Current Ticket
+
+ID: ID-442
+Goal: Replace governance mail snapshot read/importance Booleans with typed mail states.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/services/GovernanceMailFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance repository behavior, governance service orchestration, mail repository/domain internals, routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Build contribution and review governance mail snapshots with `MailReadState` and `MailImportance` instead of raw `unread`/`important` Boolean literals.
+- Preserve existing behavior: governance notification snapshots remain unread and important.
+Architecture/domain-modeling impact:
+- Removes primitive business state from the governance mail factory while preserving typed snapshot domain fields.
+Side-effect boundary impact:
+- No new side effects; factory remains pure and persistence stays in governance service/repository boundaries.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service and route contracts pass.
+- Full backend contract runner remains green.
+- Governance mail snapshot wire behavior is unchanged.
+Risks:
+- `GovernanceMailSnapshot` also keeps a Boolean-compatible apply for persistence/API compatibility; use explicit typed fields to avoid accidental primitive construction.
+
+Result:
+- `GovernanceMailFactory` now constructs contribution and review mail snapshots with `MailReadState.Unread`.
+- Both governance snapshot types now use `MailImportance.Important` directly.
+- Contribution snapshots explicitly keep `governanceMetadata = None`; review snapshots keep the existing metadata payload.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; factory remains pure.
+- Scope respected: yes.
+
+Next ticket:
+- Persist governance mail snapshots into `MailRecord` using typed snapshot read/importance fields instead of Boolean compatibility getters.
+
+## Current Ticket
+
+ID: ID-443
+Goal: Persist governance mail snapshots with typed mail read/importance states.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/services/GovernanceServices.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance mail factory, governance repository behavior, mail repository/domain internals, routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Convert `GovernanceMailSnapshot` to `MailRecord` using `snapshot.readState` and `snapshot.importance`.
+- Stop calling Boolean compatibility getters `snapshot.unread` and `snapshot.important` in the governance persistence path.
+- Preserve governance metadata and owner-handle conversion behavior.
+Architecture/domain-modeling impact:
+- Keeps read/importance state typed across the governance service-to-mail boundary.
+Side-effect boundary impact:
+- No new side effects; mail save remains the existing repository effect inside `persistMail`.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- focused mail service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service and full backend contracts pass.
+- Persisted governance mail unread/important wire values are unchanged.
+Risks:
+- `MailRecord` typed construction requires explicit absent source/friend metadata fields; preserve them as `None`.
+
+Result:
+- `DefaultGovernanceService.persistMail` now builds `MailRecord` from `snapshot.readState` and `snapshot.importance`.
+- Removed governance persistence-path dependence on `snapshot.unread` and `snapshot.important` Boolean compatibility getters.
+- Preserved governance metadata and explicitly left unrelated source/friend metadata as `None`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; mail save remains in the service/repository boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Replace the default welcome mail read/importance Booleans with typed mail states.
+
+## Current Ticket
+
+ID: ID-444
+Goal: Replace default welcome mail read/importance Booleans with typed mail states.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/services/MailService.scala`, `.codex/agent-state.md`.
+Forbidden scope: mail repository behavior, mail domain internals, mail routes, governance/social/battle factories, database/data changes, frontend, git commit/push.
+Expected change:
+- Build the default welcome mail with `MailReadState.Unread` and `MailImportance.Normal`.
+- Preserve the existing behavior where first mailbox list creates one unread non-important system welcome mail.
+Architecture/domain-modeling impact:
+- Removes primitive mail read/importance state from the mail service's default mail factory path.
+Side-effect boundary impact:
+- No new side effects; repository save on first list remains existing service behavior.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail service and route contracts pass.
+- Full backend contract runner remains green.
+- Default welcome mail wire unread/important behavior is unchanged.
+Risks:
+- Typed `MailRecord` construction requires explicit absent optional metadata/source fields.
+
+Result:
+- `DefaultMailService.welcomeMail` now constructs the welcome mail with `MailReadState.Unread` and `MailImportance.Normal`.
+- Preserved first-list mailbox behavior and explicit empty source/governance/friend metadata fields.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; first-list repository save remains the existing service boundary effect.
+- Scope respected: yes.
+
+Next ticket:
+- Replace remaining friend request mail factory Boolean compatibility construction with typed mail states.
+
+## Current Ticket
+
+ID: ID-445
+Goal: Replace friend request mail factory Boolean compatibility construction with typed mail states.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/social/services/FriendRequestMailFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: friend request service/repository behavior, mail repository/domain internals, routes, database/data changes, frontend, git commit/push.
+Expected change:
+- Construct target request mails using the typed `readState` parameter and `MailImportance.Normal`.
+- Construct response mails with `MailReadState.Unread` and `MailImportance.Normal`.
+- Preserve friend request metadata, social source link, and existing read/unread transitions.
+Architecture/domain-modeling impact:
+- Completes removal of primitive mail read/importance state from the friend request mail factory.
+Side-effect boundary impact:
+- No new side effects; factory remains pure and mail persistence remains in the service/repository boundary.
+Verification:
+- `sbt compile`
+- focused friend request service contract
+- focused social route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Friend request service and social route contracts pass.
+- Full backend contract runner remains green.
+- Friend request mail wire behavior is unchanged.
+Risks:
+- Response mail must remain unread for the requester; target request mail must become read after response.
+
+Result:
+- `FriendRequestMailFactory.requestMail` now passes the typed `readState` directly to `MailRecord`.
+- Friend request target and response mails now use `MailImportance.Normal`.
+- Response mails explicitly remain `MailReadState.Unread`; responded target request mails still become read through the service call site.
+- Social source link and friend request metadata are unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.FriendRequestServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; factory remains pure.
+- Scope respected: yes.
+
+Next ticket:
+- Re-scan remaining mail read/importance Boolean uses and choose the next boundary-safe cleanup.
+
+## Current Ticket
+
+ID: ID-446
+Goal: Convert mail file JSON read/importance flags into typed mail states explicitly.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database/MailFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: mail file JSON renderer, repository file I/O/locking behavior, mail domain internals, routes/services, database/Postgres adapters, frontend, git commit/push.
+Expected change:
+- Keep persisted JSON fields `unread` and `important` unchanged for compatibility.
+- In the parser, convert those Boolean file-format fields into `MailReadState` and `MailImportance` before constructing `MailRecord`.
+- Preserve nullable source/governance/friend metadata parsing behavior.
+Architecture/domain-modeling impact:
+- Makes the file adapter's primitive-to-domain conversion explicit at the persistence boundary.
+Side-effect boundary impact:
+- No new side effects; parser remains pure and file I/O remains in repository code.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail service and route contracts pass.
+- Full backend contract runner remains green.
+- Existing persisted mail JSON can still parse unchanged.
+Risks:
+- This is a boundary adapter; do not rename or remove persisted JSON fields.
+
+Result:
+- `MailFileJsonParser` still reads persisted `unread` and `important` JSON fields for compatibility.
+- The parser now converts those file-format Booleans into `MailReadState` and `MailImportance` before constructing `MailRecord`.
+- Source, governance, and friend-request metadata parsing behavior is unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none at the domain model; persisted Boolean fields remain only at the file adapter boundary.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser remains pure.
+- Scope respected: yes.
+
+Next ticket:
+- Convert Postgres mail record read flags into typed mail states explicitly.
+
+## Current Ticket
+
+ID: ID-447
+Goal: Convert Postgres mail read/importance columns into typed mail states explicitly.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database/PostgresMailRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: Postgres DDL/schema, SQL query shape, mail repository behavior, mail domain internals, routes/services, file JSON adapters, frontend, git commit/push.
+Expected change:
+- Keep Postgres `unread` and `important` columns unchanged.
+- In `readRecord`, convert result-set Booleans into `MailReadState` and `MailImportance` before constructing `MailRecord`.
+- Preserve bind order, optional metadata reads, and invalid metadata validation behavior.
+Architecture/domain-modeling impact:
+- Makes the database adapter's primitive-to-domain conversion explicit at the persistence boundary.
+Side-effect boundary impact:
+- No new side effects; JDBC reads/writes remain in the database adapter.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- focused mail route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail service and route contracts pass.
+- Full backend contract runner remains green.
+- Postgres mail column names and persisted wire behavior are unchanged.
+Risks:
+- Do not alter `bindRecord` statement index order or DDL/query behavior in this ticket.
+
+Result:
+- `PostgresMailRecordMapper.readRecord` still reads existing Postgres `unread` and `important` columns.
+- The mapper now converts those database Booleans into `MailReadState` and `MailImportance` before constructing `MailRecord`.
+- SQL, bind order, optional metadata handling, and validation behavior are unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none at the domain model; database Boolean columns remain only at the JDBC boundary.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC effects remain in the database adapter.
+- Scope respected: yes.
+
+Next ticket:
+- Re-scan mail constructors after typed boundary conversions and decide whether the Boolean-compatible domain apply can be removed or replaced safely.
+
+## Current Ticket
+
+ID: ID-448
+Goal: Remove the Boolean-compatible `MailRecord.apply` from the domain model.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/objects/MailTypes.scala`, mail-related backend contract test fixtures that still construct `MailRecord` with `unread`/`important`, `.codex/agent-state.md`.
+Forbidden scope: mail repositories/adapters behavior, route response wire shape, frontend, scripts, database/data changes, unrelated domain models, git commit/push.
+Expected change:
+- Remove the companion `MailRecord.apply(... unread: Boolean, important: Boolean ...)` so service/domain code cannot construct mail state through primitive Booleans.
+- Update affected Scala test fixtures to use `MailReadState` and `MailImportance` explicitly.
+- Preserve `MailRecord.unread` and `MailRecord.important` compatibility getters for wire rendering and existing frontend/API shape.
+Architecture/domain-modeling impact:
+- Strengthens domain construction by requiring typed read/importance state.
+Side-effect boundary impact:
+- No side effects; domain model and test fixture construction only.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- focused mail route contract
+- focused social route contract
+- focused visitor guardrail contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- A repository-wide Scala search shows no `MailRecord` construction with `unread =`/`important =`.
+- Focused and full backend contracts pass.
+Risks:
+- API wire fields still need Boolean getters; do not remove `unread`/`important` accessors in this ticket.
+
+Result:
+- Removed the companion `MailRecord.apply` overload that accepted `unread` and `important` Booleans.
+- Updated backend Scala test fixtures to construct `MailRecord` with `MailReadState` and `MailImportance`.
+- Preserved `MailRecord.unread` and `MailRecord.important` compatibility getters for route rendering, persistence, and frontend/API wire shape.
+
+Verification passed:
+- `rg` scan found no direct `MailRecord` construction using `unread =` or `important =`.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.social.routes.SocialRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.VisitorHandleGuardrailContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; remaining mail Booleans are compatibility getters or test helper inputs.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Remove the Boolean-compatible `GovernanceMailSnapshot.apply` from the governance domain model.
+
+## Current Ticket
+
+ID: ID-449
+Goal: Remove the Boolean-compatible `GovernanceMailSnapshot.apply` from the governance domain model.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/objects/GovernanceTypes.scala`, governance backend contract test fixtures that still construct `GovernanceMailSnapshot` with `unread`/`important`, `.codex/agent-state.md`.
+Forbidden scope: governance repositories/adapters behavior, governance routes/services behavior, mail domain internals, frontend, scripts, database/data changes, unrelated domain models, git commit/push.
+Expected change:
+- Remove the companion `GovernanceMailSnapshot.apply(... unread: Boolean, important: Boolean ...)` so governance snapshot construction requires typed state.
+- Update affected Scala test fixtures to use `MailReadState` and `MailImportance` explicitly.
+- Preserve `GovernanceMailSnapshot.unread` and `important` compatibility getters for API/mail persistence mapping.
+Architecture/domain-modeling impact:
+- Strengthens governance snapshot construction by requiring typed read/importance state.
+Side-effect boundary impact:
+- No side effects; domain model and test fixture construction only.
+Verification:
+- `sbt compile`
+- focused governance service contract
+- focused governance route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service and route contracts pass.
+- Full backend contract runner remains green.
+- No direct `GovernanceMailSnapshot` construction uses `unread =` or `important =`.
+Risks:
+- Keep Boolean getters for route/mail compatibility; do not change persisted/API wire shape.
+
+Result:
+- Removed the companion `GovernanceMailSnapshot.apply` overload that accepted `unread` and `important` Booleans.
+- Updated governance route contract fixture construction to use `MailReadState` and `MailImportance`.
+- Preserved `GovernanceMailSnapshot.unread` and `important` compatibility getters.
+
+Verification passed:
+- `rg` scan found no direct `GovernanceMailSnapshot` construction using `unread =` or `important =`.
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; remaining governance Booleans are compatibility getters.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Extract the BattleQueue default UUID battle id creation into an explicit generator object.
+
+## Current Ticket
+
+ID: ID-450
+Goal: Extract BattleQueue default UUID battle id creation into an explicit generator object.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleQueueService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleIdGenerator.scala`, `.codex/agent-state.md`.
+Forbidden scope: queue matching/runtime semantics, battle state/combat logic, routes/API shape, database/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move UUID-backed `BattleId` creation out of `InMemoryBattleQueueService` companion into a named generator object.
+- Keep the existing constructor injection shape `newBattleId: () => BattleId` for tests and callers.
+- Preserve production id wire shape `battle-<uuid>`.
+Architecture/domain-modeling impact:
+- Makes random id generation an explicit service-boundary adapter, matching the newer generator pattern used by other backend areas.
+Side-effect boundary impact:
+- Random UUID generation remains outside domain data and in a clearly named services boundary object.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle queue runtime contracts pass.
+- Full backend contract runner remains green.
+- `BattleQueueService.scala` no longer imports or directly calls `UUID.randomUUID`.
+Risks:
+- Preserve deterministic test injection; do not change queue behavior.
+
+Result:
+- Added `BattleIdGenerator.scala` with a named `BattleIdGenerator` boundary and `RandomBattleIdGenerator`.
+- `InMemoryBattleQueueService.apply()` now uses `RandomBattleIdGenerator.nextBattleId()`.
+- `BattleQueueService.scala` no longer imports or directly calls `UUID.randomUUID`.
+- The existing `newBattleId: () => BattleId` constructor injection remains unchanged for deterministic tests.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `rg` confirmed UUID usage moved from `BattleQueueService.scala` to `BattleIdGenerator.scala`.
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none; generated ids are wrapped as `BattleId`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; random generation remains in services boundary.
+- Scope respected: yes.
+
+Next ticket:
+- Add battle runtime invariant guards for lifecycle Boolean/Option pairs before any ADT replacement.
+
+## Current Ticket
+
+ID: ID-451
+Goal: Add battle runtime invariant guards for lifecycle Boolean/Option pairs.
+Allowed scope: `backend/src/test/scala/slaydemo/backend/BattleStateRuntimeContractTest.scala`, `.codex/agent-state.md`.
+Forbidden scope: battle production runtime/model rewrites, routes/API shape, queue/matchmaking, repositories, frontend, database/data changes, git commit/push.
+Expected change:
+- Add focused contract assertions that live players have no elimination timestamp and no respawn timer.
+- Add focused contract assertions that eliminated players have an elimination timestamp and no respawn timer.
+- Add focused contract assertions that available pickups have no respawn timer and unavailable pickups have a positive respawn timer.
+- Exercise these assertions through initial state, pickup consume/respawn paths, and player elimination paths.
+Architecture/domain-modeling impact:
+- Adds a safety net before replacing Boolean/Option state pairs with ADTs in later tickets.
+Side-effect boundary impact:
+- No new side effects; test-only invariants over existing runtime state.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle state runtime contract passes.
+- Full backend contract runner remains green.
+- The invariant helper covers both player lifecycle and pickup availability/respawn pairs.
+Risks:
+- Do not over-broaden into production refactor; this ticket only establishes guardrails.
+
+Result:
+- Added `assertLifecycleBooleanOptionInvariants` to `BattleStateRuntimeContractTest`.
+- The helper asserts:
+  - alive players have no `eliminatedAtMs` and no respawn timer
+  - eliminated players have `eliminatedAtMs` and no respawn timer
+  - available pickups have no respawn timer
+  - unavailable pickups have a positive respawn timer
+- Exercised the helper through initial state, weapon pickup consume, medkit pickup consume, medkit move-away/respawn, finished elimination, no-respawn wait, and active-battle elimination.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; this is test-only invariant coverage for existing unsafe state pairs.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess battle result/replay survival Booleans and choose a smaller ADT modeling step than replacing the full battle runtime lifecycle.
+
+## Current Ticket
+
+ID: ID-452
+Goal: Model survival outcome explicitly in battle settlement scoring.
+Allowed scope: new/updated battle domain object for survival outcome, `backend/src/main/scala/slaydemo/backend/battle/services/BattleSettlementScoringRules.scala`, narrow scoring call sites in finish projection planner, `.codex/agent-state.md`.
+Forbidden scope: battle result/replay record schema, route/API wire fields, repositories/database/file formats, frontend, combat/runtime lifecycle rewrite, git commit/push.
+Expected change:
+- Introduce a small `BattleSurvivalOutcome` enum/ADT for survived vs eliminated.
+- Change `BattleSettlementScoringRules.ratingDelta` to accept `BattleSurvivalOutcome` instead of raw `Boolean`.
+- Convert the current `player.alive` Boolean to the ADT at the planner call site.
+- Preserve all result/replay wire `aliveAtEnd` Boolean fields for compatibility.
+Architecture/domain-modeling impact:
+- Removes primitive Boolean business state from the settlement scoring rule without broad record/schema churn.
+Side-effect boundary impact:
+- No new side effects; pure domain/service calculation only.
+Verification:
+- `sbt compile`
+- focused battle finish projection plan contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Finish projection plan contract passes.
+- Full backend contract runner remains green.
+- Rating delta behavior is unchanged for survived and eliminated players.
+Risks:
+- Keep this narrow; do not start replacing result/replay persistence schemas in this ticket.
+
+Result:
+- Added `BattleSurvivalOutcome` with `Survived` and `Eliminated`.
+- `BattleSettlementScoringRules.ratingDelta` now accepts `BattleSurvivalOutcome` instead of raw `Boolean`.
+- `BattleFinishProjectionPlanner` converts `player.alive` into the ADT before scoring.
+- Result and replay `aliveAtEnd` Boolean wire/persistence fields were left unchanged.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; existing wire/persistence Booleans remain unchanged.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model replay playback availability calculation explicitly without changing replay wire fields.
+
+## Current Ticket
+
+ID: ID-453
+Goal: Model replay playback availability calculation explicitly.
+Allowed scope: new replay domain object for playback availability, `backend/src/main/scala/slaydemo/backend/replay/services/ReplayRecordFactory.scala`, `.codex/agent-state.md`.
+Forbidden scope: replay record schema, route/API wire fields, repositories/database/file formats, frame JSON parser semantics, frontend, unrelated battle services, git commit/push.
+Expected change:
+- Introduce a small `ReplayPlaybackAvailability` enum/ADT.
+- Resolve requested playback availability and normalized frame playability through that ADT in `ReplayRecordFactory`.
+- Preserve existing `ReplayRecord.playbackAvailable` Boolean field and API/persistence wire behavior.
+Architecture/domain-modeling impact:
+- Removes a hidden Boolean business calculation from replay record construction while keeping boundary Booleans compatible.
+Side-effect boundary impact:
+- No new side effects; pure replay construction only.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Replay service and route contracts pass.
+- Full backend contract runner remains green.
+- Existing playback availability behavior remains: requested availability must be true and normalized frame count must be playable.
+Risks:
+- Do not change replay JSON/frame-count semantics in this ticket.
+
+Result:
+- Added `ReplayPlaybackAvailability` with `Available` and `Unavailable`.
+- `ReplayRecordFactory` now resolves requested playback and normalized-frame playability through that ADT.
+- `ReplayRecord.playbackAvailable` remains the existing Boolean field for route/persistence/frontend compatibility.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; existing record/API Boolean remains unchanged as a compatibility field.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Re-scan remaining service/domain Boolean states and choose the next narrow production or contract step.
+
+## Current Ticket
+
+ID: ID-454
+Goal: Replace `BattleResultRecordCommand.aliveAtEnd` with typed survival outcome.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleResultService.scala`, `backend/src/main/scala/slaydemo/backend/battle/routes/BattleResultCommandParsers.scala`, focused battle result Scala contract fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: battle result record schema, route/API response fields, repositories/database/file formats, replay records, frontend, git commit/push.
+Expected change:
+- Change service-layer `BattleResultRecordCommand` to carry `BattleSurvivalOutcome` instead of raw `aliveAtEnd: Boolean`.
+- Convert route JSON `aliveAtEnd` Boolean into `BattleSurvivalOutcome` at the parser boundary.
+- Preserve command compatibility getter and persisted/API `aliveAtEnd` Boolean behavior.
+Architecture/domain-modeling impact:
+- Removes primitive survival business state from the battle result service command.
+Side-effect boundary impact:
+- No new side effects; parsing remains at route boundary and persistence behavior is unchanged.
+Verification:
+- `sbt compile`
+- focused battle result service contract
+- focused battle result route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result service and route contracts pass.
+- Full backend contract runner remains green.
+- API request/response `aliveAtEnd` remains Boolean.
+Risks:
+- Keep record storage schema untouched; this ticket only changes service command modeling.
+
+Result:
+- `BattleResultRecordCommand` now carries `BattleSurvivalOutcome` instead of `aliveAtEnd: Boolean`.
+- Added a compatibility `aliveAtEnd` getter for existing route tests and persistence mapping.
+- `BattleResultCommandParsers` converts request JSON `aliveAtEnd` into the survival ADT at the route boundary.
+- Updated battle result and visitor guardrail contract fixtures to pass `BattleSurvivalOutcome.Survived`.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; `aliveAtEnd` remains a compatibility getter/wire field.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Replace replay service command survival/playback Booleans with typed ADTs while preserving wire fields.
+
+## Current Ticket
+
+ID: ID-455
+Goal: Replace replay service command survival/playback Booleans with typed ADTs.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/services/ReplayService.scala`, `backend/src/main/scala/slaydemo/backend/replay/routes/ReplayCommandParsers.scala`, focused replay/visitor Scala contract fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: replay record schema, route/API response fields, repositories/database/file formats, frame JSON parsing semantics, frontend, git commit/push.
+Expected change:
+- Change service-layer `ReplayRecordCommand` to carry `BattleSurvivalOutcome` and requested `ReplayPlaybackAvailability`.
+- Convert route JSON `aliveAtEnd`/`playbackAvailable` Booleans into ADTs at the parser boundary.
+- Preserve compatibility getters and existing `ReplayRecord` Boolean wire/persistence fields.
+Architecture/domain-modeling impact:
+- Removes primitive survival/playback business state from replay service command construction.
+Side-effect boundary impact:
+- No new side effects; parsing remains at route boundary and persistence behavior is unchanged.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- focused replay route contract
+- focused visitor guardrail contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused replay and visitor contracts pass.
+- Full backend contract runner remains green.
+- API request/response `aliveAtEnd` and `playbackAvailable` remain Booleans.
+Risks:
+- Keep this as command modeling only; do not rewrite persisted replay records in this ticket.
+
+Result:
+- `ReplayRecordCommand` now carries `BattleSurvivalOutcome` and requested `ReplayPlaybackAvailability`.
+- Added compatibility getters `aliveAtEnd` and `playbackAvailable` for existing factory/wire behavior.
+- `ReplayCommandParsers` converts request JSON Booleans into the typed command fields at the route boundary.
+- Updated replay service and visitor guardrail contract fixtures to pass typed command fields.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.VisitorHandleGuardrailContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none; replay command Booleans are now compatibility getters/wire fields.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Replace `BattleResultRecord.aliveAtEnd` primary Boolean with typed survival outcome while preserving the Boolean getter.
+
+## Current Ticket
+
+ID: ID-456
+Goal: Replace `BattleResultRecord.aliveAtEnd` primary Boolean with typed survival outcome.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/objects/BattleResultRecord.scala`, narrow battle result construction sites in battle result service, finish projection planner, battle result file/Postgres mappers, focused battle result/finish projection Scala contract fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: battle result route/API response field names, database/file schema names, replay record schema, frontend, unrelated battle runtime lifecycle rewrite, git commit/push.
+Expected change:
+- Change `BattleResultRecord` to carry `BattleSurvivalOutcome` as the primary domain field.
+- Preserve `aliveAtEnd` Boolean getter for existing renderers and persistence adapters.
+- Convert persisted/wire Booleans into the ADT at adapter/service construction boundaries.
+Architecture/domain-modeling impact:
+- Removes primitive survival business state from battle result domain records while preserving boundary compatibility.
+Side-effect boundary impact:
+- No new side effects; repository/database I/O behavior remains unchanged.
+Verification:
+- `sbt compile`
+- focused battle result service contract
+- focused battle result route contract
+- focused battle finish projection plan/write contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused battle result and finish projection contracts pass.
+- Full backend contract runner remains green.
+- Persisted/API `aliveAtEnd` remains Boolean and unchanged.
+Risks:
+- This touches several construction boundaries; keep changes mechanical and do not rename schema fields.
+
+Result:
+- `BattleResultRecord` now stores `BattleSurvivalOutcome` as its primary domain field.
+- Existing `aliveAtEnd` remains available as a compatibility getter for API/file/DB/replay boundaries.
+- File JSON and Postgres result mappers convert persisted Boolean `aliveAtEnd` into the typed survival outcome when constructing domain records.
+- Battle result route/write test fixtures now construct `BattleResultRecord` with the typed outcome.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Replace replay record primary survival Boolean with `BattleSurvivalOutcome` while preserving existing persisted/API `aliveAtEnd`.
+
+## Current Ticket
+
+ID: ID-457
+Goal: Replace replay record primary survival Boolean with typed survival outcome.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/objects/ReplayTypes.scala`, replay record construction sites in replay service factory, replay file/Postgres mappers, battle finish replay projection rules/planner, focused replay/battle finish contract fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: replay route/API response field names, database/file schema names, playback availability modeling, frontend, unrelated battle runtime lifecycle rewrite, git commit/push.
+Expected change:
+- Change `ReplayRecord` and `ReplaySettlementRecord` to carry `BattleSurvivalOutcome` as the primary domain field.
+- Preserve `aliveAtEnd` Boolean getters for existing renderers and persistence adapters.
+- Convert persisted/wire Booleans into the ADT at adapter/service construction boundaries.
+Architecture/domain-modeling impact:
+- Removes primitive survival business state from replay domain records while preserving boundary compatibility.
+Side-effect boundary impact:
+- No new side effects; repository/database I/O behavior remains unchanged.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- focused replay route contract
+- focused battle finish projection plan/write contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused replay and finish projection contracts pass.
+- Full backend contract runner remains green.
+- Persisted/API `aliveAtEnd` remains Boolean and unchanged.
+Risks:
+- Replay records and settlements share the same persisted Boolean; keep changes mechanical and do not rename schema fields.
+
+Result:
+- `ReplayRecord` and `ReplaySettlementRecord` now store `BattleSurvivalOutcome` as their primary survival field.
+- Existing `aliveAtEnd` getters remain for replay route rendering, file rendering, and Postgres binding.
+- Replay file/Postgres mappers convert persisted Boolean `aliveAtEnd` values into typed survival outcomes at read boundaries.
+- Replay service factory and battle finish replay projection now pass typed survival outcomes through instead of reconstructing primitive Booleans.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest" "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Replace replay playback availability primary Boolean with `ReplayPlaybackAvailability` while preserving existing persisted/API `playbackAvailable`.
+
+## Current Ticket
+
+ID: ID-458
+Goal: Replace replay playback availability primary Boolean with typed playback availability.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/objects/ReplayTypes.scala`, replay record construction sites in replay service factory, replay file/Postgres mappers, battle finish projection planner, focused replay/battle finish contract fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: replay route/API response field names, database/file schema names, survival outcome modeling, frontend, unrelated battle runtime lifecycle rewrite, git commit/push.
+Expected change:
+- Change `ReplayRecord` to carry `ReplayPlaybackAvailability` as the primary playback availability field.
+- Preserve `playbackAvailable` Boolean getter for existing renderers and persistence adapters.
+- Convert persisted/wire Booleans into the ADT at adapter/service construction boundaries.
+Architecture/domain-modeling impact:
+- Removes primitive playback availability business state from replay domain records while preserving boundary compatibility.
+Side-effect boundary impact:
+- No new side effects; repository/database I/O behavior remains unchanged.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- focused replay route contract
+- focused battle finish projection plan/write contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused replay and finish projection contracts pass.
+- Full backend contract runner remains green.
+- Persisted/API `playbackAvailable` remains Boolean and unchanged.
+Risks:
+- Playback availability is derived by service factory but read from persisted storage; keep conversion boundaries explicit and do not rename schema fields.
+
+Result:
+- `ReplayRecord` now stores `ReplayPlaybackAvailability` as the primary playback availability field.
+- Existing `playbackAvailable` remains available as a compatibility getter for route/file/Postgres boundaries.
+- Replay file/Postgres mappers convert persisted Boolean `playbackAvailable` values into the typed availability ADT at read boundaries.
+- Replay factory and finish projection now pass typed playback availability into replay records.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest" "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Audit remaining replay/battle result primitive Boolean fields and choose the next narrow typed-domain cleanup.
+
+## Current Ticket
+
+ID: ID-459
+Goal: Replace battle pickup availability primary Boolean with typed pickup availability.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/objects/BattleAggregateState.scala`, new battle pickup availability ADT in battle objects, battle pickup construction/update/capture sites, focused battle runtime/finish projection fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: pickup wire/API field names, replay frame JSON field names, database/file schema names, frontend, player lifecycle/alive rewrite, weapon heat rewrite, git commit/push.
+Expected change:
+- Change `BattlePickupState` and `BattleReplayPickupFrameState` to carry a typed pickup availability state as the primary field.
+- Preserve `available` Boolean getters for existing renderers, tests, and boundary JSON.
+- Convert existing Boolean construction/update sites into the ADT mechanically.
+Architecture/domain-modeling impact:
+- Removes primitive pickup lifecycle state from battle runtime/replay frame domain records while preserving boundary compatibility.
+Side-effect boundary impact:
+- No new side effects; runtime state transitions remain pure copy/update transformations.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- focused battle finish projection plan/write contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused battle runtime and finish projection contracts pass.
+- Full backend contract runner remains green.
+- Rendered `available` remains Boolean and unchanged.
+Risks:
+- Pickup respawn semantics depend on `available` plus `respawnMs`; keep compatibility getter and do not alter respawn timers.
+
+Result:
+- Added `BattlePickupAvailability` with `Available` and `Respawning(remainingMs)` states.
+- `BattlePickupState` and `BattleReplayPickupFrameState` now store typed pickup availability as their primary field.
+- Existing `available` and `respawnMs` getters remain for route/replay rendering and tests.
+- Initial pickup layout, pickup consume/respawn rules, and replay frame capture now pass typed availability through.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Replace weapon overheat Boolean/timer pair with a typed thermal state while preserving existing compatibility getters.
+
+## Current Ticket
+
+ID: ID-460
+Goal: Replace weapon overheat Boolean/timer pair with typed weapon thermal state.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/objects/BattleAggregateState.scala`, new battle weapon thermal ADT in battle objects, weapon creation/refill/fire/heat advance sites, battle player state JSON fallback construction, focused battle runtime/finish projection fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: weapon heat numeric balance, ammo/reload behavior, projectile behavior, route/API field names, frontend, player lifecycle rewrite, git commit/push.
+Expected change:
+- Change `BattleWeaponState` to carry a typed thermal state as the primary overheat field.
+- Preserve `overheated` and `overheatRemainingMs` Boolean/timer getters for existing renderers and tests.
+- Convert construction and heat transition sites into the ADT mechanically.
+Architecture/domain-modeling impact:
+- Removes primitive overheat lifecycle state from weapon runtime records while preserving boundary compatibility.
+Side-effect boundary impact:
+- No new side effects; weapon heat transitions remain pure copy/update transformations.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- focused battle finish projection plan/write contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused battle runtime and finish projection contracts pass.
+- Full backend contract runner remains green.
+- Rendered `overheated` and `overheatRemainingMs` remain unchanged.
+Risks:
+- Gatling firing/cooling depends on this state; keep numeric heat and cooldown rules unchanged.
+
+Result:
+- Added `BattleWeaponThermalState` with `Ready` and `Overheated(remainingMs)` states.
+- `BattleWeaponState` now stores typed thermal state as its primary overheat field.
+- Existing `overheated` and `overheatRemainingMs` getters remain for JSON rendering and tests.
+- Weapon creation/refill, Gatling fire charging, and heat/cooldown advancement now update typed thermal state.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Introduce typed player lifecycle for replay hero frames before attempting the broader runtime player lifecycle migration.
+
+## Current Ticket
+
+ID: ID-461
+Goal: Replace replay hero frame alive Boolean/elimination time pair with typed life state.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/objects/BattleAggregateState.scala`, new replay hero life ADT in battle objects, replay frame capture/render helper sites, focused battle finish projection fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: runtime `BattlePlayerState.alive` migration, battle movement/projectile lifecycle rules, replay JSON field names, frontend, git commit/push.
+Expected change:
+- Change `BattleReplayHeroFrameState` to carry a typed life state as the primary frame lifecycle field.
+- Preserve `alive` and `eliminatedAtMs` getters for existing replay JSON rendering and tests.
+- Convert replay frame capture/test construction sites into the typed life state mechanically.
+Architecture/domain-modeling impact:
+- Removes primitive lifecycle state from stored replay hero frame snapshots while leaving broader runtime lifecycle migration for a separate ticket.
+Side-effect boundary impact:
+- No new side effects; replay frame capture remains pure value construction.
+Verification:
+- `sbt compile`
+- focused battle finish projection plan/write contracts
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused replay projection/runtime contracts pass.
+- Full backend contract runner remains green.
+- Rendered replay frame `alive`, `lifeState`, and `eliminatedAtMs` remain unchanged.
+Risks:
+- This is a projection-only lifecycle model; runtime `BattlePlayerState.alive` remains a known broader follow-up.
+
+Result:
+- Added `BattleReplayHeroLifeState` with `Alive` and `Eliminated(eliminatedAtMs)` states.
+- `BattleReplayHeroFrameState` now stores typed frame lifecycle as its primary field.
+- Existing `alive` and `eliminatedAtMs` getters remain for replay frame JSON rendering.
+- Replay frame capture and finish projection test frame builders now construct typed frame lifecycle values.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest" "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Introduce typed runtime player lifecycle while keeping compatibility getters and preserving existing battle runtime behavior.
+
+## Current Ticket
+
+ID: ID-462
+Goal: Replace runtime player alive/elimination/respawn primitive fields with typed player life state.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/objects/BattleAggregateState.scala`, new runtime player life ADT in battle objects, player lifecycle/session/projectile-impact write sites, focused battle runtime/finish projection fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: movement/projectile physics, HP/damage balance, replay JSON field names, frontend, database/schema changes, git commit/push.
+Expected change:
+- Change `BattlePlayerState` to carry typed runtime life state as the primary lifecycle field.
+- Preserve `alive`, `eliminatedAtMs`, and `respawnMs` getters for existing rule predicates, renderers, and tests.
+- Convert initial-player and elimination construction/update sites into the typed life state mechanically.
+Architecture/domain-modeling impact:
+- Removes the highest-risk primitive runtime lifecycle Boolean/timer pair while preserving existing state transition behavior.
+Side-effect boundary impact:
+- No new side effects; lifecycle changes remain pure copy/update transformations inside battle runtime services.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- focused battle finish projection plan/write contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused battle runtime and finish projection contracts pass.
+- Full backend contract runner remains green.
+- Existing rendered/player lifecycle fields remain available through compatibility getters.
+Risks:
+- This touches central runtime state; keep behavior mechanical and rely on existing lifecycle invariant tests.
+
+Result:
+- Added `BattlePlayerLifeState` with `Alive` and `Eliminated(eliminatedAtMs, respawnMs)` states.
+- `BattlePlayerState` now stores typed runtime lifecycle as its primary field.
+- Existing `alive`, `eliminatedAtMs`, and `respawnMs` getters remain for current predicates, renderers, and tests.
+- Initial player creation, projectile elimination, and dead-player runtime cleanup now update typed lifecycle state.
+- Finish projection test player builders now construct typed lifecycle values.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Audit remaining battle domain primitive booleans and choose the next narrow typed-state cleanup.
+
+## Current Ticket
+
+ID: ID-463
+Goal: Replace battle participant bot Boolean with typed participant kind.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/objects/BattleAggregateState.scala`, `backend/src/main/scala/slaydemo/backend/battle/objects/BattleQueueState.scala`, new participant kind ADT in battle objects, queue/bootstrap/player construction sites, focused queue/runtime/finish projection fixtures if needed, `.codex/agent-state.md`.
+Forbidden scope: bot AI behavior, matchmaking rules beyond construction field mapping, route/API field names, frontend, git commit/push.
+Expected change:
+- Change `BattlePlayerState` and `BattleSessionBootstrapSeat` to carry typed participant kind as the primary human/bot field.
+- Preserve `isBot` Boolean getter for existing predicates, renderers, and tests.
+- Convert construction sites from Boolean literals to the ADT mechanically.
+Architecture/domain-modeling impact:
+- Removes primitive participant-kind state from battle queue/runtime records while preserving boundary compatibility.
+Side-effect boundary impact:
+- No new side effects; queue/bootstrap construction remains pure value construction.
+Verification:
+- `sbt compile`
+- focused battle queue runtime contract
+- focused battle state runtime contract
+- focused battle finish projection plan/write contracts
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused queue/runtime/projection contracts pass.
+- Full backend contract runner remains green.
+- Rendered `isBot` remains Boolean and unchanged.
+Risks:
+- Bot filtering/AI relies on `isBot`; preserve getter behavior exactly.
+
+Result:
+- Added `BattleParticipantKind` with `Human` and `Bot` states.
+- `BattlePlayerState` and `BattleSessionBootstrapSeat` now store typed participant kind as their primary human/bot field.
+- Existing `isBot` getter remains for AI predicates, renderers, queue snapshots, and tests.
+- Room bootstrap, fallback session bootstrap, runtime player construction, and focused test fixtures now construct participant kind values.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleQueueRuntimeContractTest" "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Audit remaining non-boundary Boolean result objects and choose the next narrow typed-result cleanup.
+
+## Current Ticket
+
+ID: ID-464
+Goal: Remove replay record command Boolean convenience path for typed availability/survival fields.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/services/ReplayService.scala`, `backend/src/main/scala/slaydemo/backend/replay/services/ReplayRecordFactory.scala`, focused replay route/service tests if needed, `.codex/agent-state.md`.
+Forbidden scope: replay route/API JSON field names, replay record persistence schema, battle runtime, frontend, git commit/push.
+Expected change:
+- Stop converting `ReplayRecordCommand.requestedPlaybackAvailability` through Boolean before factory resolution.
+- Remove command-level Boolean getters when tests can assert typed fields directly.
+- Keep record/render/persistence Boolean compatibility getters unchanged.
+Architecture/domain-modeling impact:
+- Keeps typed replay command intent through the application service boundary.
+Side-effect boundary impact:
+- No new side effects; command-to-record factory remains pure.
+Verification:
+- `sbt compile`
+- focused replay service contract
+- focused replay route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused replay contracts pass.
+- Full backend contract runner remains green.
+- API/persisted `aliveAtEnd` and `playbackAvailable` fields remain unchanged.
+Risks:
+- Route tests currently assert a command Boolean getter; update them to assert the typed command field.
+
+Result:
+- Removed `ReplayRecordCommand` Boolean convenience getters.
+- `ReplayRecordFactory` now resolves playback availability directly from `requestedPlaybackAvailability`.
+- Replay route contract now asserts the typed command availability field.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest" "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Remove battle result command Boolean convenience path for typed survival outcome.
+
+## Current Ticket
+
+ID: ID-465
+Goal: Remove battle result command Boolean convenience path for typed survival outcome.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleResultService.scala`, focused battle result route/service tests if needed, `.codex/agent-state.md`.
+Forbidden scope: battle result route/API JSON field names, result persistence schema, battle runtime, frontend, git commit/push.
+Expected change:
+- Remove command-level `aliveAtEnd` Boolean getter when callers can use `survivalOutcome`.
+- Update tests/stubs to pass/assert typed survival outcome directly.
+- Keep record/render/persistence Boolean compatibility getter unchanged.
+Architecture/domain-modeling impact:
+- Keeps typed survival outcome through the battle result application service boundary.
+Side-effect boundary impact:
+- No new side effects; command-to-record mapping remains pure.
+Verification:
+- `sbt compile`
+- focused battle result service contract
+- focused battle result route contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Focused battle result contracts pass.
+- Full backend contract runner remains green.
+- API/persisted `aliveAtEnd` field remains unchanged.
+Risks:
+- Route contract currently asserts the command Boolean getter; update it to assert `BattleSurvivalOutcome`.
+
+Result:
+- Removed the `BattleResultRecordCommand.aliveAtEnd` Boolean convenience getter.
+- Battle result route contract now asserts typed `BattleSurvivalOutcome`.
+- Recording route test stub maps typed survival outcome back to Boolean only through the boundary compatibility adapter.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Scan remaining backend primitive states and avoid changing boundary/input booleans without a concrete domain benefit.
+
+## Current Ticket
+
+ID: ID-466
+Goal: Replace private weapon definition `usesHeat` Boolean with typed firing resource model.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponRules.scala`, focused battle runtime contract if needed, `.codex/agent-state.md`.
+Forbidden scope: weapon constants/balance, runtime firing behavior, route/API fields, frontend, git commit/push.
+Expected change:
+- Replace private `WeaponInventoryDefinition.usesHeat` Boolean with an internal ADT that distinguishes magazine and heat-resource weapons.
+- Preserve `weaponUsesHeat` public helper behavior for existing callers.
+Architecture/domain-modeling impact:
+- Removes a private primitive finite state from weapon configuration while preserving the service boundary.
+Side-effect boundary impact:
+- No new side effects; weapon definition remains static pure data.
+Verification:
+- `sbt compile`
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle runtime and full backend contracts remain green.
+- Weapon ammo/heat behavior is unchanged.
+Risks:
+- This is private configuration, but Gatling behavior relies on the distinction; keep mapping exact.
+
+Result:
+- Replaced private `WeaponInventoryDefinition.usesHeat` Boolean with `WeaponFiringResource`.
+- `weaponUsesHeat` behavior remains the same for existing callers.
+- Pistol, rocket, and shotgun map to `Magazine`; Gatling maps to `Heat`.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Inspect backend service file sizes and choose a narrow architecture cleanup if any god-file pressure remains.
+
+## Current Ticket
+
+ID: ID-467
+Goal: Type governance mail metadata fields instead of raw strings.
+Why this matters:
+- `GovernanceMailMetadata` carries business-facing actor/path/label concepts, but they are currently untyped `String` values inside the domain object.
+- Giving these fields value types keeps serialization/database strings at boundaries while preserving type safety inside mail records.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/mail/objects/MailTypes.scala`
+- `backend/src/main/scala/slaydemo/backend/mail/database/*Mail*`
+- `backend/src/main/scala/slaydemo/backend/mail/routes/*Mail*`
+- `backend/src/main/scala/slaydemo/backend/governance/routes/GovernanceRouteJsonRenderer.scala`
+- `backend/src/main/scala/slaydemo/backend/governance/services/GovernanceMailFactory.scala`
+- focused mail/governance tests under `backend/src/test/scala/slaydemo/backend`
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- battle runtime, queue, weapon, projectile, pickup, replay frame logic
+- database schema changes
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add explicit value types for governance mail actor handle, target path, and target label.
+- Update mail persistence/rendering and governance mail construction to unwrap only at wire/database boundaries.
+- Preserve JSON and database column values exactly.
+Architecture/domain-modeling impact:
+- Improves mail domain modeling by removing raw string business metadata from the record model.
+- No new side effects or cross-layer dependencies.
+Side-effect boundary impact:
+- Existing file/Postgres route serialization remains the boundary where values become strings.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Mail governance metadata no longer exposes raw string fields in the domain case class.
+- Mail file/Postgres round trips preserve governance metadata values.
+- Mail/governance route JSON remains unchanged.
+- Focused and full backend contract checks pass.
+Risks:
+- Many renderers/tests compare metadata as strings; missed unwraps would be compile-time or contract failures.
+
+Result:
+- Added explicit `GovernanceMailActorHandle`, `GovernanceMailTargetPath`, and `GovernanceMailTargetLabel` value types.
+- `GovernanceMailMetadata` now carries typed metadata instead of raw strings.
+- Mail file/Postgres persistence and mail/governance route renderers unwrap metadata only at storage/API boundaries.
+- Mail and governance contract tests now assert typed metadata values while preserving existing wire JSON.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.mail.routes.MailRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.governance.routes.GovernanceRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- ID-468: Model battle command skill intent and weapon switch direction explicitly.
+
+## Current Ticket
+
+ID: ID-468
+Goal: Replace battle weapon switch direction magic `Int` with an explicit command direction ADT.
+Why this matters:
+- `switchWeaponDirection` is a finite command intent, but the domain request currently stores arbitrary ints and lets service code clamp them later.
+- Modeling it as an ADT makes illegal direction states impossible past the API parsing boundary while preserving legacy wire compatibility for numeric input.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/api/BattleCommandApi.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/BattleCommandRequestParser.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleInputRules.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponRules.scala`
+- focused battle command route/runtime tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- skill command Boolean modeling
+- weapon balance, projectile physics, pickup behavior, queue/matchmaking
+- persistence/database/schema/data files
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `BattleWeaponSwitchDirection` with `Previous`, `NoSwitch`, and `Next`.
+- Parse legacy numeric `switchWeaponDirection` into this ADT at the route boundary.
+- Apply weapon switching from the ADT without service-local magic integer clamping.
+- Preserve existing wire request shape and runtime behavior for negative, zero, and positive numbers.
+Architecture/domain-modeling impact:
+- Moves a finite business command state from primitive int into a domain type.
+- Leaves raw int parsing at the API boundary only.
+Side-effect boundary impact:
+- No new side effects; route parsing and pure runtime update only.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleCommandRequest` no longer exposes `switchWeaponDirection: Int`.
+- Route accepts numeric switch direction as before and normalizes it into the explicit ADT.
+- Runtime switch direction behavior remains unchanged.
+- Focused and full backend contracts pass.
+Risks:
+- Tests or helpers that still treat command direction as raw int must be updated carefully without changing JSON compatibility.
+
+Result:
+- Added `BattleWeaponSwitchDirection` ADT with `Previous`, `NoSwitch`, and `Next`.
+- `BattleCommandRequest.switchWeaponDirection` now stores the ADT instead of raw `Int`.
+- Route parsing still accepts legacy numeric `switchWeaponDirection` and normalizes negative/zero/positive at the boundary.
+- Weapon switching now uses the typed direction instead of clamping arbitrary ints in the service rule.
+- Runtime test helpers and route assertions were updated to use the typed command direction.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- ID-469: Replace battle skill command Boolean trio with an explicit skill intent collection.
+
+## Current Ticket
+
+ID: ID-469
+Goal: Replace battle skill command Boolean trio with an explicit skill intent collection.
+Why this matters:
+- `castDash`, `castBlink`, and `castFreeze` are finite command intents, but the application request currently exposes three primitive booleans.
+- A typed skill intent collection keeps legacy wire compatibility while removing Boolean skill state from the internal command model.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/api/BattleCommandApi.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/BattleCommandRequestParser.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleCommandApplicationRules.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleInputRules.scala`
+- focused battle command route/runtime/skill tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- weapon switch direction behavior
+- skill balance/cooldowns/effects
+- projectile, pickup, queue/matchmaking, finish projection
+- persistence/database/schema/data files
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add a typed `BattleCommandSkillIntents` model built from legacy route booleans.
+- Replace `BattleCommandRequest.castDash/castBlink/castFreeze` with the typed skill intents field.
+- Preserve existing skill application order and behavior.
+- Keep primary fire suppression when any skill intent is present.
+Architecture/domain-modeling impact:
+- Moves finite skill command intent out of primitive booleans and into a domain command value.
+- Keeps route parsing as the only place that reads legacy booleans.
+Side-effect boundary impact:
+- No new side effects; route parsing and pure command application only.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.BattleSkillRulesContractTest"`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleCommandRequest` no longer exposes skill booleans.
+- Route accepts existing `castDash`, `castBlink`, and `castFreeze` booleans.
+- Existing skill application and primary-fire suppression behavior remains unchanged.
+- Focused and full backend contracts pass.
+Risks:
+- Skill tests rely on command helper defaults; helper changes must preserve current behavior.
+
+Result:
+- Added `BattleCommandSkillIntents` to represent skill command intent as typed data.
+- `BattleCommandRequest` now carries `skillIntents` instead of `castDash`, `castBlink`, and `castFreeze` booleans.
+- Route parsing still accepts existing legacy booleans and converts them to ordered skill intents.
+- Command application now dispatches from the typed skill intent collection.
+- Primary fire suppression now checks `skillIntents.nonEmpty`.
+- Route contract now proves legacy skill booleans arrive as typed intents in the existing application order.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleSkillRulesContractTest"`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- ID-470: Model battle command weapon switch index as a typed request target.
+
+## Current Ticket
+
+ID: ID-470
+Goal: Model battle command weapon switch index as a typed request target.
+Why this matters:
+- `switchWeaponIndex` is a command target index, but the internal request still exposes `Option[Int]`.
+- A typed non-negative target keeps raw numeric input at the route boundary and makes negative index intent impossible inside command handling.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/api/BattleCommandApi.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/BattleCommandRequestParser.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleInputRules.scala`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleWeaponRules.scala`
+- focused battle command route/runtime tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- skill intent behavior
+- weapon balance/reload/fire behavior
+- projectile, pickup, queue/matchmaking, finish projection
+- persistence/database/schema/data files
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add a typed weapon switch index value object.
+- Parse legacy numeric `switchWeaponIndex` into a non-negative typed target at the route boundary.
+- Apply weapon switch index through the typed target while preserving out-of-range ignore behavior.
+Architecture/domain-modeling impact:
+- Removes another raw command primitive from the internal battle command model.
+- Leaves raw JSON number handling in the route parser.
+Side-effect boundary impact:
+- No new side effects; route parsing and pure weapon switch application only.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleCommandRequest` no longer exposes `switchWeaponIndex: Option[Int]`.
+- Negative switch index values do not enter the internal command model.
+- Existing weapon switch index and out-of-range behavior remains unchanged.
+- Focused and full backend contracts pass.
+Risks:
+- Test helpers use many numeric switch indexes; conversion must stay local to helpers or route parser.
+
+Result:
+- Added `BattleWeaponSwitchIndex` as a non-negative weapon switch target value.
+- `BattleCommandRequest.switchWeaponIndex` now stores `Option[BattleWeaponSwitchIndex]` instead of `Option[Int]`.
+- Route parsing still accepts legacy numeric `switchWeaponIndex`, converts non-negative values, and drops negative values at the boundary.
+- Weapon switching now unwraps the typed index before applying existing in-range checks.
+- Route contract now covers positive typed indexes and negative dropped indexes.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleCommandRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- ID-471: Model battle rating delta as an explicit value type.
+
+## Current Ticket
+
+ID: ID-471
+Goal: Model battle rating delta as an explicit value type.
+Why this matters:
+- Rating delta is a domain value with signed scoring semantics, but battle result and replay records store it as raw `Int`.
+- A `RatingDelta` value type keeps database/API integers at boundaries while making rating changes explicit in domain records and settlement planning.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleSettlementScoringRules.scala`
+- `backend/src/main/scala/slaydemo/backend/replay/objects/*`
+- `backend/src/main/scala/slaydemo/backend/replay/database/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/replay/routes/*Replay*`
+- focused battle result/replay/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- live battle movement/weapon/projectile/pickup/skill behavior
+- queue/matchmaking
+- database schema changes
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `RatingDelta` value type.
+- Replace battle result and replay record `ratingDelta` fields with `RatingDelta` / `Option[RatingDelta]`.
+- Convert to/from raw integers only in route, file, and Postgres boundaries.
+- Preserve current wire JSON and database column values.
+Architecture/domain-modeling impact:
+- Improves persisted battle/replay domain modeling without changing storage schema or route shape.
+Side-effect boundary impact:
+- No new side effects; repository and route boundaries unwrap/wrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle result/replay records no longer expose raw `Int` rating deltas.
+- API JSON and Postgres/file persisted values remain integer-compatible.
+- Focused and full backend contracts pass.
+Risks:
+- Rating delta is referenced across result, replay, mail, and projection code; missed unwraps should surface at compile time.
+
+Result:
+- Added `RatingDelta` value type.
+- `BattleResultRecord`, `BattleResultRecordCommand`, `ReplayRecord`, and `ReplaySettlementRecord` now use typed rating deltas.
+- Battle result/replay file and Postgres mappers now wrap/unwrap rating deltas at persistence boundaries.
+- Battle result/replay route renderers and command parsers preserve the existing integer JSON shape.
+- Finish projection scoring now returns `RatingDelta`, and rating-after calculation unwraps explicitly.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- ID-472: Model battle/replay placement as an explicit positive value type.
+
+## Completed Ticket
+
+ID: ID-472
+Goal: Model battle/replay placement as an explicit positive value type.
+Why this matters:
+- Placement is a positive ranking value, but battle result and replay records currently store it as `Option[Int]`.
+- A `BattlePlacement` value type prevents zero/negative placement from entering persisted domain records while keeping integer JSON/database compatibility.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/BattleSettlementScoringRules.scala`
+- `backend/src/main/scala/slaydemo/backend/replay/objects/*`
+- `backend/src/main/scala/slaydemo/backend/replay/database/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/replay/routes/*Replay*`
+- focused battle result/replay/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- live battle movement/weapon/projectile/pickup/skill behavior
+- queue/matchmaking
+- database schema changes
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add a positive `BattlePlacement` value type.
+- Replace battle result and replay record placement fields with `Option[BattlePlacement]`.
+- Convert to/from raw integers only in route, file, and Postgres boundaries.
+- Preserve current wire JSON and database column values.
+Architecture/domain-modeling impact:
+- Removes raw ranking integers from persisted battle/replay domain records.
+Side-effect boundary impact:
+- No new side effects; repository and route boundaries unwrap/wrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Battle result/replay records no longer expose `Option[Int]` placement.
+- Route parsers still accept positive integer placement and ignore non-positive values.
+- File/Postgres storage keeps integer placement values.
+- Focused and full backend contracts pass.
+Risks:
+- Placement participates in sorting, score calculation, labels, and replay ownership; missed unwraps should surface in focused tests.
+
+Result:
+- Added positive `BattlePlacement` value type.
+- `BattleResultRecord`, `BattleResultRecordCommand`, `ReplayRecord`, and `ReplaySettlementRecord` now use typed placement values.
+- Battle result/replay route parsers still accept integer placement and drop non-positive values at the boundary.
+- File/Postgres mappers unwrap placement to the existing integer columns and wrap on read.
+- Finish projection now carries typed placements through settlement scoring and labels.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- ID-473: Model replay frame count as a non-negative value type.
+
+## Current Ticket
+
+ID: ID-473
+Goal: Model replay frame count as a non-negative value type.
+Why this matters:
+- Replay frame count is derived replay metadata and should never be negative, but `ReplayRecord` currently stores it as raw `Int`.
+- A `ReplayFrameCount` value type keeps numeric JSON/database compatibility while making the non-negative invariant explicit.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/replay/objects/*`
+- `backend/src/main/scala/slaydemo/backend/replay/database/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/replay/routes/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/replay/services/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- focused replay/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- live battle runtime behavior
+- battle result rating/placement modeling
+- database schema changes
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `ReplayFrameCount` value type.
+- Replace `ReplayRecord.frameCount: Int` with `ReplayFrameCount`.
+- Convert to/from raw integers only at route, file, Postgres, and frame projection boundaries.
+- Preserve existing JSON and DB integer values.
+Architecture/domain-modeling impact:
+- Removes raw replay frame count integer from the replay domain record.
+Side-effect boundary impact:
+- No new side effects; repository and route boundaries unwrap/wrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `ReplayRecord` no longer exposes raw `frameCount: Int`.
+- Negative route/storage frame counts are normalized at boundaries.
+- Focused and full backend contracts pass.
+Risks:
+- Replay renderers and mappers all expose `frameCount` as integer JSON/DB values; missed unwraps should fail compile or focused tests.
+
+Result:
+- Added `ReplayFrameCount` value type.
+- `ReplayRecord` and `ReplayRecordCommand` now use typed frame counts.
+- Route parser, file parser, Postgres mapper, replay factory, and finish projection convert raw counts into `ReplayFrameCount`.
+- Route/file/Postgres renderers continue emitting integer `frameCount` values.
+
+Verification passed:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- ID-474: Model normalized replay frames JSON as an explicit value type.
+
+## Completed Ticket
+
+ID: ID-474
+Goal: Model normalized replay frames JSON as an explicit value type.
+Why this matters:
+- `ReplayRecord.framesJson` is normalized replay playback data, but it is currently stored as a raw `String` inside the domain record.
+- A `ReplayFramesJson` value type distinguishes validated/normalized replay frames from raw route input and storage text.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/replay/objects/*`
+- `backend/src/main/scala/slaydemo/backend/replay/support/*`
+- `backend/src/main/scala/slaydemo/backend/replay/database/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/replay/routes/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/replay/services/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- focused replay/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- replay frame JSON schema changes
+- live battle runtime behavior
+- database schema changes
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `ReplayFramesJson` value type for normalized frames JSON.
+- Keep `ReplayRecordCommand.framesJson` as raw route input.
+- Have `ReplayFrameJson.normalize` return typed normalized frames.
+- Unwrap only at route/file/Postgres rendering boundaries.
+Architecture/domain-modeling impact:
+- Separates raw input text from validated replay playback payload in the replay domain model.
+Side-effect boundary impact:
+- No new side effects; serialization boundaries unwrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `ReplayRecord` no longer exposes raw `framesJson: String`.
+- Route command raw frames input remains a plain string.
+- Wire/file/Postgres stored frames JSON remains unchanged.
+- Focused and full backend contracts pass.
+Risks:
+- Existing tests compare normalized frames strings directly; those assertions need explicit `.value` unwrapping.
+
+Result:
+- Added `ReplayFramesJson` for normalized replay frame payloads.
+- `ReplayRecord.framesJson` now carries the typed normalized value.
+- `ReplayRecordCommand.framesJson` remains raw `String` at the route/service input boundary.
+- File/Postgres/route renderers unwrap only at serialization boundaries.
+- Projection and replay service tests now assert typed frames in domain records while preserving raw command input behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed a raw domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model replay/result title and label fields incrementally, starting with replay title.
+
+## Completed Ticket
+
+ID: ID-475
+Goal: Model replay title as an explicit value type.
+Why this matters:
+- `ReplayRecord.title` is a user-facing replay identity/display field, but the replay domain record currently exposes it as a raw `String`.
+- A `ReplayTitle` value type keeps the normalized domain record distinct from raw route/file/Postgres text.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/replay/objects/*`
+- `backend/src/main/scala/slaydemo/backend/replay/services/*`
+- `backend/src/main/scala/slaydemo/backend/replay/routes/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/replay/database/*Replay*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- focused replay/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- database schema changes
+- HTTP request/response field-name changes
+- live battle runtime behavior
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `ReplayTitle` value type.
+- Keep `ReplayRecordCommand.title` as raw route input.
+- Convert raw title to `ReplayTitle` in record construction, file/Postgres parsing, and finish projection planning.
+- Unwrap `ReplayTitle.value` only at JSON/file/Postgres rendering boundaries.
+Architecture/domain-modeling impact:
+- Improves replay domain modeling without widening the service boundary.
+Side-effect boundary impact:
+- No new side effects; serialization boundaries remain responsible for raw strings.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `ReplayRecord.title` no longer exposes raw `String`.
+- Route command title remains raw input.
+- Wire/file/Postgres rendered title remains unchanged.
+- Focused and full backend contracts pass.
+Risks:
+- Some route rendering derives a settlement-specific display title; keep that composition at the route boundary and unwrap explicitly.
+
+Result:
+- Added `ReplayTitle`.
+- `ReplayRecord.title` now carries a typed replay title.
+- `ReplayRecordCommand.title` remains raw `String` at the route/service input boundary.
+- Replay record construction, file parsing, Postgres mapping, and battle finish projection wrap raw titles into `ReplayTitle`.
+- Route/file/Postgres renderers unwrap with `.value`, preserving existing JSON and storage fields.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest" "Test / runMain slaydemo.backend.replay.routes.ReplayRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed a raw replay-domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model the battle result label in `BattleResultRecord` as an explicit value type.
+
+## Completed Ticket
+
+ID: ID-476
+Goal: Model battle result label as an explicit value type.
+Why this matters:
+- `BattleResultRecord.resultLabel` is a finite-ish user-facing settlement concept such as victory/survival/elimination, but it is currently a raw `String` inside the battle result domain record.
+- A `BattleResultLabel` value type distinguishes domain result labels from raw route/database/file text while keeping wire compatibility.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Result*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- focused battle result/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- replay domain model changes beyond necessary projection unwrapping
+- database schema changes
+- HTTP request/response field-name changes
+- live battle runtime behavior
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `BattleResultLabel` value type.
+- Keep `BattleResultRecordCommand.resultLabel` as raw route/service input.
+- Convert raw result labels to `BattleResultLabel` in result service, file/Postgres parsing, and finish projection planning.
+- Unwrap only at route/file/Postgres/replay-projection boundaries.
+Architecture/domain-modeling impact:
+- Removes one raw domain text concept from battle result records without widening the API surface.
+Side-effect boundary impact:
+- No new side effects; serialization and projection boundaries explicitly unwrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleResultRecord.resultLabel` no longer exposes raw `String`.
+- Result command input remains raw string.
+- Battle result route/file/Postgres output remains unchanged.
+- Projection to replay settlements remains behavior-compatible.
+- Focused and full backend contracts pass.
+Risks:
+- Replay projection currently copies battle result labels into replay records/settlements; this ticket must unwrap there without expanding replay domain changes.
+
+Result:
+- Added `BattleResultLabel`.
+- `BattleResultRecord.resultLabel` now carries the typed label.
+- `BattleResultRecordCommand.resultLabel` remains raw `String` at the route/service input boundary.
+- Result service, file parser, Postgres mapper, and finish projection planning wrap raw labels into `BattleResultLabel`.
+- Route/file/Postgres/mail/replay-projection boundaries unwrap with `.value`, preserving existing JSON, storage fields, and replay behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed one raw battle-result domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model the battle mode label in `BattleResultRecord` as an explicit value type.
+
+## Completed Ticket
+
+ID: ID-477
+Goal: Model battle mode label as an explicit value type.
+Why this matters:
+- `BattleResultRecord.modeLabel` identifies the battle mode display concept, but it is currently stored as a raw `String` inside the battle result domain record.
+- A `BattleModeLabel` value type keeps this display concept explicit while preserving route/database/file wire compatibility.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Result*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- focused battle result/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- replay domain model changes beyond necessary projection unwrapping
+- database schema changes
+- HTTP request/response field-name changes
+- live battle runtime behavior
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `BattleModeLabel` value type.
+- Keep `BattleResultRecordCommand.modeLabel` as raw route/service input.
+- Convert raw mode labels to `BattleModeLabel` in result service, file/Postgres parsing, and finish projection planning.
+- Unwrap only at route/file/Postgres/replay-projection boundaries.
+Architecture/domain-modeling impact:
+- Removes one raw domain display concept from battle result records without widening the API surface.
+Side-effect boundary impact:
+- No new side effects; serialization and projection boundaries explicitly unwrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleResultRecord.modeLabel` no longer exposes raw `String`.
+- Result command input remains raw string.
+- Battle result route/file/Postgres output remains unchanged.
+- Projection to replay records remains behavior-compatible.
+- Focused and full backend contracts pass.
+Risks:
+- Replay records still store mode labels as strings; unwrap there without broadening this ticket into replay domain modeling.
+
+Result:
+- Added `BattleModeLabel`.
+- `BattleResultRecord.modeLabel` now carries the typed mode label.
+- `BattleResultRecordCommand.modeLabel` remains raw `String` at the route/service input boundary.
+- Result service, file parser, Postgres mapper, and finish projection planning wrap raw mode labels.
+- Route/file/Postgres/replay-projection boundaries unwrap with `.value`, preserving existing JSON, storage fields, and replay behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed one raw battle-result domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model the battle map label in `BattleResultRecord` as an explicit value type.
+
+## Completed Ticket
+
+ID: ID-478
+Goal: Model battle map label as an explicit value type.
+Why this matters:
+- `BattleResultRecord.mapLabel` identifies the map/arena display concept, but it is currently stored as a raw `String` inside the battle result domain record.
+- A `BattleMapLabel` value type keeps this display concept explicit while preserving route/database/file wire compatibility.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Result*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- focused battle result/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- replay domain model changes beyond necessary projection unwrapping
+- database schema changes
+- HTTP request/response field-name changes
+- live battle runtime behavior
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `BattleMapLabel` value type.
+- Keep `BattleResultRecordCommand.mapLabel` as raw route/service input.
+- Convert raw map labels to `BattleMapLabel` in result service, file/Postgres parsing, and finish projection planning.
+- Unwrap only at route/file/Postgres/replay-projection boundaries.
+Architecture/domain-modeling impact:
+- Removes one raw domain display concept from battle result records without widening the API surface.
+Side-effect boundary impact:
+- No new side effects; serialization and projection boundaries explicitly unwrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleResultRecord.mapLabel` no longer exposes raw `String`.
+- Result command input remains raw string.
+- Battle result route/file/Postgres output remains unchanged.
+- Projection to replay records remains behavior-compatible.
+- Focused and full backend contracts pass.
+Risks:
+- Replay records still store map labels as strings; unwrap there without broadening this ticket into replay domain modeling.
+
+Result:
+- Added `BattleMapLabel`.
+- `BattleResultRecord.mapLabel` now carries the typed map label.
+- `BattleResultRecordCommand.mapLabel` remains raw `String` at the route/service input boundary.
+- Result service, file parser, Postgres mapper, and finish projection planning wrap raw map labels.
+- Route/file/Postgres/replay-projection boundaries unwrap with `.value`, preserving existing JSON, storage fields, and replay behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed one raw battle-result domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model the battle highlight line in `BattleResultRecord` as an explicit value type.
+
+## Completed Ticket
+
+ID: ID-479
+Goal: Model battle highlight line as an explicit value type.
+Why this matters:
+- `BattleResultRecord.highlightLine` is the human-readable settlement summary, but it is currently stored as a raw `String` inside the battle result domain record.
+- A `BattleHighlightLine` value type keeps summary text explicit while preserving route/database/file wire compatibility.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Result*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- focused battle result/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- replay domain model changes beyond necessary projection unwrapping
+- database schema changes
+- HTTP request/response field-name changes
+- live battle runtime behavior
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `BattleHighlightLine` value type.
+- Keep `BattleResultRecordCommand.highlightLine` as raw route/service input.
+- Convert raw highlight text to `BattleHighlightLine` in result service, file/Postgres parsing, and finish projection planning.
+- Unwrap only at route/file/Postgres/replay-projection boundaries.
+Architecture/domain-modeling impact:
+- Removes one raw domain summary text concept from battle result records without widening the API surface.
+Side-effect boundary impact:
+- No new side effects; serialization and projection boundaries explicitly unwrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleResultRecord.highlightLine` no longer exposes raw `String`.
+- Result command input remains raw string.
+- Battle result route/file/Postgres output remains unchanged.
+- Projection to replay settlements remains behavior-compatible.
+- Focused and full backend contracts pass.
+Risks:
+- Replay settlements still store highlight lines as strings; unwrap there without broadening this ticket into replay domain modeling.
+
+Result:
+- Added `BattleHighlightLine`.
+- `BattleResultRecord.highlightLine` now carries the typed summary line.
+- `BattleResultRecordCommand.highlightLine` remains raw `String` at the route/service input boundary.
+- Result service, file parser, Postgres mapper, and finish projection planning wrap raw highlight text.
+- Route/file/Postgres/replay-projection boundaries unwrap with `.value`, preserving existing JSON, storage fields, and replay behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed one raw battle-result domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model the battle players line in `BattleResultRecord` as an explicit value type.
+
+## Completed Ticket
+
+ID: ID-480
+Goal: Model battle players line as an explicit value type.
+Why this matters:
+- `BattleResultRecord.playersLine` is the participant summary for a battle result, but it is currently stored as a raw `String` inside the battle result domain record.
+- A `BattlePlayersLine` value type keeps participant summary text explicit while preserving route/database/file wire compatibility.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Result*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- focused battle result/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- replay domain model changes beyond necessary projection unwrapping
+- database schema changes
+- HTTP request/response field-name changes
+- live battle runtime behavior
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `BattlePlayersLine` value type.
+- Keep `BattleResultRecordCommand.playersLine` as raw route/service input.
+- Convert raw players-line text to `BattlePlayersLine` in result service, file/Postgres parsing, and finish projection planning.
+- Unwrap only at route/file/Postgres/replay-projection boundaries.
+Architecture/domain-modeling impact:
+- Removes one raw domain summary text concept from battle result records without widening the API surface.
+Side-effect boundary impact:
+- No new side effects; serialization and projection boundaries explicitly unwrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleResultRecord.playersLine` no longer exposes raw `String`.
+- Result command input remains raw string.
+- Battle result route/file/Postgres output remains unchanged.
+- Projection to replay records remains behavior-compatible.
+- Focused and full backend contracts pass.
+Risks:
+- Replay records still store players lines as strings; unwrap there without broadening this ticket into replay domain modeling.
+
+Result:
+- Added `BattlePlayersLine`.
+- `BattleResultRecord.playersLine` now carries the typed participant summary.
+- `BattleResultRecordCommand.playersLine` remains raw `String` at the route/service input boundary.
+- Result service, file parser, Postgres mapper, and finish projection planning wrap raw players-line text.
+- Route/file/Postgres/replay-projection boundaries unwrap with `.value`, preserving existing JSON, storage fields, and replay behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed one raw battle-result domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model the battle timeline hint in `BattleResultRecord` as an explicit value type.
+
+## Completed Ticket
+
+ID: ID-481
+Goal: Model battle timeline hint as an explicit value type.
+Why this matters:
+- `BattleResultRecord.timelineHint` is a battle-result timeline summary, but it is currently stored as a raw `String` inside the battle result domain record.
+- A `BattleTimelineHint` value type keeps this summary concept explicit while preserving route/database/file wire compatibility.
+Allowed files or directories:
+- `backend/src/main/scala/slaydemo/backend/battle/objects/*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Result*`
+- `backend/src/main/scala/slaydemo/backend/battle/services/*Projection*`
+- `backend/src/main/scala/slaydemo/backend/battle/database/*BattleResult*`
+- `backend/src/main/scala/slaydemo/backend/battle/routes/*BattleResult*`
+- focused battle result/projection tests
+- `.codex/agent-state.md`
+Forbidden files or directories:
+- replay domain model changes beyond necessary projection unwrapping
+- database schema changes
+- HTTP request/response field-name changes
+- live battle runtime behavior
+- frontend implementation
+- `backend-legacy/**`
+- dependency/build configuration
+Expected change:
+- Add `BattleTimelineHint` value type.
+- Keep `BattleResultRecordCommand.timelineHint` as raw route/service input.
+- Convert raw timeline hints to `BattleTimelineHint` in result service, file/Postgres parsing, and finish projection planning.
+- Unwrap only at route/file/Postgres/replay-projection boundaries.
+Architecture/domain-modeling impact:
+- Removes one raw domain summary text concept from battle result records without widening the API surface.
+Side-effect boundary impact:
+- No new side effects; serialization and projection boundaries explicitly unwrap the value.
+Verification commands:
+- `sbt compile`
+- `sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest"`
+- `sbt "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- `BattleResultRecord.timelineHint` no longer exposes raw `String`.
+- Result command input remains raw string.
+- Battle result route/file/Postgres output remains unchanged.
+- Projection to replay records remains behavior-compatible.
+- Focused and full backend contracts pass.
+Risks:
+- Replay records still store timeline hints as strings; unwrap there without broadening this ticket into replay domain modeling.
+
+Result:
+- Added `BattleTimelineHint`.
+- `BattleResultRecord.timelineHint` now carries the typed timeline summary.
+- `BattleResultRecordCommand.timelineHint` remains raw `String` at the route/service input boundary.
+- Result service, file parser, Postgres mapper, and finish projection planning wrap raw timeline-hint text.
+- Route/file/Postgres/replay-projection boundaries unwrap with `.value`, preserving existing JSON, storage fields, and replay behavior.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest" "Test / runMain slaydemo.backend.battle.routes.BattleResultRouteContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionPlanContractTest" "Test / runMain slaydemo.backend.battle.services.BattleFinishProjectionWriteContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check` passed with CRLF warnings only.
+
+Self-review:
+- Primitive business types introduced: none; this ticket removed one raw battle-result domain `String`.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none.
+- Scope respected: yes.
+
+Next ticket:
+- Model battle current loadout as an explicit optional value type.
+
+## Current Ticket
+
+ID: ID-340
+Goal: Extract mail file JSON rendering from `FileMailRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database/FileMailRepository.scala`, new `backend/src/main/scala/slaydemo/backend/mail/database/MailFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: mail file parsing, file read/write/atomic move behavior, repository API semantics, mail services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure mail payload rendering, record rendering, nullable string rendering, and render-only escaping into a package-private renderer.
+- Leave `FileMailRepository` responsible for locking, in-memory state, disk I/O, parsing, owner-scoped keying, ordering, and filtering.
+- Preserve schema name, field names, enum wire values, null rendering, escaping, and output ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail file repository contract passes.
+- Persisted mail reload behavior remains unchanged.
+Risks:
+- Rendered JSON is persisted data; preserve nullable metadata and enum wire values exactly.
+
+Result:
+- Added `MailFileJsonRenderer.scala`.
+- Moved mail file payload rendering, record rendering, nullable string rendering, and render-only escaping out of `FileMailRepository.scala`.
+- `FileMailRepository` still owns locking, in-memory state, disk I/O, parsing, owner-scoped keying, ordering, and filtering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.MailServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond file-format strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract mail file JSON parsing from `FileMailRepository.scala`.
+
+## Current Ticket
+
+ID: ID-341
+Goal: Extract mail file JSON parsing from `FileMailRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database/FileMailRepository.scala`, new `backend/src/main/scala/slaydemo/backend/mail/database/MailFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: mail file rendering, file read/write/atomic move behavior, repository API semantics, owner-scoped keying/order/filter semantics, mail services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure mail-object extraction, record parsing, metadata parsing, field extraction, nullable parsing, boolean/number parsing, and parse-only unescaping into a package-private parser.
+- Leave `FileMailRepository` responsible for locking, in-memory state, disk I/O, owner-scoped keying, ordering, filtering, and map assembly.
+- Preserve permissive parse behavior, enum wire parsing, nullable metadata semantics, and string unescape behavior exactly.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from repository file I/O.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- `sbt compile`
+- focused mail service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Mail file repository contract passes.
+- Persisted mail reload behavior remains unchanged.
+Risks:
+- The parser is intentionally permissive and regex-based; do not tighten malformed payload handling in this ticket.
+
+## Current Ticket
+
+ID: ID-331
+Goal: Extract battle result Postgres row/bind mapping from `PostgresBattleResultRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/database/PostgresBattleResultRepository.scala`, new `backend/src/main/scala/slaydemo/backend/battle/database/PostgresBattleResultRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: SQL statements, DDL/schema definitions, repository API semantics, battle result services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move `BattleResultRecord` JDBC parameter binding, result-set mapping, and optional loadout/placement null handling into a package-private mapper.
+- Leave `PostgresBattleResultRepository` responsible for connection management, SQL choice, and query orchestration.
+- Preserve every bind index, selected column name, and null semantics exactly.
+Architecture/domain-modeling impact:
+- Separates JDBC mapping from repository orchestration inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- focused battle result service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle result service contract passes.
+- Backend contract runner remains green.
+- No SQL/DDL/query behavior changes.
+Risks:
+- Bind index/order and nullable columns are storage-facing; preserve them exactly.
+
+Result:
+- Added `PostgresBattleResultRecordMapper.scala`.
+- Moved `BattleResultRecord` JDBC parameter binding, result-set mapping, placement null detection, and current loadout null writing out of `PostgresBattleResultRepository.scala`.
+- `PostgresBattleResultRepository` still owns connection management, SQL selection, and query orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleResultServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC mapping remains in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract file bot profile JSON rendering from `FileBotProfileRepository.scala`.
+
+## Current Ticket
+
+ID: ID-332
+Goal: Extract bot profile file JSON rendering from `FileBotProfileRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/bots/database/FileBotProfileRepository.scala`, new `backend/src/main/scala/slaydemo/backend/bots/database/BotProfileFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot profile file parsing, file read/write/atomic move behavior, default seeding, repository API semantics, bot profile services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure bot profile payload rendering, record rendering, and render-only escaping into a package-private renderer.
+- Leave `FileBotProfileRepository` responsible for locking, in-memory state, default seeding, disk I/O, parsing, and ordering decisions.
+- Preserve schema name, field names, enum wire values, escaping, and output ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- `sbt compile`
+- focused bot profile service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Bot profile file repository contract passes.
+- Persisted bot profile reload behavior remains unchanged.
+Risks:
+- Rendered JSON is persisted data; preserve schema and escaping exactly.
+
+Result:
+- Added `BotProfileFileJsonRenderer.scala`.
+- Moved bot profile file payload rendering, record rendering, and render-only escaping out of `FileBotProfileRepository.scala`.
+- `FileBotProfileRepository` still owns locking, in-memory state, default seeding, disk I/O, parsing, and ordering.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BotProfileServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond file-format strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract bot profile file JSON parsing from `FileBotProfileRepository.scala`.
+
+## Current Ticket
+
+ID: ID-333
+Goal: Extract bot profile file JSON parsing from `FileBotProfileRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/bots/database/FileBotProfileRepository.scala`, new `backend/src/main/scala/slaydemo/backend/bots/database/BotProfileFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: bot profile file rendering, file read/write/atomic move behavior, default seeding, repository API semantics, bot profile services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure profile-object scanning, record parsing, tone parsing, field extraction, parse-only unescaping, and scan-state structure into a package-private parser.
+- Leave `FileBotProfileRepository` responsible for locking, in-memory state, default seeding, disk I/O, and map assembly.
+- Preserve permissive parse behavior, fallback profile order, tone fallback, and string unescape semantics exactly.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from repository file I/O.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- `sbt compile`
+- focused bot profile service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Bot profile file repository contract passes.
+- Persisted bot profile reload behavior remains unchanged.
+Risks:
+- The parser is intentionally permissive; do not tighten malformed payload handling in this ticket.
+
+Result:
+- Added `GovernanceFileJsonParser.scala`.
+- Moved adjustment/review-notification raw JSON array extraction, parsing, and parse-only unescaping out of `FileGovernanceRepository.scala`.
+- `FileGovernanceRepository` still owns locking, in-memory maps, file I/O, sort decisions, and id counters.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond parse boundary strings/numbers.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-325
+Goal: Extract battle runtime finish state rules from `BattleStateService.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/services/BattleStateService.scala`, new `backend/src/main/scala/slaydemo/backend/battle/services/BattleRuntimeFinishRules.scala`, `.codex/agent-state.md`.
+Forbidden scope: projection lifecycle, synchronized battle storage, command handling, projectile/weapon/skill/pickup behavior, route/API JSON rendering, frontend, database/schema/data changes, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure battle-finished predicate, finished-state construction, and room finished timestamp calculation into a package-private rules object.
+- Leave `InMemoryBattleStateService` responsible for tick orchestration, room lifecycle sink calls, projection, and mutable storage.
+- Preserve winner selection, replay final frame, elapsed/tick calculation, and finishedAt semantics exactly.
+Architecture/domain-modeling impact:
+- Reduces `BattleStateService` god-service pressure by separating pure finish transition rules.
+- Keeps state transitions immutable old state -> new state.
+Side-effect boundary impact:
+- None; finish rules are pure and room lifecycle side effect remains in the service.
+Verification:
+- focused battle state runtime contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Battle state runtime contract passes.
+- Finish projection and room lifecycle contracts remain green through full backend contracts.
+Risks:
+- Finish state is replay/result visible; preserve final replay frame and winner semantics exactly.
+
+Result:
+- Added `BattleRuntimeFinishRules.scala`.
+- Moved pure battle-finished predicate, finished-state construction, and room finished timestamp calculation out of `BattleStateService.scala`.
+- `InMemoryBattleStateService` still owns tick orchestration, room lifecycle sink side effects, projection, and mutable storage.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.BattleStateRuntimeContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none; finish transition remains immutable state copy.
+- Side effects inside domain: none; room lifecycle notification remains in the service.
+- Scope respected: yes.
+
+Next ticket:
+- Extract Postgres forum schema initialization.
+
+## Current Ticket
+
+ID: ID-326
+Goal: Extract Postgres forum schema initialization from `PostgresForumRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/PostgresForumSchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: query SQL outside schema initialization, repository API semantics, transaction boundaries, forum services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move forum table/index creation statements into a package-private schema initializer.
+- Leave `PostgresForumRepository` responsible for repository operations and query orchestration.
+- Preserve every DDL statement exactly.
+Architecture/domain-modeling impact:
+- Separates database schema bootstrap from repository behavior inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Schema side effects remain in database adapter code and are explicitly named.
+Verification:
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Backend contract runner remains green.
+- No DDL/query behavior changes.
+Risks:
+- DDL is storage-facing; preserve table/index names and columns exactly.
+
+Result:
+- Added `PostgresForumSchema.scala`.
+- Moved forum table/index creation statements out of `PostgresForumRepository.scala`.
+- `PostgresForumRepository` still owns repository operations, query SQL, transactions, and result assembly.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; schema side effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract Postgres replay schema initialization.
+
+## Current Ticket
+
+ID: ID-327
+Goal: Extract Postgres replay schema initialization from `PostgresReplayRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplaySchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: query SQL outside schema initialization, repository API semantics, transaction boundaries, replay services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move replay table/index creation, add-column migration definitions, and schema helper into a package-private schema initializer.
+- Leave `PostgresReplayRepository` responsible for repository operations, transactions, and query orchestration.
+- Preserve every DDL statement, column definition, and index exactly.
+Architecture/domain-modeling impact:
+- Separates database schema bootstrap from repository behavior inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Schema side effects remain in database adapter code and are explicitly named.
+Verification:
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Backend contract runner remains green.
+- No DDL/query behavior changes.
+Risks:
+- DDL is storage-facing; preserve table/index names, column defaults, and migration definitions exactly.
+
+Result:
+- Added `PostgresReplaySchema.scala`.
+- Moved replay table/index creation, add-column migration definitions, and schema helper out of `PostgresReplayRepository.scala`.
+- `PostgresReplayRepository` still owns repository operations, query SQL, transactions, and result assembly.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; schema side effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend database adapters for narrow schema extraction.
+
+## Current Ticket
+
+ID: ID-328
+Goal: Extract Postgres governance schema initialization from `PostgresGovernanceRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/PostgresGovernanceRepository.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/PostgresGovernanceSchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: query SQL outside schema initialization, repository API semantics, row mapping, governance services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move governance table/index creation and add-column statements into a package-private schema initializer.
+- Leave `PostgresGovernanceRepository` responsible for repository operations, query SQL, and result mapping.
+- Preserve every DDL statement exactly.
+Architecture/domain-modeling impact:
+- Separates database schema bootstrap from repository behavior inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Schema side effects remain in database adapter code and are explicitly named.
+Verification:
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Backend contract runner remains green.
+- No DDL/query behavior changes.
+Risks:
+- DDL is storage-facing; preserve table/index names and column defaults exactly.
+
+Result:
+- Added `PostgresGovernanceSchema.scala`.
+- Moved governance table/index creation and add-column statements out of `PostgresGovernanceRepository.scala`.
+- `PostgresGovernanceRepository` still owns repository operations, query SQL, and result mapping.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; schema side effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining Postgres adapters for narrow schema extraction.
+
+## Current Ticket
+
+ID: ID-329
+Goal: Extract Postgres mail schema initialization from `PostgresMailRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/mail/database/PostgresMailRepository.scala`, new `backend/src/main/scala/slaydemo/backend/mail/database/PostgresMailSchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: query SQL outside schema initialization, repository API semantics, row mapping, mail services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move mails table creation, required column migration definitions, primary key migration block, and index creation into a package-private schema initializer.
+- Leave `PostgresMailRepository` responsible for repository operations, query SQL, and row mapping.
+- Preserve every DDL statement, column definition, and index exactly.
+Architecture/domain-modeling impact:
+- Separates database schema bootstrap from repository behavior inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Schema side effects remain in database adapter code and are explicitly named.
+Verification:
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Backend contract runner remains green.
+- No DDL/query behavior changes.
+Risks:
+- DDL is storage-facing; preserve composite primary key migration and column defaults exactly.
+
+Result:
+- Added `PostgresMailSchema.scala`.
+- Moved mails table creation, required column migration definitions, composite primary key migration, and index creation out of `PostgresMailRepository.scala`.
+- `PostgresMailRepository` still owns repository operations, query SQL, and row mapping.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; schema side effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Extract Postgres battle result schema initialization.
+
+## Current Ticket
+
+ID: ID-330
+Goal: Extract Postgres battle result schema initialization from `PostgresBattleResultRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/battle/database/PostgresBattleResultRepository.scala`, new `backend/src/main/scala/slaydemo/backend/battle/database/PostgresBattleResultSchema.scala`, `.codex/agent-state.md`.
+Forbidden scope: query SQL outside schema initialization, repository API semantics, row mapping, battle result services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move battle_results table creation, required column migration definitions, primary key migration block, and index creation into a package-private schema initializer.
+- Leave `PostgresBattleResultRepository` responsible for repository operations, query SQL, and row mapping.
+- Preserve every DDL statement, column definition, and index exactly.
+Architecture/domain-modeling impact:
+- Separates database schema bootstrap from repository behavior inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- Schema side effects remain in database adapter code and are explicitly named.
+Verification:
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Backend contract runner remains green.
+- No DDL/query behavior changes.
+Risks:
+- DDL is storage-facing; preserve result id primary key migration and column defaults exactly.
+
+Result:
+- Added `PostgresBattleResultSchema.scala`.
+- Moved `battle_results` table creation, required column migrations, result id backfill/not-null enforcement, primary key migration, and index creation out of `PostgresBattleResultRepository.scala`.
+- `PostgresBattleResultRepository` still owns repository operations, query SQL, row binding, and row mapping.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond database schema strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; DDL effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and choose the next narrow database adapter or service extraction ticket.
+
+## Current Ticket
+
+ID: ID-322
+Goal: Extract replay Postgres row/bind mapping from `PostgresReplayRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRepository.scala`, new `backend/src/main/scala/slaydemo/backend/replay/database/PostgresReplayRecordMapper.scala`, `.codex/agent-state.md`.
+Forbidden scope: SQL statements, DDL/schema definitions, transaction boundaries, repository API semantics, replay services/routes, database data/migrations, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move replay record binding, settlement/comment/result-set reading, optional column/bind helpers, and frames JSON base64 helpers into a package-private mapper.
+- Leave `PostgresReplayRepository` responsible for connection management, SQL choice, transactions, and query orchestration.
+- Preserve every column name, bind order, optional null semantics, and base64 behavior exactly.
+Architecture/domain-modeling impact:
+- Separates JDBC row mapping from repository orchestration inside the database adapter layer.
+- No domain model changes.
+Side-effect boundary impact:
+- JDBC statement/result-set effects remain in database adapter code and are named explicitly.
+Verification:
+- `sbt compile`
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Backend contract runner remains green.
+- No SQL/DDL/query behavior changes.
+Risks:
+- Bind order and column names are database-facing; preserve them exactly.
+
+Result:
+- Added `PostgresReplayRecordMapper.scala`.
+- Moved replay record binding, settlement/comment/result-set reading, optional bind/read helpers, and frames JSON base64 helpers out of `PostgresReplayRepository.scala`.
+- `PostgresReplayRepository` still owns SQL, DDL, transactions, connection management, and query orchestration.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt compile`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond JDBC boundary columns.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; JDBC effects remain in database adapter code.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and choose the next narrow database adapter ticket.
+
+## Current Ticket
+
+ID: ID-323
+Goal: Extract forum file payload JSON rendering from `FileForumRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/FileForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/ForumFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum file parsing, file read/write/atomic move behavior, repository API semantics, forum services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure topic/reply/topic-vote/reply-vote payload rendering and render-only base64 encoding into a package-private renderer.
+- Leave `FileForumRepository` responsible for locking, in-memory state, disk I/O, parsing, id counters, and sort decisions.
+- Preserve schema name, field names, base64 URL encoding, vote ordering, and output ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- focused forum service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service file repository contract passes.
+- Persisted topic/reply/vote round trip behavior remains unchanged.
+Risks:
+- Rendered JSON is persisted data; preserve schema and encoded field semantics exactly.
+
+Result:
+- Added `ForumFileJsonRenderer.scala`.
+- Moved forum topic/reply/topic-vote/reply-vote payload rendering and render-only base64 URL encoding out of `FileForumRepository.scala`.
+- `FileForumRepository` still owns sorting, locking, file I/O, parsing, and id counters.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond file-format strings.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract forum file payload JSON parsing from `FileForumRepository.scala`.
+
+## Current Ticket
+
+ID: ID-324
+Goal: Extract forum file payload JSON parsing from `FileForumRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/forum/database/FileForumRepository.scala`, new `backend/src/main/scala/slaydemo/backend/forum/database/ForumFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: forum file rendering, file read/write/atomic move behavior, repository API semantics, forum services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure raw JSON array extraction, topic/reply/topic-vote/reply-vote parsing, and parse-only base64 decoding into a package-private parser.
+- Leave `FileForumRepository` responsible for locking, in-memory state, disk I/O, id counters, sort decisions, and aggregate assembly.
+- Preserve permissive legacy parse behavior and `threadId` fallback support.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from repository file I/O.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- focused forum service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Forum service file repository contract passes.
+- Persisted topic/reply/vote reload behavior remains unchanged.
+Risks:
+- The parser is intentionally permissive and supports legacy `threadId`; do not tighten or remove compatibility in this ticket.
+
+Result:
+- Added `ForumFileJsonParser.scala`.
+- Moved forum topic/reply/topic-vote/reply-vote raw JSON extraction, parsing, and parse-only base64 URL decoding out of `FileForumRepository.scala`.
+- `FileForumRepository` still owns locking, in-memory maps, file I/O, aggregate assembly, sort decisions, and id counters.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ForumServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond parse boundary strings/numbers.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and choose the next narrow architecture ticket.
+
+Result:
+- Added `ReplayFileJsonParser.scala`.
+- Moved replay file raw JSON array extraction, replay/comment/settlement parsing, base64 frames decoding, and parse-only helpers out of `FileReplayRepository.scala`.
+- `FileReplayRepository` still owns locking, in-memory maps, file I/O, comment id counter, and settlement attachment/sorting.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.ReplayServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none beyond parse boundary strings/numbers.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; parser is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Reassess remaining backend large files and choose the next narrow architecture ticket.
+
+## Current Ticket
+
+ID: ID-320
+Goal: Extract governance file payload JSON rendering from `FileGovernanceRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/FileGovernanceRepository.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/GovernanceFileJsonRenderer.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance file parsing, file read/write/atomic move behavior, repository API semantics, governance services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure contribution-adjustment and review-notification payload rendering plus render-only escaping into a package-private renderer.
+- Leave `FileGovernanceRepository` responsible for locking, in-memory state, disk I/O, parsing, id counters, and sort decisions.
+- Preserve schema names, field names, enum wire values, escaping, and output ordering exactly.
+Architecture/domain-modeling impact:
+- Separates pure serialization from the file repository side-effect boundary.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; renderer has no side effects.
+Verification:
+- focused governance service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service file repository contract passes.
+- Persisted adjustment/review notification round trip behavior remains unchanged.
+Risks:
+- Rendered JSON is persisted data; preserve schema and enum wire values exactly.
+
+Result:
+- Added `GovernanceFileJsonRenderer.scala`.
+- Moved contribution-adjustment and review-notification file payload rendering plus render-only escaping out of `FileGovernanceRepository.scala`.
+- `FileGovernanceRepository` still owns sorting, locking, file I/O, parsing, and id counters.
+
+Verification passed:
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; cd backend; sbt "Test / runMain slaydemo.backend.GovernanceServiceContractTest"`
+- `$env:SBT_OPTS='-Dsbt.server.forcestart=true'; npm run backend:test-contracts`
+- `git diff --check`
+
+Self-review:
+- Primitive business types introduced: none.
+- Boolean business results introduced: none.
+- Domain mutation introduced: none.
+- Side effects inside domain: none; renderer is pure.
+- Scope respected: yes.
+
+Next ticket:
+- Extract governance file payload JSON parsing from `FileGovernanceRepository.scala`.
+
+## Current Ticket
+
+ID: ID-321
+Goal: Extract governance file payload JSON parsing from `FileGovernanceRepository.scala`.
+Allowed scope: `backend/src/main/scala/slaydemo/backend/governance/database/FileGovernanceRepository.scala`, new `backend/src/main/scala/slaydemo/backend/governance/database/GovernanceFileJsonParser.scala`, `.codex/agent-state.md`.
+Forbidden scope: governance file rendering, file read/write/atomic move behavior, repository API semantics, governance services/routes, database/schema/data changes, frontend, tests unless compile exposes a narrow issue, git commit/push.
+Expected change:
+- Move pure raw JSON array/object extraction, adjustment parsing, review notification parsing, and parse-only unescaping into a package-private parser.
+- Leave `FileGovernanceRepository` responsible for locking, in-memory state, disk I/O, id counters, and sort decisions.
+- Preserve permissive legacy parse behavior for malformed/missing fields.
+Architecture/domain-modeling impact:
+- Separates pure deserialization from repository file I/O.
+- No domain model changes.
+Side-effect boundary impact:
+- File I/O remains in repository; parser has no side effects.
+Verification:
+- focused governance service contract
+- `npm run backend:test-contracts`
+- `git diff --check`
+Acceptance criteria:
+- Backend compiles.
+- Governance service file repository contract passes.
+- Persisted adjustment/review notification reload behavior remains unchanged.
+Risks:
+- The parser is intentionally permissive; do not tighten malformed payload handling in this ticket.

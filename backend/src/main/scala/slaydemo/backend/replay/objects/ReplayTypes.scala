@@ -1,10 +1,34 @@
 package slaydemo.backend.replay.objects
 
-import slaydemo.backend.battle.objects.{BattleId, DurationMillis, EpochMillis, Rating, Score}
+import slaydemo.backend.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Rating, RatingDelta, Score}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 
 final case class ReplayId(value: String) extends AnyVal
 final case class ReplayCommentId(value: String) extends AnyVal
+final case class ReplayTitle private (value: String) extends AnyVal
+final case class ReplayFramesJson private (value: String) extends AnyVal
+final case class ReplayFrameCount private (value: Int) extends AnyVal
+
+object ReplayTitle {
+  def fromWire(value: String): ReplayTitle =
+    new ReplayTitle(Option(value).getOrElse(""))
+}
+
+object ReplayFramesJson {
+  val empty: ReplayFramesJson =
+    new ReplayFramesJson("[]")
+
+  def fromNormalized(value: String): ReplayFramesJson =
+    new ReplayFramesJson(value)
+}
+
+object ReplayFrameCount {
+  val zero: ReplayFrameCount =
+    new ReplayFrameCount(0)
+
+  def fromWire(value: Int): ReplayFrameCount =
+    new ReplayFrameCount(math.max(0, value))
+}
 
 final case class ReplaySettlementRecord(
   handle: PlayerHandle,
@@ -12,13 +36,16 @@ final case class ReplaySettlementRecord(
   resultLabel: String,
   highlightLine: String,
   score: Score,
-  placement: Option[Int],
+  placement: Option[BattlePlacement],
   ratingBefore: Option[Rating],
-  ratingDelta: Option[Int],
+  ratingDelta: Option[RatingDelta],
   ratingAfter: Option[Rating],
-  aliveAtEnd: Boolean,
+  survivalOutcome: BattleSurvivalOutcome,
   currentLoadout: Option[String]
-)
+) {
+  def aliveAtEnd: Boolean =
+    BattleSurvivalOutcome.aliveAtEnd(survivalOutcome)
+}
 
 final case class ReplayRecord(
   replayId: ReplayId,
@@ -27,7 +54,7 @@ final case class ReplayRecord(
   displayName: DisplayName,
   finishedAt: EpochMillis,
   finishedAtLabel: String,
-  title: String,
+  title: ReplayTitle,
   modeLabel: String,
   resultLabel: String,
   mapLabel: String,
@@ -36,19 +63,25 @@ final case class ReplayRecord(
   playersLine: String,
   timelineHint: String,
   score: Score,
-  placement: Option[Int],
+  placement: Option[BattlePlacement],
   ratingBefore: Option[Rating],
-  ratingDelta: Option[Int],
+  ratingDelta: Option[RatingDelta],
   ratingAfter: Option[Rating],
   durationMs: DurationMillis,
-  aliveAtEnd: Boolean,
+  survivalOutcome: BattleSurvivalOutcome,
   thumbnailDataUrl: Option[String],
   currentLoadout: Option[String],
-  frameCount: Int,
-  playbackAvailable: Boolean,
-  framesJson: String,
+  frameCount: ReplayFrameCount,
+  playbackAvailability: ReplayPlaybackAvailability,
+  framesJson: ReplayFramesJson,
   settlements: Vector[ReplaySettlementRecord] = Vector.empty
 ) {
+  def aliveAtEnd: Boolean =
+    BattleSurvivalOutcome.aliveAtEnd(survivalOutcome)
+
+  def playbackAvailable: Boolean =
+    ReplayPlaybackAvailability.availableFlag(playbackAvailability)
+
   def settlementFor(handle: PlayerHandle): Option[ReplaySettlementRecord] =
     settlements.find(_.handle.key == handle.key)
 }

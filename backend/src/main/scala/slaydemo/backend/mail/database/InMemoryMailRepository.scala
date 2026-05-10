@@ -9,7 +9,7 @@ final class InMemoryMailRepository extends MailRepository {
 
   override def listByOwner(owner: PlayerHandle): Vector[MailRecord] =
     lock.synchronized {
-      recordsByOwner.getOrElse(owner.key, Vector.empty).sortBy(mail => -mail.createdAt.value)
+      recordsByOwner.getOrElse(owner.key, Vector.empty).sortBy(MailRepositoryOrderingRules.inMemoryListKey)
     }
 
   override def save(record: MailRecord): MailRecord = {
@@ -31,7 +31,7 @@ final class InMemoryMailRepository extends MailRepository {
         case -1 =>
           None
         case index =>
-          val updated = ownerRecords(index).copy(unread = false)
+          val updated = ownerRecords(index).markRead
           recordsByOwner = recordsByOwner.updated(owner.key, ownerRecords.updated(index, updated))
           Some(updated)
       }

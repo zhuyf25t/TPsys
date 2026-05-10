@@ -1,0 +1,102 @@
+package slaydemo.backend.social.routes
+
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+
+import slaydemo.backend.identity.objects.PlayerHandle
+import slaydemo.backend.shared.policies.HandlePolicy
+import slaydemo.backend.social.objects.{FriendRequestDecision, FriendRequestId}
+
+private[routes] object SocialCommandParsers {
+  def parseOwner(rawQuery: String): Either[SocialRouteHandleError, PlayerHandle] =
+    parseOwnerHandle(queryParams(rawQuery).get("ownerHandle"))
+
+  def parseCreateHandles(fields: Map[String, String]): Either[SocialRouteCreateError, SocialCreateHandles] =
+    parseCreateHandle(fields.get("sourceHandle")) match {
+      case Left(error) =>
+        Left(error)
+      case Right(source) =>
+        parseCreateHandle(fields.get("targetHandle")).map(target => SocialCreateHandles(source, target))
+    }
+
+  def parseRespondCommand(fields: Map[String, String]): Either[SocialRouteRespondError, SocialRespondCommand] =
+    FriendRequestDecision.fromWire(fields.getOrElse("decision", "")) match {
+      case None =>
+        Left(SocialRouteRespondError.InvalidDecision)
+      case Some(decision) =>
+        parseRequestId(fields.get("requestId")) match {
+          case Left(error) =>
+            Left(error)
+          case Right(requestId) =>
+            parseRespondActor(fields.get("actorHandle")).map(actor => SocialRespondCommand(requestId, actor, decision))
+        }
+    }
+
+  private def queryParams(rawQuery: String): Map[String, String] =
+    Option(rawQuery).toVector
+      .flatMap(_.split("&").toVector)
+      .flatMap { pair =>
+        pair.split("=", 2).toList match {
+          case key :: value :: Nil if key.nonEmpty => Some(decode(key) -> decode(value))
+          case key :: Nil if key.nonEmpty          => Some(decode(key) -> "")
+          case _                                   => None
+        }
+      }
+      .toMap
+
+  private def parseCreateHandle(value: Option[String]): Either[SocialRouteCreateError, PlayerHandle] = {
+    val trimmed = value.map(HandlePolicy.trim).getOrElse("")
+    if trimmed.isEmpty then Left(SocialRouteCreateError.InvalidHandles)
+    else if !HandlePolicy.isPlayableIdentityHandle(trimmed) then Left(SocialRouteCreateError.VisitorNotAllowed)
+    else PlayerHandle.forLookup(trimmed).toRight(SocialRouteCreateError.InvalidHandles)
+  }
+
+  private def parseOwnerHandle(value: Option[String]): Either[SocialRouteHandleError, PlayerHandle] = {
+    val trimmed = value.map(HandlePolicy.trim).getOrElse("")
+    if trimmed.isEmpty then Left(SocialRouteHandleError.Missing)
+    else if !HandlePolicy.isPlayableIdentityHandle(trimmed) then Left(SocialRouteHandleError.VisitorNotAllowed)
+    else PlayerHandle.forLookup(trimmed).toRight(SocialRouteHandleError.Invalid)
+  }
+
+  private def parseRequestId(value: Option[String]): Either[SocialRouteRespondError, FriendRequestId] =
+    value.map(_.trim).filter(_.nonEmpty).map(FriendRequestId.apply).toRight(SocialRouteRespondError.MissingFields)
+
+  private def parseRespondActor(value: Option[String]): Either[SocialRouteRespondError, PlayerHandle] = {
+    val trimmed = value.map(HandlePolicy.trim).getOrElse("")
+    if trimmed.isEmpty then Left(SocialRouteRespondError.MissingFields)
+    else if !HandlePolicy.isPlayableIdentityHandle(trimmed) then Left(SocialRouteRespondError.VisitorNotAllowed)
+    else PlayerHandle.forLookup(trimmed).toRight(SocialRouteRespondError.InvalidActorHandle)
+  }
+
+  private def decode(value: String): String =
+    URLDecoder.decode(value, StandardCharsets.UTF_8)
+}
+
+private[routes] final case class SocialCreateHandles(
+  sourceHandle: PlayerHandle,
+  targetHandle: PlayerHandle
+)
+
+private[routes] final case class SocialRespondCommand(
+  requestId: FriendRequestId,
+  actorHandle: PlayerHandle,
+  decision: FriendRequestDecision
+)
+
+private[routes] enum SocialRouteHandleError {
+  case Missing
+  case VisitorNotAllowed
+  case Invalid
+}
+
+private[routes] enum SocialRouteCreateError {
+  case InvalidHandles
+  case VisitorNotAllowed
+}
+
+private[routes] enum SocialRouteRespondError {
+  case InvalidDecision
+  case MissingFields
+  case InvalidActorHandle
+  case VisitorNotAllowed
+}

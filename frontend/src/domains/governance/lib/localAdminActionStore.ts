@@ -1,5 +1,5 @@
 import { isBuiltinAdminHandle } from "../../identity/api/authGateway";
-import { appendMailNotification } from "../../mail/local/localMailNotificationStore";
+import { appendMailNotification } from "../../mail/lib/localMailNotificationStore";
 
 const STORAGE_KEY = "slay-demo.governance.admin-actions.v1";
 

@@ -10,6 +10,7 @@
     "backend:test-contracts": "cd backend && sbt \"Test / runMain slaydemo.backend.BackendContractTestRunner\"",
     "audit:battle-content": "node scripts/audit-battle-content-contract.mjs",
     "audit:battle-contracts": "npm run audit:battle-content",
+    "audit:frontend-structure": "node scripts/audit-frontend-domain-structure.mjs",
     "audit:data-closure": "node scripts/audit-data-closure.mjs",
     "data:closure-repair-plan": "node scripts/plan-data-closure-repair.mjs",
     "data:closure-cleanup": "node scripts/cleanup-data-closure.mjs",

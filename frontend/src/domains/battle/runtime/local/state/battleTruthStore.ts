@@ -1,6 +1,6 @@
 import type { GameSnapshot, Hero } from "../../../objects/types";
 import type { ReplayFrame } from "../../../../replay/objects/replayTypes";
-import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../../../../replay/local/localReplayStore";
+import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../../../../replay/lib/localReplayStore";
 import { compactReplayFrames, hasMeaningfulReplayFrames } from "../../../../replay/objects/replayRecorder";
 import { getCurrentAuthHandle, getCurrentAuthUser } from "../../../../identity/api/authGateway";
 import {

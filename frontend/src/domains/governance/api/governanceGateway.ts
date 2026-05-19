@@ -1,5 +1,5 @@
 import { buildApiUrl, normalizeApiBase } from "../../../shared/api/apiUrl";
-import { type ContributionAdjustmentRecord, type ContributionAdjustmentResult } from "../local/localAdminActionStore";
+import { type ContributionAdjustmentRecord, type ContributionAdjustmentResult } from "../lib/localAdminActionStore";
 
 const GOVERNANCE_API_BASE = normalizeApiBase(
   import.meta.env.VITE_GOVERNANCE_API_BASE ?? import.meta.env.VITE_AUTH_API_BASE ?? "",

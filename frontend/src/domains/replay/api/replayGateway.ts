@@ -1,4 +1,4 @@
-import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../local/localReplayStore";
+import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../lib/localReplayStore";
 import {
   REPLAY_PERSIST_FRAME_LIMIT,
   compactReplayFrames,

@@ -1,7 +1,6 @@
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
 import { App } from "./app/App";
-import { AppErrorBoundary } from "./shared/ui/AppErrorBoundary";
+import { AppProviders } from "./app/providers/AppProviders";
 import { sanitizeStartupStorage } from "./shared/storage/startupStorageSanitizer";
 import "./app/styles.css";
 
@@ -14,9 +13,7 @@ if (!appElement) {
 sanitizeStartupStorage();
 
 ReactDOM.createRoot(appElement).render(
-  <AppErrorBoundary>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </AppErrorBoundary>
+  <AppProviders>
+    <App />
+  </AppProviders>
 );

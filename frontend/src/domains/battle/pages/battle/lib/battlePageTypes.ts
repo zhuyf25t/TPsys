@@ -1,0 +1,45 @@
+import type { GameSnapshot } from "../../../objects/types";
+import type { ReplayFrame } from "../../../../replay/objects/replayTypes";
+import { BATTLE_MATCHMAKING_DURATION_MS } from "../../../objects/battleRules";
+
+export const MATCHMAKING_DURATION_MS = BATTLE_MATCHMAKING_DURATION_MS;
+
+export type MatchPhase = "matching" | "playing" | "settled";
+export type BattleDrawerId = "replay" | "discussion" | "rating" | "mails" | "social";
+
+export interface ActiveBattleSessionOwner {
+  handle: string;
+  sessionToken: string | null;
+}
+
+export interface ActiveBattleSession {
+  version: 1;
+  owner: ActiveBattleSessionOwner;
+  sessionEpoch?: string;
+  battleId: string;
+  sharedAuthoritativeRuntime?: boolean;
+  localAuthoritativePlayerId?: string;
+  localAuthoritativeTicketId?: string;
+  savedAt: number;
+  snapshot: GameSnapshot;
+  replayFrames: ReplayFrame[];
+  lastReplaySampleElapsed: number | null;
+}
+
+export const QUICK_LEFT: Array<{ id: BattleDrawerId; label: string; iconKey: "replay" | "discussion" | "ranking" }> = [
+  { id: "replay", label: "回放", iconKey: "replay" },
+  { id: "discussion", label: "论坛", iconKey: "discussion" },
+  { id: "rating", label: "排行", iconKey: "ranking" }
+];
+
+export const QUICK_RIGHT: Array<{ id: BattleDrawerId; label: string; iconKey: "mails" | "social" }> = [
+  { id: "mails", label: "邮件", iconKey: "mails" },
+  { id: "social", label: "好友", iconKey: "social" }
+];
+
+export function formatMatchmakingTime(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}

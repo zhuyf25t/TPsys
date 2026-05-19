@@ -1,0 +1,84 @@
+import { useSyncExternalStore } from "react";
+import { getCurrentAuthUser, subscribeAuthState } from "../../../../identity/api/authGateway";
+import { fetchDiscussionSummaries, getDiscussionSummaries } from "../../../../forum/api/forumGateway";
+import {
+  getLoadoutPresets,
+  getLoadoutStateVersion,
+  getLoadoutSummary,
+  setLoadoutPreset,
+  subscribeLoadoutState
+} from "../../../api/loadoutGateway";
+import {
+  getMailSummaries,
+  isRemoteMailSourceConfigured,
+  loadMergedMailSummaries,
+  MAIL_SUMMARIES_CHANGED_EVENT,
+  REMOTE_MAIL_REFRESH_INTERVAL_MS
+} from "../../../../mail/api/mailsGateway";
+import { getRatingEntries, loadRatingEntries } from "../../../../governance/api/ratingGateway";
+import { getReplaySummaries, loadReplaySummaries } from "../../../../replay/api/replayGateway";
+import {
+  FRIEND_REQUESTS_CHANGED_EVENT,
+  getCachedFriendRequests,
+  loadRemoteFriendRequests,
+  REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS
+} from "../../../../social/api/friendRequestGateway";
+import { buildFriendRequestPreview } from "../../../../social/components/friend-requests/friendRequestPreviewPresenter";
+import { useLobbyData } from "../../../../../shared/ui/useLobbyData";
+import type { MatchPhase } from "./battlePageTypes";
+
+interface UseBattlePageDataOptions {
+  matchPhase: MatchPhase;
+  matchNonce: number;
+}
+
+export function useBattlePageData({ matchPhase, matchNonce }: UseBattlePageDataOptions) {
+  const currentUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
+  useSyncExternalStore(subscribeLoadoutState, getLoadoutStateVersion, getLoadoutStateVersion);
+  const loadout = getLoadoutSummary();
+  const presets = getLoadoutPresets();
+  const replaySummaries = useLobbyData(() => getReplaySummaries(), loadReplaySummaries, []);
+  const discussionSummaries = useLobbyData(() => getDiscussionSummaries(), fetchDiscussionSummaries, []);
+  const mailOwnerHandle = currentUser?.handle;
+  const shouldRefreshRemoteMail = isRemoteMailSourceConfigured() && Boolean(mailOwnerHandle?.trim());
+  const mailSummaries = useLobbyData(
+    () => getMailSummaries(mailOwnerHandle),
+    () => loadMergedMailSummaries(mailOwnerHandle),
+    [mailOwnerHandle],
+    {
+      refreshIntervalMs: shouldRefreshRemoteMail ? REMOTE_MAIL_REFRESH_INTERVAL_MS : 0,
+      refreshOnFocus: shouldRefreshRemoteMail,
+      refreshEvents: [MAIL_SUMMARIES_CHANGED_EVENT]
+    }
+  );
+  const unreadMailCount = mailSummaries.filter((mail) => mail.unread).length;
+  const friendRequestOwnerHandle = currentUser?.handle;
+  const friendRequestAuthKey = currentUser ? `${currentUser.handle}:${currentUser.sessionToken ?? ""}` : "guest";
+  const friendRequests = useLobbyData(
+    () => getCachedFriendRequests(friendRequestOwnerHandle),
+    () => loadRemoteFriendRequests(friendRequestOwnerHandle),
+    [friendRequestOwnerHandle, friendRequestAuthKey, matchPhase, matchNonce],
+    {
+      enabled: Boolean(friendRequestOwnerHandle?.trim()),
+      refreshIntervalMs: friendRequestOwnerHandle?.trim() ? REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS : 0,
+      refreshOnFocus: Boolean(friendRequestOwnerHandle?.trim()),
+      refreshEvents: [FRIEND_REQUESTS_CHANGED_EVENT]
+    }
+  );
+  const friendRequestPreview = buildFriendRequestPreview(friendRequests, friendRequestOwnerHandle);
+  const ratingEntries = useLobbyData(() => getRatingEntries(), loadRatingEntries, [matchPhase, matchNonce]);
+
+  return {
+    currentUser,
+    loadout,
+    presets,
+    replaySummaries,
+    discussionSummaries,
+    mailSummaries,
+    ratingEntries,
+    unreadMailCount,
+    friendRequests,
+    friendRequestPreview,
+    onPresetChange: setLoadoutPreset
+  };
+}

@@ -24,6 +24,7 @@ import {
 import { UserActionDot } from "../../../social/components/user-action-dot/UserActionDot";
 import { ShellLayout } from "../../../../shared/ui/ShellLayout";
 
+/** 中文名：mailspage（MailsPage）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function MailsPage() {
   const currentUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   const remoteMailSource = isRemoteMailSourceConfigured();

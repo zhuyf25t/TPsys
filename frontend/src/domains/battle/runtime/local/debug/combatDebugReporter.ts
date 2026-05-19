@@ -91,6 +91,7 @@ export class CombatDebugReporter {
   }
 }
 
+/** 中文名：构建combatdebuglines（buildCombatDebugLines）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildCombatDebugLines(input: CombatDebugLinesInput): string[] {
   return [
     `滚轮事件：${input.wheelPhaserReceived ? "Phaser已收到" : "Phaser未收到"} · ${

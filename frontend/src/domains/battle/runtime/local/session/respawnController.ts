@@ -5,6 +5,7 @@ export interface AdvanceRespawnTimersInput {
   deltaMs: number;
 }
 
+/** 中文名：推进respawntimers（advanceRespawnTimers）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function advanceRespawnTimers(input: AdvanceRespawnTimersInput): Hero[] {
   const readyHeroes: Hero[] = [];
   const deltaMs = Math.max(0, input.deltaMs);
@@ -34,6 +35,7 @@ export interface RespawnHeroStateResult {
   displayName: string;
 }
 
+/** 中文名：构建respawn英雄状态（buildRespawnHeroState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildRespawnHeroState(input: RespawnHeroStateInput): RespawnHeroStateResult {
   input.hero.position = { x: input.spawn.x, y: input.spawn.y };
   input.hero.hp = input.hero.maxHp;

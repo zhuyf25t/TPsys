@@ -78,6 +78,7 @@ export interface AuthoritativeLocalHeroPendingBlinkPrediction {
   readonly mismatchAllowedUntilMs: number;
 }
 
+/** 中文名：解析authoritative本地英雄回放目标（resolveAuthoritativeLocalHeroReplayTarget）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAuthoritativeLocalHeroReplayTarget({
   authoritativePosition,
   worldSize,

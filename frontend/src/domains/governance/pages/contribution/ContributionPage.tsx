@@ -12,6 +12,7 @@ import { ShellLayout } from "../../../../shared/ui/ShellLayout";
 import { UserActionDot } from "../../../social/components/user-action-dot/UserActionDot";
 import { useLobbyData } from "../../../../shared/ui/useLobbyData";
 
+/** 中文名：贡献page（ContributionPage）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function ContributionPage() {
   const authUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   const shouldRefreshRemoteContribution = isRemoteContributionSourceConfigured();

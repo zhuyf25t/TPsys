@@ -19,6 +19,7 @@ interface StoredReplayPlaybackState {
   replays: ReplayPlayback[];
 }
 
+/** 中文名：保存本地回放playback（saveLocalReplayPlayback）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function saveLocalReplayPlayback(playback: ReplayPlayback): void {
   if (typeof window === "undefined") {
     return;
@@ -38,6 +39,7 @@ export function saveLocalReplayPlayback(playback: ReplayPlayback): void {
   });
 }
 
+/** 中文名：获取本地回放playbackby标识（getLocalReplayPlaybackById）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function getLocalReplayPlaybackById(id: string): ReplayPlayback | undefined {
   const normalizedId = id.trim();
   if (!normalizedId) {

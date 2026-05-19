@@ -9,6 +9,7 @@ export interface BlinkTargetValidityInput {
   obstacleBounds: readonly SceneGeometryObstacleBounds[];
 }
 
+/** 中文名：判断是否blink目标valid（isBlinkTargetValid）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isBlinkTargetValid(input: BlinkTargetValidityInput): boolean {
   return isMotionTargetPointValid({
     target: input.target,

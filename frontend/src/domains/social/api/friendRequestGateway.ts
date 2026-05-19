@@ -78,11 +78,13 @@ interface RemoteFriendRequestListResponse {
   requests?: unknown[];
 }
 
+/** 中文名：获取好友请求状态（getFriendRequestStatus）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function getFriendRequestStatus(sourceHandle: string, targetHandle: string): FriendRequestRecord | null {
   const key = friendRequestKey(sourceHandle, targetHandle);
   return remoteFriendRequestStatus.get(key) ?? null;
 }
 
+/** 中文名：获取cached好友requests（getCachedFriendRequests）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function getCachedFriendRequests(ownerHandle?: string | null): FriendRequestRecord[] {
   const resolvedOwner = resolveVisibleOwner(ownerHandle);
   const cached = remoteFriendRequestCache;

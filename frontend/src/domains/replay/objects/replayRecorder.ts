@@ -15,10 +15,12 @@ export interface ReplayFrameContinuity {
   isContinuous: boolean;
 }
 
+/** 中文名：shouldcapture回放帧（shouldCaptureReplayFrame）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function shouldCaptureReplayFrame(lastCapturedElapsedMs: number | null, elapsedMs: number): boolean {
   return lastCapturedElapsedMs === null || elapsedMs - lastCapturedElapsedMs >= REPLAY_SAMPLE_INTERVAL_MS;
 }
 
+/** 中文名：构建回放帧（buildReplayFrame）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function buildReplayFrame(snapshot: GameSnapshot): ReplayFrame {
   return {
     elapsedMs: snapshot.elapsedMs,
@@ -33,6 +35,7 @@ export function buildReplayFrame(snapshot: GameSnapshot): ReplayFrame {
   };
 }
 
+/** 中文名：判断是否有meaningful回放frames（hasMeaningfulReplayFrames）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function hasMeaningfulReplayFrames(frames: ReplayFrame[]): boolean {
   if (!Array.isArray(frames) || frames.length < 2) {
     return false;
@@ -56,6 +59,7 @@ export function hasMeaningfulReplayFrames(frames: ReplayFrame[]): boolean {
   return false;
 }
 
+/** 中文名：判断是否有回放帧visualdelta（hasReplayFrameVisualDelta）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function hasReplayFrameVisualDelta(previousFrame: ReplayFrame | null | undefined, nextFrame: ReplayFrame | null | undefined): boolean {
   if (!previousFrame || !nextFrame) {
     return true;
@@ -64,6 +68,7 @@ export function hasReplayFrameVisualDelta(previousFrame: ReplayFrame | null | un
   return buildReplayFramePlaybackSignature(previousFrame) !== buildReplayFramePlaybackSignature(nextFrame);
 }
 
+/** 中文名：compact回放frames（compactReplayFrames）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function compactReplayFrames(frames: ReplayFrame[], limit = REPLAY_PERSIST_FRAME_LIMIT): ReplayFrame[] {
   if (!Array.isArray(frames) || frames.length === 0 || limit <= 0) {
     return [];
@@ -81,6 +86,7 @@ export function compactReplayFrames(frames: ReplayFrame[], limit = REPLAY_PERSIS
   return sampleReplayFrames(chronologicalFrames, limit);
 }
 
+/** 中文名：finalize回放frames（finalizeReplayFrames）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function finalizeReplayFrames(frames: ReplayFrame[], finalSnapshot: GameSnapshot): ReplayFrame[] {
   const finalFrame = buildReplayFrame(finalSnapshot);
   const chronologicalFrames = normalizeReplayFrameOrder(frames);
@@ -88,6 +94,7 @@ export function finalizeReplayFrames(frames: ReplayFrame[], finalSnapshot: GameS
   return [...framesBeforeFinal.map((frame) => cloneReplayFrame(frame)), finalFrame];
 }
 
+/** 中文名：规范化回放framesforplayback（normalizeReplayFramesForPlayback）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function normalizeReplayFramesForPlayback(frames: ReplayFrame[], limit = REPLAY_PERSIST_FRAME_LIMIT): ReplayFrame[] {
   if (!Array.isArray(frames) || frames.length === 0 || limit <= 0) {
     return [];
@@ -101,6 +108,7 @@ export function normalizeReplayFramesForPlayback(frames: ReplayFrame[], limit = 
   return retimeReplayFramesForPlayback(chronologicalFrames);
 }
 
+/** 中文名：analyze回放帧continuity（analyzeReplayFrameContinuity）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function analyzeReplayFrameContinuity(
   frames: ReplayFrame[],
   expectedDurationMs?: number,

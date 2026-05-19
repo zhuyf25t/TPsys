@@ -19,6 +19,7 @@ export interface MinimapPresenterInput {
   obstacleBounds: readonly MinimapObstacleBounds[];
 }
 
+/** 中文名：创建minimap数据（createMinimapData）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createMinimapData(input: MinimapPresenterInput): HudMinimapData {
   const { snapshot, cameraRect, obstacleBounds } = input;
   const clampedCameraX = clamp(cameraRect.x, 0, snapshot.worldSize.x);

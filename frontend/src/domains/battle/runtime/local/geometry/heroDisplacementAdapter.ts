@@ -36,10 +36,12 @@ function applyHeroDisplacement(
   }
 }
 
+/** 中文名：应用recoildisplacement（applyRecoilDisplacement）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyRecoilDisplacement(input: HeroDisplacementInput): void {
   applyHeroDisplacement(resolveRecoilDestination, input);
 }
 
+/** 中文名：应用knockbackdisplacement（applyKnockbackDisplacement）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyKnockbackDisplacement(input: HeroDisplacementInput): void {
   applyHeroDisplacement(resolveKnockbackDestination, input);
 }

@@ -35,6 +35,7 @@ export interface BotControllerResult {
 
 const botBrains = new Map<string, BotBrainState>();
 
+/** 中文名：推进机器人actions（advanceBotActions）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function advanceBotActions(input: BotControllerInput): BotControllerResult {
   const deltaMs = Math.max(0, input.deltaMs);
   let projectileSequence = input.projectileSequence;

@@ -23,6 +23,7 @@ interface GameCornerButtonProps {
   badgeCount?: number;
 }
 
+/** 中文名：gamecornerbutton（GameCornerButton）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function GameCornerButton({ label, iconKey, onClick, to, tooltipPlacement, badgeCount }: GameCornerButtonProps) {
   const tooltipId = useId();
   const [hovered, setHovered] = useState(false);

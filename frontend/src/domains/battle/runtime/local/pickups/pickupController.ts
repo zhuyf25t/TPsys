@@ -35,6 +35,7 @@ export interface AutomaticItemPickupResult {
   event: AutomaticPickupEvent;
 }
 
+/** 中文名：应用automatic武器拾取物（applyAutomaticWeaponPickup）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyAutomaticWeaponPickup(input: AutomaticPickupControllerInput): AutomaticWeaponPickupResult | null {
   if (!input.player.alive) {
     return null;
@@ -69,6 +70,7 @@ export function applyAutomaticWeaponPickup(input: AutomaticPickupControllerInput
   };
 }
 
+/** 中文名：应用automaticitem拾取物（applyAutomaticItemPickup）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyAutomaticItemPickup(input: AutomaticPickupControllerInput): AutomaticItemPickupResult | null {
   if (!input.player.alive) {
     return null;

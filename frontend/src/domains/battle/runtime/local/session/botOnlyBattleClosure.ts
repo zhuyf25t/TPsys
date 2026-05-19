@@ -26,6 +26,7 @@ export interface BotOnlyBattleClosure {
   snapshot: GameSnapshot;
 }
 
+/** 中文名：创建机器人only战斗closure（createBotOnlyBattleClosure）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createBotOnlyBattleClosure(
   snapshot: GameSnapshot,
   options: BotOnlyBattleClosureOptions
@@ -81,6 +82,7 @@ export function createBotOnlyBattleClosure(
   return closure;
 }
 
+/** 中文名：构建机器人only战斗closuresnapshots（buildBotOnlyBattleClosureSnapshots）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildBotOnlyBattleClosureSnapshots(closure: BotOnlyBattleClosure): GameSnapshot[] {
   const frameTimes = buildClosureFrameTimes(closure);
   if (frameTimes.length === 0) {

@@ -25,6 +25,7 @@ export interface ProjectileTracerVfxRendererDependencies {
 const DEFAULT_TRACER_DURATION_MS = 120;
 const TRACER_GHOST_RADIUS_SCALE = 1.35;
 
+/** 中文名：创建投射物tracer（createProjectileTracer）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createProjectileTracer(
   dependencies: ProjectileTracerVfxRendererDependencies,
   options: ProjectileTracerOptions

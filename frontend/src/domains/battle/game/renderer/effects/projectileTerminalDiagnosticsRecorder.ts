@@ -26,10 +26,12 @@ export interface AuthoritativeProjectileTerminalDiagnosticsRecordInput {
   vfxBudgetReason?: AuthoritativeProjectileTerminalVfxBudgetReason | null;
 }
 
+/** 中文名：should记录投射物终止diagnostics（shouldRecordProjectileTerminalDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function shouldRecordProjectileTerminalDiagnostics(): boolean {
   return shouldRecordRemoteProjectileTerminalDiagnostics();
 }
 
+/** 中文名：记录投射物终止diagnostics（recordProjectileTerminalDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordProjectileTerminalDiagnostics({
   previous,
   projectileId,
@@ -58,6 +60,7 @@ export function recordProjectileTerminalDiagnostics({
   });
 }
 
+/** 中文名：记录authoritative投射物终止diagnostics（recordAuthoritativeProjectileTerminalDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordAuthoritativeProjectileTerminalDiagnostics({
   terminal,
   previous,

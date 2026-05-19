@@ -49,6 +49,7 @@ export interface WeaponActionContext {
   randomFn?: () => number;
 }
 
+/** 中文名：获取当前武器（getCurrentWeapon）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getCurrentWeapon(hero: Hero): WeaponState {
   const weapon = hero.weapons[hero.currentWeaponIndex];
   if (!weapon) {
@@ -58,6 +59,7 @@ export function getCurrentWeapon(hero: Hero): WeaponState {
   return weapon;
 }
 
+/** 中文名：解析武器action（resolveWeaponAction）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveWeaponAction(context: WeaponActionContext): WeaponActionPlan {
   const randomFn = context.randomFn ?? Math.random;
   const runtimeProfile = getWeaponRuntimeProfile(context.weapon.weaponKind);

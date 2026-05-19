@@ -19,6 +19,7 @@ type StoredSessionOwnerResolution =
   | { status: "mismatch" }
   | { status: "invalid" };
 
+/** 中文名：读取active战斗会话（readActiveBattleSession）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function readActiveBattleSession(owner: ActiveBattleSessionOwner): ActiveBattleSession | null {
   const session = readStoredActiveBattleSession(getActiveBattleSessionStorageKey(owner), owner, { advanceElapsed: true })
     ?? migrateLegacyStoredBattleSession(LEGACY_ACTIVE_BATTLE_SESSION_KEY, getActiveBattleSessionStorageKey(owner), owner, {
@@ -37,12 +38,14 @@ export function readActiveBattleSession(owner: ActiveBattleSessionOwner): Active
   return session;
 }
 
+/** 中文名：publishactive战斗会话epoch（publishActiveBattleSessionEpoch）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function publishActiveBattleSessionEpoch(owner: ActiveBattleSessionOwner): string {
   const epoch = createActiveBattleSessionEpoch();
   writeActiveBattleSessionEpoch(owner, epoch);
   return epoch;
 }
 
+/** 中文名：consumecompletedactive战斗会话（consumeCompletedActiveBattleSession）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function consumeCompletedActiveBattleSession(owner: ActiveBattleSessionOwner): ActiveBattleSession | null {
   const session =
     readStoredActiveBattleSession(getCompletedBattleSessionStorageKey(owner), owner)
@@ -61,6 +64,7 @@ export function consumeCompletedActiveBattleSession(owner: ActiveBattleSessionOw
   return normalizeCompletedActiveBattleSession(session);
 }
 
+/** 中文名：读取completedactive战斗会话（readCompletedActiveBattleSession）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function readCompletedActiveBattleSession(owner: ActiveBattleSessionOwner): ActiveBattleSession | null {
   const completedSession =
     readStoredActiveBattleSession(getCompletedBattleSessionStorageKey(owner), owner)
@@ -84,6 +88,7 @@ export function readCompletedActiveBattleSession(owner: ActiveBattleSessionOwner
   return reason ? normalizeCompletedActiveBattleSession(legacySession, reason) : null;
 }
 
+/** 中文名：writeactive战斗会话（writeActiveBattleSession）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function writeActiveBattleSession(session: ActiveBattleSession): void {
   if (!isSessionEpochCurrent(session)) {
     return;
@@ -102,6 +107,7 @@ export function writeActiveBattleSession(session: ActiveBattleSession): void {
   writeStoredBattleSession(getActiveBattleSessionStorageKey(session.owner), session);
 }
 
+/** 中文名：writecompletedactive战斗会话（writeCompletedActiveBattleSession）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function writeCompletedActiveBattleSession(session: ActiveBattleSession): void {
   if (!isSessionEpochCurrent(session)) {
     return;
@@ -120,6 +126,7 @@ export function writeCompletedActiveBattleSession(session: ActiveBattleSession):
   clearStoredBattleSession(LEGACY_ACTIVE_BATTLE_SESSION_KEY);
 }
 
+/** 中文名：clearactive战斗会话（clearActiveBattleSession）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function clearActiveBattleSession(owner: ActiveBattleSessionOwner): void {
   clearStoredBattleSession(getActiveBattleSessionStorageKey(owner));
   clearStoredBattleSession(getCompletedBattleSessionStorageKey(owner));
@@ -127,6 +134,7 @@ export function clearActiveBattleSession(owner: ActiveBattleSessionOwner): void 
   clearStoredBattleSession(LEGACY_COMPLETED_BATTLE_SESSION_KEY);
 }
 
+/** 中文名：clearactive战斗会话progress（clearActiveBattleSessionProgress）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function clearActiveBattleSessionProgress(owner: ActiveBattleSessionOwner): void {
   clearStoredBattleSession(getActiveBattleSessionStorageKey(owner));
   clearStoredBattleSession(LEGACY_ACTIVE_BATTLE_SESSION_KEY);

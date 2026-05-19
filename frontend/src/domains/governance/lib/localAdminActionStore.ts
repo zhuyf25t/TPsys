@@ -24,6 +24,7 @@ export interface ContributionAdjustmentResult {
   record: ContributionAdjustmentRecord | null;
 }
 
+/** 中文名：记录贡献adjustment（recordContributionAdjustment）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function recordContributionAdjustment(input: {
   actorHandle?: string;
   targetHandle: string;
@@ -71,6 +72,7 @@ export function recordContributionAdjustment(input: {
   return { ok: true, record };
 }
 
+/** 中文名：获取贡献adjustmenttotals（getContributionAdjustmentTotals）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function getContributionAdjustmentTotals(): Record<string, number> {
   return readState().records.reduce<Record<string, number>>((totals, record) => {
     const key = normalizeHandle(record.targetHandle);

@@ -15,6 +15,7 @@ export interface LocalHeroMotionStreakView {
   intensity: number;
 }
 
+/** 中文名：创建本地英雄运动streakview（createLocalHeroMotionStreakView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createLocalHeroMotionStreakView(scene: Phaser.Scene, position: Vec2): LocalHeroMotionStreakView {
   const streaks = Array.from({ length: LOCAL_HERO_MOTION_STREAK_COUNT }, (_unused, index) =>
     scene.add
@@ -32,6 +33,7 @@ export function createLocalHeroMotionStreakView(scene: Phaser.Scene, position: V
   };
 }
 
+/** 中文名：sync本地英雄运动streaks（syncLocalHeroMotionStreaks）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncLocalHeroMotionStreaks(
   view: LocalHeroMotionStreakView | null,
   displayPosition: Vec2,
@@ -91,6 +93,7 @@ export function syncLocalHeroMotionStreaks(
   });
 }
 
+/** 中文名：hide本地英雄运动streaks（hideLocalHeroMotionStreaks）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function hideLocalHeroMotionStreaks(view: LocalHeroMotionStreakView | null, resetPosition: boolean): void {
   if (!view) {
     return;

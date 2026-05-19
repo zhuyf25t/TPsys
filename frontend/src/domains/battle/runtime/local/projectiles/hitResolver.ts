@@ -28,6 +28,7 @@ export interface HeroPathHitInput {
   heroes: readonly Hero[];
 }
 
+/** 中文名：解析投射物hitattempt（resolveProjectileHitAttempt）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveProjectileHitAttempt(input: ProjectileHitAttemptInput): ProjectileHitAttemptResult {
   if (!input.projectile.alive) {
     return { shouldApplyDamage: false, reason: "projectile-dead" };
@@ -48,6 +49,7 @@ export function resolveProjectileHitAttempt(input: ProjectileHitAttemptInput): P
   return { shouldApplyDamage: true, reason: null };
 }
 
+/** 中文名：解析rocketexplosiontargets（resolveRocketExplosionTargets）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveRocketExplosionTargets(input: RocketExplosionTargetsInput): Hero[] {
   return input.heroes.filter((hero) => {
     if (!hero.alive || hero.heroId === input.ownerHeroId) {
@@ -59,6 +61,7 @@ export function resolveRocketExplosionTargets(input: RocketExplosionTargetsInput
   });
 }
 
+/** 中文名：查找英雄hitalongpath（findHeroHitAlongPath）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function findHeroHitAlongPath(input: HeroPathHitInput): Hero | null {
   let closestHero: Hero | null = null;
   let closestT = Number.POSITIVE_INFINITY;
@@ -83,6 +86,7 @@ export function findHeroHitAlongPath(input: HeroPathHitInput): Hero | null {
   return closestHero;
 }
 
+/** 中文名：获取segmenthit时间（getSegmentHitTime）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getSegmentHitTime(start: Vec2, end: Vec2, point: Vec2): number {
   const dx = end.x - start.x;
   const dy = end.y - start.y;

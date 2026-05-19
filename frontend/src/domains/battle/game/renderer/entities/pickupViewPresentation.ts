@@ -102,6 +102,7 @@ const ITEM_PICKUP_READABILITY_STYLE: PickupReadabilityStyle = {
   glintTint: 0xc9ffd4
 };
 
+/** 中文名：创建武器拾取物view（createWeaponPickupView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createWeaponPickupView(scene: Phaser.Scene, pickup: WeaponPickup): PickupView {
   const style = getWeaponPickupReadabilityStyle(pickup.weaponKind);
   const view = createBasePickupView({
@@ -115,6 +116,7 @@ export function createWeaponPickupView(scene: Phaser.Scene, pickup: WeaponPickup
   return view;
 }
 
+/** 中文名：创建item拾取物view（createItemPickupView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createItemPickupView(scene: Phaser.Scene, pickup: ItemPickup): PickupView {
   const view = createBasePickupView({
     scene,
@@ -127,6 +129,7 @@ export function createItemPickupView(scene: Phaser.Scene, pickup: ItemPickup): P
   return view;
 }
 
+/** 中文名：设置拾取物viewvisible（setPickupViewVisible）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function setPickupViewVisible(view: PickupView, visible: boolean): void {
   view.halo.setVisible(visible);
   view.innerRing.setVisible(visible);
@@ -136,6 +139,7 @@ export function setPickupViewVisible(view: PickupView, visible: boolean): void {
   view.label.setVisible(visible);
 }
 
+/** 中文名：sync武器拾取物view（syncWeaponPickupView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncWeaponPickupView(view: PickupView, pickup: WeaponPickup, elapsedMs: number): void {
   if (!pickup.available) {
     setPickupViewVisible(view, false);
@@ -156,6 +160,7 @@ export function syncWeaponPickupView(view: PickupView, pickup: WeaponPickup, ela
   });
 }
 
+/** 中文名：syncitem拾取物view（syncItemPickupView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncItemPickupView(view: PickupView, pickup: ItemPickup, elapsedMs: number): void {
   if (!pickup.available) {
     setPickupViewVisible(view, false);

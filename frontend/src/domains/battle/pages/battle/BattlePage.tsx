@@ -7,6 +7,7 @@ import { useBattlePageRuntime } from "./lib/useBattlePageRuntime";
 import { BattleChrome } from "../../components/BattleChrome";
 import { QuickPreviewOverlay } from "../../../../shared/ui/QuickPreviewOverlay";
 
+/** 中文名：战斗page（BattlePage）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function BattlePage() {
   const runtime = useBattlePageRuntime();
 

@@ -6,6 +6,7 @@ const HAS_REMOTE_RATING_SOURCE = true;
 export const REMOTE_RATING_REFRESH_INTERVAL_MS = 6_000;
 let remoteRatingEntriesCache: RatingEntry[] | null = null;
 
+/** 中文名：判断是否remote积分sourceconfigured（isRemoteRatingSourceConfigured）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function isRemoteRatingSourceConfigured(): boolean {
   return HAS_REMOTE_RATING_SOURCE;
 }
@@ -21,6 +22,7 @@ export interface RatingEntry {
   matchCount: number;
 }
 
+/** 中文名：获取积分entries（getRatingEntries）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function getRatingEntries(): RatingEntry[] {
   return [];
 }
@@ -41,6 +43,7 @@ export async function loadRatingEntries(): Promise<RatingEntry[]> {
   return [];
 }
 
+/** 中文名：获取积分entryby玩家名（getRatingEntryByHandle）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function getRatingEntryByHandle(handle: string): RatingEntry | undefined {
   const key = normalizePlayerHandleKey(handle);
   return remoteRatingEntriesCache?.find((entry) => normalizePlayerHandleKey(entry.handle) === key);

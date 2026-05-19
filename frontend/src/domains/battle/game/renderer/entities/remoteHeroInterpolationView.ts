@@ -57,6 +57,7 @@ const AUTHORITATIVE_REMOTE_HERO_INTERPOLATION_BUFFER_CAP = 10;
 const AUTHORITATIVE_REMOTE_HERO_POSITION_EPSILON = 0.05;
 const AUTHORITATIVE_REMOTE_HERO_FACING_EPSILON = 0.001;
 
+/** 中文名：cleanupremote英雄interpolationbuffers（cleanupRemoteHeroInterpolationBuffers）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function cleanupRemoteHeroInterpolationBuffers({
   snapshot,
   worldViews,
@@ -88,6 +89,7 @@ export function cleanupRemoteHeroInterpolationBuffers({
   }
 }
 
+/** 中文名：解析remote英雄展示状态（resolveRemoteHeroDisplayState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveRemoteHeroDisplayState({
   scene,
   worldViews,

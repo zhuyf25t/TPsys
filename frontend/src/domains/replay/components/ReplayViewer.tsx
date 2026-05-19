@@ -27,6 +27,7 @@ interface ReplayViewport {
   offsetY: number;
 }
 
+/** 中文名：回放viewer（ReplayViewer）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const posterRef = useRef<HTMLImageElement | null>(null);

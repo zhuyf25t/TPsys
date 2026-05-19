@@ -68,6 +68,7 @@ export interface LobbyShellProps {
 
 const lobbyVideoSrc = "/pics/demo.mp4";
 
+/** 中文名：lobbyshell（LobbyShell）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function LobbyShell({
   brand = "ARENA MENU",
   layoutMode = "lobby",

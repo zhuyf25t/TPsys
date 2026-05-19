@@ -226,14 +226,17 @@ function toSkillSlot(key: SkillSlotKey, skillId: LoadoutSkillId): LoadoutSkillSl
   };
 }
 
+/** 中文名：获取loadoutpresets（getLoadoutPresets）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getLoadoutPresets(): LoadoutPreset[] {
   return LOADOUT_PRESETS.map(clonePreset);
 }
 
+/** 中文名：获取当前loadoutpreset（getCurrentLoadoutPreset）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getCurrentLoadoutPreset(): LoadoutPreset {
   return clonePreset(getPresetById(currentPresetId));
 }
 
+/** 中文名：设置loadoutpreset（setLoadoutPreset）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function setLoadoutPreset(presetId: string): boolean {
   if (!LOADOUT_PRESETS.some((preset) => preset.id === presetId) || presetId === currentPresetId) {
     return false;
@@ -245,18 +248,22 @@ export function setLoadoutPreset(presetId: string): boolean {
   return true;
 }
 
+/** 中文名：获取loadout技能options（getLoadoutSkillOptions）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getLoadoutSkillOptions(): LoadoutSkillOption[] {
   return SKILL_OPTIONS.map((option) => ({ ...option }));
 }
 
+/** 中文名：获取已选择技能slots（getSelectedSkillSlots）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getSelectedSkillSlots(): LoadoutSkillSlot[] {
   return SKILL_SLOT_KEYS.map((key) => toSkillSlot(key, currentSkillSlots[key]));
 }
 
+/** 中文名：获取已选择技能bindings（getSelectedSkillBindings）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getSelectedSkillBindings(): Record<SkillSlotKey, LoadoutSkillId> {
   return { ...currentSkillSlots };
 }
 
+/** 中文名：设置技能slot（setSkillSlot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function setSkillSlot(slotKey: SkillSlotKey, skillId: LoadoutSkillId): boolean {
   if (!isKnownSkill(skillId) || currentSkillSlots[slotKey] === skillId) {
     return false;
@@ -276,6 +283,7 @@ export function setSkillSlot(slotKey: SkillSlotKey, skillId: LoadoutSkillId): bo
   return true;
 }
 
+/** 中文名：swap技能slots（swapSkillSlots）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function swapSkillSlots(firstSlot: SkillSlotKey, secondSlot: SkillSlotKey): boolean {
   if (firstSlot === secondSlot) {
     return false;
@@ -291,6 +299,7 @@ export function swapSkillSlots(firstSlot: SkillSlotKey, secondSlot: SkillSlotKey
   return true;
 }
 
+/** 中文名：订阅loadout状态（subscribeLoadoutState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function subscribeLoadoutState(listener: LoadoutListener): () => void {
   listeners.add(listener);
   return () => {
@@ -298,10 +307,12 @@ export function subscribeLoadoutState(listener: LoadoutListener): () => void {
   };
 }
 
+/** 中文名：获取loadout状态version（getLoadoutStateVersion）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getLoadoutStateVersion(): number {
   return loadoutStateVersion;
 }
 
+/** 中文名：获取loadout摘要（getLoadoutSummary）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getLoadoutSummary(): LoadoutSummary {
   const handle = getCurrentAuthHandle();
   const skin = getCurrentAuthSkin();
@@ -325,6 +336,7 @@ export function getLoadoutSummary(): LoadoutSummary {
   };
 }
 
+/** 中文名：设置loadoutskin（setLoadoutSkin）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function setLoadoutSkin(skinId: string): boolean {
   const result = updateCurrentAuthSkin(skinId);
   if (result.ok) {

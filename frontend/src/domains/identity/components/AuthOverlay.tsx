@@ -9,6 +9,7 @@ interface AuthOverlayProps {
   onSuccess: () => void;
 }
 
+/** 中文名：authoverlay（AuthOverlay）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function AuthOverlay({ initialMode = "login", onClose, onSuccess }: AuthOverlayProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [handle, setHandle] = useState("");

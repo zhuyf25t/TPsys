@@ -66,6 +66,7 @@ interface BattleVisionLookAheadDiagnostics {
   };
 }
 
+/** 中文名：记录战斗visioncameradiagnostics（recordBattleVisionCameraDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordBattleVisionCameraDiagnostics(input: {
   camera: Phaser.Cameras.Scene2D.Camera;
   playerDisplayPosition?: Vec2;
@@ -111,6 +112,7 @@ export function recordBattleVisionCameraDiagnostics(input: {
   });
 }
 
+/** 中文名：记录战斗visionlookaheaddiagnostics（recordBattleVisionLookAheadDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordBattleVisionLookAheadDiagnostics(input: {
   pointer: Vec2;
   rawPointer: Vec2;
@@ -150,6 +152,7 @@ export function recordBattleVisionLookAheadDiagnostics(input: {
   });
 }
 
+/** 中文名：判断是否战斗visiondiagnosticsenabled（isBattleVisionDiagnosticsEnabled）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isBattleVisionDiagnosticsEnabled(): boolean {
   return isBattleDiagnosticsEnabled();
 }

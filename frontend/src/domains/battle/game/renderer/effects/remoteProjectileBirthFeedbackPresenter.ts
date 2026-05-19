@@ -21,6 +21,7 @@ export interface AuthoritativeRemoteProjectileBirthFeedbackPresentation {
   callbacks: RemoteProjectileBirthFeedbackPresenterCallbacks;
 }
 
+/** 中文名：presentauthoritativeremote投射物birthfeedback（presentAuthoritativeRemoteProjectileBirthFeedback）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentAuthoritativeRemoteProjectileBirthFeedback({
   snapshot,
   previousProjectileStates,

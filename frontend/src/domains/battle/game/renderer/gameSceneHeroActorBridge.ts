@@ -12,6 +12,7 @@ export interface GameScenePlayerActorHandle {
   authoritativeFrameBridge: AuthoritativeFrameSceneBridge;
 }
 
+/** 中文名：创建gamescene玩家actor（createGameScenePlayerActor）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createGameScenePlayerActor(scene: Phaser.Scene, player: Hero): GameScenePlayerActorHandle {
   const playerActor = scene.physics.add
     .image(player.position.x, player.position.y, resolveHeroVisual(player.heroId).textureKey)
@@ -29,6 +30,7 @@ export function createGameScenePlayerActor(scene: Phaser.Scene, player: Hero): G
   };
 }
 
+/** 中文名：flashgamescene英雄（flashGameSceneHero）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function flashGameSceneHero(
   time: Phaser.Time.Clock,
   hero: Hero,

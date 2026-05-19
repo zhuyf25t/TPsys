@@ -22,6 +22,7 @@ import { UserActionDot } from "../../../social/components/user-action-dot/UserAc
 type ReplayLoadState = "loading" | "ready" | "summary" | "missing";
 type FeedbackModalState = { kind: "proposal" | "report" } | null;
 
+/** 中文名：回放detailpage（ReplayDetailPage）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function ReplayDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();

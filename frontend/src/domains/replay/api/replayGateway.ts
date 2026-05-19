@@ -85,6 +85,7 @@ interface LoadReplayPlaybackOptions {
   ratingHandle?: string | null;
 }
 
+/** 中文名：判断是否有meaningful回放frames（hasMeaningfulReplayFrames）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function hasMeaningfulReplayFrames(replay: ReplayPlayback | ReplayFrame[] | null | undefined): boolean {
   if (!replay) {
     return false;
@@ -94,6 +95,7 @@ export function hasMeaningfulReplayFrames(replay: ReplayPlayback | ReplayFrame[]
   return hasMeaningfulReplayFrameList(frames);
 }
 
+/** 中文名：解析回放players文本行（parseReplayPlayersLine）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function parseReplayPlayersLine(playersLine: string): string[] {
   if (!playersLine.trim()) {
     return [];
@@ -108,6 +110,7 @@ export function parseReplayPlayersLine(playersLine: string): string[] {
     .filter(Boolean);
 }
 
+/** 中文名：获取回放summaries（getReplaySummaries）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function getReplaySummaries(): ReplaySummary[] {
   return mergeReplaySummaries(getReplayEntries().map(toReplaySummary), cachedRemoteReplaySummaries ?? []);
 }
@@ -138,6 +141,7 @@ async function refreshRemoteReplaySummaries(localSummaries: ReplaySummary[]): Pr
   return merged;
 }
 
+/** 中文名：获取回放摘要by标识（getReplaySummaryById）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function getReplaySummaryById(id: string): ReplaySummary | undefined {
   const normalizedId = id.trim();
   if (!normalizedId) {
@@ -150,6 +154,7 @@ export function getReplaySummaryById(id: string): ReplaySummary | undefined {
   return remoteSummary ? choosePreferredReplaySummary(localSummary, remoteSummary) : localSummary;
 }
 
+/** 中文名：获取回放playback（getReplayPlayback）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function getReplayPlayback(id: string): ReplayPlayback | undefined {
   const playback = getLocalReplayPlaybackById(id);
   return playback ? normalizeReplayPlaybackRatings(playback) : undefined;
@@ -310,10 +315,12 @@ function hasReplayPlaybackRatings(
   return typeof playback.ratingBefore === "number" && typeof playback.ratingAfter === "number" && typeof playback.ratingDelta === "number";
 }
 
+/** 中文名：获取回放展示frames（getReplayDisplayFrames）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function getReplayDisplayFrames(replay: ReplayPlayback): ReplayFrame[] {
   return normalizeReplayFramesForDisplay(replay.frames);
 }
 
+/** 中文名：构建回放live时间线（buildReplayLiveTimeline）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function buildReplayLiveTimeline(frames: ReplayFrame[], playheadMs: number): ReplayTimelineMoment[] {
   if (frames.length === 0) {
     return [];
@@ -413,6 +420,7 @@ function cloneReplayFrame(frame: ReplayFrame, elapsedMs = frame.elapsedMs): Repl
   };
 }
 
+/** 中文名：构建回放房间insights（buildReplayRoomInsights）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function buildReplayRoomInsights(replay: ReplayPlayback): ReplayRoomInsights {
   const rawFrameCount = replay.frames.length;
   const displayFrames = getReplayDisplayFrames(replay);
@@ -456,6 +464,7 @@ export function buildReplayRoomInsights(replay: ReplayPlayback): ReplayRoomInsig
   };
 }
 
+/** 中文名：构建回放导出产物（buildReplayExportArtifact）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function buildReplayExportArtifact(id: string): ReplayExportArtifact | undefined {
   const playback = getReplayPlayback(id);
 
@@ -495,6 +504,7 @@ export function buildReplayExportArtifact(id: string): ReplayExportArtifact | un
   };
 }
 
+/** 中文名：构建回放导出产物从playback（buildReplayExportArtifactFromPlayback）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function buildReplayExportArtifactFromPlayback(playback: ReplayPlayback): ReplayExportArtifact | undefined {
   if (playback.frames.length === 0) {
     return undefined;

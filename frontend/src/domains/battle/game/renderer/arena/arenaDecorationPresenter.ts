@@ -11,6 +11,7 @@ import type { OccludableSprite, OccludableView } from "./arenaBuilder";
 
 const ARENA_ENERGY_ACCENT_COLOR = 0x58d6ff;
 
+/** 中文名：创建拾取物pads（createPickupPads）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createPickupPads(scene: Phaser.Scene): void {
   WEAPON_PICKUP_SPAWN_POINTS.forEach((point) => {
     scene.add.tileSprite(point.position.x, point.position.y + 8, 112, 82, STONE_TRIM_TEXTURE_KEY).setDepth(-12).setTint(0x29343a).setAlpha(0.98);
@@ -41,6 +42,7 @@ export function createPickupPads(scene: Phaser.Scene): void {
   });
 }
 
+/** 中文名：创建竞技场decorations（createArenaDecorations）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createArenaDecorations(scene: Phaser.Scene, occludables: OccludableView[]): void {
   const pylons: readonly Vec2[] = [
     { x: 320, y: 320 },

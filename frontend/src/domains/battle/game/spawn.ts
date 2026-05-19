@@ -31,6 +31,7 @@ export interface InitialHeroConfig {
 
 let heroVisualOverrides = new Map<string, HeroVisualDefinition>();
 
+/** 中文名：解析英雄visual（resolveHeroVisual）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveHeroVisual(heroId: string): HeroVisualDefinition {
   const override = heroVisualOverrides.get(heroId);
   if (override) {
@@ -48,6 +49,7 @@ export function resolveHeroVisual(heroId: string): HeroVisualDefinition {
   return HERO_VISUALS[heroId] ?? HERO_VISUALS["player-1"];
 }
 
+/** 中文名：创建initialheroes（createInitialHeroes）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createInitialHeroes(initialHeroes?: readonly InitialHeroConfig[]): Hero[] {
   const playerHandle = getCurrentAuthHandle();
   const heroDefinitions = resolveInitialHeroDefinitions(initialHeroes, playerHandle);
@@ -157,6 +159,7 @@ function resolveSkinVisual(skin: string | undefined): HeroVisualDefinition | nul
   return SKIN_VISUALS[skin] ?? null;
 }
 
+/** 中文名：创建initial武器pickups（createInitialWeaponPickups）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createInitialWeaponPickups(): WeaponPickup[] {
   return WEAPON_PICKUP_DEFINITIONS.map((definition) => ({
     weaponId: definition.pickupId,
@@ -167,6 +170,7 @@ export function createInitialWeaponPickups(): WeaponPickup[] {
   }));
 }
 
+/** 中文名：创建initialitempickups（createInitialItemPickups）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createInitialItemPickups(): ItemPickup[] {
   return ITEM_PICKUP_DEFINITIONS.map((definition) => ({
     pickupId: definition.pickupId,
@@ -177,6 +181,7 @@ export function createInitialItemPickups(): ItemPickup[] {
   }));
 }
 
+/** 中文名：选择randomspawnpoint（chooseRandomSpawnPoint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function chooseRandomSpawnPoint(randomValue: number): Vec2 {
   const index = Math.floor(randomValue * HERO_SPAWN_POINTS.length) % HERO_SPAWN_POINTS.length;
   const point = HERO_SPAWN_POINTS[index];
@@ -187,6 +192,7 @@ export function chooseRandomSpawnPoint(randomValue: number): Vec2 {
   };
 }
 
+/** 中文名：选择random拾取物spawnpoint（chooseRandomPickupSpawnPoint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function chooseRandomPickupSpawnPoint(randomValue: number): Vec2 {
   const index = Math.floor(randomValue * WEAPON_PICKUP_SPAWN_POINTS.length) % WEAPON_PICKUP_SPAWN_POINTS.length;
   const point = WEAPON_PICKUP_SPAWN_POINTS[index]?.position ?? WEAPON_PICKUP_DEFINITIONS[0].position;
@@ -197,6 +203,7 @@ export function chooseRandomPickupSpawnPoint(randomValue: number): Vec2 {
   };
 }
 
+/** 中文名：选择randomitem拾取物spawnpoint（chooseRandomItemPickupSpawnPoint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function chooseRandomItemPickupSpawnPoint(randomValue: number): Vec2 {
   const index = Math.floor(randomValue * ITEM_PICKUP_SPAWN_POINTS.length) % ITEM_PICKUP_SPAWN_POINTS.length;
   const point = ITEM_PICKUP_SPAWN_POINTS[index]?.position ?? ITEM_PICKUP_DEFINITIONS[0].position;
@@ -207,6 +214,7 @@ export function chooseRandomItemPickupSpawnPoint(randomValue: number): Vec2 {
   };
 }
 
+/** 中文名：重置拾取物respawn（resetPickupRespawn）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resetPickupRespawn(pickup: WeaponPickup): WeaponPickup {
   return {
     ...pickup,

@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 
 import slaydemo.backend.battle.api.RealtimeRoomHeartbeatRequest
 import slaydemo.backend.battle.objects.{BattleId, RoomId, TicketId}
-import slaydemo.backend.battle.services.RealtimeRoomHeartbeatCommand
+import slaydemo.backend.battle.services.queue.RealtimeRoomHeartbeatCommand
 import slaydemo.backend.identity.objects.PlayerHandle
 
 private[routes] object BattleRoomRouteParsers {

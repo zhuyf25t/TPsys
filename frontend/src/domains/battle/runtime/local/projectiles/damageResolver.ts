@@ -25,6 +25,7 @@ export interface DamageApplicationResult {
   event: Pick<GameEvent, "type" | "message"> | null;
 }
 
+/** 中文名：应用damage转为英雄（applyDamageToHero）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyDamageToHero(input: DamageApplicationInput): DamageApplicationResult {
   if (!input.target.alive) {
     return buildNoDamageResult("invalid-target", input.target.displayName);

@@ -88,14 +88,17 @@ const SKIN_OPTIONS: readonly AuthSkinOption[] = [
   }
 ] as const;
 
+/** 中文名：获取authskinoptions（getAuthSkinOptions）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function getAuthSkinOptions(): AuthSkinOption[] {
   return SKIN_OPTIONS.map((skin) => ({ ...skin }));
 }
 
+/** 中文名：获取authskinby标识（getAuthSkinById）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function getAuthSkinById(skinId: string | null | undefined): AuthSkinOption {
   return SKIN_OPTIONS.find((skin) => skin.id === skinId) ?? SKIN_OPTIONS[0];
 }
 
+/** 中文名：获取当前authuser（getCurrentAuthUser）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function getCurrentAuthUser(): LocalAuthUser | null {
   const sessionToken = getCurrentAuthSessionToken();
 
@@ -128,22 +131,27 @@ export function getCurrentAuthUser(): LocalAuthUser | null {
   return localCurrent;
 }
 
+/** 中文名：获取当前auth玩家名（getCurrentAuthHandle）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function getCurrentAuthHandle(): string {
   return getCurrentAuthUser()?.handle ?? DEFAULT_HANDLE;
 }
 
+/** 中文名：获取当前authskin（getCurrentAuthSkin）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function getCurrentAuthSkin(): AuthSkinOption {
   return getAuthSkinById(getCurrentAuthUser()?.skinId ?? DEFAULT_SKIN_ID);
 }
 
+/** 中文名：判断是否builtinadmin玩家名（isBuiltinAdminHandle）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function isBuiltinAdminHandle(handle: string | null | undefined): boolean {
   return normalizeHandle(handle) === BUILTIN_ADMIN_HANDLE;
 }
 
+/** 中文名：判断是否builtinadmincredentials（isBuiltinAdminCredentials）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function isBuiltinAdminCredentials(handle: string, password: string): boolean {
   return isBuiltinAdminHandle(handle) && password.trim() === BUILTIN_ADMIN_PASSWORD;
 }
 
+/** 中文名：获取当前auth会话token（getCurrentAuthSessionToken）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function getCurrentAuthSessionToken(): string | null {
   if (typeof window === "undefined") {
     return null;
@@ -202,6 +210,7 @@ export async function loginUser(input: {
   return loginLocalUser(input);
 }
 
+/** 中文名：bootstrapauth会话（bootstrapAuthSession）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function bootstrapAuthSession(): Promise<LocalAuthUser | null> {
   if (typeof window === "undefined") {
     return Promise.resolve(null);
@@ -221,6 +230,7 @@ export function bootstrapAuthSession(): Promise<LocalAuthUser | null> {
   return authSessionBootstrapPromise;
 }
 
+/** 中文名：register本地user（registerLocalUser）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function registerLocalUser(input: {
   handle: string;
   password: string;
@@ -262,6 +272,7 @@ export function registerLocalUser(input: {
   return { ok: true, user, sessionToken: user.sessionToken };
 }
 
+/** 中文名：login本地user（loginLocalUser）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function loginLocalUser(input: { handle: string; password: string }): AuthResult {
   const handle = normalizePlayableIdentityHandle(input.handle);
   const password = input.password.trim();
@@ -292,6 +303,7 @@ export function loginLocalUser(input: { handle: string; password: string }): Aut
   return { ok: true, user: nextUser, sessionToken: nextUser.sessionToken };
 }
 
+/** 中文名：logout本地user（logoutLocalUser）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function logoutLocalUser(): void {
   if (typeof window === "undefined") {
     return;
@@ -301,6 +313,7 @@ export function logoutLocalUser(): void {
   setCachedCurrentAuthUser(null);
 }
 
+/** 中文名：更新当前authskin（updateCurrentAuthSkin）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function updateCurrentAuthSkin(skinId: string): AuthResult {
   const current = getCurrentAuthUser();
   if (!current) {
@@ -322,6 +335,7 @@ export function updateCurrentAuthSkin(skinId: string): AuthResult {
   };
 }
 
+/** 中文名：订阅auth状态（subscribeAuthState）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function subscribeAuthState(listener: () => void): () => void {
   authStateListeners.add(listener);
 

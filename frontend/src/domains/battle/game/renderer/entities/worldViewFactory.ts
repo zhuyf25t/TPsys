@@ -98,6 +98,7 @@ const EMPTY_REMOTE_AUTH_HERO_IDS: ReadonlySet<string> = new Set<string>();
 
 export { syncPickupViews };
 
+/** 中文名：创建世界view状态（createWorldViewState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createWorldViewState(context: WorldViewFactoryContext): WorldViewState {
   const { scene, snapshot, getBaseHeroScale } = context;
   const heroViews = new Map<string, HeroView>();
@@ -193,6 +194,7 @@ export function createWorldViewState(context: WorldViewFactoryContext): WorldVie
   };
 }
 
+/** 中文名：sync英雄views（syncHeroViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncHeroViews({
   scene,
   snapshot,
@@ -315,6 +317,7 @@ export function syncHeroViews({
   });
 }
 
+/** 中文名：获取英雄展示position（getHeroDisplayPosition）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getHeroDisplayPosition(worldViews: WorldViewState, heroId: string): Vec2 | null {
   const view = worldViews.heroViews.get(heroId);
   if (!view?.sprite.active || !view.sprite.visible) {
@@ -324,10 +327,12 @@ export function getHeroDisplayPosition(worldViews: WorldViewState, heroId: strin
   return { x: view.sprite.x, y: view.sprite.y };
 }
 
+/** 中文名：获取投射物展示position（getProjectileDisplayPosition）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getProjectileDisplayPosition(worldViews: WorldViewState, projectileId: string): Vec2 | null {
   return getProjectileDisplayPositionFromViews(worldViews, projectileId);
 }
 
+/** 中文名：syncindicators（syncIndicators）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncIndicators({
   snapshot,
   worldViews,
@@ -348,6 +353,7 @@ export function syncIndicators({
   });
 }
 
+/** 中文名：sync世界views（syncWorldViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncWorldViews(context: WorldViewSyncContext): void {
   syncHeroViews(context);
   syncSlowFieldViews(context);

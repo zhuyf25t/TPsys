@@ -33,6 +33,7 @@ function resolveDisplacementDestination(
   });
 }
 
+/** 中文名：解析recoildestination（resolveRecoilDestination）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveRecoilDestination(input: ResolveDisplacementInput): Vec2 | null {
   const recoilDistance = Math.min(24, input.strength * 0.18);
   return resolveDisplacementDestination(
@@ -45,6 +46,7 @@ export function resolveRecoilDestination(input: ResolveDisplacementInput): Vec2 
   );
 }
 
+/** 中文名：解析knockbackdestination（resolveKnockbackDestination）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveKnockbackDestination(input: ResolveDisplacementInput): Vec2 | null {
   const knockbackDistance = Math.min(28, input.strength * 0.14);
   return resolveDisplacementDestination(

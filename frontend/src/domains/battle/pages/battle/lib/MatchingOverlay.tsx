@@ -13,6 +13,7 @@ interface MatchingOverlayProps {
   queueState: MatchmakingQueueState | null;
 }
 
+/** 中文名：matchingoverlay（MatchingOverlay）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function MatchingOverlay({ countdownMs, loadout, queueState }: MatchingOverlayProps) {
   const roomParticipants = queueState?.participants ?? [];
   const slots = buildMatchmakingSlots(loadout.handle, queueState);

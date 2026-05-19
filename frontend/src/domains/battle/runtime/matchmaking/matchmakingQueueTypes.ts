@@ -85,6 +85,7 @@ export interface MatchmakingSlotState {
 export const MATCHMAKING_SLOT_COUNT = BATTLE_ARENA_PLAYER_CAPACITY;
 const MATCHMAKING_DURATION_MS = BATTLE_MATCHMAKING_DURATION_MS;
 
+/** 中文名：构建matchmakingslots（buildMatchmakingSlots）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildMatchmakingSlots(
   localHandle: string,
   queueState: MatchmakingQueueState | null
@@ -123,6 +124,7 @@ export function buildMatchmakingSlots(
   return slots;
 }
 
+/** 中文名：创建本地matchmaking队列状态（createLocalMatchmakingQueueState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createLocalMatchmakingQueueState(handle: string): MatchmakingQueueState {
   const now = Date.now();
   const normalizedHandle = normalizeHandle(handle) || "player";

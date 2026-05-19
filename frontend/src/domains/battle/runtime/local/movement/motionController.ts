@@ -42,6 +42,7 @@ function normalizeVector(vector: Vec2): Vec2 {
   };
 }
 
+/** 中文名：查找运动destination（findMotionDestination）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function findMotionDestination(input: MotionDestinationInput): MotionControllerTargetResult {
   const normalized = normalizeVector(input.direction);
   const distance = Math.max(0, input.distance);
@@ -140,10 +141,12 @@ function resolveBestMotion(origin: Vec2, ...motions: readonly SteppedMotionResul
   );
 }
 
+/** 中文名：判断是否运动目标pointvalid（isMotionTargetPointValid）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isMotionTargetPointValid(input: MotionTargetInput): boolean {
   return canOccupy(input.target, input.radius, input.worldSize, input.obstacleBounds);
 }
 
+/** 中文名：判断可否occupy（canOccupy）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function canOccupy(
   position: Vec2,
   radius: number,
@@ -153,6 +156,7 @@ export function canOccupy(
   return isInsideWorld(position, radius, worldSize) && !collidesWithObstacles(position, radius, obstacleBounds);
 }
 
+/** 中文名：collideswithobstacles（collidesWithObstacles）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function collidesWithObstacles(
   position: Vec2,
   radius: number,
@@ -161,12 +165,14 @@ export function collidesWithObstacles(
   return obstacleBounds.some((obstacle) => intersectsObstacle(position, radius, obstacle));
 }
 
+/** 中文名：intersectsobstacle（intersectsObstacle）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function intersectsObstacle(position: Vec2, radius: number, obstacle: MotionObstacleBounds): boolean {
   const dx = Math.abs(position.x - obstacle.position.x);
   const dy = Math.abs(position.y - obstacle.position.y);
   return dx < radius + obstacle.size.x / 2 && dy < radius + obstacle.size.y / 2;
 }
 
+/** 中文名：判断是否inside世界（isInsideWorld）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isInsideWorld(position: Vec2, radius: number, worldSize: Vec2): boolean {
   return (
     position.x >= radius &&

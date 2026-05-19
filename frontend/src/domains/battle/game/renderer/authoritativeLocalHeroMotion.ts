@@ -30,6 +30,7 @@ export interface AuthoritativeLocalHeroDisplayMotionResult {
   predictedBlinkDestination: Vec2 | null;
 }
 
+/** 中文名：应用authoritative本地英雄展示运动（applyAuthoritativeLocalHeroDisplayMotion）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyAuthoritativeLocalHeroDisplayMotion({
   snapshot,
   player,

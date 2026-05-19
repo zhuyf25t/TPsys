@@ -4,6 +4,7 @@ interface TimerRef {
   current: number | null;
 }
 
+/** 中文名：使用战斗pagetimers（useBattlePageTimers）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function useBattlePageTimers() {
   const countdownStartedAtRef = useRef<number | null>(null);
   const matchWaitDeadlineRef = useRef<number | null>(null);

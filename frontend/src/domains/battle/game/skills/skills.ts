@@ -3,6 +3,7 @@ import { SKILL_DEFINITIONS, type SkillDefinition } from "../assets/battleContent
 
 export { SKILL_DEFINITIONS, type SkillDefinition };
 
+/** 中文名：创建defaultskills（createDefaultSkills）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createDefaultSkills(): SkillState[] {
   return [
     { kind: "Blink", cooldownMs: 0, activeMs: 0 },
@@ -11,6 +12,7 @@ export function createDefaultSkills(): SkillState[] {
   ];
 }
 
+/** 中文名：获取技能状态（getSkillState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getSkillState(hero: Hero, kind: SkillKind): SkillState {
   const skill = hero.skills.find((item) => item.kind === kind);
 

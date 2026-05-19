@@ -95,6 +95,7 @@ export interface BattlePageTransientNotice {
   message: string;
 }
 
+/** 中文名：使用战斗pageruntime（useBattlePageRuntime）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function useBattlePageRuntime() {
   const location = useLocation();
   const runtimeRootRef = useRef<HTMLDivElement | null>(null);

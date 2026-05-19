@@ -196,6 +196,7 @@ interface BattleTruthBackfillState {
   attemptedIds: string[];
 }
 
+/** 中文名：构建live战斗摘要（buildLiveBattleSummary）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildLiveBattleSummary(snapshot: GameSnapshot): LocalBattleLiveSummary | null {
   const player = getPlayer(snapshot);
   if (!player) {
@@ -219,6 +220,7 @@ export function buildLiveBattleSummary(snapshot: GameSnapshot): LocalBattleLiveS
   };
 }
 
+/** 中文名：finalize战斗andpersist（finalizeBattleAndPersist）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function finalizeBattleAndPersist(input: FinalizeBattleInput): FinalizeBattleOutput | null {
   const allowBotOnlyClosure = input.allowBotOnlyClosure ?? true;
   const finalSnapshot = allowBotOnlyClosure ? normalizeExitedFinalSnapshot(input.snapshot) : input.snapshot;
@@ -395,6 +397,7 @@ function normalizeExitedFinalSnapshot(snapshot: GameSnapshot): GameSnapshot {
   };
 }
 
+/** 中文名：backfill本地战斗truth转为backend（backfillLocalBattleTruthToBackend）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function backfillLocalBattleTruthToBackend(): Promise<void> {
   if (typeof window === "undefined") {
     return Promise.resolve();
@@ -411,11 +414,13 @@ export function backfillLocalBattleTruthToBackend(): Promise<void> {
   return backfillPromise;
 }
 
+/** 中文名：获取latest战斗return摘要（getLatestBattleReturnSummary）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getLatestBattleReturnSummary(): LocalBattleReturnSummary | null {
   const latest = readState().records.find(isPlayableStoredBattleRecord);
   return latest ? buildReturnSummary(latest) : null;
 }
 
+/** 中文名：获取回放entries（getReplayEntries）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getReplayEntries(): LocalReplayEntry[] {
   return readState().records
     .filter(isPlayableStoredBattleRecord)
@@ -425,10 +430,12 @@ export function getReplayEntries(): LocalReplayEntry[] {
     });
 }
 
+/** 中文名：获取回放entryby标识（getReplayEntryById）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getReplayEntryById(id: string): LocalReplayEntry | undefined {
   return getReplayEntries().find((entry) => entry.id === id);
 }
 
+/** 中文名：判断是否回放entrybackendsyncdisabled（isReplayEntryBackendSyncDisabled）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isReplayEntryBackendSyncDisabled(id: string): boolean {
   const normalizedId = normalizeBattleRecordId(id);
   if (!normalizedId) {
@@ -438,6 +445,7 @@ export function isReplayEntryBackendSyncDisabled(id: string): boolean {
   return readState().records.some((record) => record.id === normalizedId && record.backendSyncDisabled === true);
 }
 
+/** 中文名：获取mailentries（getMailEntries）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getMailEntries(): LocalMailEntry[] {
   const state = readState();
   const visibleMails = filterVisibleMails(state.mails);
@@ -466,6 +474,7 @@ export function getMailEntries(): LocalMailEntry[] {
   }));
 }
 
+/** 中文名：标记mail读取（markMailRead）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function markMailRead(mailId: string): boolean {
   if (!mailId.trim()) {
     return false;
@@ -514,6 +523,7 @@ export function markMailRead(mailId: string): boolean {
   return true;
 }
 
+/** 中文名：获取积分entries（getRatingEntries）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getRatingEntries(): LocalRatingEntry[] {
   const state = readState();
   if (state.records.length === 0) {
@@ -541,6 +551,7 @@ export function getRatingEntries(): LocalRatingEntry[] {
   ]; */
 }
 
+/** 中文名：获取积分entryby玩家名（getRatingEntryByHandle）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getRatingEntryByHandle(handle: string): LocalRatingEntry | undefined {
   const normalizedHandle = normalizePlayableIdentityHandle(handle);
   if (!normalizedHandle) {
@@ -551,6 +562,7 @@ export function getRatingEntryByHandle(handle: string): LocalRatingEntry | undef
   return getRatingEntries().find((entry) => normalizePlayerHandleKey(entry.handle) === normalizedHandleKey);
 }
 
+/** 中文名：获取profile摘要（getProfileSummary）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getProfileSummary(handle: string): LocalProfileSummary | undefined {
   const state = readState();
   const requestedHandle = handle.trim();

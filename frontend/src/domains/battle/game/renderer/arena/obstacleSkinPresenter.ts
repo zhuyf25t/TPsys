@@ -10,6 +10,7 @@ const OBSTACLE_SKIN_HIGHLIGHT_COLOR = 0xe8f8ff;
 const WALL_BRACE_COLOR = 0x0c151a;
 const CRATE_BRACE_COLOR = 0x151819;
 
+/** 中文名：创建staticobstaclemetalskin（createStaticObstacleMetalSkin）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createStaticObstacleMetalSkin(scene: Phaser.Scene, obstacle: ArenaObstacle, imageDepth: number): void {
   const { position, size } = obstacle;
   const isWall = obstacle.kind === "wall";

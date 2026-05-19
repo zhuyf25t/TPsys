@@ -163,6 +163,7 @@ type CommandFieldMap = Partial<Record<keyof PlayerCommand, unknown>>;
 const registeredBotStrategies = new Map<string, BotCommandStrategy>();
 const warnedStrategyFailures = new Set<string>();
 
+/** 中文名：构建机器人decisioncontext（buildBotDecisionContext）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function buildBotDecisionContext(input: BuildBotDecisionContextInput): BotDecisionContext {
   const profile = input.profile ?? getBotProfileById(input.bot.heroId) ?? null;
   const profileObservation = profile ? copyBotProfile(profile) : null;
@@ -191,6 +192,7 @@ export function buildBotDecisionContext(input: BuildBotDecisionContextInput): Bo
   };
 }
 
+/** 中文名：register机器人strategy（registerBotStrategy）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function registerBotStrategy(strategy: BotCommandStrategy): void {
   const strategyId = normalizeBotStrategyKey(strategy.strategyId);
   if (!strategyId) {
@@ -205,15 +207,18 @@ export function registerBotStrategy(strategy: BotCommandStrategy): void {
   registeredBotStrategies.set(strategyId, strategy);
 }
 
+/** 中文名：unregister机器人strategy（unregisterBotStrategy）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function unregisterBotStrategy(strategyId: string): boolean {
   const normalizedStrategyId = normalizeBotStrategyKey(strategyId);
   return normalizedStrategyId ? registeredBotStrategies.delete(normalizedStrategyId) : false;
 }
 
+/** 中文名：列表机器人strategyids（listBotStrategyIds）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function listBotStrategyIds(): readonly string[] {
   return [...registeredBotStrategies.keys()].sort();
 }
 
+/** 中文名：解析机器人strategy命令（resolveBotStrategyCommand）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function resolveBotStrategyCommand(context: BotDecisionContext, fallbackCommand?: PlayerCommand): PlayerCommand {
   const fallback = fallbackCommand ?? commandObservationToPlayerCommand(context.defaultCommand);
   const strategy = resolveRegisteredBotStrategy(context);
@@ -233,6 +238,7 @@ export function resolveBotStrategyCommand(context: BotDecisionContext, fallbackC
   }
 }
 
+/** 中文名：规范化机器人命令（normalizeBotCommand）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function normalizeBotCommand(command: BotCommandStrategyDecision, fallbackCommand: PlayerCommand): PlayerCommand {
   const fallback = copyPlayerCommand(fallbackCommand);
   const source = isRecord(command) ? (command as CommandFieldMap) : null;
@@ -258,6 +264,7 @@ export function normalizeBotCommand(command: BotCommandStrategyDecision, fallbac
   };
 }
 
+/** 中文名：规范化机器人strategykey（normalizeBotStrategyKey）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function normalizeBotStrategyKey(value: string | null | undefined): string | null {
   if (!value) {
     return null;

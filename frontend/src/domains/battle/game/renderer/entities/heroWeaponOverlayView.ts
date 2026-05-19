@@ -21,6 +21,7 @@ export interface SyncHeroWeaponOverlayVisualsInput {
   strokeAlpha: number;
 }
 
+/** 中文名：创建英雄武器overlayview（createHeroWeaponOverlayView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createHeroWeaponOverlayView(scene: Phaser.Scene, position: Vec2): HeroWeaponOverlayView {
   return {
     primary: scene.add
@@ -38,12 +39,14 @@ export function createHeroWeaponOverlayView(scene: Phaser.Scene, position: Vec2)
   };
 }
 
+/** 中文名：设置英雄武器overlayvisible（setHeroWeaponOverlayVisible）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function setHeroWeaponOverlayVisible(view: HeroWeaponOverlayView, visible: boolean): void {
   view.primary.setVisible(visible);
   view.secondary.setVisible(visible);
   view.core.setVisible(visible);
 }
 
+/** 中文名：sync英雄武器overlayvisuals（syncHeroWeaponOverlayVisuals）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncHeroWeaponOverlayVisuals({
   view,
   weaponKind,

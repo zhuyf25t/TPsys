@@ -31,6 +31,7 @@ function normalizeVector(vector: Vec2): Vec2 {
   };
 }
 
+/** 中文名：创建玩家命令（createPlayerCommand）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createPlayerCommand(input: InputCommandContext): PlayerCommand {
   const movementInput = {
     x: Number(input.moveRight) - Number(input.moveLeft),

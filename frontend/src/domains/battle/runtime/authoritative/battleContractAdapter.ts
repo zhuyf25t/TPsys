@@ -63,6 +63,7 @@ export interface LocalBattleResultAdapterInput {
   outcome?: BattleSessionResultOutcomeDto;
 }
 
+/** 中文名：转为战斗命令dto（toBattleCommandDto）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function toBattleCommandDto(input: LocalBattleCommandAdapterInput): BattleCommandDto {
   return {
     sessionId: input.sessionId,
@@ -84,6 +85,7 @@ export function toBattleCommandDto(input: LocalBattleCommandAdapterInput): Battl
   };
 }
 
+/** 中文名：转为战斗快照dto（toBattleSnapshotDto）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function toBattleSnapshotDto(input: LocalBattleSnapshotAdapterInput): BattleSnapshotDto {
   return {
     sessionId: input.sessionId,
@@ -105,6 +107,7 @@ export function toBattleSnapshotDto(input: LocalBattleSnapshotAdapterInput): Bat
   };
 }
 
+/** 中文名：转为战斗hudviewdto（toBattleHudViewDto）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function toBattleHudViewDto(state: HudState): BattleHudViewDto {
   return {
     timerText: state.timer,
@@ -148,6 +151,7 @@ export function toBattleHudViewDto(state: HudState): BattleHudViewDto {
   };
 }
 
+/** 中文名：转为战斗会话结果dto（toBattleSessionResultDto）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function toBattleSessionResultDto(input: LocalBattleResultAdapterInput): BattleSessionResultDto {
   return {
     sessionId: input.sessionId,

@@ -17,6 +17,7 @@ export interface AuthoritativeLocalHeroBlinkPrediction {
   destination: Vec2;
 }
 
+/** 中文名：解析authoritative本地英雄blinkprediction（resolveAuthoritativeLocalHeroBlinkPrediction）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAuthoritativeLocalHeroBlinkPrediction({
   player,
   position,
@@ -64,18 +65,22 @@ export function resolveAuthoritativeLocalHeroBlinkPrediction({
   };
 }
 
+/** 中文名：查找blink技能状态（findBlinkSkillState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function findBlinkSkillState(skills: readonly SkillState[]): SkillState | null {
   return skills.find((skill) => skill.kind === "Blink") ?? null;
 }
 
+/** 中文名：判断是否authoritative本地英雄blinkready（isAuthoritativeLocalHeroBlinkReady）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isAuthoritativeLocalHeroBlinkReady(cooldownMs: number, activeMs = 0): boolean {
   return Number.isFinite(cooldownMs) && cooldownMs <= 0 && Number.isFinite(activeMs) && activeMs <= 0;
 }
 
+/** 中文名：获取predictedblinkcooldownms（getPredictedBlinkCooldownMs）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getPredictedBlinkCooldownMs(): number {
   return SKILL_DEFINITIONS.Blink.cooldownMs;
 }
 
+/** 中文名：判断是否authoritative本地英雄blinkconfirm（isAuthoritativeLocalHeroBlinkConfirm）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isAuthoritativeLocalHeroBlinkConfirm(command: PlayerCommand, preparedSkill: PreparedSkill): boolean {
   if (!command.primaryJustPressed) {
     return false;

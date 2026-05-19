@@ -19,6 +19,7 @@ export interface QuickPreviewOverlayProps {
   onClose: () => void;
 }
 
+/** 中文名：quickpreviewoverlay（QuickPreviewOverlay）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function QuickPreviewOverlay({
   title,
   eyebrow,

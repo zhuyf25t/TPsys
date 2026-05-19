@@ -80,6 +80,7 @@ export interface CombatRespawnEffect {
   event: Pick<GameEvent, "type" | "message">;
 }
 
+/** 中文名：推进combatprojectiles（advanceCombatProjectiles）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function advanceCombatProjectiles(input: CombatFrameProjectileInput): CombatFrameProjectileResult {
   const outcomes = advanceProjectileRuntime({
     projectiles: [...input.projectiles],
@@ -172,6 +173,7 @@ export function advanceCombatProjectiles(input: CombatFrameProjectileInput): Com
   };
 }
 
+/** 中文名：推进combatrespawns（advanceCombatRespawns）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function advanceCombatRespawns(_input: CombatFrameRespawnInput): CombatRespawnEffect[] {
   return [];
 }

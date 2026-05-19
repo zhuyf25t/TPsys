@@ -45,6 +45,7 @@ export interface UpdateGameSceneOcclusionInput {
   occludables: readonly OccludableView[];
 }
 
+/** 中文名：syncgamescene世界views（syncGameSceneWorldViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncGameSceneWorldViews({
   scene,
   snapshot,
@@ -85,6 +86,7 @@ export function syncGameSceneWorldViews({
   });
 }
 
+/** 中文名：渲染gamescenehud（renderGameSceneHud）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function renderGameSceneHud({
   hudBridge,
   snapshot,
@@ -111,6 +113,7 @@ export function renderGameSceneHud({
   });
 }
 
+/** 中文名：更新gamesceneocclusion（updateGameSceneOcclusion）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function updateGameSceneOcclusion({
   player,
   sharedAuthoritativeRuntime,

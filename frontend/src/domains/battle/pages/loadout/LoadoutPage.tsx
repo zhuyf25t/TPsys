@@ -58,6 +58,7 @@ const quickActions: LobbyQuickAction[] = [
   { key: "social", label: "好友", iconKey: "social", anchor: "right" }
 ];
 
+/** 中文名：loadoutpage（LoadoutPage）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function LoadoutPage() {
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
   const [armedSlot, setArmedSlot] = useState<SkillSlotKey | null>(null);

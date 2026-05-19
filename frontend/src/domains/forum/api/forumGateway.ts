@@ -46,10 +46,12 @@ let cachedForumRefreshPromise: Promise<void> | null = null;
 
 void refreshForumCache();
 
+/** 中文名：获取discussionsummaries（getDiscussionSummaries）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getDiscussionSummaries(): DiscussionSummary[] {
   return getCachedForumTopics().map(toDiscussionSummary);
 }
 
+/** 中文名：获取discussion摘要by标识（getDiscussionSummaryById）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getDiscussionSummaryById(id: string): DiscussionSummary | undefined {
   const topic = getCachedForumTopicById(id);
   return topic ? toDiscussionSummary(topic) : undefined;
@@ -146,22 +148,27 @@ export async function submitDiscussionReplyVoteRemote(
   return updatedReply?.viewerVote ?? null;
 }
 
+/** 中文名：提交discussiontopic（submitDiscussionTopic）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function submitDiscussionTopic(_input: CreateDiscussionTopicInput): null {
   return null;
 }
 
+/** 中文名：提交discussionreply（submitDiscussionReply）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function submitDiscussionReply(_topicId: string, _input: CreateDiscussionReplyInput): null {
   return null;
 }
 
+/** 中文名：提交discussionvote（submitDiscussionVote）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function submitDiscussionVote(_topicId: string, _vote: DiscussionVote): null {
   return null;
 }
 
+/** 中文名：提交discussionreplyvote（submitDiscussionReplyVote）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function submitDiscussionReplyVote(_topicId: string, _replyId: string, _vote: DiscussionVote): null {
   return null;
 }
 
+/** 中文名：提交discussionreport（submitDiscussionReport）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function submitDiscussionReport(topicId: string, body: string, author?: string): boolean {
   return Boolean(topicId.trim() && body.trim() && (author ?? getCurrentAuthHandle()).trim());
 }
@@ -187,6 +194,7 @@ export async function submitDiscussionReportRemote(
   });
 }
 
+/** 中文名：提交discussionreplyreport（submitDiscussionReplyReport）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function submitDiscussionReplyReport(
   topicId: string,
   replyId: string,

@@ -7,6 +7,7 @@ const RECOVERABLE_STORAGE_KEYS = [
   "slay-demo.local-replay-playback.v1"
 ] as const;
 
+/** 中文名：sanitizestartup存储（sanitizeStartupStorage）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function sanitizeStartupStorage(): void {
   if (typeof window === "undefined") {
     return;
@@ -19,6 +20,7 @@ export function sanitizeStartupStorage(): void {
   safeRemoveStorageItem("slay-demo-active-battle-session-v1");
 }
 
+/** 中文名：重置recoverablestartup存储（resetRecoverableStartupStorage）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function resetRecoverableStartupStorage(): void {
   if (typeof window === "undefined") {
     return;

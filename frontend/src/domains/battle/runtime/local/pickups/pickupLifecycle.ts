@@ -23,11 +23,13 @@ export interface AdvancePickupLifecycleInput extends PickupLifecycleContextInput
   deltaMs: number;
 }
 
+/** 中文名：推进拾取物生命周期（advancePickupLifecycle）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function advancePickupLifecycle(input: AdvancePickupLifecycleInput): void {
   advanceWeaponPickups(input);
   advanceItemPickups(input);
 }
 
+/** 中文名：查找nearby拾取物（findNearbyPickup）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function findNearbyPickup(
   position: Vec2,
   pickups: readonly WeaponPickup[],
@@ -51,6 +53,7 @@ export function findNearbyPickup(
   return closest;
 }
 
+/** 中文名：查找nearbyitem拾取物（findNearbyItemPickup）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function findNearbyItemPickup(
   position: Vec2,
   pickups: readonly ItemPickup[],

@@ -66,6 +66,7 @@ const samples: LocalHeroCorrectionDiagnosticSample[] = [];
 
 publishLocalHeroCorrectionDiagnostics();
 
+/** 中文名：记录本地英雄correctiondiagnostics（recordLocalHeroCorrectionDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordLocalHeroCorrectionDiagnostics(input: LocalHeroCorrectionDiagnosticsRecordInput): void {
   if (!isBattleDiagnosticsEnabled()) {
     return;

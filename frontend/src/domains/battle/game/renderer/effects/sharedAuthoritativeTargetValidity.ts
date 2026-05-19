@@ -13,6 +13,7 @@ export interface SharedAuthoritativeTargetValidityInput {
   obstacleBounds: readonly SceneGeometryObstacleBounds[];
 }
 
+/** 中文名：判断是否共享authoritative目标valid（isSharedAuthoritativeTargetValid）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isSharedAuthoritativeTargetValid(input: SharedAuthoritativeTargetValidityInput): boolean {
   const profile = getPreparedTargetSkillRuntimeProfile(input.preparedSkill);
 

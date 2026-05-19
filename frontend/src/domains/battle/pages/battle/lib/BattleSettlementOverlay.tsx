@@ -7,6 +7,7 @@ interface BattleSettlementOverlayProps {
   onNewMatch: () => void;
 }
 
+/** 中文名：战斗settlementoverlay（BattleSettlementOverlay）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function BattleSettlementOverlay({ summary, replayId, onNewMatch }: BattleSettlementOverlayProps) {
   return (
     <div className="arena-shell__overlay arena-shell__overlay--settled">

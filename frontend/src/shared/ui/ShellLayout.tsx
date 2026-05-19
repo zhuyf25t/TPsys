@@ -12,6 +12,7 @@ interface ShellLayoutProps {
   backLabel?: string;
 }
 
+/** 中文名：shelllayout（ShellLayout）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function ShellLayout({
   title,
   subtitle,

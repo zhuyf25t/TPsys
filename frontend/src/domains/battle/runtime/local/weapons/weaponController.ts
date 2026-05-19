@@ -74,6 +74,7 @@ export interface WeaponFireResolution {
   mutation: WeaponFireMutation;
 }
 
+/** 中文名：请求武器switch（requestWeaponSwitch）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function requestWeaponSwitch(context: WeaponSwitchContext): WeaponSwitchResult {
   const { player, switchDirection, weaponSwitchRemainingMs } = context;
   if (!player.alive || switchDirection === 0 || player.weapons.length <= 1 || weaponSwitchRemainingMs > 0) {
@@ -104,6 +105,7 @@ export function requestWeaponSwitch(context: WeaponSwitchContext): WeaponSwitchR
   };
 }
 
+/** 中文名：请求武器switch转为index（requestWeaponSwitchToIndex）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function requestWeaponSwitchToIndex(context: WeaponSwitchIndexContext): WeaponSwitchResult {
   const { player, switchWeaponIndex, weaponSwitchRemainingMs } = context;
   const targetIndex = normalizeWeaponIndex(switchWeaponIndex, player.weapons.length);
@@ -138,6 +140,7 @@ export interface BeginWeaponSwitchTransactionContext extends WeaponSwitchContext
   weaponSwitchMs: number;
 }
 
+/** 中文名：begin武器switchtransaction（beginWeaponSwitchTransaction）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function beginWeaponSwitchTransaction(context: BeginWeaponSwitchTransactionContext): WeaponSwitchTransactionResult {
   const switchResult = requestWeaponSwitch(context);
   return beginWeaponSwitchFromResult(context.player, context.weaponSwitchRemainingMs, context.weaponSwitchMs, switchResult);
@@ -147,6 +150,7 @@ export interface BeginWeaponSwitchIndexTransactionContext extends WeaponSwitchIn
   weaponSwitchMs: number;
 }
 
+/** 中文名：begin武器switchindextransaction（beginWeaponSwitchIndexTransaction）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function beginWeaponSwitchIndexTransaction(context: BeginWeaponSwitchIndexTransactionContext): WeaponSwitchTransactionResult {
   const switchResult = requestWeaponSwitchToIndex(context);
   return beginWeaponSwitchFromResult(context.player, context.weaponSwitchRemainingMs, context.weaponSwitchMs, switchResult);
@@ -201,6 +205,7 @@ function normalizeWeaponIndex(index: number | null, weaponCount: number): number
   return normalized >= 0 && normalized < weaponCount ? normalized : null;
 }
 
+/** 中文名：prunedepleteddisposable武器（pruneDepletedDisposableWeapon）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function pruneDepletedDisposableWeapon(player: Hero, previousIndex: number): boolean {
   const previousWeapon = player.weapons[previousIndex];
   if (!previousWeapon || !isDisposableWeapon(previousWeapon.weaponKind) || !isWeaponDepleted(previousWeapon)) {
@@ -220,6 +225,7 @@ export function pruneDepletedDisposableWeapon(player: Hero, previousIndex: numbe
   return true;
 }
 
+/** 中文名：请求武器换弹（requestWeaponReload）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function requestWeaponReload(context: WeaponReloadContext): WeaponReloadResult {
   const { player, weapon, weaponSwitchRemainingMs } = context;
   const definition = context.weaponDefinition ?? WEAPON_DEFINITIONS[weapon.weaponKind];
@@ -241,6 +247,7 @@ export function requestWeaponReload(context: WeaponReloadContext): WeaponReloadR
   return { started: true };
 }
 
+/** 中文名：解析武器开火（resolveWeaponFire）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveWeaponFire(context: WeaponFireContext): WeaponFireResolution {
   const { weapon, weaponDefinition, command, weaponSwitchRemainingMs, playerMotionActive } = context;
   const runtimeProfile = context.weaponRuntimeProfile ?? getWeaponRuntimeProfile(weapon.weaponKind);

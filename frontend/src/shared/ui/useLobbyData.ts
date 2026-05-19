@@ -9,6 +9,7 @@ interface LobbyDataRefreshOptions {
   refreshEvents?: readonly string[];
 }
 
+/** 中文名：使用lobby数据（useLobbyData）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function useLobbyData<T>(
   getInitialValue: () => T,
   loadValue: LobbyDataLoader<T>,

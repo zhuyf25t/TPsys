@@ -12,6 +12,7 @@
     "audit:battle-contracts": "npm run audit:battle-content",
     "audit:domain-alignment": "node scripts/audit-frontend-backend-domain-alignment.mjs",
     "audit:frontend-structure": "node scripts/audit-frontend-domain-structure.mjs",
+    "audit:chinese-comments": "node scripts/audit-chinese-function-comments.mjs",
     "audit:data-closure": "node scripts/audit-data-closure.mjs",
     "data:closure-repair-plan": "node scripts/plan-data-closure-repair.mjs",
     "data:closure-cleanup": "node scripts/cleanup-data-closure.mjs",

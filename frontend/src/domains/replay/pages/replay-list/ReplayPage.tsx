@@ -15,6 +15,7 @@ const REPLAY_FILTERS: Array<{ id: ReplayLibraryFilter; label: string }> = [
   { id: "playable", label: "可播放" }
 ];
 
+/** 中文名：回放page（ReplayPage）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
 export function ReplayPage() {
   const authUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   const [replaySummaries, setReplaySummaries] = useState<ReplaySummary[]>([]);

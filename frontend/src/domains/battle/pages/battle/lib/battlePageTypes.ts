@@ -37,6 +37,7 @@ export const QUICK_RIGHT: Array<{ id: BattleDrawerId; label: string; iconKey: "m
   { id: "social", label: "好友", iconKey: "social" }
 ];
 
+/** 中文名：格式化matchmaking时间（formatMatchmakingTime）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function formatMatchmakingTime(ms: number): string {
   const totalSeconds = Math.ceil(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);

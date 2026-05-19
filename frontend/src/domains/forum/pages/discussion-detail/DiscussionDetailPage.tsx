@@ -18,6 +18,7 @@ type DiscussionReportTarget =
   | { kind: "topic"; topic: DiscussionSummary }
   | { kind: "reply"; topic: DiscussionSummary; reply: DiscussionReply };
 
+/** 中文名：discussiondetailpage（DiscussionDetailPage）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function DiscussionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [topic, setTopic] = useState<DiscussionSummary | null>(null);

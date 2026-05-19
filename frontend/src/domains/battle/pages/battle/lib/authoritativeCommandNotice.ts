@@ -29,6 +29,7 @@ const SKILL_NOOP_REASON_NOTICES: Record<AuthoritativeBattleSkillOutcomeReason, s
   blocked: "被障碍阻挡"
 };
 
+/** 中文名：解析命令failurenotice（resolveCommandFailureNotice）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveCommandFailureNotice(outcome: AuthoritativeBattleCommandSubmitOutcome): string {
   if (outcome.ok) {
     return resolveAcceptedCommandNotice(outcome.accepted) ?? "命令未生效";
@@ -54,6 +55,7 @@ export function resolveCommandFailureNotice(outcome: AuthoritativeBattleCommandS
   }
 }
 
+/** 中文名：解析accepted命令notice（resolveAcceptedCommandNotice）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAcceptedCommandNotice(accepted: AuthoritativeBattleCommandAccepted): string | null {
   if (accepted.commandStatus === "ignored") {
     return accepted.commandReason ? COMMAND_IGNORED_NOTICES[accepted.commandReason] : "命令未生效";
@@ -63,6 +65,7 @@ export function resolveAcceptedCommandNotice(accepted: AuthoritativeBattleComman
   return noopOutcome ? resolveSkillOutcomeNotice(noopOutcome) : null;
 }
 
+/** 中文名：解析技能outcomenotice（resolveSkillOutcomeNotice）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveSkillOutcomeNotice(outcome: AuthoritativeBattleSkillOutcome): string {
   const skillLabel = SKILL_NOTICE_LABELS[outcome.action];
   const reasonNotice = outcome.reason ? SKILL_NOOP_REASON_NOTICES[outcome.reason] : "未生效";

@@ -38,6 +38,7 @@ export interface AuthoritativeProjectileTerminalTracerPresentation
   previous: ProjectileFeedbackState | undefined;
 }
 
+/** 中文名：present投射物终止dissipatevfx（presentProjectileTerminalDissipateVfx）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentProjectileTerminalDissipateVfx({
   previous,
   color,
@@ -48,6 +49,7 @@ export function presentProjectileTerminalDissipateVfx({
   }
 }
 
+/** 中文名：present投射物终止rocketimpactvfx（presentProjectileTerminalRocketImpactVfx）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentProjectileTerminalRocketImpactVfx({
   previous,
   color,
@@ -65,6 +67,7 @@ export function presentProjectileTerminalRocketImpactVfx({
   }
 }
 
+/** 中文名：presentauthoritative投射物终止reasonvfx（presentAuthoritativeProjectileTerminalReasonVfx）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentAuthoritativeProjectileTerminalReasonVfx({
   terminal,
   color,
@@ -97,6 +100,7 @@ export function presentAuthoritativeProjectileTerminalReasonVfx({
   }
 }
 
+/** 中文名：present投射物终止tracer（presentProjectileTerminalTracer）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentProjectileTerminalTracer({
   previous,
   color,
@@ -105,6 +109,7 @@ export function presentProjectileTerminalTracer({
   callbacks.createProjectileTracer(createProjectileTerminalTracerOptions(previous, color));
 }
 
+/** 中文名：presentauthoritative投射物终止tracer（presentAuthoritativeProjectileTerminalTracer）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentAuthoritativeProjectileTerminalTracer({
   terminal,
   previous,
@@ -114,6 +119,7 @@ export function presentAuthoritativeProjectileTerminalTracer({
   callbacks.createProjectileTracer(createAuthoritativeProjectileTerminalTracerOptions(terminal, previous, color));
 }
 
+/** 中文名：present投射物终止correctiontracer（presentProjectileTerminalCorrectionTracer）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentProjectileTerminalCorrectionTracer({
   previous,
   color,
@@ -127,6 +133,7 @@ export function presentProjectileTerminalCorrectionTracer({
   callbacks.createProjectileTracer(tracerOptions);
 }
 
+/** 中文名：presentauthoritative投射物终止correctiontracer（presentAuthoritativeProjectileTerminalCorrectionTracer）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentAuthoritativeProjectileTerminalCorrectionTracer({
   terminal,
   previous,

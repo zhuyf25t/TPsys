@@ -8,6 +8,7 @@ type BattleDiagnosticsWindow = Window & {
 
 let cachedDiagnosticsEnabled: boolean | null = null;
 
+/** 中文名：判断是否战斗diagnosticsenabled（isBattleDiagnosticsEnabled）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isBattleDiagnosticsEnabled(): boolean {
   if (cachedDiagnosticsEnabled !== null) {
     return cachedDiagnosticsEnabled;
@@ -17,6 +18,7 @@ export function isBattleDiagnosticsEnabled(): boolean {
   return cachedDiagnosticsEnabled;
 }
 
+/** 中文名：获取战斗diagnosticsroot（getBattleDiagnosticsRoot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getBattleDiagnosticsRoot<TRoot extends BattleDiagnosticsRoot = BattleDiagnosticsRoot>(): TRoot | null {
   if (!isBattleDiagnosticsEnabled() || typeof window === "undefined") {
     return null;

@@ -19,6 +19,7 @@ export interface ReadGameScenePlayerCommandInput {
   obstacleBounds: readonly ObstacleBounds[];
 }
 
+/** 中文名：读取gamescene玩家命令（readGameScenePlayerCommand）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function readGameScenePlayerCommand({
   input,
   controls,

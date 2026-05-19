@@ -38,14 +38,17 @@ export interface ContributionSummary {
   recentWork: string[];
 }
 
+/** 中文名：判断是否remote贡献sourceconfigured（isRemoteContributionSourceConfigured）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function isRemoteContributionSourceConfigured(): boolean {
   return HAS_REMOTE_CONTRIBUTION_SOURCE;
 }
 
+/** 中文名：获取贡献摘要（getContributionSummary）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function getContributionSummary(): ContributionSummary | null {
   return null;
 }
 
+/** 中文名：获取贡献entries（getContributionEntries）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function getContributionEntries(): ContributionEntry[] {
   return [];
 }
@@ -80,6 +83,7 @@ export async function loadContributionSummary(): Promise<ContributionSummary | n
   return buildContributionSummaryFromBattleResults(handle, remote);
 }
 
+/** 中文名：构建贡献快照for玩家名（buildContributionSnapshotForHandle）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function buildContributionSnapshotForHandle(
   handle: string,
   records: readonly Pick<BackendBattleResultRecord, "handle">[],
@@ -207,6 +211,7 @@ function buildDefaultContributionEntry(handle: string): ContributionEntry {
   };
 }
 
+/** 中文名：构建贡献adjustmenttotals（buildContributionAdjustmentTotals）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function buildContributionAdjustmentTotals(
   records: readonly RemoteContributionAdjustmentRecord[]
 ): Record<string, number> {

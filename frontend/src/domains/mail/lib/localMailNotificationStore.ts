@@ -25,6 +25,7 @@ interface LocalMailNotificationState {
   entries: LocalMailNotificationEntry[];
 }
 
+/** 中文名：appendmailnotification（appendMailNotification）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function appendMailNotification(input: {
   ownerHandle: string;
   kind: LocalMailNotificationKind;
@@ -71,6 +72,7 @@ export function appendMailNotification(input: {
   return entry;
 }
 
+/** 中文名：获取mailnotifications（getMailNotifications）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function getMailNotifications(ownerHandle?: string | null): LocalMailNotificationEntry[] {
   const visibleOwner = resolveVisibleOwner(ownerHandle);
   if (!visibleOwner) {
@@ -82,6 +84,7 @@ export function getMailNotifications(ownerHandle?: string | null): LocalMailNoti
     .sort((left, right) => right.createdAt - left.createdAt);
 }
 
+/** 中文名：标记mailnotification读取（markMailNotificationRead）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function markMailNotificationRead(notificationId: string, ownerHandle?: string | null): boolean {
   const id = notificationId.trim();
   if (!id) {
@@ -121,6 +124,7 @@ export function markMailNotificationRead(notificationId: string, ownerHandle?: s
   return true;
 }
 
+/** 中文名：设置mailnotification好友请求状态（setMailNotificationFriendRequestStatus）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function setMailNotificationFriendRequestStatus(input: {
   ownerHandle: string;
   friendRequestId: string;

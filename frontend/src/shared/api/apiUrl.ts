@@ -1,3 +1,4 @@
+/** 中文名：规范化接口base（normalizeApiBase）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function normalizeApiBase(base: string | null | undefined, fallback = "/api"): string {
   const value = (base ?? "").trim();
   if (!value) {
@@ -7,6 +8,7 @@ export function normalizeApiBase(base: string | null | undefined, fallback = "/a
   return value.replace(/\/+$/, "");
 }
 
+/** 中文名：构建接口地址（buildApiUrl）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
 export function buildApiUrl(
   base: string,
   path: string,

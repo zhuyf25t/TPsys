@@ -32,6 +32,7 @@ interface UseBattlePageDataOptions {
   matchNonce: number;
 }
 
+/** 中文名：使用战斗page数据（useBattlePageData）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function useBattlePageData({ matchPhase, matchNonce }: UseBattlePageDataOptions) {
   const currentUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   useSyncExternalStore(subscribeLoadoutState, getLoadoutStateVersion, getLoadoutStateVersion);

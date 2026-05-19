@@ -49,14 +49,17 @@ interface CreateDiscussionReplyInput {
   author: string;
 }
 
+/** 中文名：获取discussiontopics（getDiscussionTopics）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getDiscussionTopics(): LocalDiscussionTopic[] {
   return [...readState().topics].sort((left, right) => right.updatedAt - left.updatedAt);
 }
 
+/** 中文名：获取discussiontopicby标识（getDiscussionTopicById）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getDiscussionTopicById(id: string): LocalDiscussionTopic | undefined {
   return readState().topics.find((topic) => topic.id === id);
 }
 
+/** 中文名：获取discussiontopicvote（getDiscussionTopicVote）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getDiscussionTopicVote(topicId: string): LocalDiscussionVote | null {
   const normalizedTopicId = topicId.trim();
   if (!normalizedTopicId) {
@@ -66,6 +69,7 @@ export function getDiscussionTopicVote(topicId: string): LocalDiscussionVote | n
   return readVoteState().votes[normalizedTopicId] ?? null;
 }
 
+/** 中文名：设置discussiontopicvote（setDiscussionTopicVote）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function setDiscussionTopicVote(topicId: string, vote: LocalDiscussionVote): LocalDiscussionVote | null {
   const normalizedTopicId = topicId.trim();
   if (!normalizedTopicId) {
@@ -90,6 +94,7 @@ export function setDiscussionTopicVote(topicId: string, vote: LocalDiscussionVot
   return nextVote;
 }
 
+/** 中文名：获取discussionreplyvote（getDiscussionReplyVote）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getDiscussionReplyVote(replyId: string): LocalDiscussionVote | null {
   const normalizedReplyId = replyId.trim();
   if (!normalizedReplyId) {
@@ -99,6 +104,7 @@ export function getDiscussionReplyVote(replyId: string): LocalDiscussionVote | n
   return readReplyVoteState().votes[normalizedReplyId] ?? null;
 }
 
+/** 中文名：设置discussionreplyvote（setDiscussionReplyVote）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function setDiscussionReplyVote(replyId: string, vote: LocalDiscussionVote): LocalDiscussionVote | null {
   const normalizedReplyId = replyId.trim();
   if (!normalizedReplyId) {
@@ -123,6 +129,7 @@ export function setDiscussionReplyVote(replyId: string, vote: LocalDiscussionVot
   return nextVote;
 }
 
+/** 中文名：创建discussiontopic（createDiscussionTopic）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function createDiscussionTopic(input: CreateDiscussionTopicInput): LocalDiscussionTopic | null {
   const title = input.title.trim();
   const body = input.body.trim();
@@ -153,6 +160,7 @@ export function createDiscussionTopic(input: CreateDiscussionTopicInput): LocalD
   return topic;
 }
 
+/** 中文名：创建discussionreply（createDiscussionReply）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function createDiscussionReply(
   topicId: string,
   input: CreateDiscussionReplyInput
@@ -195,6 +203,7 @@ export function createDiscussionReply(
   return nextTopic;
 }
 
+/** 中文名：获取discussionactivity摘要（getDiscussionActivitySummary）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getDiscussionActivitySummary(): {
   topicCount: number;
   replyCount: number;

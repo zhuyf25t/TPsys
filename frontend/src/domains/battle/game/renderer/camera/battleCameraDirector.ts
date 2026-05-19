@@ -21,6 +21,7 @@ const POINTER_LOOK_AHEAD_RATIO = 0.38;
 const POINTER_LOOK_AHEAD_MAX = { x: 260, y: 260 };
 const CAMERA_OFFSET_LERP = { x: 1, y: 1 };
 
+/** 中文名：configure战斗camera（configureBattleCamera）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function configureBattleCamera({ camera, worldSize, globalPadding }: ConfigureBattleCameraInput): void {
   camera.setBounds(
     -globalPadding,
@@ -34,6 +35,7 @@ export function configureBattleCamera({ camera, worldSize, globalPadding }: Conf
   camera.setDeadzone(CAMERA_DEADZONE.width, CAMERA_DEADZONE.height);
 }
 
+/** 中文名：更新战斗camera目标（updateBattleCameraTarget）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function updateBattleCameraTarget({
   pointer,
   scaleSize,

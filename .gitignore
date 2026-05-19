@@ -20,6 +20,7 @@ logs/
 .tmp/
 /pics/
 /reference-assets/
+/reference/
 /queue/
 now.md
 
@@ -49,3 +50,6 @@ Desktop.ini
 .DS_Store
 .idea/
 .vscode/
+
+dist-frontend2/
+dist/

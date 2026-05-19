@@ -15,6 +15,7 @@ export interface AutomaticPickupSceneInput {
   callbacks: AutomaticPickupSceneCallbacks;
 }
 
+/** 中文名：玩家名automatic拾取物scene（handleAutomaticPickupScene）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function handleAutomaticPickupScene(input: AutomaticPickupSceneInput): void {
   const weaponResult = applyAutomaticWeaponPickup({
     player: input.player,

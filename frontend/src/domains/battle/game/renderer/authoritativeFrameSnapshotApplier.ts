@@ -58,6 +58,7 @@ export interface LocalPlayerAuthoritativeReplayContext {
   dashCooldownMsOverride?: number;
 }
 
+/** 中文名：应用authoritative帧转为快照（applyAuthoritativeFrameToSnapshot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyAuthoritativeFrameToSnapshot({
   snapshot,
   frame,

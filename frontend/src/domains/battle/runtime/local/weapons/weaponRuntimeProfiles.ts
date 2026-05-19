@@ -75,10 +75,12 @@ export const WEAPON_RUNTIME_PROFILES: Readonly<Record<WeaponKind, Readonly<Weapo
   }
 };
 
+/** 中文名：获取武器runtimeprofile（getWeaponRuntimeProfile）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getWeaponRuntimeProfile(weaponKind: WeaponKind): Readonly<WeaponRuntimeProfile> {
   return WEAPON_RUNTIME_PROFILES[weaponKind];
 }
 
+/** 中文名：解析武器ammo模式（resolveWeaponAmmoMode）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveWeaponAmmoMode(
   profile: Pick<WeaponRuntimeProfile, "ammoMode">,
   definition: Pick<WeaponDefinition, "usesHeat">

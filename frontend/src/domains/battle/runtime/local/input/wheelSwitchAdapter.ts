@@ -4,6 +4,7 @@ export interface WheelSwitchDetail {
 
 export type WheelSwitchBridge = () => void;
 
+/** 中文名：installwheelswitchbridge（installWheelSwitchBridge）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function installWheelSwitchBridge(): WheelSwitchBridge {
   const listener = (event: WheelEvent): void => {
     if (event.ctrlKey) {

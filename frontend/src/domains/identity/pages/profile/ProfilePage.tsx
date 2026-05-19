@@ -17,6 +17,7 @@ interface RatingChartPoint {
   value: number;
 }
 
+/** 中文名：profilepage（ProfilePage）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function ProfilePage() {
   const { handle } = useParams<{ handle: string }>();
   const authUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);

@@ -18,6 +18,7 @@ export interface HeroWeaponSkillTimersResult {
   pendingWeaponIndex: number | null;
 }
 
+/** 中文名：推进英雄武器技能timers（advanceHeroWeaponSkillTimers）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function advanceHeroWeaponSkillTimers(context: HeroWeaponSkillTimersContext): HeroWeaponSkillTimersResult {
   const deltaMs = Math.max(0, context.deltaMs);
   const deltaSeconds = deltaMs / 1000;

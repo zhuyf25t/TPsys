@@ -4,6 +4,7 @@ export const MATCH_DURATION_MS = 5 * 60 * 1000;
 
 export type ProjectileDisplayKind = "pistol-bullet" | "rocket" | "gatling-bullet" | "shotgun-pellet" | "rocket-explosion";
 
+/** 中文名：格式化对局时间（formatMatchTime）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function formatMatchTime(elapsedMs: number, totalMatchMs: number = MATCH_DURATION_MS): string {
   const remainingMs = Math.max(0, totalMatchMs - elapsedMs);
   const totalSeconds = Math.floor(remainingMs / 1000);
@@ -12,6 +13,7 @@ export function formatMatchTime(elapsedMs: number, totalMatchMs: number = MATCH_
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
+/** 中文名：获取武器展示标签（getWeaponDisplayLabel）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getWeaponDisplayLabel(weaponKind: WeaponPickup["weaponKind"]): string {
   switch (weaponKind) {
     case "Pistol":
@@ -27,6 +29,7 @@ export function getWeaponDisplayLabel(weaponKind: WeaponPickup["weaponKind"]): s
   }
 }
 
+/** 中文名：获取投射物展示标签（getProjectileDisplayLabel）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getProjectileDisplayLabel(projectileKind: ProjectileDisplayKind): string {
   switch (projectileKind) {
     case "pistol-bullet":
@@ -44,6 +47,7 @@ export function getProjectileDisplayLabel(projectileKind: ProjectileDisplayKind)
   }
 }
 
+/** 中文名：获取item拾取物展示标签（getItemPickupDisplayLabel）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getItemPickupDisplayLabel(kind: ItemPickup["kind"]): string {
   switch (kind) {
     case "Medkit":
@@ -53,6 +57,7 @@ export function getItemPickupDisplayLabel(kind: ItemPickup["kind"]): string {
   }
 }
 
+/** 中文名：获取武器拾取物tint（getWeaponPickupTint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getWeaponPickupTint(weaponKind: WeaponPickup["weaponKind"]): number {
   switch (weaponKind) {
     case "RocketLauncher":

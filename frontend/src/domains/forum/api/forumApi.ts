@@ -57,6 +57,7 @@ const FORUM_API_TIMEOUT_MS = 5_000;
 
 let lastForumMutationStatus: ForumMutationStatus = "ok";
 
+/** 中文名：获取lastforummutation状态（getLastForumMutationStatus）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function getLastForumMutationStatus(): ForumMutationStatus {
   return lastForumMutationStatus;
 }

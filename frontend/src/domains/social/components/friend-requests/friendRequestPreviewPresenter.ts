@@ -9,6 +9,7 @@ export interface FriendRequestPreviewModel {
   items: QuickPreviewEntry[];
 }
 
+/** 中文名：构建好友请求preview（buildFriendRequestPreview）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function buildFriendRequestPreview(
   requests: readonly FriendRequestRecord[],
   ownerHandle?: string | null

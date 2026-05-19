@@ -46,6 +46,7 @@ const AUTHORITATIVE_PROJECTILE_INTERPOLATION_BUFFER_CAP = 8;
 const AUTHORITATIVE_PROJECTILE_POSITION_EPSILON = 0.05;
 const AUTHORITATIVE_PROJECTILE_FACING_EPSILON = 0.001;
 
+/** 中文名：获取投射物展示position从views（getProjectileDisplayPositionFromViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getProjectileDisplayPositionFromViews(
   worldViews: Pick<ProjectileAndFieldViewState, "projectileViews">,
   projectileId: string
@@ -58,6 +59,7 @@ export function getProjectileDisplayPositionFromViews(
   return { x: view.sprite.x, y: view.sprite.y };
 }
 
+/** 中文名：sync投射物views（syncProjectileViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncProjectileViews({
   scene,
   snapshot,
@@ -260,6 +262,7 @@ function resolveProjectileFallbackDisplayState(view: ProjectileView, projectile:
   };
 }
 
+/** 中文名：sync减速fieldviews（syncSlowFieldViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncSlowFieldViews({ scene, snapshot, worldViews }: ProjectileAndFieldSyncContext): void {
   const liveIds = worldViews.scratchLiveSlowFieldIds;
   liveIds.clear();

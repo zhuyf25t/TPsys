@@ -35,10 +35,12 @@ const BOT_ID_BEHAVIOR_OVERRIDES: Readonly<Record<string, Partial<BotBehaviorProf
 const PROFILE_TONE_BEHAVIOR_OVERRIDES: Readonly<Record<string, Partial<BotBehaviorProfile>>> = {};
 const STRATEGY_LABEL_BEHAVIOR_OVERRIDES: Readonly<Record<string, Partial<BotBehaviorProfile>>> = {};
 
+/** 中文名：获取default机器人behaviorprofile（getDefaultBotBehaviorProfile）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function getDefaultBotBehaviorProfile(): BotBehaviorProfile {
   return { ...DEFAULT_BOT_BEHAVIOR_PROFILE };
 }
 
+/** 中文名：获取机器人behaviorprofile（getBotBehaviorProfile）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function getBotBehaviorProfile(input: BotBehaviorLookupInput): BotBehaviorProfile {
   const normalizedBotId = normalizeBehaviorKey(input.botId);
   const profileFromRegistry = normalizedBotId ? getBotProfileById(normalizedBotId) : undefined;

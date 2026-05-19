@@ -42,10 +42,12 @@ export const BOT_PLUGIN_MANIFESTS = [
   }
 ] as const satisfies readonly BotPluginManifest[];
 
+/** 中文名：列表机器人pluginmanifests（listBotPluginManifests）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function listBotPluginManifests(): readonly BotPluginManifest[] {
   return BOT_PLUGIN_MANIFESTS;
 }
 
+/** 中文名：查找机器人pluginmanifestbystrategy标识（findBotPluginManifestByStrategyId）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function findBotPluginManifestByStrategyId(strategyId: string): BotPluginManifest | undefined {
   const normalizedStrategyId = normalizeManifestId(strategyId);
   return normalizedStrategyId
@@ -55,6 +57,7 @@ export function findBotPluginManifestByStrategyId(strategyId: string): BotPlugin
     : undefined;
 }
 
+/** 中文名：查找机器人pluginmanifestby机器人标识（findBotPluginManifestByBotId）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function findBotPluginManifestByBotId(botId: string): BotPluginManifest | undefined {
   const normalizedBotId = normalizeManifestId(botId);
   return normalizedBotId
@@ -64,6 +67,7 @@ export function findBotPluginManifestByBotId(botId: string): BotPluginManifest |
     : undefined;
 }
 
+/** 中文名：validate机器人pluginmanifestids（validateBotPluginManifestIds）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function validateBotPluginManifestIds(
   manifests: readonly BotPluginManifest[] = BOT_PLUGIN_MANIFESTS
 ): BotPluginManifestIdAudit {
@@ -74,6 +78,7 @@ export function validateBotPluginManifestIds(
   };
 }
 
+/** 中文名：assertunique机器人pluginmanifestids（assertUniqueBotPluginManifestIds）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function assertUniqueBotPluginManifestIds(manifests: readonly BotPluginManifest[] = BOT_PLUGIN_MANIFESTS): void {
   const audit = validateBotPluginManifestIds(manifests);
   const failures = [

@@ -58,6 +58,7 @@ const skipReasonCounts: Record<AuthoritativeLocalHeroReplaySkipReason, number> =
 };
 const samples: AuthoritativeLocalHeroReplayDiagnosticSample[] = [];
 
+/** 中文名：记录authoritative本地英雄回放diagnostics（recordAuthoritativeLocalHeroReplayDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordAuthoritativeLocalHeroReplayDiagnostics(
   input: AuthoritativeLocalHeroReplayDiagnosticsRecordInput
 ): void {

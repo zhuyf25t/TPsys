@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 import slaydemo.backend.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Rating, RatingDelta, Score}
-import slaydemo.backend.battle.services.BattleResultRecordCommand
+import slaydemo.backend.battle.services.results.BattleResultRecordCommand
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.shared.policies.HandlePolicy
 

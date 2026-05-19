@@ -11,6 +11,7 @@ import {
   type WorldViewState
 } from "./entities/worldViewFactory";
 
+/** 中文名：创建gamescene战斗feedbackbridge（createGameSceneBattleFeedbackBridge）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createGameSceneBattleFeedbackBridge({
   getSnapshot,
   getWorldViews,
@@ -41,6 +42,7 @@ export function createGameSceneBattleFeedbackBridge({
   });
 }
 
+/** 中文名：创建gamescene共享authoritative本地feedbackbridge（createGameSceneSharedAuthoritativeLocalFeedbackBridge）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createGameSceneSharedAuthoritativeLocalFeedbackBridge({
   getPlayerHero,
   localHeroDisplay,

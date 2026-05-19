@@ -4,7 +4,7 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.battle.services.BattleStateService
+import slaydemo.backend.battle.services.session.BattleStateService
 import slaydemo.backend.battle.routes.BattleRouteHttpSupport.jsonError
 import slaydemo.backend.shared.routes.HttpRouteSupport
 

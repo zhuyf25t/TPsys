@@ -119,6 +119,7 @@ const PROJECTILE_CORRECTION_TRACER_MAX_DISTANCE = 140;
 const PROJECTILE_CORRECTION_TRACER_DURATION_MS = 140;
 const REMOTE_PROJECTILE_BIRTH_FALLBACK_BACKSTEP = 10;
 
+/** 中文名：创建投射物feedback状态（createProjectileFeedbackState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createProjectileFeedbackState(
   projectile: Projectile,
   displayPosition: Vec2,
@@ -135,6 +136,7 @@ export function createProjectileFeedbackState(
   };
 }
 
+/** 中文名：创建authoritative投射物终止feedback状态（createAuthoritativeProjectileTerminalFeedbackState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createAuthoritativeProjectileTerminalFeedbackState(
   terminal: AuthoritativeProjectileTerminalFrame
 ): AuthoritativeProjectileTerminalFeedbackState | null {
@@ -163,6 +165,7 @@ export function createAuthoritativeProjectileTerminalFeedbackState(
   };
 }
 
+/** 中文名：创建authoritative投射物终止key（createAuthoritativeProjectileTerminalKey）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createAuthoritativeProjectileTerminalKey(
   terminal: AuthoritativeProjectileTerminalFrame
 ): string {
@@ -175,6 +178,7 @@ export function createAuthoritativeProjectileTerminalKey(
   ].join(":");
 }
 
+/** 中文名：should队列authoritative投射物终止（shouldQueueAuthoritativeProjectileTerminal）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function shouldQueueAuthoritativeProjectileTerminal(
   input: AuthoritativeProjectileTerminalQueueDecisionInput
 ): boolean {
@@ -186,6 +190,7 @@ export function shouldQueueAuthoritativeProjectileTerminal(
   return normalizeElapsedMs(input.terminalElapsedMs) >= input.freshnessBaselineElapsedMs;
 }
 
+/** 中文名：解析authoritative帧已流逝watermark（resolveAuthoritativeFrameElapsedWatermark）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAuthoritativeFrameElapsedWatermark(frame: BattleRuntimeAuthoritativeFrame): number {
   const frameElapsedMs = normalizeElapsedMs(frame.elapsedMs);
   if (frameElapsedMs > 0 || frame.projectileTerminals.length === 0) {
@@ -198,10 +203,12 @@ export function resolveAuthoritativeFrameElapsedWatermark(frame: BattleRuntimeAu
   );
 }
 
+/** 中文名：规范化已流逝ms（normalizeElapsedMs）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function normalizeElapsedMs(elapsedMs: number): number {
   return Number.isFinite(elapsedMs) ? Math.max(0, Math.round(elapsedMs)) : 0;
 }
 
+/** 中文名：selectauthoritative投射物终止vfxkeys（selectAuthoritativeProjectileTerminalVfxKeys）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function selectAuthoritativeProjectileTerminalVfxKeys(
   terminals: ReadonlyArray<AuthoritativeProjectileTerminalVfxCandidate>,
   limit: number
@@ -226,6 +233,7 @@ export function selectAuthoritativeProjectileTerminalVfxKeys(
   return selected;
 }
 
+/** 中文名：解析authoritative投射物终止队列dropkey（resolveAuthoritativeProjectileTerminalQueueDropKey）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAuthoritativeProjectileTerminalQueueDropKey(
   queuedTerminals: ReadonlyMap<string, AuthoritativeProjectileTerminalFeedbackState>,
   incomingTerminalKey: string,
@@ -242,6 +250,7 @@ export function resolveAuthoritativeProjectileTerminalQueueDropKey(
     : incomingTerminalKey;
 }
 
+/** 中文名：解析authoritative终止vfxstrategy（resolveAuthoritativeTerminalVfxStrategy）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAuthoritativeTerminalVfxStrategy(
   terminal: AuthoritativeProjectileTerminalFeedbackState
 ): AuthoritativeProjectileTerminalVfxStrategy {
@@ -296,10 +305,12 @@ export function resolveAuthoritativeTerminalVfxStrategy(
   }
 }
 
+/** 中文名：解析rocketshockwavestartradius（resolveRocketShockwaveStartRadius）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveRocketShockwaveStartRadius(): number {
   return Math.max(18, ROCKET_SPLASH_VISUAL_RADIUS * 0.16);
 }
 
+/** 中文名：创建投射物终止traceroptions（createProjectileTerminalTracerOptions）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createProjectileTerminalTracerOptions(
   previous: ProjectileFeedbackState,
   color: number
@@ -321,6 +332,7 @@ export function createProjectileTerminalTracerOptions(
   };
 }
 
+/** 中文名：创建authoritative投射物终止traceroptions（createAuthoritativeProjectileTerminalTracerOptions）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createAuthoritativeProjectileTerminalTracerOptions(
   terminal: AuthoritativeProjectileTerminalFeedbackState,
   previous: ProjectileFeedbackState | undefined,
@@ -344,6 +356,7 @@ export function createAuthoritativeProjectileTerminalTracerOptions(
   };
 }
 
+/** 中文名：创建投射物终止correctiontraceroptions（createProjectileTerminalCorrectionTracerOptions）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createProjectileTerminalCorrectionTracerOptions(
   previous: ProjectileFeedbackState,
   color: number
@@ -375,6 +388,7 @@ export function createProjectileTerminalCorrectionTracerOptions(
   };
 }
 
+/** 中文名：创建authoritative投射物终止correctiontraceroptions（createAuthoritativeProjectileTerminalCorrectionTracerOptions）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createAuthoritativeProjectileTerminalCorrectionTracerOptions(
   terminal: AuthoritativeProjectileTerminalFeedbackState,
   previous: ProjectileFeedbackState | undefined,
@@ -411,6 +425,7 @@ export function createAuthoritativeProjectileTerminalCorrectionTracerOptions(
   };
 }
 
+/** 中文名：创建remotegatling投射物birthtraceroptions（createRemoteGatlingProjectileBirthTracerOptions）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createRemoteGatlingProjectileBirthTracerOptions(
   projectile: Projectile,
   position: Vec2,
@@ -435,6 +450,7 @@ export function createRemoteGatlingProjectileBirthTracerOptions(
   };
 }
 
+/** 中文名：softencolor（softenColor）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function softenColor(color: number): number {
   const red = (color >> 16) & 0xff;
   const green = (color >> 8) & 0xff;
@@ -446,6 +462,7 @@ export function softenColor(color: number): number {
   );
 }
 
+/** 中文名：解析authoritative终止direction（resolveAuthoritativeTerminalDirection）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAuthoritativeTerminalDirection(
   terminal: AuthoritativeProjectileTerminalFeedbackState,
   previous: ProjectileFeedbackState | undefined
@@ -477,6 +494,7 @@ export function resolveAuthoritativeTerminalDirection(
   return previous?.direction ?? { x: 1, y: 0 };
 }
 
+/** 中文名：创建终止diagnostic投射物状态（createTerminalDiagnosticProjectileState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createTerminalDiagnosticProjectileState(
   terminal: AuthoritativeProjectileTerminalFeedbackState,
   previous: ProjectileFeedbackState | undefined
@@ -495,6 +513,7 @@ export function createTerminalDiagnosticProjectileState(
   };
 }
 
+/** 中文名：解析remote投射物birthfeedbackposition（resolveRemoteProjectileBirthFeedbackPosition）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveRemoteProjectileBirthFeedbackPosition(
   projectile: Projectile,
   owner?: Hero
@@ -516,6 +535,7 @@ export function resolveRemoteProjectileBirthFeedbackPosition(
   };
 }
 
+/** 中文名：解析投射物direction（resolveProjectileDirection）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveProjectileDirection(projectile: Projectile): Vec2 {
   const velocityLength = Math.hypot(projectile.velocity.x, projectile.velocity.y);
   if (velocityLength > 0.0001) {
@@ -531,6 +551,7 @@ export function resolveProjectileDirection(projectile: Projectile): Vec2 {
   };
 }
 
+/** 中文名：解析nearest终止英雄（resolveNearestTerminalHero）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveNearestTerminalHero(
   projectile: ProjectileFeedbackState,
   heroes: Hero[],
@@ -555,10 +576,12 @@ export function resolveNearestTerminalHero(
   return nearest;
 }
 
+/** 中文名：判断是否本地投射物终止（isLocalProjectileTerminal）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isLocalProjectileTerminal(projectile: ProjectileFeedbackState, playerHeroId: string): boolean {
   return projectile.ownerHeroId === playerHeroId;
 }
 
+/** 中文名：判断是否本地authoritative投射物终止（isLocalAuthoritativeProjectileTerminal）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isLocalAuthoritativeProjectileTerminal(
   terminal: AuthoritativeProjectileTerminalFeedbackState,
   playerHeroId: string
@@ -566,6 +589,7 @@ export function isLocalAuthoritativeProjectileTerminal(
   return terminal.ownerHeroId === playerHeroId;
 }
 
+/** 中文名：distancebetween（distanceBetween）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function distanceBetween(left: Vec2, right: Vec2): number {
   return Math.hypot(right.x - left.x, right.y - left.y);
 }

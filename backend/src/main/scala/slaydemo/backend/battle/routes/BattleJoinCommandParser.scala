@@ -1,7 +1,7 @@
 package slaydemo.backend.battle.routes
 
 import slaydemo.backend.battle.objects.{QueueRequestId, Rating}
-import slaydemo.backend.battle.services.BattleQueueJoinCommand
+import slaydemo.backend.battle.services.queue.BattleQueueJoinCommand
 import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
 
 private[routes] enum BattleQueueJoinCommandParseError {

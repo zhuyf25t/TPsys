@@ -2,7 +2,7 @@ package slaydemo.backend.battle.routes
 
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.battle.services.BattleStateService
+import slaydemo.backend.battle.services.session.BattleStateService
 import slaydemo.backend.battle.routes.BattleRouteHttpSupport.{handlePost, jsonError, readJsonObject}
 import slaydemo.backend.shared.routes.HttpRouteSupport
 

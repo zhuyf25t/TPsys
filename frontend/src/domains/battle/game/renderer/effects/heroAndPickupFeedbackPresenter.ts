@@ -58,6 +58,7 @@ interface AuthoritativeAmmoDeltaPresentationOptions {
   createPulse(position: Vec2, radius: number, color: number): void;
 }
 
+/** 中文名：present英雄feedback（presentHeroFeedback）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentHeroFeedback({
   snapshot,
   previousHeroStates,
@@ -119,6 +120,7 @@ export function presentHeroFeedback({
   });
 }
 
+/** 中文名：presentauthoritative拾取物feedback（presentAuthoritativePickupFeedback）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function presentAuthoritativePickupFeedback({
   snapshot,
   previousWeaponPickupStates,
@@ -143,6 +145,7 @@ export function presentAuthoritativePickupFeedback({
   });
 }
 
+/** 中文名：创建英雄feedback状态（createHeroFeedbackState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createHeroFeedbackState(hero: Hero, position: Vec2): HeroFeedbackState {
   return {
     hp: hero.hp,
@@ -153,6 +156,7 @@ export function createHeroFeedbackState(hero: Hero, position: Vec2): HeroFeedbac
   };
 }
 
+/** 中文名：创建武器拾取物feedback状态（createWeaponPickupFeedbackState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createWeaponPickupFeedbackState(pickup: WeaponPickup): PickupFeedbackState {
   return {
     available: pickup.available,
@@ -160,6 +164,7 @@ export function createWeaponPickupFeedbackState(pickup: WeaponPickup): PickupFee
   };
 }
 
+/** 中文名：创建item拾取物feedback状态（createItemPickupFeedbackState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createItemPickupFeedbackState(pickup: ItemPickup): PickupFeedbackState {
   return {
     available: pickup.available,

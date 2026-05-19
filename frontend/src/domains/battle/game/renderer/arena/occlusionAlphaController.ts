@@ -14,6 +14,7 @@ const OCCLUSION_PROBE_HEIGHT = 124;
 const OCCLUSION_FADE_ALPHA = 0.35;
 const OCCLUSION_LERP = 0.28;
 
+/** 中文名：更新occludablealpha（updateOccludableAlpha）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function updateOccludableAlpha(input: OcclusionAlphaInput): void {
   if (!input.player.alive) {
     input.occludables.forEach((occludable) => {

@@ -21,6 +21,7 @@ export interface AdvanceFreezeFieldsInput {
   deltaMs: number;
 }
 
+/** 中文名：推进freezefields（advanceFreezeFields）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function advanceFreezeFields(input: AdvanceFreezeFieldsInput): SlowField[] {
   return input.fields
     .map((field) => ({
@@ -30,6 +31,7 @@ export function advanceFreezeFields(input: AdvanceFreezeFieldsInput): SlowField[
     .filter((field) => field.ttlMs > 0);
 }
 
+/** 中文名：appendfreezefield（appendFreezeField）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function appendFreezeField(input: AppendFreezeFieldInput): AppendFreezeFieldResult {
   return {
     nextFields: [
@@ -47,10 +49,12 @@ export function appendFreezeField(input: AppendFreezeFieldInput): AppendFreezeFi
   };
 }
 
+/** 中文名：获取freezespeedmultiplier（getFreezeSpeedMultiplier）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getFreezeSpeedMultiplier(position: Vec2, fields: readonly SlowField[]): number {
   return isInsideAnyFreezeField(position, fields) ? FREEZE_SPEED_MULTIPLIER : 1;
 }
 
+/** 中文名：判断是否insideanyfreezefield（isInsideAnyFreezeField）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isInsideAnyFreezeField(position: Vec2, fields: readonly SlowField[]): boolean {
   return fields.some((field) => {
     const dx = position.x - field.position.x;
@@ -59,6 +63,7 @@ export function isInsideAnyFreezeField(position: Vec2, fields: readonly SlowFiel
   });
 }
 
+/** 中文名：判断是否freeze目标inrange（isFreezeTargetInRange）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isFreezeTargetInRange(origin: Vec2, target: Vec2, range: number): boolean {
   return Math.hypot(target.x - origin.x, target.y - origin.y) <= range;
 }

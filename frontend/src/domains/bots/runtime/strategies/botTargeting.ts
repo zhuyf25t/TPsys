@@ -31,6 +31,7 @@ const ENEMY_HOLD_MS = 900;
 const PICKUP_HOLD_MS = 540;
 const OPPORTUNISTIC_WEAPON_PICKUP_DISTANCE = 380;
 
+/** 中文名：选择support目标（chooseSupportTarget）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function chooseSupportTarget(
   bot: Hero,
   weapon: Hero["weapons"][number],
@@ -68,6 +69,7 @@ export function chooseSupportTarget(
   return candidates.sort((left, right) => right.score - left.score)[0] ?? null;
 }
 
+/** 中文名：查找nearestaliveenemy（findNearestAliveEnemy）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function findNearestAliveEnemy(bot: Hero, heroes: readonly Hero[], weapon: Hero["weapons"][number]): BotTarget | null {
   let best: BotTarget | null = null;
 
@@ -95,6 +97,7 @@ export function findNearestAliveEnemy(bot: Hero, heroes: readonly Hero[], weapon
   return best;
 }
 
+/** 中文名：选择目标（chooseTarget）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function chooseTarget(
   bot: Hero,
   weapon: Hero["weapons"][number],
@@ -191,6 +194,7 @@ export function chooseTarget(
   return nextTarget;
 }
 
+/** 中文名：获取engagerange（getEngageRange）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function getEngageRange(weaponKind: Hero["weapons"][number]["weaponKind"]): number {
   switch (weaponKind) {
     case "Shotgun":
@@ -204,6 +208,7 @@ export function getEngageRange(weaponKind: Hero["weapons"][number]["weaponKind"]
   }
 }
 
+/** 中文名：判断是否武器scarce（isWeaponScarce）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function isWeaponScarce(weapon: Hero["weapons"][number]): boolean {
   if (weapon.weaponKind === "Gatling") {
     return weapon.overheated || weapon.heat >= 72;
@@ -214,10 +219,12 @@ export function isWeaponScarce(weapon: Hero["weapons"][number]): boolean {
   return weapon.ammoInMagazine <= magazineThreshold || reserve <= weapon.magazineSize;
 }
 
+/** 中文名：shouldattack目标（shouldAttackTarget）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function shouldAttackTarget(weaponKind: Hero["weapons"][number]["weaponKind"], distance: number): boolean {
   return distance <= getEngageRange(weaponKind) * 1.08;
 }
 
+/** 中文名：获取机器人开火delayms（getBotFireDelayMs）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function getBotFireDelayMs(weaponKind: Hero["weapons"][number]["weaponKind"], cooldownMs: number): number {
   if (weaponKind === "Gatling") {
     return Math.max(72, cooldownMs);

@@ -24,6 +24,7 @@ export interface FriendRequestResult {
   request: FriendRequestRecord | null;
 }
 
+/** 中文名：获取好友请求状态（getFriendRequestStatus）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function getFriendRequestStatus(sourceHandle: string, targetHandle: string): FriendRequestRecord | null {
   const source = normalizeHandle(sourceHandle);
   const target = normalizeHandle(targetHandle);
@@ -36,6 +37,7 @@ export function getFriendRequestStatus(sourceHandle: string, targetHandle: strin
   ) ?? null;
 }
 
+/** 中文名：列表好友请求records（listFriendRequestRecords）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function listFriendRequestRecords(ownerHandle?: string | null): FriendRequestRecord[] {
   const owner = normalizeHandle(ownerHandle ?? getCurrentAuthUser()?.handle ?? "");
   if (!owner) {
@@ -49,6 +51,7 @@ export function listFriendRequestRecords(ownerHandle?: string | null): FriendReq
     .sort((left, right) => right.createdAt - left.createdAt || right.id.localeCompare(left.id));
 }
 
+/** 中文名：send好友请求（sendFriendRequest）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function sendFriendRequest(input: { sourceHandle?: string; targetHandle: string }): FriendRequestResult {
   const currentUser = getCurrentAuthUser();
   const sourceHandle = normalizeHandle(input.sourceHandle ?? currentUser?.handle ?? "");
@@ -79,6 +82,7 @@ export function sendFriendRequest(input: { sourceHandle?: string; targetHandle: 
   return { created: true, alreadySent: false, request };
 }
 
+/** 中文名：remember好友请求locally（rememberFriendRequestLocally）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function rememberFriendRequestLocally(request: FriendRequestRecord): FriendRequestResult {
   const normalizedRequest = normalizeRequestRecord(request);
   if (!normalizedRequest) {
@@ -98,6 +102,7 @@ export function rememberFriendRequestLocally(request: FriendRequestRecord): Frie
   return { created: true, alreadySent: false, request: normalizedRequest };
 }
 
+/** 中文名：respond转为好友请求（respondToFriendRequest）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function respondToFriendRequest(input: {
   requestId: string;
   actorHandle: string;

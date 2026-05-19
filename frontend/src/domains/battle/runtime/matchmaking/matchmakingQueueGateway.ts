@@ -64,6 +64,7 @@ export async function loadMatchmakingQueueStatus(ticketId: string): Promise<Matc
   });
 }
 
+/** 中文名：离开matchmaking队列（leaveMatchmakingQueue）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function leaveMatchmakingQueue(ticketId: string): void {
   const normalizedTicket = ticketId.trim();
   if (!BATTLE_API_BASE || !normalizedTicket) {

@@ -191,6 +191,7 @@ const remoteProjectileTerminalSamples: RemoteProjectileTerminalDiagnosticSample[
 
 publishRemoteViewDiagnostics();
 
+/** 中文名：记录remote英雄viewdiagnostics（recordRemoteHeroViewDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordRemoteHeroViewDiagnostics(input: RemoteHeroViewDiagnosticsRecordInput): void {
   if (!isBattleDiagnosticsEnabled()) {
     return;
@@ -265,6 +266,7 @@ export function recordRemoteHeroViewDiagnostics(input: RemoteHeroViewDiagnostics
   publishRemoteViewDiagnostics();
 }
 
+/** 中文名：记录remote投射物birthdiagnostics（recordRemoteProjectileBirthDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordRemoteProjectileBirthDiagnostics(input: RemoteProjectileBirthDiagnosticsRecordInput): void {
   if (!isBattleDiagnosticsEnabled()) {
     return;
@@ -292,10 +294,12 @@ export function recordRemoteProjectileBirthDiagnostics(input: RemoteProjectileBi
   publishRemoteViewDiagnostics();
 }
 
+/** 中文名：should记录remote投射物终止diagnostics（shouldRecordRemoteProjectileTerminalDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function shouldRecordRemoteProjectileTerminalDiagnostics(): boolean {
   return isBattleDiagnosticsEnabled();
 }
 
+/** 中文名：记录remote投射物终止diagnostics（recordRemoteProjectileTerminalDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordRemoteProjectileTerminalDiagnostics(input: RemoteProjectileTerminalDiagnosticsRecordInput): void {
   if (!isBattleDiagnosticsEnabled()) {
     return;

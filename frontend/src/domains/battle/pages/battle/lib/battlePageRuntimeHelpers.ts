@@ -13,6 +13,7 @@ export const START_BATTLE_QUEUE_REFRESH_TIMEOUT_MS = 400;
 export const MATCH_START_RECHECK_MS = 25;
 export const BATTLE_COMPLETION_CHECK_INTERVAL_MS = 100;
 
+/** 中文名：构建initial战斗participants（buildInitialBattleParticipants）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildInitialBattleParticipants(
   localPlayerHandle: string,
   queueState: MatchmakingQueueState | null
@@ -56,15 +57,18 @@ export function buildInitialBattleParticipants(
   };
 }
 
+/** 中文名：解析backend战斗标识（resolveBackendBattleId）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveBackendBattleId(queueState: MatchmakingQueueState | null): string | null {
   const battleId = queueState?.battleSession?.battleId?.trim();
   return battleId ? battleId : null;
 }
 
+/** 中文名：requiresauthoritative战斗标识（requiresAuthoritativeBattleId）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function requiresAuthoritativeBattleId(queueState: MatchmakingQueueState | null): boolean {
   return queueState?.source === "backend";
 }
 
+/** 中文名：创建本地战斗标识（createLocalBattleId）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createLocalBattleId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `battle-${crypto.randomUUID()}`;
@@ -73,6 +77,7 @@ export function createLocalBattleId(): string {
   return `battle-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** 中文名：shouldfinalize战斗快照onexit（shouldFinalizeBattleSnapshotOnExit）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function shouldFinalizeBattleSnapshotOnExit(
   snapshot: GameSnapshot | null,
   durationExpired: boolean
@@ -80,6 +85,7 @@ export function shouldFinalizeBattleSnapshotOnExit(
   return shouldStoreCompletedBattleSession(snapshot, durationExpired);
 }
 
+/** 中文名：shouldstorecompleted战斗会话（shouldStoreCompletedBattleSession）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function shouldStoreCompletedBattleSession(snapshot: GameSnapshot | null, durationExpired: boolean): boolean {
   if (!snapshot) {
     return false;
@@ -88,6 +94,7 @@ export function shouldStoreCompletedBattleSession(snapshot: GameSnapshot | null,
   return isBattleComplete(snapshot) || durationExpired || isLocalPlayerEliminated(snapshot);
 }
 
+/** 中文名：shouldfinalize战斗快照（shouldFinalizeBattleSnapshot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function shouldFinalizeBattleSnapshot(
   snapshot: GameSnapshot | null,
   durationExpired: boolean,
@@ -98,6 +105,7 @@ export function shouldFinalizeBattleSnapshot(
   );
 }
 
+/** 中文名：创建exited战斗快照（createExitedBattleSnapshot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createExitedBattleSnapshot(snapshot: GameSnapshot): GameSnapshot {
   const isAlreadyComplete =
     snapshot.elapsedMs >= BATTLE_MATCH_DURATION_MS ||
@@ -148,6 +156,7 @@ export interface BattleFinalizationResolution {
   botOnlyClosure: BotOnlyBattleClosure | null;
 }
 
+/** 中文名：解析战斗finalization快照（resolveBattleFinalizationSnapshot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveBattleFinalizationSnapshot(
   snapshot: GameSnapshot,
   forceTimeLimit: boolean
@@ -169,10 +178,12 @@ export function resolveBattleFinalizationSnapshot(
   };
 }
 
+/** 中文名：创建final战斗快照（createFinalBattleSnapshot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createFinalBattleSnapshot(snapshot: GameSnapshot, forceTimeLimit: boolean): GameSnapshot {
   return resolveBattleFinalizationSnapshot(snapshot, forceTimeLimit).finalSnapshot;
 }
 
+/** 中文名：判断是否active战斗会话for本地玩家（isActiveBattleSessionForLocalPlayer）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isActiveBattleSessionForLocalPlayer(
   session: ActiveBattleSession,
   localPlayerHandle: string
@@ -186,6 +197,7 @@ export function isActiveBattleSessionForLocalPlayer(
   return normalizeHandle(player?.displayName ?? "") === expectedHandle;
 }
 
+/** 中文名：判断是否active战斗会话compatiblewith队列状态（isActiveBattleSessionCompatibleWithQueueState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isActiveBattleSessionCompatibleWithQueueState(
   session: ActiveBattleSession,
   queueState: MatchmakingQueueState | null

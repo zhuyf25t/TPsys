@@ -45,6 +45,7 @@ export interface HudPresenterInput {
   obstacleBounds: readonly HudPresenterObstacleBounds[];
 }
 
+/** 中文名：创建hud状态（createHudState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createHudState(input: HudPresenterInput): HudState {
   const {
     snapshot,

@@ -22,6 +22,7 @@ import {
   WOOD_TEXTURE_KEY
 } from "../constants";
 
+/** 中文名：preload战斗assets（preloadBattleAssets）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function preloadBattleAssets(scene: Phaser.Scene): void {
   scene.load.image(FLOOR_TEXTURE_KEY, ASSET_PATHS.floor);
   scene.load.image(ALT_GRASS_TEXTURE_KEY, ASSET_PATHS.altGrass);

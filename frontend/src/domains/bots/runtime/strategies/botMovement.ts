@@ -4,6 +4,7 @@ import { heroSeed } from "./botMath";
 import { getEngageRange, type BotBrainState, type BotTarget } from "./botTargeting";
 import { type BotTacticState } from "./botTactics";
 
+/** 中文名：构建机器人移动vector（buildBotMovementVector）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function buildBotMovementVector(input: {
   bot: Hero;
   weapon: Hero["weapons"][number];
@@ -109,6 +110,7 @@ export function buildBotMovementVector(input: {
   );
 }
 
+/** 中文名：shouldsprint（shouldSprint）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function shouldSprint(bot: Hero, weapon: Hero["weapons"][number], target: BotTarget | null, tactic: BotTacticState): boolean {
   if (!target) {
     return false;
@@ -196,6 +198,7 @@ function ensureMeaningfulVector(vector: Vec2, fallback: Vec2): Vec2 {
   return { x: 0.6, y: 0.4 };
 }
 
+/** 中文名：stabilize机器人移动vector（stabilizeBotMovementVector）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function stabilizeBotMovementVector(current: Vec2, previous: Vec2 | null): Vec2 {
   const currentMagnitude = Math.hypot(current.x, current.y);
   if (currentMagnitude <= 0.001) {

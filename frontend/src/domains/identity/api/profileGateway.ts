@@ -76,6 +76,7 @@ export interface ProfileSummary {
 
 let remoteProfileSummaryCache = new Map<string, ProfileSummary>();
 
+/** 中文名：获取profile摘要（getProfileSummary）。游戏职责：在前端身份域中组织玩家名、登录态和资料展示，统一玩家身份入口。 */
 export function getProfileSummary(_handle: string): ProfileSummary | undefined {
   return undefined;
 }

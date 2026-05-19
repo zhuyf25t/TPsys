@@ -229,6 +229,7 @@ export async function loadAuthoritativeBattleState(battleId: string): Promise<Au
   return fetchJson(url, { method: "GET", cache: "no-store" }).then((payload) => normalizeAuthoritativeBattleState(payload));
 }
 
+/** 中文名：openauthoritative战斗状态stream（openAuthoritativeBattleStateStream）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function openAuthoritativeBattleStateStream(
   battleId: string,
   options: AuthoritativeBattleStateStreamOptions

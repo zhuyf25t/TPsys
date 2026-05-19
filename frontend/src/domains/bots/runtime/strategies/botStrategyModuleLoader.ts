@@ -51,6 +51,7 @@ export type BotStrategyModuleRegistrationResult =
       readonly error: BotStrategyModuleLoaderError;
     };
 
+/** 中文名：解析机器人strategy从module（resolveBotStrategyFromModule）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function resolveBotStrategyFromModule(
   moduleNamespace: unknown,
   options: BotStrategyModuleResolveOptions = {}
@@ -101,6 +102,7 @@ export function resolveBotStrategyFromModule(
   );
 }
 
+/** 中文名：register机器人strategy从module（registerBotStrategyFromModule）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function registerBotStrategyFromModule(
   moduleNamespace: unknown,
   options: BotStrategyModuleResolveOptions = {}

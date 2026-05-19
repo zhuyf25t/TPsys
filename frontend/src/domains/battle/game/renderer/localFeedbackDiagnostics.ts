@@ -66,6 +66,7 @@ const muzzleSamples: LocalMuzzleFeedbackDiagnosticSample[] = [];
 
 publishLocalFeedbackDiagnostics();
 
+/** 中文名：记录本地运动feedbackdiagnostics（recordLocalMotionFeedbackDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordLocalMotionFeedbackDiagnostics(input: LocalMotionFeedbackDiagnosticsRecordInput): void {
   if (!isBattleDiagnosticsEnabled()) {
     return;
@@ -99,6 +100,7 @@ export function recordLocalMotionFeedbackDiagnostics(input: LocalMotionFeedbackD
   publishLocalFeedbackDiagnostics();
 }
 
+/** 中文名：记录本地muzzlefeedbackdiagnostics（recordLocalMuzzleFeedbackDiagnostics）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function recordLocalMuzzleFeedbackDiagnostics(input: LocalMuzzleFeedbackDiagnosticsRecordInput): void {
   if (!isBattleDiagnosticsEnabled()) {
     return;

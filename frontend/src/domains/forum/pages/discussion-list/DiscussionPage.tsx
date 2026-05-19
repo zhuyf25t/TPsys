@@ -14,6 +14,7 @@ import { UserActionDot } from "../../../social/components/user-action-dot/UserAc
 const DEFAULT_TAG = "战术讨论";
 const DISCUSSION_TAGS = ["战术讨论", "组队招募", "版本反馈"] as const;
 
+/** 中文名：discussionpage（DiscussionPage）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
 export function DiscussionPage() {
   const [discussionSummaries, setDiscussionSummaries] = useState<DiscussionSummary[]>([]);
   const [loading, setLoading] = useState(true);

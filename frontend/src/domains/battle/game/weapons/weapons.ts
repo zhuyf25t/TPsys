@@ -3,6 +3,7 @@ import { WEAPON_DEFINITIONS, type WeaponDefinition } from "../assets/battleConte
 
 export { WEAPON_DEFINITIONS, type WeaponDefinition };
 
+/** 中文名：创建武器状态（createWeaponState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createWeaponState(weaponKind: WeaponKind): WeaponState {
   const definition = WEAPON_DEFINITIONS[weaponKind];
 
@@ -19,6 +20,7 @@ export function createWeaponState(weaponKind: WeaponKind): WeaponState {
   };
 }
 
+/** 中文名：创建starterinventory（createStarterInventory）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createStarterInventory(): WeaponInventory {
   return {
     currentWeaponIndex: 0,
@@ -26,10 +28,12 @@ export function createStarterInventory(): WeaponInventory {
   };
 }
 
+/** 中文名：查找武器index（findWeaponIndex）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function findWeaponIndex(weapons: WeaponState[], weaponKind: WeaponKind): number {
   return weapons.findIndex((weapon) => weapon.weaponKind === weaponKind);
 }
 
+/** 中文名：cycle武器index（cycleWeaponIndex）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function cycleWeaponIndex(currentWeaponIndex: number, weaponCount: number, direction: -1 | 1): number {
   if (weaponCount <= 0) {
     return 0;
@@ -38,6 +42,7 @@ export function cycleWeaponIndex(currentWeaponIndex: number, weaponCount: number
   return (currentWeaponIndex + direction + weaponCount) % weaponCount;
 }
 
+/** 中文名：refill武器状态（refillWeaponState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function refillWeaponState(existingWeapon: WeaponState): WeaponState {
   const definition = WEAPON_DEFINITIONS[existingWeapon.weaponKind];
   const reserveAmmo =
@@ -55,10 +60,12 @@ export function refillWeaponState(existingWeapon: WeaponState): WeaponState {
   };
 }
 
+/** 中文名：判断是否disposable武器（isDisposableWeapon）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isDisposableWeapon(weaponKind: WeaponKind): boolean {
   return weaponKind !== "Pistol" && weaponKind !== "Gatling";
 }
 
+/** 中文名：判断是否武器depleted（isWeaponDepleted）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isWeaponDepleted(weapon: WeaponState): boolean {
   if (!isDisposableWeapon(weapon.weaponKind)) {
     return false;

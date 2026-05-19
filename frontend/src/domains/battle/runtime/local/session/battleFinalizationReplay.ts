@@ -10,6 +10,7 @@ import {
   type BotOnlyBattleClosure
 } from "./botOnlyBattleClosure";
 
+/** 中文名：finalize战斗回放frames（finalizeBattleReplayFrames）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function finalizeBattleReplayFrames(
   frames: ReplayFrame[],
   finalSnapshot: GameSnapshot,
@@ -33,6 +34,7 @@ export function finalizeBattleReplayFrames(
   ];
 }
 
+/** 中文名：append机器人only战斗closure回放frames（appendBotOnlyBattleClosureReplayFrames）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function appendBotOnlyBattleClosureReplayFrames(
   frames: ReplayFrame[],
   closure: BotOnlyBattleClosure

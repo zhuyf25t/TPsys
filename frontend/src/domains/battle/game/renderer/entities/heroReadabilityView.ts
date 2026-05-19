@@ -128,6 +128,7 @@ export interface HeroHealthView {
   healthFill: Phaser.GameObjects.Rectangle;
 }
 
+/** 中文名：创建英雄readabilityview（createHeroReadabilityView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createHeroReadabilityView(scene: Phaser.Scene, hero: Hero, isPlayer: boolean): HeroReadabilityView {
   const visual = resolveHeroVisual(hero.heroId);
   const readabilityRadius = resolveHeroReadabilityRadius(hero.radius);
@@ -206,18 +207,22 @@ export function createHeroReadabilityView(scene: Phaser.Scene, hero: Hero, isPla
   };
 }
 
+/** 中文名：解析英雄readabilityradius（resolveHeroReadabilityRadius）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveHeroReadabilityRadius(radius: number): number {
   return Math.max(HERO_READABILITY_MIN_RADIUS, Number.isFinite(radius) ? radius : HERO_READABILITY_MIN_RADIUS);
 }
 
+/** 中文名：解析英雄武器kind（resolveHeroWeaponKind）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveHeroWeaponKind(hero: Hero): WeaponKind {
   return hero.weapons[hero.currentWeaponIndex]?.weaponKind ?? "Pistol";
 }
 
+/** 中文名：获取武器cuereadabilitystyle（getWeaponCueReadabilityStyle）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getWeaponCueReadabilityStyle(weaponKind: WeaponKind): WeaponCueReadabilityStyle {
   return WEAPON_CUE_READABILITY_STYLES[weaponKind];
 }
 
+/** 中文名：sync英雄readabilityvisuals（syncHeroReadabilityVisuals）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncHeroReadabilityVisuals(
   view: HeroReadabilitySyncView,
   hero: Hero,
@@ -288,6 +293,7 @@ export function syncHeroReadabilityVisuals(
   });
 }
 
+/** 中文名：判断是否英雄inside减速field（isHeroInsideSlowField）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isHeroInsideSlowField(hero: Hero, slowFields: readonly SlowField[]): boolean {
   if (!isFiniteVec2(hero.position)) {
     return false;
@@ -302,6 +308,7 @@ export function isHeroInsideSlowField(hero: Hero, slowFields: readonly SlowField
   });
 }
 
+/** 中文名：sync英雄healthvisuals（syncHeroHealthVisuals）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncHeroHealthVisuals(view: HeroHealthView, hero: Hero, elapsedMs: number): void {
   const healthRatio = resolveHeroHealthRatio(hero);
   const visual = resolveHeroVisual(hero.heroId);
@@ -324,6 +331,7 @@ export function syncHeroHealthVisuals(view: HeroHealthView, hero: Hero, elapsedM
   view.healthBackground.setFillStyle(HERO_HEALTH_BACKGROUND_TINT, backgroundAlpha);
 }
 
+/** 中文名：解析英雄healthratio（resolveHeroHealthRatio）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveHeroHealthRatio(hero: Hero): number {
   if (!Number.isFinite(hero.hp) || !Number.isFinite(hero.maxHp) || hero.maxHp <= 0) {
     return 0;
@@ -332,6 +340,7 @@ export function resolveHeroHealthRatio(hero: Hero): number {
   return Phaser.Math.Clamp(hero.hp / hero.maxHp, 0, 1);
 }
 
+/** 中文名：判断是否finitevec2（isFiniteVec2）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isFiniteVec2(position: Vec2): boolean {
   return Number.isFinite(position.x) && Number.isFinite(position.y);
 }

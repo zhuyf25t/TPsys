@@ -49,6 +49,7 @@ export interface ApplyJumpActionInputs {
   callbacks: Pick<PlayerMotionAbilityCallbacks, "startPlayerMotion" | "showFloatingText">;
 }
 
+/** 中文名：应用技能inputs（applySkillInputs）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applySkillInputs(input: ApplySkillInputs): void {
   const blink = getSkillState(input.player, "Blink");
   const dash = getSkillState(input.player, "Dash");
@@ -139,6 +140,7 @@ function togglePreparedSkill(player: Hero, kind: PreparedTargetSkillKind): void 
   player.preparedSkill = player.preparedSkill === kind ? null : kind;
 }
 
+/** 中文名：应用jumpaction（applyJumpAction）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function applyJumpAction(input: ApplyJumpActionInputs): void {
   if (!input.player.alive || !input.command.secondaryJustPressed || input.isPlayerMotionActive) {
     return;

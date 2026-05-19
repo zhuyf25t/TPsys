@@ -17,6 +17,7 @@ const BORDER_DANGER_COLOR = 0xd99a34;
 const BORDER_ENERGY_COLOR = 0x58d6ff;
 const BORDER_SHADOW_COLOR = 0x05070a;
 
+/** 中文名：创建竞技场presentationlayers（createArenaPresentationLayers）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createArenaPresentationLayers(scene: Phaser.Scene): void {
   const extendedWidth = WORLD_SIZE.x + GLOBAL_BACKGROUND_PADDING * 2;
   const extendedHeight = WORLD_SIZE.y + GLOBAL_BACKGROUND_PADDING * 2;

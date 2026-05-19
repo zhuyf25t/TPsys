@@ -40,6 +40,7 @@ interface UserActionDotProps {
   sourcePath?: string;
 }
 
+/** 中文名：useractiondot（UserActionDot）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
 export function UserActionDot({ handle, className, sourceLabel, sourcePath }: UserActionDotProps) {
   const currentUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   const rootRef = useRef<HTMLDivElement>(null);

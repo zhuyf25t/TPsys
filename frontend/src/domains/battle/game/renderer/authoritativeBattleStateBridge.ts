@@ -128,6 +128,7 @@ export interface BattleRuntimeAuthoritativeFrame {
   remoteAuthoritativeHeroIds: string[];
 }
 
+/** 中文名：构建战斗runtimeauthoritative帧（buildBattleRuntimeAuthoritativeFrame）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildBattleRuntimeAuthoritativeFrame(
   snapshot: GameSnapshot,
   state: AuthoritativeBattleState,

@@ -10,6 +10,7 @@ import type {
 import { findDashSkillState, getPredictedDashCooldownMs } from "./authoritativeLocalHeroDashPrediction";
 import { findBlinkSkillState, getPredictedBlinkCooldownMs } from "./authoritativeLocalHeroBlinkPrediction";
 import { applyAuthoritativeLocalHeroDisplayMotion } from "./authoritativeLocalHeroMotion";
+import { buildPhaserAuthoritativeRenderPipelineFrame } from "./authoritativeRenderPipeline";
 import { isSharedAuthoritativeTargetValid } from "./effects/sharedAuthoritativeTargetValidity";
 import { LocalAuthoritativeHeroCorrectionController } from "./localAuthoritativeHeroCorrection";
 import type { LocalHeroDisplay } from "./localHeroDisplayPose";
@@ -109,26 +110,18 @@ export class AuthoritativeFrameSceneBridge {
     options = {}
   }: ApplyAuthoritativeFrameSceneBridgeInput): Set<string> {
     const nowMs = options.nowMs ?? Date.now();
-    applyAuthoritativeFrameToSnapshot({
-      snapshot,
+    const localPlayer = snapshot.heroes.find((hero) => hero.heroId === snapshot.playerHeroId) ?? null;
+    const pipelineFrame = buildPhaserAuthoritativeRenderPipelineFrame({
       frame,
+      nowMs,
       localPlayerMovementActive,
-      localPlayerReplay: {
-        commandHistory: options.localCommandHistory ?? [],
-        lastClientCommandSeq: options.localLastClientCommandSeq ?? 0,
-        nowMs,
-        obstacleBounds,
-        pendingBlinkPrediction: this.resolvePendingLocalBlinkPrediction(nowMs),
-        pendingDashPrediction: this.resolvePendingLocalDashPrediction(nowMs),
-        blinkCooldownMsOverride: this.resolveLocalBlinkCooldownMs(
-          snapshot.heroes.find((hero) => hero.heroId === snapshot.playerHeroId) ?? null,
-          nowMs
-        ),
-        dashCooldownMsOverride: this.resolveLocalDashCooldownMs(
-          snapshot.heroes.find((hero) => hero.heroId === snapshot.playerHeroId) ?? null,
-          nowMs
-        )
-      },
+      obstacleBounds,
+      commandHistory: options.localCommandHistory ?? [],
+      lastClientCommandSeq: options.localLastClientCommandSeq ?? 0,
+      pendingBlinkPrediction: this.resolvePendingLocalBlinkPrediction(nowMs),
+      pendingDashPrediction: this.resolvePendingLocalDashPrediction(nowMs),
+      blinkCooldownMsOverride: this.resolveLocalBlinkCooldownMs(localPlayer, nowMs),
+      dashCooldownMsOverride: this.resolveLocalDashCooldownMs(localPlayer, nowMs),
       applyLocalPlayerAuthoritativeCorrection: ({ authoritativePosition, localMovementActive, forceHardSnap }) => {
         this.localHeroCorrection.observeAuthoritativePosition(authoritativePosition, {
           localMovementActive,
@@ -136,12 +129,20 @@ export class AuthoritativeFrameSceneBridge {
         });
       }
     });
+
+    applyAuthoritativeFrameToSnapshot({
+      snapshot,
+      frame: pipelineFrame.frame,
+      localPlayerMovementActive: pipelineFrame.localPlayerMovementActive,
+      localPlayerReplay: pipelineFrame.localPlayerReplay,
+      applyLocalPlayerAuthoritativeCorrection: pipelineFrame.applyLocalPlayerAuthoritativeCorrection
+    });
     this.prunePendingLocalBlinkPrediction(snapshot, nowMs);
     this.prunePendingLocalDashPrediction(snapshot, nowMs);
     this.syncLocalBlinkCooldown(snapshot, nowMs);
     this.syncLocalDashCooldown(snapshot, nowMs);
 
-    return new Set(frame.remoteAuthoritativeHeroIds);
+    return pipelineFrame.remoteAuthoritativeHeroIds;
   }
 
   private resolvePendingLocalBlinkPrediction(nowMs: number): AuthoritativeLocalHeroPendingBlinkPrediction | null {
@@ -258,6 +259,7 @@ function distanceBetween(left: Vec2, right: Vec2): number {
   return Math.hypot(right.x - left.x, right.y - left.y);
 }
 
+/** 中文名：suppressinvalidauthoritativepreparedconfirm（suppressInvalidAuthoritativePreparedConfirm）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function suppressInvalidAuthoritativePreparedConfirm({
   command,
   player,

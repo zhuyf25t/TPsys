@@ -11,6 +11,7 @@ export interface LocalFeedbackEntry {
 
 const STORAGE_KEY = "slay-demo.local-replay-feedback.v1";
 
+/** 中文名：获取本地feedback（getLocalFeedback）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function getLocalFeedback(replayId: string, kind?: LocalFeedbackKind): LocalFeedbackEntry[] {
   const normalizedReplayId = replayId.trim();
   if (!normalizedReplayId) {
@@ -22,6 +23,7 @@ export function getLocalFeedback(replayId: string, kind?: LocalFeedbackKind): Lo
     .sort((left, right) => left.createdAt - right.createdAt);
 }
 
+/** 中文名：保存本地feedback（saveLocalFeedback）。游戏职责：在前端治理域中组织积分、贡献和反馈数据，支撑玩家成长与运营展示。 */
 export function saveLocalFeedback(input: {
   replayId: string;
   kind: LocalFeedbackKind;

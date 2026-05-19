@@ -39,10 +39,12 @@ export const MAIL_SUMMARIES_CHANGED_EVENT = "slay-demo:mails:changed";
 export const REMOTE_MAIL_REFRESH_INTERVAL_MS = 15_000;
 let remoteMailSummariesCache: { ownerHandle: string; summaries: MailSummary[] } | null = null;
 
+/** 中文名：判断是否remotemailsourceconfigured（isRemoteMailSourceConfigured）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function isRemoteMailSourceConfigured(): boolean {
   return HAS_REMOTE_MAIL_SOURCE;
 }
 
+/** 中文名：获取mailsummaries（getMailSummaries）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function getMailSummaries(ownerHandle?: string | null): MailSummary[] {
   const resolvedOwner = resolveVisibleMailOwner(ownerHandle);
   if (!resolvedOwner) {
@@ -60,6 +62,7 @@ export function getMailSummaries(ownerHandle?: string | null): MailSummary[] {
   return mergeMailSummaries(localSummaries, cachedRemote ?? []);
 }
 
+/** 中文名：获取本地战斗mailsummaries（getLocalBattleMailSummaries）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function getLocalBattleMailSummaries(ownerHandle?: string | null): MailSummary[] {
   if (!resolveVisibleMailOwner(ownerHandle)) {
     return [];
@@ -88,6 +91,7 @@ export async function loadMergedMailSummaries(ownerHandle?: string | null): Prom
   return localSummaries;
 }
 
+/** 中文名：标记mailas读取（markMailAsRead）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
 export function markMailAsRead(mailId: string, ownerHandle?: string | null): boolean {
   const normalizedId = mailId.trim();
   if (!normalizedId) {

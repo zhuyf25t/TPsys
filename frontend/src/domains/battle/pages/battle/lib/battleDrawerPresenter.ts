@@ -6,6 +6,7 @@ import type { FriendRequestPreviewModel } from "../../../../social/components/fr
 import type { QuickPreviewOverlayProps } from "../../../../../shared/ui/QuickPreviewOverlay";
 import type { BattleDrawerId } from "./battlePageTypes";
 
+/** 中文名：构建战斗drawer（buildBattleDrawer）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildBattleDrawer(
   activeDrawer: BattleDrawerId,
   replaySummaries: ReturnType<typeof getReplaySummaries>,

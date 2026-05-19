@@ -7,10 +7,10 @@ const MANIFEST_PATH = join(
   ROOT_DIR,
   "frontend",
   "src",
-  "features",
-  "battle",
-  "runtime-local",
+  "domains",
   "bots",
+  "runtime",
+  "registry",
   "botPluginManifest.ts"
 );
 const EXPECTED_API_VERSION = "bot-sdk/v1";

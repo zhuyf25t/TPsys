@@ -20,6 +20,7 @@ const CLEARANCE_RADIUS = 24;
 const PICKUP_SPACING = 24;
 const OCCLUDABLE_PADDING = 48;
 
+/** 中文名：解析拾取物spawnpoint（resolvePickupSpawnPoint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolvePickupSpawnPoint(
   kind: PickupSpawnPoint["kind"],
   pickupId: string,
@@ -38,6 +39,7 @@ export function resolvePickupSpawnPoint(
   };
 }
 
+/** 中文名：判断是否拾取物spawnpointavailable（isPickupSpawnPointAvailable）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isPickupSpawnPointAvailable(
   point: PickupSpawnPoint,
   kind: PickupSpawnPoint["kind"],
@@ -63,6 +65,7 @@ export function isPickupSpawnPointAvailable(
   );
 }
 
+/** 中文名：判断是否拾取物spawnpointvalid（isPickupSpawnPointValid）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function isPickupSpawnPointValid(position: Vec2, context: PickupSpawnResolverContext): boolean {
   if (
     position.x < EDGE_PADDING ||

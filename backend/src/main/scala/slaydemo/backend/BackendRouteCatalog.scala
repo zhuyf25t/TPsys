@@ -24,6 +24,7 @@ private[backend] object BackendRouteCatalog {
 
   val ApiMessageRouteContexts: Vector[BackendRouteContext] =
     Vector(
+      "/api/healthapi",
       "/api/battlequeuejoinapi",
       "/api/battlequeuestatusapi",
       "/api/battlequeueleaveapi",

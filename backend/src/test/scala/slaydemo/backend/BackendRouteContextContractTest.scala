@@ -44,6 +44,7 @@ object BackendRouteContextContractTest {
       "api message route contexts",
       BackendRouteCatalog.ApiMessageRouteContexts.map(_.path),
       Vector(
+        "/api/healthapi",
         "/api/battlequeuejoinapi",
         "/api/battlequeuestatusapi",
         "/api/battlequeueleaveapi",

@@ -45,8 +45,13 @@ private[backend] object BackendRouteRegistry {
       BackendRouteHandler("/governance/contribution-adjustments", governanceRoutes.contributionAdjustments),
       BackendRouteHandler("/governance/admin-notifications", governanceRoutes.adminNotifications)
     )
+    val apiMessageEndpoints =
+      healthRoutes.apiEndpoints ++
+        battleRoutes.apiEndpoints ++
+        battleResultRoutes.apiEndpoints
+
     val apiMessageHandlers =
-      (battleRoutes.apiEndpoints ++ battleResultRoutes.apiEndpoints).map { endpoint =>
+      apiMessageEndpoints.map { endpoint =>
         BackendRouteHandler(s"/api/${endpoint.messageKey}", BackendAPIExchangeRouter.handle(endpoint))
       }
 

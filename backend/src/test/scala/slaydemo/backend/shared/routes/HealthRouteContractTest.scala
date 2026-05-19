@@ -5,7 +5,7 @@ import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 
 import com.sun.net.httpserver.HttpServer
 
-import slaydemo.backend.shared.api.{HealthResponse, HealthStatus}
+import slaydemo.backend.shared.api.{BackendAPIExchangeRouter, HealthResponse, HealthStatus}
 import slaydemo.backend.shared.objects.{ServiceName, ServicePort}
 import slaydemo.backend.shared.services.HealthService
 import slaydemo.backend.shared.storage.StorageMode
@@ -13,6 +13,7 @@ import slaydemo.backend.shared.storage.StorageMode
 object HealthRouteContractTest {
   def main(args: Array[String]): Unit = {
     getRendersHealthAndCallsService()
+    apiMessageRouteRendersHealthAndCallsService()
     headDoesNotCallService()
     unsupportedMethodIsRejected()
 
@@ -31,6 +32,21 @@ object HealthRouteContractTest {
       assertContains("health port", response.body, """"port":18080""")
       assertContains("health storage mode", response.body, """"storageMode":"postgres"""")
       assertEquals("health calls service", service.currentCalls, 1)
+    }
+  }
+
+  private def apiMessageRouteRendersHealthAndCallsService(): Unit = {
+    val service = RecordingHealthService()
+
+    withHealthApiMessageServer(service) { uri =>
+      val response = get(uri.resolve("/api/healthapi"))
+
+      assertEquals("health api status", response.status, 200)
+      assertContains("health api ok", response.body, """"status":"ok"""")
+      assertContains("health api service", response.body, """"service":"route-health"""")
+      assertContains("health api port", response.body, """"port":18080""")
+      assertContains("health api storage mode", response.body, """"storageMode":"postgres"""")
+      assertEquals("health api calls service", service.currentCalls, 1)
     }
   }
 
@@ -61,6 +77,17 @@ object HealthRouteContractTest {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
     val routes = HealthRoutes(service)
     server.createContext("/health", exchange => routes.handle(exchange))
+    server.start()
+    try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
+    finally server.stop(0)
+  }
+
+  private def withHealthApiMessageServer[A](service: RecordingHealthService)(run: URI => A): A = {
+    val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
+    server.createContext(
+      "/api/healthapi",
+      exchange => BackendAPIExchangeRouter.handle(HealthAPIMessagePlanner.endpoint(service))(exchange)
+    )
     server.start()
     try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
     finally server.stop(0)

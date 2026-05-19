@@ -25,6 +25,7 @@ import slaydemo.backend.replay.services.{
   ReplayRecordError,
   ReplayService
 }
+import slaydemo.backend.shared.api.BackendAPIExchangeRouter
 
 object ReplayRouteContractTest {
   private val ValidRecordJson: String =
@@ -32,6 +33,7 @@ object ReplayRouteContractTest {
 
   def main(args: Array[String]): Unit = {
     validRecordPostReachesServiceWithRawFrames()
+    apiMessageCatalogGetRendersList()
     detailSelectsSettlementByHandle()
     invalidReplayIdPathIsBadRequest()
     commentPostMapsSuccessAndErrors()
@@ -57,6 +59,20 @@ object ReplayRouteContractTest {
       assertEquals("record placement", command.placement, Some(BattlePlacement.unsafe(1)))
       assertEquals("record playback availability", command.requestedPlaybackAvailability, ReplayPlaybackAvailability.Available)
       assertEquals("record raw frames", command.framesJson, """[{"elapsedMs":0},{"elapsedMs":16}]""")
+    }
+  }
+
+  private def apiMessageCatalogGetRendersList(): Unit = {
+    val service = RecordingReplayService()
+    service.records = Vector(replayRecord())
+
+    withReplayApiMessageServer(service) { uri =>
+      val response = get(uri.resolve("/api/replaycatalogapi?handle=Bob&limit=1"))
+
+      assertEquals("api catalog status", response.status, 200)
+      assertContains("api catalog replay id", response.body, """"replayId":"route-replay"""")
+      assertContains("api catalog selected result", response.body, """"resultLabel":"Defeat"""")
+      assertContains("api catalog selected score", response.body, """"score":3""")
     }
   }
 
@@ -128,6 +144,17 @@ object ReplayRouteContractTest {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
     val routes = ReplayRoutes(service)
     server.createContext("/replay/catalog", exchange => routes.handle(exchange))
+    server.start()
+    try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
+    finally server.stop(0)
+  }
+
+  private def withReplayApiMessageServer[A](service: RecordingReplayService)(run: URI => A): A = {
+    val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
+    server.createContext(
+      "/api/replaycatalogapi",
+      exchange => BackendAPIExchangeRouter.handle(ReplayCatalogAPIMessagePlanner.endpoint(service))(exchange)
+    )
     server.start()
     try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
     finally server.stop(0)

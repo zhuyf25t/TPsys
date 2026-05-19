@@ -33,7 +33,8 @@ private[backend] object BackendRouteCatalog {
       "/api/battlestatereadapi",
       "/api/battlestatestreamapi",
       "/api/battlecommandapi",
-      "/api/battleresultsapi"
+      "/api/battleresultsapi",
+      "/api/replaycatalogapi"
     ).map(BackendRouteContext.apply)
 
   val RouteContexts: Vector[BackendRouteContext] =

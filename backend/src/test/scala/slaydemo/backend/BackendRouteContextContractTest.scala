@@ -53,7 +53,8 @@ object BackendRouteContextContractTest {
         "/api/battlestatereadapi",
         "/api/battlestatestreamapi",
         "/api/battlecommandapi",
-        "/api/battleresultsapi"
+        "/api/battleresultsapi",
+        "/api/replaycatalogapi"
       )
     )
 

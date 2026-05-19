@@ -48,7 +48,8 @@ private[backend] object BackendRouteRegistry {
     val apiMessageEndpoints =
       healthRoutes.apiEndpoints ++
         battleRoutes.apiEndpoints ++
-        battleResultRoutes.apiEndpoints
+        battleResultRoutes.apiEndpoints ++
+        replayRoutes.apiEndpoints
 
     val apiMessageHandlers =
       apiMessageEndpoints.map { endpoint =>

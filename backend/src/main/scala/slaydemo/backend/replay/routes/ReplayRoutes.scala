@@ -6,9 +6,13 @@ import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.services.ReplayService
+import slaydemo.backend.shared.api.BackendAPIEndpoint
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
 final class ReplayRoutes(service: ReplayService) {
+  def apiEndpoints: Vector[BackendAPIEndpoint] =
+    Vector(ReplayCatalogAPIMessagePlanner.endpoint(service))
+
   def handle(exchange: HttpExchange): Unit = {
     HttpRouteSupport.addCors(exchange)
 

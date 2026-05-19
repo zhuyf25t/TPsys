@@ -74,7 +74,7 @@ export async function loadRealtimeRoomSnapshot(roomId: string): Promise<Realtime
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, `/battle/rooms/${encodeURIComponent(normalizedRoomId)}/snapshot`);
+  const url = buildApiUrl(BATTLE_API_BASE, "/battleroomsnapshotapi", { roomId: normalizedRoomId });
 
   return fetchRealtimeRoomSnapshot(url, {
     method: "GET",
@@ -90,7 +90,7 @@ export async function sendRealtimeRoomHeartbeat(
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, `/battle/rooms/${encodeURIComponent(normalizedRoomId)}/heartbeat`);
+  const url = buildApiUrl(BATTLE_API_BASE, "/battleroomheartbeatapi", { roomId: normalizedRoomId });
   const body = {
     ...(request.ticketId?.trim() ? { ticketId: request.ticketId.trim() } : {}),
     ...(request.handle?.trim() ? { handle: request.handle.trim() } : {})

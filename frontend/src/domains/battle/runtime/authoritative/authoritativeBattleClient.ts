@@ -225,7 +225,7 @@ export async function loadAuthoritativeBattleState(battleId: string): Promise<Au
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, `/battle/state/${encodeURIComponent(normalizedBattleId)}`);
+  const url = buildApiUrl(BATTLE_API_BASE, "/battlestatereadapi", { battleId: normalizedBattleId });
   return fetchJson(url, { method: "GET", cache: "no-store" }).then((payload) => normalizeAuthoritativeBattleState(payload));
 }
 
@@ -241,7 +241,8 @@ export function openAuthoritativeBattleStateStream(
   let closedByClient = false;
   const url = buildApiUrl(
     BATTLE_API_BASE,
-    `/battle/state/stream?battleId=${encodeURIComponent(normalizedBattleId)}`
+    "/battlestatestreamapi",
+    { battleId: normalizedBattleId }
   );
   const source = new EventSource(url);
 
@@ -288,7 +289,7 @@ export async function sendAuthoritativeBattleCommand(
     return { ok: false, kind: "network" };
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, "/battle/commands");
+  const url = buildApiUrl(BATTLE_API_BASE, "/battlecommandapi");
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), BATTLE_REQUEST_TIMEOUT_MS);
 

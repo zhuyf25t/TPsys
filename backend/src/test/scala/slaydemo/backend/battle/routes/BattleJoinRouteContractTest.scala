@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpServer
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
 import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
+import slaydemo.backend.shared.api.BackendAPIExchangeRouter
 
 object BattleJoinRouteContractTest {
   private val ValidJoinJson: String =
@@ -106,9 +107,10 @@ object BattleJoinRouteContractTest {
   )(run: URI => A): A = {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
     val routes = BattleRoutes(queueService, UnusedBattleStateService, authService)
-    server.createContext("/battle/queue/join", exchange => routes.join(exchange))
+    val endpoint = routes.apiEndpoints.find(_.messageKey == "battlequeuejoinapi").get
+    server.createContext("/api/battlequeuejoinapi", BackendAPIExchangeRouter.handle(endpoint))
     server.start()
-    try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/battle/queue/join"))
+    try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/api/battlequeuejoinapi"))
     finally server.stop(0)
   }
 

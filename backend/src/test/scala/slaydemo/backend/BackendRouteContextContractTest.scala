@@ -4,6 +4,7 @@ object BackendRouteContextContractTest {
   def main(args: Array[String]): Unit = {
     routeContextsHaveNoDuplicates()
     baseRouteContextsAreExplicit()
+    apiMessageRouteContextsAreExplicit()
     everyBaseRouteHasApiAlias()
 
     println("Backend route context contract checks passed")
@@ -25,13 +26,6 @@ object BackendRouteContextContractTest {
         "/identity/session",
         "/identity/me",
         "/identity/accounts",
-        "/battle/queue/join",
-        "/battle/queue/status",
-        "/battle/queue/leave",
-        "/battle/rooms",
-        "/battle/state",
-        "/battle/commands",
-        "/battle/results",
         "/replay/catalog",
         "/mails",
         "/mails/read",
@@ -45,6 +39,23 @@ object BackendRouteContextContractTest {
       )
     )
 
+  private def apiMessageRouteContextsAreExplicit(): Unit =
+    assertEquals(
+      "api message route contexts",
+      BackendRouteCatalog.ApiMessageRouteContexts.map(_.path),
+      Vector(
+        "/api/battlequeuejoinapi",
+        "/api/battlequeuestatusapi",
+        "/api/battlequeueleaveapi",
+        "/api/battleroomsnapshotapi",
+        "/api/battleroomheartbeatapi",
+        "/api/battlestatereadapi",
+        "/api/battlestatestreamapi",
+        "/api/battlecommandapi",
+        "/api/battleresultsapi"
+      )
+    )
+
   private def everyBaseRouteHasApiAlias(): Unit = {
     val paths = BackendApp.RouteContexts.map(_.path).toSet
 
@@ -52,7 +63,14 @@ object BackendRouteContextContractTest {
       assert(paths.contains(context.path), s"missing base route ${context.path}")
       assert(paths.contains(s"/api${context.path}"), s"missing api alias for ${context.path}")
     }
-    assertEquals("route contexts are base plus aliases", paths.size, BackendApp.BaseRouteContexts.length * 2)
+    BackendRouteCatalog.ApiMessageRouteContexts.foreach { context =>
+      assert(paths.contains(context.path), s"missing api message route ${context.path}")
+    }
+    assertEquals(
+      "route contexts are base plus aliases plus api messages",
+      paths.size,
+      BackendApp.BaseRouteContexts.length * 2 + BackendRouteCatalog.ApiMessageRouteContexts.length
+    )
   }
 
   private def assertEquals[A](label: String, actual: A, expected: A): Unit =

@@ -5,9 +5,13 @@ import java.util.Locale
 import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
+import slaydemo.backend.shared.api.BackendAPIEndpoint
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
 final class BattleResultRoutes(service: BattleResultService) {
+  def apiEndpoints: Vector[BackendAPIEndpoint] =
+    Vector(BattleResultsAPIMessagePlanner.endpoint(service))
+
   def handle(exchange: HttpExchange): Unit = {
     HttpRouteSupport.addCors(exchange)
 

@@ -7,6 +7,7 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleStateService
 }
+import slaydemo.backend.shared.api.BackendAPIEndpoint
 
 final class BattleRoutes(
   queueService: BattleQueueService,
@@ -35,6 +36,18 @@ final class BattleRoutes(
 
   def commands(exchange: HttpExchange): Unit =
     commandRouteHandler.handle(exchange)
+
+  def apiEndpoints: Vector[BackendAPIEndpoint] =
+    Vector(
+      BattleQueueJoinAPIMessagePlanner.endpoint(queueService, joinAuthorizationService),
+      BattleQueueStatusAPIMessagePlanner.endpoint(queueService),
+      BattleQueueLeaveAPIMessagePlanner.endpoint(queueService),
+      BattleRoomSnapshotAPIMessagePlanner.endpoint(queueService),
+      BattleRoomHeartbeatAPIMessagePlanner.endpoint(queueService),
+      BattleStateReadAPIMessagePlanner.endpoint(battleStateService),
+      BattleStateStreamAPIMessagePlanner.endpoint(battleStateService),
+      BattleCommandAPIMessagePlanner.endpoint(battleStateService)
+    )
 
 }
 

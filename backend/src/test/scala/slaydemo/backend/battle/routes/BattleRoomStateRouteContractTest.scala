@@ -9,6 +9,7 @@ import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandRequest}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
 import slaydemo.backend.identity.objects.PlayerHandle
+import slaydemo.backend.shared.api.BackendAPIExchangeRouter
 
 object BattleRoomStateRouteContractTest {
   def main(args: Array[String]): Unit = {
@@ -25,7 +26,7 @@ object BattleRoomStateRouteContractTest {
     val queueService = RecordingBattleQueueService()
 
     withBattleServer(queueService, RecordingBattleStateService()) { uri =>
-      val response = get(uri.resolve("/battle/queue/status?ticketId=ticket-route"))
+      val response = get(uri.resolve("/api/battlequeuestatusapi?ticketId=ticket-route"))
 
       assertEquals("status code", response.status, 200)
       assertContains("status ticket", response.body, """"ticketId":"ticket-route"""")
@@ -38,7 +39,7 @@ object BattleRoomStateRouteContractTest {
     val queueService = RecordingBattleQueueService()
 
     withBattleServer(queueService, RecordingBattleStateService()) { uri =>
-      val response = postJson(uri.resolve("/battle/queue/leave"), """{"ticketId":"ticket-route"}""")
+      val response = postJson(uri.resolve("/api/battlequeueleaveapi"), """{"ticketId":"ticket-route"}""")
 
       assertEquals("leave status", response.status, 200)
       assertEquals("leave body", response.body, """{"left":true}""")
@@ -50,9 +51,9 @@ object BattleRoomStateRouteContractTest {
     val queueService = RecordingBattleQueueService()
 
     withBattleServer(queueService, RecordingBattleStateService()) { uri =>
-      val snapshot = get(uri.resolve("/battle/rooms/room-route/snapshot"))
+      val snapshot = get(uri.resolve("/api/battleroomsnapshotapi?roomId=room-route"))
       val heartbeat = postJson(
-        uri.resolve("/battle/rooms/room-route/heartbeat"),
+        uri.resolve("/api/battleroomheartbeatapi?roomId=room-route"),
         """{"ticketId":"ticket-route","handle":"Alice"}"""
       )
 
@@ -73,8 +74,8 @@ object BattleRoomStateRouteContractTest {
     val stateService = RecordingBattleStateService()
 
     withBattleServer(RecordingBattleQueueService(), stateService) { uri =>
-      val success = get(uri.resolve("/battle/state/battle-route"))
-      val missing = get(uri.resolve("/battle/state/missing"))
+      val success = get(uri.resolve("/api/battlestatereadapi?battleId=battle-route"))
+      val missing = get(uri.resolve("/api/battlestatereadapi?battleId=missing"))
 
       assertEquals("state success status", success.status, 200)
       assertContains("state success battle id", success.body, """"battleId":"battle-route"""")
@@ -90,7 +91,7 @@ object BattleRoomStateRouteContractTest {
     stateService.statesById = Map(BattleId("battle-route") -> battleState(phase = BattlePhase.Finished))
 
     withBattleServer(RecordingBattleQueueService(), stateService) { uri =>
-      val response = get(uri.resolve("/battle/state/stream?battleId=battle-route"))
+      val response = get(uri.resolve("/api/battlestatestreamapi?battleId=battle-route"))
 
       assertEquals("state stream status", response.status, 200)
       assertContains("state stream event", response.body, "event: state")
@@ -106,10 +107,9 @@ object BattleRoomStateRouteContractTest {
   )(run: URI => A): A = {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
     val routes = BattleRoutes(queueService, stateService, UnusedJoinAuthorizationService)
-    server.createContext("/battle/queue/status", exchange => routes.status(exchange))
-    server.createContext("/battle/queue/leave", exchange => routes.leave(exchange))
-    server.createContext("/battle/rooms", exchange => routes.rooms(exchange))
-    server.createContext("/battle/state", exchange => routes.state(exchange))
+    routes.apiEndpoints.foreach { endpoint =>
+      server.createContext(s"/api/${endpoint.messageKey}", BackendAPIExchangeRouter.handle(endpoint))
+    }
     server.start()
     try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
     finally server.stop(0)

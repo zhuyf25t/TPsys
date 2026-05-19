@@ -9,6 +9,7 @@ import slaydemo.backend.governance.routes.GovernanceRoutes
 import slaydemo.backend.identity.routes.IdentityRoutes
 import slaydemo.backend.mail.routes.MailRoutes
 import slaydemo.backend.replay.routes.ReplayRoutes
+import slaydemo.backend.shared.api.BackendAPIExchangeRouter
 import slaydemo.backend.shared.routes.HealthRoutes
 import slaydemo.backend.social.routes.SocialRoutes
 
@@ -33,13 +34,6 @@ private[backend] object BackendRouteRegistry {
       BackendRouteHandler("/identity/session", identityRoutes.issueSession),
       BackendRouteHandler("/identity/me", identityRoutes.current),
       BackendRouteHandler("/identity/accounts", identityRoutes.accounts),
-      BackendRouteHandler("/battle/queue/join", battleRoutes.join),
-      BackendRouteHandler("/battle/queue/status", battleRoutes.status),
-      BackendRouteHandler("/battle/queue/leave", battleRoutes.leave),
-      BackendRouteHandler("/battle/rooms", battleRoutes.rooms),
-      BackendRouteHandler("/battle/state", battleRoutes.state),
-      BackendRouteHandler("/battle/commands", battleRoutes.commands),
-      BackendRouteHandler("/battle/results", battleResultRoutes.handle),
       BackendRouteHandler("/replay/catalog", replayRoutes.handle),
       BackendRouteHandler("/mails", mailRoutes.mails),
       BackendRouteHandler("/mails/read", mailRoutes.read),
@@ -51,8 +45,12 @@ private[backend] object BackendRouteRegistry {
       BackendRouteHandler("/governance/contribution-adjustments", governanceRoutes.contributionAdjustments),
       BackendRouteHandler("/governance/admin-notifications", governanceRoutes.adminNotifications)
     )
+    val apiMessageHandlers =
+      (battleRoutes.apiEndpoints ++ battleResultRoutes.apiEndpoints).map { endpoint =>
+        BackendRouteHandler(s"/api/${endpoint.messageKey}", BackendAPIExchangeRouter.handle(endpoint))
+      }
 
-    baseHandlers ++ baseHandlers.map(handler => handler.copy(path = s"/api${handler.path}"))
+    baseHandlers ++ baseHandlers.map(handler => handler.copy(path = s"/api${handler.path}")) ++ apiMessageHandlers
   }
 
   def register(server: HttpServer, handlers: Vector[BackendRouteHandler]): Unit = {

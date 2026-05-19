@@ -8,6 +8,7 @@ import com.sun.net.httpserver.HttpServer
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.{BattleResultRecordCommand, BattleResultRecordError, BattleResultService}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
+import slaydemo.backend.shared.api.BackendAPIExchangeRouter
 
 object BattleResultRouteContractTest {
   private val ValidRecordJson: String =
@@ -26,7 +27,7 @@ object BattleResultRouteContractTest {
     service.records = Vector(resultRecord(handle = PlayerHandle("Alice"), currentLoadout = Some("Pistol")))
 
     withResultServer(service) { uri =>
-      val response = get(uri.resolve("/battle/results?handle=Alice&battleId=battle-route&limit=2"))
+      val response = get(uri.resolve("/api/battleresultsapi?handle=Alice&battleId=battle-route&limit=2"))
 
       assertEquals("list status", response.status, 200)
       assertContains("list wrapper", response.body, """"results":[""")
@@ -40,7 +41,7 @@ object BattleResultRouteContractTest {
     val service = RecordingBattleResultService()
 
     withResultServer(service) { uri =>
-      val response = get(uri.resolve("/battle/results?handle=visitor"))
+      val response = get(uri.resolve("/api/battleresultsapi?handle=visitor"))
 
       assertEquals("invalid handle filter status", response.status, 200)
       assertEquals("invalid handle filter body", response.body, """{"results":[]}""")
@@ -52,9 +53,9 @@ object BattleResultRouteContractTest {
     val service = RecordingBattleResultService()
 
     withResultServer(service) { uri =>
-      val success = postJson(uri.resolve("/battle/results"), ValidRecordJson)
-      val visitor = postJson(uri.resolve("/battle/results"), ValidRecordJson.replace("\"handle\":\"Alice\"", "\"handle\":\"visitor\""))
-      val invalidBattle = postJson(uri.resolve("/battle/results"), ValidRecordJson.replace("\" battle-route \"", "\"  \""))
+      val success = postJson(uri.resolve("/api/battleresultsapi"), ValidRecordJson)
+      val visitor = postJson(uri.resolve("/api/battleresultsapi"), ValidRecordJson.replace("\"handle\":\"Alice\"", "\"handle\":\"visitor\""))
+      val invalidBattle = postJson(uri.resolve("/api/battleresultsapi"), ValidRecordJson.replace("\" battle-route \"", "\"  \""))
 
       assertEquals("record status", success.status, 201)
       assertContains("record response battle id", success.body, """"battleId":"battle-route"""")
@@ -79,7 +80,7 @@ object BattleResultRouteContractTest {
     val failingService = RecordingBattleResultService()
     failingService.recordResults = Vector(Left(BattleResultRecordError.VisitorNotAllowed))
     withResultServer(failingService) { uri =>
-      val serviceFailure = postJson(uri.resolve("/battle/results"), ValidRecordJson)
+      val serviceFailure = postJson(uri.resolve("/api/battleresultsapi"), ValidRecordJson)
 
       assertEquals("service record error status", serviceFailure.status, 403)
       assertContains("service record error code", serviceFailure.body, """"code":"visitor_not_allowed"""")
@@ -89,7 +90,8 @@ object BattleResultRouteContractTest {
   private def withResultServer[A](service: RecordingBattleResultService)(run: URI => A): A = {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
     val routes = BattleResultRoutes(service)
-    server.createContext("/battle/results", exchange => routes.handle(exchange))
+    val endpoint = routes.apiEndpoints.find(_.messageKey == "battleresultsapi").get
+    server.createContext("/api/battleresultsapi", BackendAPIExchangeRouter.handle(endpoint))
     server.start()
     try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
     finally server.stop(0)

@@ -2,63 +2,70 @@ package slaydemo.backend.forum.objects.apiTypes
 
 import slaydemo.backend.forum.services.{ForumCreateTopicError, ForumTopicMutationError}
 
+enum ForumApiErrorCode {
+  case InvalidTitle
+  case InvalidBody
+  case InvalidTag
+  case InvalidAuthor
+  case InvalidVote
+  case VisitorNotAllowed
+  case TopicNotFound
+  case ReplyNotFound
+}
+
+object ForumApiErrorCode {
+  def wireValue(code: ForumApiErrorCode): String =
+    code match {
+      case ForumApiErrorCode.InvalidTitle       => "invalid_title"
+      case ForumApiErrorCode.InvalidBody        => "invalid_body"
+      case ForumApiErrorCode.InvalidTag         => "invalid_tag"
+      case ForumApiErrorCode.InvalidAuthor      => "invalid_author"
+      case ForumApiErrorCode.InvalidVote        => "invalid_vote"
+      case ForumApiErrorCode.VisitorNotAllowed  => "visitor_not_allowed"
+      case ForumApiErrorCode.TopicNotFound      => "topic_not_found"
+      case ForumApiErrorCode.ReplyNotFound      => "reply_not_found"
+    }
+
+  def statusCode(code: ForumApiErrorCode): Int =
+    code match {
+      case ForumApiErrorCode.VisitorNotAllowed  => 403
+      case ForumApiErrorCode.TopicNotFound      => 404
+      case ForumApiErrorCode.ReplyNotFound      => 404
+      case _                                    => 400
+    }
+}
+
 object ForumApiErrorMapper {
-  def createErrorCode(error: ForumCreateTopicParseError): String =
+  def createErrorCode(error: ForumCreateTopicParseError): ForumApiErrorCode =
     error match {
-      case ForumCreateTopicParseError.InvalidTitle      => "invalid_title"
-      case ForumCreateTopicParseError.InvalidBody       => "invalid_body"
-      case ForumCreateTopicParseError.InvalidTag        => "invalid_tag"
-      case ForumCreateTopicParseError.InvalidAuthor     => "invalid_author"
-      case ForumCreateTopicParseError.VisitorNotAllowed => "visitor_not_allowed"
+      case ForumCreateTopicParseError.InvalidTitle      => ForumApiErrorCode.InvalidTitle
+      case ForumCreateTopicParseError.InvalidBody       => ForumApiErrorCode.InvalidBody
+      case ForumCreateTopicParseError.InvalidTag        => ForumApiErrorCode.InvalidTag
+      case ForumCreateTopicParseError.InvalidAuthor     => ForumApiErrorCode.InvalidAuthor
+      case ForumCreateTopicParseError.VisitorNotAllowed => ForumApiErrorCode.VisitorNotAllowed
     }
 
-  def createStatusFor(error: ForumCreateTopicParseError): Int =
+  def createErrorCode(error: ForumCreateTopicError): ForumApiErrorCode =
     error match {
-      case ForumCreateTopicParseError.VisitorNotAllowed => 403
-      case _                                           => 400
+      case ForumCreateTopicError.InvalidTitle      => ForumApiErrorCode.InvalidTitle
+      case ForumCreateTopicError.InvalidBody       => ForumApiErrorCode.InvalidBody
+      case ForumCreateTopicError.InvalidTag        => ForumApiErrorCode.InvalidTag
+      case ForumCreateTopicError.InvalidAuthor     => ForumApiErrorCode.InvalidAuthor
+      case ForumCreateTopicError.VisitorNotAllowed => ForumApiErrorCode.VisitorNotAllowed
     }
 
-  def createErrorCode(error: ForumCreateTopicError): String =
+  def mutationErrorCode(error: ForumTopicMutationError): ForumApiErrorCode =
     error match {
-      case ForumCreateTopicError.InvalidTitle      => "invalid_title"
-      case ForumCreateTopicError.InvalidBody       => "invalid_body"
-      case ForumCreateTopicError.InvalidTag        => "invalid_tag"
-      case ForumCreateTopicError.InvalidAuthor     => "invalid_author"
-      case ForumCreateTopicError.VisitorNotAllowed => "visitor_not_allowed"
+      case ForumTopicMutationError.TopicNotFound => ForumApiErrorCode.TopicNotFound
+      case ForumTopicMutationError.ReplyNotFound => ForumApiErrorCode.ReplyNotFound
     }
 
-  def createStatusFor(error: ForumCreateTopicError): Int =
+  def mutationErrorCode(error: ForumTopicMutationParseError): ForumApiErrorCode =
     error match {
-      case ForumCreateTopicError.VisitorNotAllowed => 403
-      case _                                      => 400
-    }
-
-  def mutationErrorCode(error: ForumTopicMutationError): String =
-    error match {
-      case ForumTopicMutationError.TopicNotFound => "topic_not_found"
-      case ForumTopicMutationError.ReplyNotFound => "reply_not_found"
-    }
-
-  def mutationStatusFor(error: ForumTopicMutationError): Int =
-    error match {
-      case ForumTopicMutationError.TopicNotFound => 404
-      case ForumTopicMutationError.ReplyNotFound => 404
-    }
-
-  def mutationErrorCode(error: ForumTopicMutationParseError): String =
-    error match {
-      case ForumTopicMutationParseError.TopicNotFound     => "topic_not_found"
-      case ForumTopicMutationParseError.ReplyNotFound     => "reply_not_found"
-      case ForumTopicMutationParseError.InvalidBody       => "invalid_body"
-      case ForumTopicMutationParseError.InvalidAuthor     => "invalid_author"
-      case ForumTopicMutationParseError.VisitorNotAllowed => "visitor_not_allowed"
-    }
-
-  def mutationStatusFor(error: ForumTopicMutationParseError): Int =
-    error match {
-      case ForumTopicMutationParseError.TopicNotFound     => 404
-      case ForumTopicMutationParseError.ReplyNotFound     => 404
-      case ForumTopicMutationParseError.VisitorNotAllowed => 403
-      case _                                             => 400
+      case ForumTopicMutationParseError.TopicNotFound     => ForumApiErrorCode.TopicNotFound
+      case ForumTopicMutationParseError.ReplyNotFound     => ForumApiErrorCode.ReplyNotFound
+      case ForumTopicMutationParseError.InvalidBody       => ForumApiErrorCode.InvalidBody
+      case ForumTopicMutationParseError.InvalidAuthor     => ForumApiErrorCode.InvalidAuthor
+      case ForumTopicMutationParseError.VisitorNotAllowed => ForumApiErrorCode.VisitorNotAllowed
     }
 }

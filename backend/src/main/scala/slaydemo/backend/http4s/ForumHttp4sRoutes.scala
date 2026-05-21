@@ -8,6 +8,7 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.forum.objects.apiTypes.{
   ForumApiRequestDecodeError,
+  ForumApiErrorCode,
   ForumApiRequestFields,
   ForumApiErrorMapper,
   ForumApiTargetParsers,
@@ -175,35 +176,23 @@ private[http4s] object ForumHttp4sRoutes {
 
   private def createApiError(error: slaydemo.backend.forum.services.ForumCreateTopicError): HttpApiError = {
     val code = ForumApiErrorMapper.createErrorCode(error)
-    routeError(createStatus(error), code)
+    routeError(code)
   }
 
   private def createApiError(error: ForumCreateTopicParseError): HttpApiError = {
     val code = ForumApiErrorMapper.createErrorCode(error)
-    routeError(createStatus(error), code)
+    routeError(code)
   }
 
   private def mutationApiError(error: slaydemo.backend.forum.services.ForumTopicMutationError): HttpApiError = {
     val code = ForumApiErrorMapper.mutationErrorCode(error)
-    routeError(mutationStatus(error), code)
+    routeError(code)
   }
 
   private def mutationApiError(error: ForumTopicMutationParseError): HttpApiError = {
     val code = ForumApiErrorMapper.mutationErrorCode(error)
-    routeError(mutationStatus(error), code)
+    routeError(code)
   }
-
-  private def createStatus(error: slaydemo.backend.forum.services.ForumCreateTopicError): Status =
-    statusFrom(ForumApiErrorMapper.createStatusFor(error))
-
-  private def createStatus(error: ForumCreateTopicParseError): Status =
-    statusFrom(ForumApiErrorMapper.createStatusFor(error))
-
-  private def mutationStatus(error: slaydemo.backend.forum.services.ForumTopicMutationError): Status =
-    statusFrom(ForumApiErrorMapper.mutationStatusFor(error))
-
-  private def mutationStatus(error: ForumTopicMutationParseError): Status =
-    statusFrom(ForumApiErrorMapper.mutationStatusFor(error))
 
   private def statusFrom(value: Int): Status =
     value match {
@@ -222,11 +211,13 @@ private[http4s] object ForumHttp4sRoutes {
   private def voteCommandApiError(error: ForumVoteCommandParseError): HttpApiError =
     error match {
       case ForumVoteCommandParseError.InvalidVote =>
-        routeError(Status.BadRequest, "invalid_vote")
+        routeError(ForumApiErrorCode.InvalidVote)
       case ForumVoteCommandParseError.Mutation(error) =>
         mutationApiError(error)
     }
 
-  private def routeError(status: Status, code: String): HttpApiError =
-    HttpApiError(status = status, code = code, message = code)
+  private def routeError(code: ForumApiErrorCode): HttpApiError = {
+    val wireCode = ForumApiErrorCode.wireValue(code)
+    HttpApiError(status = statusFrom(ForumApiErrorCode.statusCode(code)), code = wireCode, message = wireCode)
+  }
 }

@@ -18,14 +18,14 @@ import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.policies.HandlePolicy
 
 object ForumCommandParsers {
-  def parseVote(fields: ForumRequestFields): Either[String, Option[ForumVoteChoice]] =
+  def parseVote(fields: ForumRequestFields): Either[ForumVoteParseError, Option[ForumVoteChoice]] =
     fields.fields.get("vote") match {
       case None if !fields.voteSeen =>
         Right(None)
       case Some(raw) if raw.trim.isEmpty =>
         Right(None)
       case Some(raw) =>
-        ForumVoteChoice.fromWire(raw).map(Some(_)).toRight("invalid_vote")
+        ForumVoteChoice.fromWire(raw).map(Some(_)).toRight(ForumVoteParseError.InvalidVote)
       case None =>
         Right(None)
     }
@@ -126,4 +126,8 @@ enum ForumTopicMutationParseError {
   case InvalidBody
   case InvalidAuthor
   case VisitorNotAllowed
+}
+
+enum ForumVoteParseError {
+  case InvalidVote
 }

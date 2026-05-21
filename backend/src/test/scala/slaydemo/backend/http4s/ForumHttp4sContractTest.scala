@@ -104,7 +104,11 @@ object ForumHttp4sContractTest {
     assertEquals("invalid body status", invalidBody.status, 400)
     assertContains("invalid body code", invalidBody.body, """"code":"invalid_body"""")
     assertEquals("non-string field status", nonStringField.status, 400)
-    assertContains("non-string field code", nonStringField.body, """"code":"bad_request"""")
+    assertEquals(
+      "non-string field body",
+      nonStringField.body,
+      """{"error":"Request body must be a JSON object with string fields.","code":"bad_request"}"""
+    )
     assertEquals("invalid creates do not call service", service.createCommands.length, 1)
 
     val failingService = RecordingForumService()

@@ -7,10 +7,12 @@ import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.forum.objects.apiTypes.{
+  ForumApiRequestDecodeError,
   ForumApiRequestFields,
   ForumApiErrorMapper,
   ForumApiTargetParsers,
   ForumCreateTopicParseError,
+  ForumRequestFields,
   ForumTopicMutationParseError,
   ForumTopicListResponse,
   ForumTopicWrapperResponse,
@@ -26,6 +28,8 @@ private[http4s] object ForumHttp4sRoutes {
     HttpApiError(status = Status.NotFound, code = "topic_not_found", message = "topic_not_found")
   private val ReplyNotFoundError =
     HttpApiError(status = Status.NotFound, code = "reply_not_found", message = "reply_not_found")
+  private val InvalidJsonObjectError =
+    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
 
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
@@ -72,8 +76,8 @@ private[http4s] object ForumHttp4sRoutes {
 
   private def createTopic(request: Request[IO], service: ForumService): IO[Response[IO]] =
     parseBody(request).flatMap {
-      case Left(message) =>
-        IO.pure(apiError(badRequest(message)))
+      case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
+        IO.pure(apiError(InvalidJsonObjectError))
       case Right(fields) =>
         fields.toCreateTopicCommand match {
           case Right(command) =>
@@ -94,8 +98,8 @@ private[http4s] object ForumHttp4sRoutes {
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
         parseBody(request).flatMap {
-          case Left(message) =>
-            IO.pure(apiError(badRequest(message)))
+          case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
+            IO.pure(apiError(InvalidJsonObjectError))
           case Right(fields) =>
             fields.toAddReplyCommand(topicId) match {
               case Left(error) =>
@@ -117,8 +121,8 @@ private[http4s] object ForumHttp4sRoutes {
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
         parseBody(request).flatMap {
-          case Left(message) =>
-            IO.pure(apiError(badRequest(message)))
+          case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
+            IO.pure(apiError(InvalidJsonObjectError))
           case Right(fields) =>
             fields.toSetTopicVoteCommand(topicId) match {
               case Left(error) =>
@@ -141,8 +145,8 @@ private[http4s] object ForumHttp4sRoutes {
     ) match {
       case (Some(topicId), Some(replyId)) =>
         parseBody(request).flatMap {
-          case Left(message) =>
-            IO.pure(apiError(badRequest(message)))
+          case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
+            IO.pure(apiError(InvalidJsonObjectError))
           case Right(fields) =>
             fields.toSetReplyVoteCommand(topicId, replyId) match {
               case Left(error) =>
@@ -160,11 +164,11 @@ private[http4s] object ForumHttp4sRoutes {
         IO.pure(apiError(ReplyNotFoundError))
     }
 
-  private def parseBody(request: Request[IO]) =
+  private def parseBody(request: Request[IO]): IO[Either[ForumApiRequestDecodeError, ForumRequestFields]] =
     request
       .as[ForumApiRequestFields]
       .attempt
-      .map(_.map(_.toCommandFields).left.map(_ => "Request body must be a JSON object with string fields."))
+      .map(_.map(_.toCommandFields).left.map(_ => ForumApiRequestDecodeError.InvalidJsonObject))
 
   private def viewerHandle(request: Request[IO]) =
     ForumApiTargetParsers.resolveViewerHandle(request.params)
@@ -214,9 +218,6 @@ private[http4s] object ForumHttp4sRoutes {
 
   private def path(request: Request[IO]): String =
     request.uri.path.renderString
-
-  private def badRequest(message: String): HttpApiError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = message)
 
   private def voteCommandApiError(error: ForumVoteCommandParseError): HttpApiError =
     error match {

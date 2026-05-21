@@ -3,6 +3,17 @@ package slaydemo.backend.identity.api
 import slaydemo.backend.identity.objects.SessionToken
 
 object IdentitySessionTokenParser {
+  private val AuthorizationHeaderName: String =
+    "Authorization"
+  private val SessionTokenHeaderName: String =
+    "X-Session-Token"
+
+  def parseFromHeaderLookup(headerValue: String => Option[String]): Option[SessionToken] =
+    parse(
+      authorization = headerValue(AuthorizationHeaderName),
+      xSessionToken = headerValue(SessionTokenHeaderName)
+    )
+
   def parse(
     authorization: Option[String],
     xSessionToken: Option[String]

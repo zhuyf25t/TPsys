@@ -154,10 +154,7 @@ private[http4s] object IdentityHttp4sRoutes {
       .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
 
   private def parseSessionToken(request: Request[IO]): Option[SessionToken] =
-    IdentitySessionTokenParser.parse(
-      authorization = headerValue(request.headers, "Authorization"),
-      xSessionToken = headerValue(request.headers, "X-Session-Token")
-    )
+    IdentitySessionTokenParser.parseFromHeaderLookup(name => headerValue(request.headers, name))
 
   private def headerValue(headers: Headers, name: String): Option[String] =
     headers.get(CIString(name)).map(_.head.value)

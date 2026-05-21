@@ -7,16 +7,6 @@ import io.circe.{Encoder, Json}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.replay.objects.{ReplayCommentRecord, ReplayRecord, ReplaySettlementRecord}
 
-final case class ReplayErrorResponse(error: String, code: String)
-
-object ReplayErrorResponse {
-  given Encoder[ReplayErrorResponse] =
-    Encoder.forProduct2("error", "code")(value => (value.error, value.code))
-
-  def render(error: String, code: String): String =
-    ReplayErrorResponse(error = error, code = code).asJson.noSpaces
-}
-
 final case class ReplayDetailRecordResponse(
   replayId: String,
   battleId: String,
@@ -122,9 +112,6 @@ final case class ReplayDetailResponse(replay: ReplayDetailRecordResponse)
 object ReplayDetailResponse {
   given Encoder[ReplayDetailResponse] =
     Encoder.forProduct1("replay")(_.replay)
-
-  def renderRecord(record: ReplayRecord, selectedHandle: Option[PlayerHandle]): String =
-    ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, selectedHandle)).asJson.noSpaces
 }
 
 final case class ReplayCommentResponse(
@@ -156,9 +143,6 @@ final case class ReplayCommentsResponse(comments: Vector[ReplayCommentResponse])
 object ReplayCommentsResponse {
   given Encoder[ReplayCommentsResponse] =
     Encoder.forProduct1("comments")(_.comments)
-
-  def renderRecords(records: Vector[ReplayCommentRecord]): String =
-    ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson.noSpaces
 }
 
 final case class ReplayCommentWrapperResponse(comment: ReplayCommentResponse)
@@ -166,7 +150,4 @@ final case class ReplayCommentWrapperResponse(comment: ReplayCommentResponse)
 object ReplayCommentWrapperResponse {
   given Encoder[ReplayCommentWrapperResponse] =
     Encoder.forProduct1("comment")(_.comment)
-
-  def renderRecord(record: ReplayCommentRecord): String =
-    ReplayCommentWrapperResponse(ReplayCommentResponse.fromRecord(record)).asJson.noSpaces
 }

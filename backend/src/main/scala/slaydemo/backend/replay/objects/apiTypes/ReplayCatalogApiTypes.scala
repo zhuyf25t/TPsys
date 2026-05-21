@@ -2,7 +2,6 @@ package slaydemo.backend.replay.objects.apiTypes
 
 import io.circe.Encoder
 import io.circe.generic.semiauto.deriveEncoder
-import io.circe.syntax.*
 
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.replay.objects.{ReplayRecord, ReplaySettlementRecord}
@@ -71,9 +70,6 @@ object ReplayCatalogResponse {
 
   def fromRecords(records: Vector[ReplayRecord], selectedHandle: Option[PlayerHandle]): ReplayCatalogResponse =
     ReplayCatalogResponse(records.map(record => ReplayCatalogItem.fromRecord(record, selectedSettlement(record, selectedHandle))))
-
-  def renderRecords(records: Vector[ReplayRecord], selectedHandle: Option[PlayerHandle]): String =
-    fromRecords(records, selectedHandle).asJson.noSpaces
 
   private def selectedSettlement(record: ReplayRecord, selectedHandle: Option[PlayerHandle]): Option[ReplaySettlementRecord] =
     selectedHandle.flatMap(record.settlementFor)

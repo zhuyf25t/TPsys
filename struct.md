@@ -72,7 +72,7 @@ BackendHttp4sApp.run
 | `http4s/MailHttp4sRoutes.scala` | 邮件列表和已读操作；list/read API path、owner query key、read body DTO 由 `mail/objects/apiTypes/MailApiTypes.scala` 管理。 |
 | `http4s/SocialHttp4sRoutes.scala` | 好友请求创建、查询、响应；friend request API path、owner query key 和 request DTO 由 `social/objects/apiTypes/SocialApiTypes.scala` 管理。 |
 | `http4s/ForumHttp4sRoutes.scala` | 讨论区 topic、reply、vote。 |
-| `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知；contribution/notification API path、query parser 和 request/response DTO 由 `governance/objects/apiTypes/GovernanceApiTypes.scala` 管理。 |
+| `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知；contribution/notification API path、query facade 和 request/response DTO 由 `governance/objects/apiTypes/GovernanceApiTypes.scala` 管理。 |
 | `http4s/ReplayHttp4sRoutes.scala` | replay catalog、详情、评论。 |
 | `http4s/BotProfileHttp4sRoutes.scala` | bot profile 列表；固定 API path 由 `bots/objects/apiTypes/BotProfileApiTypes.scala` 管理。 |
 | `http4s/BattleQueueHttp4sRoutes.scala` | battle 排队 join/status/leave。 |
@@ -216,13 +216,13 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | --- | --- |
 | `IdentityCommandParsers.scala` | 已迁到 `identity/api`，registration/session command 转换已由 `IdentityApi.scala` typed DTO 承接；`IdentityHttp4sRoutes` 不再直接依赖 command parser。 |
 | `IdentitySessionTokenParser.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析 session token。 |
-| `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，owner query/read command 转换已由 `MailApiTypes.scala` 承接；list query 使用 http4s `request.params`，read POST body 使用 `MailReadApiRequest` typed DTO。 |
-| `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，owner query/create/respond command 转换已由 `SocialApiTypes.scala` 承接；list query 使用 http4s `request.params`，create/respond POST body 使用 typed DTO。 |
+| `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，owner query key/read command 转换已由 `MailApiTypes.scala` 承接；read POST body 使用 `MailReadApiRequest` typed DTO。 |
+| `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，owner query key/create/respond command 转换已由 `SocialApiTypes.scala` 承接；create/respond POST body 使用 typed DTO。 |
 | `ForumCommandParsers.scala` | 已迁到 `forum/objects/apiTypes`，forum request body 到 create/reply/vote command 的转换已由 `ForumApiTypes.scala` 承接。 |
 | `ForumApiTargetParsers.scala` | 位于 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 用它识别 topic/reply/vote API path；topic/reply path id 直接解析成 typed id，viewer query 已使用 http4s `request.params`。 |
 | `ForumApiErrorMapper.scala` | 位于 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，typed request 到治理 domain command 的转换已由 `GovernanceApiTypes.scala` 承接。 |
-| `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query；query 来源已改为 http4s `request.params`。 |
+| `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，当前由 `GovernanceRequestTarget` 作为 route-facing facade 统一承接治理 query。 |
 | `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，catalog target/query 和 record/comment body decode 已由 `ReplayApiCodec` 承接；`ReplayHttp4sRoutes` 不再直接依赖 command parser。 |
 | `ReplayJsonObjectParser.scala` | 已删除。当前 replay POST body 由 `ReplayApiCodec` 使用 Circe `JsonObject` 解析，再交给 `ReplayCommandParsers` 做业务字段校验。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 用它解析 result API path/query/body；GET query 已使用 http4s `request.params`，POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |

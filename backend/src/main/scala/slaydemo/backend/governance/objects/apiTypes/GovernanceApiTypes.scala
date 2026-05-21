@@ -28,6 +28,12 @@ object GovernanceRequestTarget {
 
   def isAdminNotificationPath(path: String): Boolean =
     AdminNotificationPaths.contains(path)
+
+  def contributionAdjustmentLimitFromQuery(query: Map[String, String]): Int =
+    GovernanceQueryParsers.parseContributionAdjustmentLimit(query)
+
+  def notificationListFromQuery(query: Map[String, String]): GovernanceNotificationListQueryParseResult =
+    GovernanceQueryParsers.parseNotificationListQuery(query)
 }
 
 final case class ContributionAdjustmentRequest(

@@ -20,7 +20,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -166,10 +166,10 @@ private[http4s] object ForumHttp4sRoutes {
     }
 
   private def parseBody(request: Request[IO]): IO[Either[ForumApiRequestDecodeError, ForumRequestFields]] =
-    request
-      .as[ForumApiRequestFields]
-      .attempt
-      .map(_.map(_.toCommandFields).left.map(_ => ForumApiRequestDecodeError.InvalidJsonObject))
+    decodeEntityBody[ForumApiRequestDecodeError, ForumApiRequestFields](
+      request,
+      ForumApiRequestDecodeError.InvalidJsonObject
+    ).map(_.map(_.toCommandFields))
 
   private def viewerHandle(request: Request[IO]) =
     ForumApiTargetParsers.resolveViewerHandle(request.params)

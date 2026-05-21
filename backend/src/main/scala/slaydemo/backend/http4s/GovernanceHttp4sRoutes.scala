@@ -20,7 +20,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, typedApiError, withCors}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
@@ -69,9 +69,12 @@ private[http4s] object GovernanceHttp4sRoutes {
     request: Request[IO],
     service: ContributionAdjustmentService
   ): IO[Response[IO]] =
-    request.as[ContributionAdjustmentApiRequest].attempt.flatMap {
-      case Left(_) =>
-        IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.InvalidJsonObject)))
+    decodeEntityBody[GovernanceApiErrorCode, ContributionAdjustmentApiRequest](
+      request,
+      GovernanceApiErrorCode.InvalidJsonObject
+    ).flatMap {
+      case Left(errorCode) =>
+        IO.pure(apiError(governanceApiError(errorCode)))
       case Right(parsedRequest) =>
         parsedRequest.toCommand match {
           case Left(error) =>
@@ -104,9 +107,12 @@ private[http4s] object GovernanceHttp4sRoutes {
     request: Request[IO],
     service: GovernanceNotificationService
   ): IO[Response[IO]] =
-    request.as[GovernanceReviewNotificationApiRequest].attempt.flatMap {
-      case Left(_) =>
-        IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.InvalidJsonObject)))
+    decodeEntityBody[GovernanceApiErrorCode, GovernanceReviewNotificationApiRequest](
+      request,
+      GovernanceApiErrorCode.InvalidJsonObject
+    ).flatMap {
+      case Left(errorCode) =>
+        IO.pure(apiError(governanceApiError(errorCode)))
       case Right(parsedRequest) =>
         parsedRequest.toCommand match {
           case Left(error) =>

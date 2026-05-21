@@ -55,7 +55,7 @@ object HealthHttp4sRouteContractTest {
     val response = run(service, Request[IO](method = Method.POST, uri = uri"/health").withEntity("{}"))
 
     assertEquals("unsupported method status", response.status, 405)
-    assertEquals("unsupported method body", response.body, """{"error":"method_not_allowed"}""")
+    assertEquals("unsupported method body", response.body, """{"error":"Method is not allowed.","code":"method_not_allowed"}""")
     assertEquals("unsupported method does not call service", service.currentCalls, 0)
   }
 

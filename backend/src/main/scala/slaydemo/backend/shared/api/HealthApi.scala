@@ -31,13 +31,6 @@ final case class HealthResponse(
   storageMode: StorageMode
 )
 
-final case class HealthErrorResponse(error: String)
-
-object HealthErrorResponse {
-  val MethodNotAllowed: HealthErrorResponse =
-    HealthErrorResponse(error = "method_not_allowed")
-}
-
 object HealthJsonCodec {
   given Encoder[HealthStatus] =
     Encoder.encodeString.contramap(HealthStatus.wireValue)
@@ -55,7 +48,4 @@ object HealthJsonCodec {
     Encoder.forProduct4("status", "service", "port", "storageMode")(response =>
       (response.status, response.service, response.port, response.storageMode)
     )
-
-  given Encoder[HealthErrorResponse] =
-    Encoder.forProduct1("error")(_.error)
 }

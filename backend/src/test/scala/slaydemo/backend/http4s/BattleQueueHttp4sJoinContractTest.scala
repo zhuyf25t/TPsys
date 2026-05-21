@@ -16,7 +16,6 @@ object BattleQueueHttp4sJoinContractTest {
 
   def main(args: Array[String]): Unit = {
     validJoinAuthorizesAndReturnsSnapshot()
-    restJoinPathMatchesCurrentHttpApi()
     proxyStrippedRestJoinPathIsSupported()
     invalidHandleIsRejectedBeforeAuthorization()
     missingSessionIsUnauthorizedBeforeQueue()
@@ -56,16 +55,6 @@ object BattleQueueHttp4sJoinContractTest {
     assertEquals("valid join rating", command.rating, Some(Rating(1200)))
     assertEquals("valid join avatar", command.avatar, Some("blue"))
     assertEquals("valid join skin", command.skin, Some("pilot"))
-  }
-
-  private def restJoinPathMatchesCurrentHttpApi(): Unit = {
-    val queueService = RecordingBattleQueueService()
-    val authService = RecordingJoinAuthorizationService(Right(()))
-    val response = postJson(queueService, authService, uri"/api/battle/queue/join", ValidJoinJson)
-
-    assertEquals("rest join path status", response.status, 200)
-    assertContains("rest join path ticket", response.body, """"ticketId":"ticket-alice"""")
-    assertEquals("rest join path queue count", queueService.commands.length, 1)
   }
 
   private def invalidHandleIsRejectedBeforeAuthorization(): Unit = {

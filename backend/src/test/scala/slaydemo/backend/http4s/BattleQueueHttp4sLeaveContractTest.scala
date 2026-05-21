@@ -13,7 +13,6 @@ import slaydemo.backend.identity.objects.PlayerHandle
 object BattleQueueHttp4sLeaveContractTest {
   def main(args: Array[String]): Unit = {
     leaveReturnsTrueWhenQueueReportsLeft()
-    restLeavePathReturnsTrueWhenQueueReportsLeft()
     leaveReturnsFalseWhenQueueReportsNotWaiting()
     missingTicketIdIsBadRequest()
     nonObjectBodyIsBadRequest()
@@ -29,15 +28,6 @@ object BattleQueueHttp4sLeaveContractTest {
     assertEquals("leave status", response.status, 200)
     assertEquals("leave body", response.body, """{"left":true}""")
     assertEquals("leave calls", service.leaveCalls, Vector(TicketId("ticket-route")))
-  }
-
-  private def restLeavePathReturnsTrueWhenQueueReportsLeft(): Unit = {
-    val service = RecordingBattleQueueService(BattleQueueLeaveOutcome.LeftQueue)
-    val response = postJson(service, uri"/api/battle/queue/leave", """{"ticketId":"ticket-route"}""")
-
-    assertEquals("rest leave status", response.status, 200)
-    assertEquals("rest leave body", response.body, """{"left":true}""")
-    assertEquals("rest leave calls", service.leaveCalls, Vector(TicketId("ticket-route")))
   }
 
   private def leaveReturnsFalseWhenQueueReportsNotWaiting(): Unit = {

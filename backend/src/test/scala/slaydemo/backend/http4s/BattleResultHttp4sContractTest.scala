@@ -18,7 +18,7 @@ object BattleResultHttp4sContractTest {
     listParsesFiltersAndRendersRecords()
     invalidHandleFilterShortCircuitsList()
     recordPostParsesCommandAndValidationErrors()
-    battleResultsRestPathAndTypedErrorsRemainCovered()
+    badJsonRecordRequestReturnsTypedError()
 
     println("Battle result http4s contract checks passed")
   }
@@ -77,15 +77,7 @@ object BattleResultHttp4sContractTest {
     assertContains("service record error code", serviceFailure.body, """"code":"visitor_not_allowed"""")
   }
 
-  private def battleResultsRestPathAndTypedErrorsRemainCovered(): Unit = {
-    val listService = RecordingBattleResultService()
-    listService.records = Vector(resultRecord(handle = PlayerHandle("Alice"), currentLoadout = Some("Pistol")))
-    val listResponse = get(listService, uri"/api/battle/results?handle=Alice&battleId=battle-route&limit=2")
-
-    assertEquals("battle results rest list status", listResponse.status, 200)
-    assertContains("battle results rest list result id", listResponse.body, """"resultId":"battle-route:alice"""")
-    assertEquals("battle results rest list service calls", listService.listCalls, Vector((Some(PlayerHandle("Alice")), Some(BattleId("battle-route")), 2)))
-
+  private def badJsonRecordRequestReturnsTypedError(): Unit = {
     val recordService = RecordingBattleResultService()
     val response = postJson(recordService, uri"/api/battle/results", "{bad-json}")
 

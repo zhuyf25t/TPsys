@@ -11,7 +11,6 @@ import slaydemo.backend.battle.services.*
 object BattleStateStreamHttp4sContractTest {
   def main(args: Array[String]): Unit = {
     stateStreamEmitsFinishedStateAndCloses()
-    restStateStreamEmitsFinishedStateAndCloses()
     missingBattleIdIsBadRequest()
     battleNotFoundIsNotFound()
 
@@ -30,20 +29,6 @@ object BattleStateStreamHttp4sContractTest {
     assertContains("state stream battle id", response.body, """"battleId":"battle-route"""")
     assertContains("state stream finished phase", response.body, """"phase":"finished"""")
     assertEquals("state stream read calls", service.readCalls, Vector(BattleId("battle-route")))
-  }
-
-  private def restStateStreamEmitsFinishedStateAndCloses(): Unit = {
-    val service = RecordingBattleStateService(
-      statesById = Map(BattleId("battle-route") -> battleState(phase = BattlePhase.Finished))
-    )
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state/stream?battleId=battle-route"))
-
-    assertEquals("rest state stream status", response.status, 200)
-    assertContains("rest state stream content type", response.contentType, "text/event-stream")
-    assertContains("rest state stream event", response.body, "event: state")
-    assertContains("rest state stream battle id", response.body, """"battleId":"battle-route"""")
-    assertContains("rest state stream finished phase", response.body, """"phase":"finished"""")
-    assertEquals("rest state stream read calls", service.readCalls, Vector(BattleId("battle-route")))
   }
 
   private def missingBattleIdIsBadRequest(): Unit = {

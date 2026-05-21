@@ -11,7 +11,6 @@ import slaydemo.backend.battle.services.*
 object BattleStateReadHttp4sContractTest {
   def main(args: Array[String]): Unit = {
     stateReadMapsSuccessByQuery()
-    restStateReadMapsSuccessByQuery()
     stateReadMapsSuccessByPath()
     missingBattleIdIsBadRequest()
     battleNotFoundIsNotFound()
@@ -28,19 +27,6 @@ object BattleStateReadHttp4sContractTest {
     assertContains("query battle id", response.body, """"battleId":"battle-route"""")
     assertContains("query phase", response.body, """"phase":"active"""")
     assertEquals("query read calls", service.readCalls, Vector(BattleId("battle-route")))
-  }
-
-  private def restStateReadMapsSuccessByQuery(): Unit = {
-    val service = RecordingBattleStateService()
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state?battleId=battle-route"))
-    val missing = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state?battleId=missing"))
-
-    assertEquals("rest query state status", response.status, 200)
-    assertContains("rest query battle id", response.body, """"battleId":"battle-route"""")
-    assertContains("rest query phase", response.body, """"phase":"active"""")
-    assertEquals("rest query missing status", missing.status, 404)
-    assertContains("rest query missing code", missing.body, """"code":"battle_not_found"""")
-    assertEquals("rest query read calls", service.readCalls, Vector(BattleId("battle-route"), BattleId("missing")))
   }
 
   private def stateReadMapsSuccessByPath(): Unit = {

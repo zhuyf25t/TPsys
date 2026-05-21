@@ -14,38 +14,16 @@ import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestOwnerQuery,
   FriendRequestRespondApiRequest,
   FriendRequestRespondResponse,
+  SocialApiErrorCode,
   SocialApiRequestDecodeError,
   SocialRequestTarget,
   SocialRouteCreateError,
   SocialRouteHandleError,
   SocialRouteRespondError
 }
-import slaydemo.backend.social.services.{FriendRequestCreateError, FriendRequestRespondError, FriendRequestService}
+import slaydemo.backend.social.services.FriendRequestService
 
 private[http4s] object SocialHttp4sRoutes {
-  private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
-  private val MissingOwnerError =
-    HttpApiError(status = Status.BadRequest, code = "missing_owner", message = "missing_owner")
-  private val VisitorNotAllowedError =
-    HttpApiError(status = Status.Forbidden, code = "visitor_not_allowed", message = "visitor_not_allowed")
-  private val InvalidOwnerError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_owner", message = "invalid_owner")
-  private val InvalidHandlesError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_handles", message = "invalid_handles")
-  private val RequestNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "request_not_found", message = "request_not_found")
-  private val ForbiddenError =
-    HttpApiError(status = Status.Forbidden, code = "forbidden", message = "forbidden")
-  private val InvalidDecisionError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_decision", message = "invalid_decision")
-  private val MissingFieldsError =
-    HttpApiError(status = Status.BadRequest, code = "missing_fields", message = "missing_fields")
-  private val InvalidActorError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_actor", message = "invalid_actor")
-  private val InvalidJsonObjectError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
-
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
 
@@ -58,7 +36,7 @@ private[http4s] object SocialHttp4sRoutes {
           case Method.POST =>
             respond(request, service)
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(socialApiError(SocialApiErrorCode.MethodNotAllowed)))
         }
       case request if SocialRequestTarget.isFriendRequestPath(path(request)) =>
         request.method match {
@@ -69,7 +47,7 @@ private[http4s] object SocialHttp4sRoutes {
           case Method.POST =>
             create(request, service)
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(socialApiError(SocialApiErrorCode.MethodNotAllowed)))
         }
     }
 
@@ -86,7 +64,7 @@ private[http4s] object SocialHttp4sRoutes {
   private def create(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
     readCreateRequest(request).flatMap {
       case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(InvalidJsonObjectError))
+        IO.pure(apiError(socialApiError(SocialApiErrorCode.InvalidJsonObject)))
       case Right(createRequest) =>
         createRequest.toCreateHandles match {
           case Left(error) =>
@@ -95,8 +73,8 @@ private[http4s] object SocialHttp4sRoutes {
             blocking(service.create(command.sourceHandle, command.targetHandle)).flatMap {
               case Right(result) =>
                 Ok(FriendRequestCreateResponse.fromResult(result).asJson).map(withCors)
-              case Left(FriendRequestCreateError.InvalidHandles) =>
-                IO.pure(apiError(InvalidHandlesError))
+              case Left(error) =>
+                IO.pure(apiError(socialApiError(SocialApiErrorCode.fromCreateServiceError(error))))
             }
         }
     }
@@ -104,7 +82,7 @@ private[http4s] object SocialHttp4sRoutes {
   private def respond(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
     readRespondRequest(request).flatMap {
       case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(InvalidJsonObjectError))
+        IO.pure(apiError(socialApiError(SocialApiErrorCode.InvalidJsonObject)))
       case Right(respondRequest) =>
         respondRequest.toRespondCommand match {
           case Left(error) =>
@@ -113,10 +91,8 @@ private[http4s] object SocialHttp4sRoutes {
             blocking(service.respond(command.requestId, command.actorHandle, command.decision)).flatMap {
               case Right(result) =>
                 Ok(FriendRequestRespondResponse.fromResult(result).asJson).map(withCors)
-              case Left(FriendRequestRespondError.RequestNotFound) =>
-                IO.pure(apiError(RequestNotFoundError))
-              case Left(FriendRequestRespondError.Forbidden) =>
-                IO.pure(apiError(ForbiddenError))
+              case Left(error) =>
+                IO.pure(apiError(socialApiError(SocialApiErrorCode.fromRespondServiceError(error))))
             }
         }
     }
@@ -134,33 +110,28 @@ private[http4s] object SocialHttp4sRoutes {
       .map(_.left.map(_ => SocialApiRequestDecodeError.InvalidJsonObject))
 
   private def ownerApiError(error: SocialRouteHandleError): HttpApiError =
-    error match {
-      case SocialRouteHandleError.Missing =>
-        MissingOwnerError
-      case SocialRouteHandleError.VisitorNotAllowed =>
-        VisitorNotAllowedError
-      case SocialRouteHandleError.Invalid =>
-        InvalidOwnerError
-    }
+    socialApiError(SocialApiErrorCode.fromOwnerError(error))
 
   private def createApiError(error: SocialRouteCreateError): HttpApiError =
-    error match {
-      case SocialRouteCreateError.InvalidHandles =>
-        InvalidHandlesError
-      case SocialRouteCreateError.VisitorNotAllowed =>
-        VisitorNotAllowedError
-    }
+    socialApiError(SocialApiErrorCode.fromCreateRouteError(error))
 
   private def respondParseApiError(error: SocialRouteRespondError): HttpApiError =
-    error match {
-      case SocialRouteRespondError.InvalidDecision =>
-        InvalidDecisionError
-      case SocialRouteRespondError.MissingFields =>
-        MissingFieldsError
-      case SocialRouteRespondError.InvalidActorHandle =>
-        InvalidActorError
-      case SocialRouteRespondError.VisitorNotAllowed =>
-        VisitorNotAllowedError
+    socialApiError(SocialApiErrorCode.fromRespondRouteError(error))
+
+  private def socialApiError(code: SocialApiErrorCode): HttpApiError =
+    HttpApiError(
+      status = statusFrom(SocialApiErrorCode.statusCode(code)),
+      code = SocialApiErrorCode.wireValue(code),
+      message = SocialApiErrorCode.message(code)
+    )
+
+  private def statusFrom(value: Int): Status =
+    value match {
+      case 400 => Status.BadRequest
+      case 403 => Status.Forbidden
+      case 404 => Status.NotFound
+      case 405 => Status.MethodNotAllowed
+      case _   => Status.InternalServerError
     }
 
   private def path(request: Request[IO]): String =

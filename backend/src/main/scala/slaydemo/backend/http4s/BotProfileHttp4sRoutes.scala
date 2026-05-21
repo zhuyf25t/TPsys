@@ -6,14 +6,11 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.bots.objects.apiTypes.{BotProfileRequestTarget, BotProfilesResponse}
+import slaydemo.backend.bots.objects.apiTypes.{BotProfileApiErrorCode, BotProfileRequestTarget, BotProfilesResponse}
 import slaydemo.backend.bots.services.BotProfileService
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BotProfileHttp4sRoutes {
-  private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
-
   def routes(service: BotProfileService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if isBotProfilePath(request) =>
@@ -25,10 +22,23 @@ private[http4s] object BotProfileHttp4sRoutes {
           case Method.GET =>
             blocking(service.list()).flatMap(records => Ok(BotProfilesResponse.fromRecords(records).asJson).map(withCors))
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(botProfileApiError(BotProfileApiErrorCode.MethodNotAllowed)))
         }
     }
 
   private def isBotProfilePath(request: Request[IO]): Boolean =
     BotProfileRequestTarget.isProfilePath(request.uri.path.renderString)
+
+  private def botProfileApiError(code: BotProfileApiErrorCode): HttpApiError =
+    HttpApiError(
+      status = statusFrom(BotProfileApiErrorCode.statusCode(code)),
+      code = BotProfileApiErrorCode.wireValue(code),
+      message = BotProfileApiErrorCode.message(code)
+    )
+
+  private def statusFrom(value: Int): Status =
+    value match {
+      case 405 => Status.MethodNotAllowed
+      case _   => Status.InternalServerError
+    }
 }

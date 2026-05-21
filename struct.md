@@ -175,7 +175,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | --- | --- |
 | `shared/routes/HealthRoutes.scala` | 已删除。当前使用 `HealthHttp4sRoutes`，并由 `HealthHttp4sRouteContractTest` 覆盖。 |
 | `identity/routes/IdentityRoutes.scala` | 已删除。当前使用 `IdentityHttp4sRoutes`，并由 `IdentityHttp4sContractTest` 覆盖。 |
-| `mail/routes/MailRoutes.scala` | 否。当前使用 `MailHttp4sRoutes`。 |
+| `mail/routes/MailRoutes.scala` | 已删除。当前使用 `MailHttp4sRoutes`，并由 `MailHttp4sContractTest` 覆盖。 |
 | `social/routes/SocialRoutes.scala` | 否。当前使用 `SocialHttp4sRoutes`。 |
 | `forum/routes/ForumRoutes.scala` | 否。当前使用 `ForumHttp4sRoutes`。 |
 | `governance/routes/GovernanceRoutes.scala` | 否。当前使用 `GovernanceHttp4sRoutes`。 |
@@ -219,7 +219,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | --- | --- | --- |
 | health | `HealthHttp4sRoutes` | `HealthRoutes` 已删除 |
 | identity | `IdentityHttp4sRoutes` | `IdentityRoutes` 已删除 |
-| mail | `MailHttp4sRoutes` | `MailRoutes` |
+| mail | `MailHttp4sRoutes` | `MailRoutes` 已删除 |
 | social | `SocialHttp4sRoutes` | `SocialRoutes` |
 | forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` |
 | governance | `GovernanceHttp4sRoutes` | `GovernanceRoutes` |

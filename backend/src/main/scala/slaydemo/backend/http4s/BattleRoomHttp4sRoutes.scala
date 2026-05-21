@@ -8,11 +8,10 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.battle.objects.{RoomId, TicketId}
+import slaydemo.backend.battle.objects.RoomId
 import slaydemo.backend.battle.objects.apiTypes.{RealtimeRoomHeartbeatAPIRequest, RealtimeRoomSnapshotResponse}
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
-import slaydemo.backend.identity.objects.PlayerHandle
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val AllowedSnapshotPaths: Set[String] =
@@ -62,8 +61,8 @@ private[http4s] object BattleRoomHttp4sRoutes {
             decodeHeartbeatRequest(request).flatMap {
               case Left(message) =>
                 IO.pure(apiError(badRequest(message)))
-              case Right(heartbeatRequest) =>
-                blocking(queueService.heartbeat(heartbeatCommand(request, heartbeatRequest))).flatMap {
+              case Right(command) =>
+                blocking(queueService.heartbeat(command)).flatMap {
                   case Right(snapshot) =>
                     Ok(RealtimeRoomSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
                   case Left(error) =>
@@ -83,33 +82,15 @@ private[http4s] object BattleRoomHttp4sRoutes {
     AllowedHeartbeatPaths.contains(request.uri.path.renderString) ||
       roomIdFromRoomPath(request.uri.path.renderString, "heartbeat").isDefined
 
-  private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[String, RealtimeRoomHeartbeatAPIRequest]] =
+  private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[String, RealtimeRoomHeartbeatCommand]] =
     request.as[Json].attempt.map {
       case Left(_) =>
         Left("Request body must be a JSON object with supported primitive or object fields.")
       case Right(json) if json.asObject.isEmpty =>
         Left("Request body must be a JSON object with supported primitive or object fields.")
       case Right(json) =>
-        json.as[RealtimeRoomHeartbeatAPIRequest].left.map(_ => "Request body must be a JSON object with supported primitive or object fields.")
+        RealtimeRoomHeartbeatAPIRequest.decodeCommand(json, roomIdFromRoomPath(request.uri.path.renderString, "heartbeat"), request.params)
     }
-
-  private def heartbeatCommand(
-    request: Request[IO],
-    heartbeatRequest: RealtimeRoomHeartbeatAPIRequest
-  ): RealtimeRoomHeartbeatCommand =
-    RealtimeRoomHeartbeatCommand(
-      roomId = roomIdFromRoomPath(request.uri.path.renderString, "heartbeat")
-        .orElse(heartbeatRequest.roomId.flatMap(nonEmptyText).map(RoomId.apply))
-        .orElse(request.params.get("roomId").flatMap(nonEmptyText).map(RoomId.apply)),
-      ticketId = heartbeatRequest.ticketId
-        .flatMap(nonEmptyText)
-        .map(TicketId.apply)
-        .orElse(request.params.get("ticketId").flatMap(nonEmptyText).map(TicketId.apply)),
-      handle = heartbeatRequest.handle
-        .flatMap(nonEmptyText)
-        .orElse(request.params.get("handle").flatMap(nonEmptyText))
-        .flatMap(PlayerHandle.forLookup)
-    )
 
   private def roomIdFromSnapshotRequest(request: Request[IO]): Option[RoomId] =
     roomIdFromRoomPath(request.uri.path.renderString, "snapshot")

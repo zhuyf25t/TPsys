@@ -5,7 +5,7 @@ import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.*
-import slaydemo.backend.battle.services.BattleQueueJoinCommand
+import slaydemo.backend.battle.services.{BattleQueueJoinCommand, RealtimeRoomHeartbeatCommand}
 import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
 
 enum BattleQueueJoinAPIRequestError {
@@ -70,7 +70,28 @@ final case class RealtimeRoomHeartbeatAPIRequest(
   roomId: Option[String],
   ticketId: Option[String],
   handle: Option[String]
-)
+) {
+  def toCommand(
+    pathRoomId: Option[RoomId],
+    query: Map[String, String]
+  ): RealtimeRoomHeartbeatCommand =
+    RealtimeRoomHeartbeatCommand(
+      roomId = pathRoomId
+        .orElse(roomId.flatMap(nonEmptyText).map(RoomId.apply))
+        .orElse(query.get("roomId").flatMap(nonEmptyText).map(RoomId.apply)),
+      ticketId = ticketId
+        .flatMap(nonEmptyText)
+        .map(TicketId.apply)
+        .orElse(query.get("ticketId").flatMap(nonEmptyText).map(TicketId.apply)),
+      handle = handle
+        .flatMap(nonEmptyText)
+        .orElse(query.get("handle").flatMap(nonEmptyText))
+        .flatMap(PlayerHandle.forLookup)
+    )
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
 
 object RealtimeRoomHeartbeatAPIRequest {
   given Decoder[RealtimeRoomHeartbeatAPIRequest] = (cursor: HCursor) =>
@@ -79,6 +100,15 @@ object RealtimeRoomHeartbeatAPIRequest {
       ticketId <- BattleQueueJoinAPIRequest.optionalText(cursor, "ticketId")
       handle <- BattleQueueJoinAPIRequest.optionalText(cursor, "handle")
     yield RealtimeRoomHeartbeatAPIRequest(roomId = roomId, ticketId = ticketId, handle = handle)
+
+  def decodeCommand(
+    json: Json,
+    pathRoomId: Option[RoomId],
+    query: Map[String, String]
+  ): Either[String, RealtimeRoomHeartbeatCommand] =
+    json.as[RealtimeRoomHeartbeatAPIRequest]
+      .left.map(_ => BattleQueueAPIRequestErrors.InvalidJsonObjectMessage)
+      .map(_.toCommand(pathRoomId, query))
 }
 
 final case class RealtimeRoomSnapshotResponse(

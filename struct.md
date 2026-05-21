@@ -218,7 +218,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `IdentitySessionTokenParser.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析 session token。 |
 | `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，`MailHttp4sRoutes` 仍用它解析 owner/read command；list query 已使用 http4s `request.params`，read POST body 已由 `MailReadApiRequest` typed DTO 承接。 |
 | `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，`SocialHttp4sRoutes` 仍用它解析好友请求命令；list query 已使用 http4s `request.params`，create/respond POST body 已由 typed DTO 承接。 |
-| `ForumCommandParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它解析 topic/reply/vote 命令。 |
+| `ForumCommandParsers.scala` | 已迁到 `forum/objects/apiTypes`，forum request body 到 create/reply/vote command 的转换已由 `ForumApiTypes.scala` 承接；`ForumHttp4sRoutes` 仅保留 topic id path 解析调用。 |
 | `ForumRouteTargetParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path；viewer query 已使用 http4s `request.params`。 |
 | `ForumRouteErrorMapper.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，typed request 到治理 domain command 的转换已由 `GovernanceApiTypes.scala` 承接。 |

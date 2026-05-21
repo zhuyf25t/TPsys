@@ -14,7 +14,8 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumRouteTargetParsers,
   ForumTopicMutationParseError,
   ForumTopicListResponse,
-  ForumTopicWrapperResponse
+  ForumTopicWrapperResponse,
+  ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
@@ -80,7 +81,7 @@ private[http4s] object ForumHttp4sRoutes {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
       case Right(fields) =>
-        ForumCommandParsers.parseCreateTopicCommand(fields) match {
+        fields.toCreateTopicCommand match {
           case Right(command) =>
             blocking(service.createTopic(command)).map {
               case Right(topic) =>
@@ -102,7 +103,7 @@ private[http4s] object ForumHttp4sRoutes {
           case Left(message) =>
             IO.pure(apiError(badRequest(message)))
           case Right(fields) =>
-            ForumCommandParsers.parseAddReplyCommand(topicId, fields) match {
+            fields.toAddReplyCommand(topicId) match {
               case Left(error) =>
                 IO.pure(apiError(mutationApiError(error)))
               case Right(command) =>
@@ -125,20 +126,15 @@ private[http4s] object ForumHttp4sRoutes {
           case Left(message) =>
             IO.pure(apiError(badRequest(message)))
           case Right(fields) =>
-            ForumCommandParsers.parseVote(fields) match {
-              case Left(code) =>
-                IO.pure(apiError(voteApiError(code)))
-              case Right(vote) =>
-                ForumCommandParsers.parseSetTopicVoteCommand(topicId, fields, vote) match {
+            fields.toSetTopicVoteCommand(topicId) match {
+              case Left(error) =>
+                IO.pure(apiError(voteCommandApiError(error)))
+              case Right(command) =>
+                blocking(service.setTopicVote(command)).map {
+                  case Right(topic) =>
+                    withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
                   case Left(error) =>
-                    IO.pure(apiError(mutationApiError(error)))
-                  case Right(command) =>
-                    blocking(service.setTopicVote(command)).map {
-                      case Right(topic) =>
-                        withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
-                      case Left(error) =>
-                        apiError(mutationApiError(error))
-                    }
+                    apiError(mutationApiError(error))
                 }
             }
         }
@@ -154,20 +150,15 @@ private[http4s] object ForumHttp4sRoutes {
           case Left(message) =>
             IO.pure(apiError(badRequest(message)))
           case Right(fields) =>
-            ForumCommandParsers.parseVote(fields) match {
-              case Left(code) =>
-                IO.pure(apiError(voteApiError(code)))
-              case Right(vote) =>
-                ForumCommandParsers.parseSetReplyVoteCommand(topicId, replyId, fields, vote) match {
+            fields.toSetReplyVoteCommand(topicId, replyId) match {
+              case Left(error) =>
+                IO.pure(apiError(voteCommandApiError(error)))
+              case Right(command) =>
+                blocking(service.setReplyVote(command)).map {
+                  case Right(topic) =>
+                    withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
                   case Left(error) =>
-                    IO.pure(apiError(mutationApiError(error)))
-                  case Right(command) =>
-                    blocking(service.setReplyVote(command)).map {
-                      case Right(topic) =>
-                        withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
-                      case Left(error) =>
-                        apiError(mutationApiError(error))
-                    }
+                    apiError(mutationApiError(error))
                 }
             }
         }
@@ -230,11 +221,16 @@ private[http4s] object ForumHttp4sRoutes {
   private def path(request: Request[IO]): String =
     request.uri.path.renderString
 
-  private def voteApiError(code: String): HttpApiError =
-    routeError(Status.BadRequest, code)
-
   private def badRequest(message: String): HttpApiError =
     HttpApiError(status = Status.BadRequest, code = "bad_request", message = message)
+
+  private def voteCommandApiError(error: ForumVoteCommandParseError): HttpApiError =
+    error match {
+      case ForumVoteCommandParseError.InvalidVote =>
+        routeError(Status.BadRequest, "invalid_vote")
+      case ForumVoteCommandParseError.Mutation(error) =>
+        mutationApiError(error)
+    }
 
   private def routeError(status: Status, code: String): HttpApiError =
     HttpApiError(status = status, code = code, message = code)

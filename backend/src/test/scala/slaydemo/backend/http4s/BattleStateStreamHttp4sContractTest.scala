@@ -50,7 +50,7 @@ object BattleStateStreamHttp4sContractTest {
   }
 
   private def run(service: RecordingBattleStateService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.battleStateStreamRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = BattleStateHttp4sRoutes.streamRoutes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(
       status = response.status.code,
       body = response.as[String].unsafeRunSync(),

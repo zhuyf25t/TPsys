@@ -92,7 +92,7 @@ object BattleResultHttp4sContractTest {
 
   private def get(service: RecordingBattleResultService, targetUri: Uri): RouteResponse = {
     val request = Request[IO](method = Method.GET, uri = targetUri)
-    val response = BackendHttp4sRoutes.battleResultRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = BattleResultHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 
@@ -100,7 +100,7 @@ object BattleResultHttp4sContractTest {
     val request = Request[IO](method = Method.POST, uri = targetUri)
       .withEntity(body)
       .putHeaders(`Content-Type`(MediaType.application.json))
-    val response = BackendHttp4sRoutes.battleResultRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = BattleResultHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

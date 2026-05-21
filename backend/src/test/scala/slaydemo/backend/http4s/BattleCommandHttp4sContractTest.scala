@@ -160,7 +160,7 @@ object BattleCommandHttp4sContractTest {
     val request = Request[IO](method = Method.POST, uri = targetUri)
       .withEntity(body)
       .putHeaders(`Content-Type`(MediaType.application.json))
-    val response = BackendHttp4sRoutes.battleCommandRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = BattleCommandHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

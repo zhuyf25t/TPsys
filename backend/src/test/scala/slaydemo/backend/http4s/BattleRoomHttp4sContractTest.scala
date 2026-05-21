@@ -108,7 +108,7 @@ object BattleRoomHttp4sContractTest {
   }
 
   private def runSnapshot(service: RecordingBattleQueueService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.battleRoomSnapshotRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = BattleRoomHttp4sRoutes.snapshotRoutes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 
@@ -116,7 +116,7 @@ object BattleRoomHttp4sContractTest {
     val request = Request[IO](method = Method.POST, uri = targetUri)
       .withEntity(body)
       .putHeaders(`Content-Type`(MediaType.application.json))
-    val response = BackendHttp4sRoutes.battleRoomHeartbeatRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = BattleRoomHttp4sRoutes.heartbeatRoutes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

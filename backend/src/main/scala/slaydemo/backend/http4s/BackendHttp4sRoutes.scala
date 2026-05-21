@@ -49,12 +49,12 @@ object BackendHttp4sRoutes {
       BattleQueueHttp4sRoutes.statusRoutes(battleQueueService) <+>
       BattleQueueHttp4sRoutes.joinRoutes(battleQueueService, battleJoinAuthorizationService) <+>
       BattleQueueHttp4sRoutes.leaveRoutes(battleQueueService) <+>
-      battleRoomSnapshotRoutes(battleQueueService) <+>
-      battleRoomHeartbeatRoutes(battleQueueService) <+>
-      battleStateStreamRoutes(battleStateService) <+>
-      battleStateReadRoutes(battleStateService) <+>
-      battleCommandRoutes(battleStateService) <+>
-      battleResultRoutes(battleResultService)
+      BattleRoomHttp4sRoutes.snapshotRoutes(battleQueueService) <+>
+      BattleRoomHttp4sRoutes.heartbeatRoutes(battleQueueService) <+>
+      BattleStateHttp4sRoutes.streamRoutes(battleStateService) <+>
+      BattleStateHttp4sRoutes.readRoutes(battleStateService) <+>
+      BattleCommandHttp4sRoutes.routes(battleStateService) <+>
+      BattleResultHttp4sRoutes.routes(battleResultService)
 
   def replayCatalogRoutes(service: ReplayService): HttpRoutes[IO] =
     ReplayHttp4sRoutes.catalogRoutes(service)
@@ -79,23 +79,5 @@ object BackendHttp4sRoutes {
     notificationService: GovernanceNotificationService
   ): HttpRoutes[IO] =
     GovernanceHttp4sRoutes.routes(contributionAdjustmentService, notificationService)
-
-  def battleRoomSnapshotRoutes(queueService: BattleQueueService): HttpRoutes[IO] =
-    BattleRoomHttp4sRoutes.snapshotRoutes(queueService)
-
-  def battleRoomHeartbeatRoutes(queueService: BattleQueueService): HttpRoutes[IO] =
-    BattleRoomHttp4sRoutes.heartbeatRoutes(queueService)
-
-  def battleStateReadRoutes(battleStateService: BattleStateService): HttpRoutes[IO] =
-    BattleStateHttp4sRoutes.readRoutes(battleStateService)
-
-  def battleStateStreamRoutes(battleStateService: BattleStateService): HttpRoutes[IO] =
-    BattleStateHttp4sRoutes.streamRoutes(battleStateService)
-
-  def battleCommandRoutes(battleStateService: BattleStateService): HttpRoutes[IO] =
-    BattleCommandHttp4sRoutes.routes(battleStateService)
-
-  def battleResultRoutes(service: BattleResultService): HttpRoutes[IO] =
-    BattleResultHttp4sRoutes.routes(service)
 
 }

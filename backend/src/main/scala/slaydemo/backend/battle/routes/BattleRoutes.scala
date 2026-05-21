@@ -13,7 +13,6 @@ final class BattleRoutes(
   battleStateService: BattleStateService,
   joinAuthorizationService: BattleQueueJoinAuthorizationService
 ) {
-  private val commandRouteHandler = BattleCommandRouteHandler(battleStateService)
   private val queueRouteHandler = BattleQueueRouteHandler(queueService, joinAuthorizationService)
   private val roomRouteHandler = BattleRoomRouteHandler(queueService)
   private val stateRouteHandler = BattleStateRouteHandler(battleStateService)
@@ -32,9 +31,6 @@ final class BattleRoutes(
 
   def state(exchange: HttpExchange): Unit =
     stateRouteHandler.handle(exchange)
-
-  def commands(exchange: HttpExchange): Unit =
-    commandRouteHandler.handle(exchange)
 }
 
 object BattleRoutes {

@@ -1,7 +1,6 @@
 package slaydemo.backend.battle.routes
 
 import slaydemo.backend.battle.services.{
-  BattleCommandSubmitError,
   BattleQueueJoinAuthorizationError,
   BattleQueueStatusError,
   BattleRoomError,
@@ -60,26 +59,6 @@ private[routes] object BattleRouteErrorMapper {
 
   def unsupportedState: BattleRouteError =
     BattleRouteError(405, "method_not_allowed", "Only GET, HEAD, and OPTIONS are supported.")
-
-  def commandRequest(error: BattleCommandRequestParseError): BattleRouteError =
-    error match {
-      case BattleCommandRequestParseError.MissingTicket =>
-        BattleRouteError(403, "command_not_authorized", "command_not_authorized")
-      case BattleCommandRequestParseError.BadRequest(message) =>
-        BattleRouteError(400, message, message)
-    }
-
-  def commandSubmit(error: BattleCommandSubmitError): BattleRouteError =
-    error match {
-      case BattleCommandSubmitError.BattleNotFound =>
-        BattleRouteError(404, "battle_not_found", "battle_not_found")
-      case BattleCommandSubmitError.PlayerNotFound =>
-        BattleRouteError(400, "player_not_found", "player_not_found")
-      case BattleCommandSubmitError.BotCommandsNotSupported =>
-        BattleRouteError(400, "bot_commands_not_supported", "bot_commands_not_supported")
-      case BattleCommandSubmitError.CommandNotAuthorized =>
-        BattleRouteError(403, "command_not_authorized", "command_not_authorized")
-    }
 
   def invalidBattleId: BattleRouteError =
     BattleRouteError(400, "invalid_battle_id", "battleId is required.")

@@ -188,7 +188,8 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `replay/routes/ReplayRouteErrorMapper.scala` | 已删除。旧 `ReplayRoutes` 专用 error mapper 不再保留。 |
 | `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleRoutes.scala` | 否。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
-| `battle/routes/BattleCommandRouteHandler.scala` | 否。当前使用 `BattleCommandHttp4sRoutes`。 |
+| `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
+| `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 解码 command request。 |
 | `battle/routes/BattleQueueRouteHandler.scala` | 否。当前使用 `BattleQueueHttp4sRoutes`。 |
 | `battle/routes/BattleRoomRouteHandler.scala` | 否。当前使用 `BattleRoomHttp4sRoutes`。 |
 | `battle/routes/BattleStateRouteHandler.scala` | 否。当前使用 `BattleStateHttp4sRoutes`。 |
@@ -235,7 +236,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler` |
 | battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler` |
 | battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter` |
-| battle command | `BattleCommandHttp4sRoutes` | `BattleCommandRouteHandler` |
+| battle command | `BattleCommandHttp4sRoutes` | `BattleCommandRouteHandler`、`BattleCommandRequestParser` 已删除 |
 | battle result | `BattleResultHttp4sRoutes` | `BattleResultRoutes` 已删除 |
 
 风险：同一个 API contract 有两处行为来源，后续改字段、状态码、错误码时容易只改一边。
@@ -254,12 +255,12 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | 旧实现 | 新实现 |
 | --- | --- |
 | `battle/routes/BattleStateJson.scala` | `battle/objects/apiTypes/BattleStateApiTypes.scala` |
-| `battle/routes/BattleCommandRequestParser.scala` | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
+| `battle/routes/BattleCommandRequestParser.scala` 已删除 | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
 | `battle/routes/BattleResultCommandParsers.scala` + manual route response | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes` |
 | `shared/routes/HttpRouteSupport.sendJsonError` | `http4s/Http4sRouteSupport.apiError` |
 
-风险：测试通过某一路径不等于另一条路径正确。比如旧 `BattleCommandRequestParser` 正确，不能证明当前运行的 `BattleCommandAPIRequest.decode` 正确；反过来也一样。
+风险：测试通过某一路径不等于另一条路径正确。battle command 已改为只保留当前运行的 `BattleCommandAPIRequest.decode`，避免旧 parser 和 http4s parser 继续 drift。
 
 ### 7.3 路径兼容表重复
 

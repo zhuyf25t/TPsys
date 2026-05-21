@@ -1,6 +1,5 @@
 package slaydemo.backend.battle.routes
 
-import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandSkillOutcome}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.routes.BattleStateJsonSupport.*
 
@@ -29,26 +28,6 @@ object BattleStateJson {
         "winnerPlayerId" -> renderOptionalString(state.winnerPlayerId.map(_.value)),
         "winnerHeroId" -> renderOptionalString(state.winnerHeroId.map(_.value))
       )
-    )
-
-  def renderCommandAccepted(accepted: BattleCommandAccepted): String =
-    renderObject(
-      Vector(
-        "battleId" -> jsonString(accepted.battleId.value),
-        "acceptedTick" -> accepted.acceptedTick.value.toString,
-        "acceptedCommandSeq" -> accepted.acceptedCommandSeq.value.toString,
-        "serverTime" -> accepted.serverTime.value.toString,
-        "commandStatus" -> jsonString(BattleCommandStatus.wireValue(accepted.commandStatus)),
-        "outcomes" -> accepted.outcomes.map(renderCommandSkillOutcome).mkString("[", ",", "]")
-      ) ++ optionalStringField("commandReason", accepted.commandReason.map(BattleCommandReason.wireValue))
-    )
-
-  private def renderCommandSkillOutcome(outcome: BattleCommandSkillOutcome): String =
-    renderObject(
-      Vector(
-        "action" -> jsonString(SkillKind.wireValue(outcome.action)),
-        "status" -> jsonString(SkillOutcomeStatus.wireValue(outcome.outcomeStatus))
-      ) ++ optionalStringField("reason", outcome.reason.map(SkillOutcomeReason.wireValue))
     )
 
 }

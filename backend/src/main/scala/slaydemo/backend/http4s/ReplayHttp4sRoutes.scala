@@ -71,7 +71,7 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.POST =>
         decodeRecordRequest(request).flatMap {
           case Left(error) =>
-            IO.pure(apiError(error))
+            IO.pure(apiError(recordDecodeError(error)))
           case Right(command) =>
             blocking(service.record(command)).flatMap {
               case Right(record) =>
@@ -125,7 +125,7 @@ private[http4s] object ReplayHttp4sRoutes {
           case Some(_) =>
             decodeCommentRequest(request, replayId).flatMap {
               case Left(error) =>
-                IO.pure(apiError(error))
+                IO.pure(apiError(commentDecodeError(error)))
               case Right(command) =>
                 blocking(service.addComment(command)).flatMap {
                   case Right(comment) =>
@@ -139,23 +139,23 @@ private[http4s] object ReplayHttp4sRoutes {
         IO.pure(apiError(MethodNotAllowedError))
     }
 
-  private def decodeRecordRequest(request: Request[IO]): IO[Either[HttpApiError, ReplayRecordCommand]] =
+  private def decodeRecordRequest(request: Request[IO]): IO[Either[ReplayRecordDecodeError, ReplayRecordCommand]] =
     request.as[String].attempt.map {
       case Left(_) =>
-        Left(BadJsonObjectError)
+        Left(ReplayRecordDecodeError.BadJsonObject)
       case Right(body) =>
-        ReplayApiCodec.parseRecordCommand(body).left.map(recordDecodeError)
+        ReplayApiCodec.parseRecordCommand(body)
     }
 
   private def decodeCommentRequest(
     request: Request[IO],
     replayId: ReplayId
-  ): IO[Either[HttpApiError, ReplayCommentCommand]] =
+  ): IO[Either[ReplayCommentDecodeError, ReplayCommentCommand]] =
     request.as[String].attempt.map {
       case Left(_) =>
-        Left(BadJsonObjectError)
+        Left(ReplayCommentDecodeError.BadJsonObject)
       case Right(body) =>
-        ReplayApiCodec.parseCommentCommand(replayId, body).left.map(commentDecodeError)
+        ReplayApiCodec.parseCommentCommand(replayId, body)
     }
 
   private def recordDecodeError(error: ReplayRecordDecodeError): HttpApiError =

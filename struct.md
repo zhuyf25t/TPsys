@@ -224,7 +224,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理命令。 |
 | `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query。 |
 | `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
-| `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
+| `ReplayJsonObjectParser.scala` | 已删除。当前 `ReplayHttp4sRoutes` 使用 Circe `JsonObject` 解析 replay JSON body，再交给 `ReplayCommandParsers` 做业务字段校验。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body；POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |
 
 结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；旧顶层 Java HttpServer 入口、route catalog/registry、旧 `HttpExchange` route wrapper 和旧 route contract tests 已删除。
@@ -338,7 +338,7 @@ BackendHttp4sApp 不再间接构造旧 route object
 | 已完成 | `forum/routes/ForumRouteTargetParsers.scala` | `forum/objects/apiTypes/ForumRouteTargetParsers.scala` |
 | 已完成 | `forum/routes/ForumRouteErrorMapper.scala` | `forum/objects/apiTypes/ForumRouteErrorMapper.scala` |
 | 已完成 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes/ReplayCommandParsers.scala` |
-| 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | `replay/objects/apiTypes/ReplayJsonObjectParser.scala` |
+| 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | 已删除；当前 replay POST body 使用 Circe `JsonObject` |
 | 已完成 | `battle/routes/BattleResultApiCodec.scala` | `battle/objects/apiTypes/BattleResultApiCodec.scala` |
 | 已完成 | `battle/routes/BattleResultCommandParsers.scala` | `battle/objects/apiTypes/BattleResultCommandParsers.scala` |
 | 已完成 | `battle/routes/BattleResultJsonObjectParser.scala` | 已删除；当前 battle result POST body 使用 Circe `JsonObject` |
@@ -389,7 +389,7 @@ battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
 
 ## 10. 下一步建议
 
-最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer，以及各 HTTP response DTO 的旧字符串 render helper 已清完；下一步应聚焦 service 简化或继续减少 request parser 中的手写 codec。
+最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer、各 HTTP response DTO 的旧字符串 render helper，以及 replay 旧手写 JSON object parser 已清完；下一步应聚焦 service 简化或继续减少其他 request parser 中的手写 codec。
 
 推荐下一个小票：
 

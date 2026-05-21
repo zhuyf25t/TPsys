@@ -2,6 +2,8 @@ package slaydemo.backend.replay.objects.apiTypes
 
 import java.util.Locale
 
+import io.circe.{JsonNumber, JsonObject}
+
 import slaydemo.backend.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Score}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.replay.objects.{ReplayFrameCount, ReplayId, ReplayPlaybackAvailability}
@@ -23,7 +25,7 @@ private[backend] enum ReplayCommentCommandParseError {
 
 private[backend] object ReplayCommandParsers {
   def parseReplayRecordCommand(
-    fields: Map[String, ReplayJsonValue],
+    fields: JsonObject,
     framesJson: String
   ): Either[ReplayRecordCommandParseError, ReplayRecordCommand] =
     for {
@@ -63,7 +65,7 @@ private[backend] object ReplayCommandParsers {
 
   def parseReplayCommentCommand(
     replayId: ReplayId,
-    fields: Map[String, ReplayJsonValue]
+    fields: JsonObject
   ): Either[ReplayCommentCommandParseError, ReplayCommentCommand] =
     for {
       parsedReplayId <- parseReplayId(replayId.value).toRight(ReplayCommentCommandParseError.InvalidReplayId)
@@ -74,20 +76,15 @@ private[backend] object ReplayCommandParsers {
       body = readString(fields, "body").getOrElse("")
     )
 
-  def readString(fields: Map[String, ReplayJsonValue], key: String): Option[String] =
-    fields.get(key) match {
-      case Some(ReplayJsonValue.StringValue(value)) => Some(value)
-      case Some(ReplayJsonValue.NumberValue(value)) if value.isWhole => Some(value.toLong.toString)
-      case Some(ReplayJsonValue.NumberValue(value)) => Some(value.toString)
-      case Some(ReplayJsonValue.BooleanValue(value)) => Some(value.toString)
-      case _ => None
+  def readString(fields: JsonObject, key: String): Option[String] =
+    fields(key).flatMap { value =>
+      value.asString
+        .orElse(value.asNumber.flatMap(numberAsString))
+        .orElse(value.asBoolean.map(_.toString))
     }
 
-  def readRawJson(fields: Map[String, ReplayJsonValue], key: String): Option[String] =
-    fields.get(key) match {
-      case Some(ReplayJsonValue.RawJsonValue(value)) => Some(value)
-      case _ => None
-    }
+  def readRawJson(fields: JsonObject, key: String): Option[String] =
+    fields(key).filter(value => value.asArray.nonEmpty || value.asObject.nonEmpty).map(_.noSpaces)
 
   def parseReplayId(value: String): Option[ReplayId] =
     nonEmpty(value).filter(ReplayIdentifierPolicy.isSafeIdentifier).map(ReplayId.apply)
@@ -109,49 +106,47 @@ private[backend] object ReplayCommandParsers {
     else PlayerHandle.forLookup(trimmed).toRight(ReplayCommentCommandParseError.InvalidAuthorHandle)
   }
 
-  private def readNullableString(fields: Map[String, ReplayJsonValue], key: String): Option[String] =
-    fields.get(key) match {
-      case Some(ReplayJsonValue.NullValue) | None => None
+  private def readNullableString(fields: JsonObject, key: String): Option[String] =
+    fields(key) match {
+      case Some(value) if value.isNull => None
+      case None => None
       case _ => readString(fields, key).map(_.trim).filter(value => value.nonEmpty && value != "null")
     }
 
-  private def readLong(fields: Map[String, ReplayJsonValue], key: String): Option[Long] =
-    fields.get(key) match {
-      case Some(ReplayJsonValue.StringValue(value)) => value.trim.toLongOption
-      case Some(ReplayJsonValue.NumberValue(value)) if isWholeLong(value) => Some(value.toLong)
-      case _ => None
+  private def readLong(fields: JsonObject, key: String): Option[Long] =
+    fields(key).flatMap { value =>
+      value.asString.flatMap(_.trim.toLongOption)
+        .orElse(value.asNumber.flatMap(_.toLong))
     }
 
-  private def readInt(fields: Map[String, ReplayJsonValue], key: String): Option[Int] =
-    fields.get(key) match {
-      case Some(ReplayJsonValue.StringValue(value)) => value.trim.toIntOption
-      case Some(ReplayJsonValue.NumberValue(value)) if isWholeInt(value) => Some(value.toInt)
-      case _ => None
+  private def readInt(fields: JsonObject, key: String): Option[Int] =
+    fields(key).flatMap { value =>
+      value.asString.flatMap(_.trim.toIntOption)
+        .orElse(value.asNumber.flatMap(_.toInt))
     }
 
-  private def readOptionalInt(fields: Map[String, ReplayJsonValue], key: String): Option[Int] =
-    fields.get(key) match {
-      case Some(ReplayJsonValue.NullValue) | None => None
+  private def readOptionalInt(fields: JsonObject, key: String): Option[Int] =
+    fields(key) match {
+      case Some(value) if value.isNull => None
+      case None => None
       case _ => readInt(fields, key)
     }
 
-  private def readBoolean(fields: Map[String, ReplayJsonValue], key: String): Option[Boolean] =
-    fields.get(key) match {
-      case Some(ReplayJsonValue.BooleanValue(value)) => Some(value)
-      case Some(ReplayJsonValue.StringValue(value)) =>
-        value.trim.toLowerCase(Locale.ROOT) match {
-          case "true"  => Some(true)
-          case "false" => Some(false)
-          case _       => None
+  private def readBoolean(fields: JsonObject, key: String): Option[Boolean] =
+    fields(key).flatMap { value =>
+      value.asBoolean.orElse {
+        value.asString.flatMap { text =>
+          text.trim.toLowerCase(Locale.ROOT) match {
+            case "true"  => Some(true)
+            case "false" => Some(false)
+            case _       => None
+          }
         }
-      case _ => None
+      }
     }
 
-  private def isWholeInt(value: Double): Boolean =
-    value.isWhole && value >= Int.MinValue.toDouble && value <= Int.MaxValue.toDouble
-
-  private def isWholeLong(value: Double): Boolean =
-    value.isWhole && value >= Long.MinValue.toDouble && value <= Long.MaxValue.toDouble
+  private def numberAsString(value: JsonNumber): Option[String] =
+    value.toLong.map(_.toString).orElse(value.toBigDecimal.map(_.bigDecimal.stripTrailingZeros.toPlainString))
 
   private def nonEmpty(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)

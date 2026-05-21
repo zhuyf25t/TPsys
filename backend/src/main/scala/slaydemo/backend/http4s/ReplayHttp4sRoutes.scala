@@ -1,6 +1,8 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
+import io.circe.Json
+import io.circe.parser.parse
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
@@ -18,7 +20,6 @@ import slaydemo.backend.replay.objects.apiTypes.{
   ReplayCommentsResponse,
   ReplayDetailRecordResponse,
   ReplayDetailResponse,
-  ReplayJsonObjectParser,
   ReplayRecordCommandParseError
 }
 import slaydemo.backend.replay.services.{
@@ -142,9 +143,9 @@ private[http4s] object ReplayHttp4sRoutes {
       case Left(_) =>
         Left(BadJsonObjectError)
       case Right(body) =>
-        ReplayJsonObjectParser.parse(body) match {
-          case Left(_) =>
-            Left(BadJsonObjectError)
+        parseJsonObject(body) match {
+          case Left(error) =>
+            Left(error)
           case Right(fields) =>
             val framesJson = ReplayCommandParsers.readString(fields, "framesJson")
               .orElse(ReplayCommandParsers.readRawJson(fields, "frames"))
@@ -161,13 +162,25 @@ private[http4s] object ReplayHttp4sRoutes {
       case Left(_) =>
         Left(BadJsonObjectError)
       case Right(body) =>
-        ReplayJsonObjectParser.parse(body) match {
-          case Left(_) =>
-            Left(BadJsonObjectError)
+        parseJsonObject(body) match {
+          case Left(error) =>
+            Left(error)
           case Right(fields) =>
             ReplayCommandParsers.parseReplayCommentCommand(replayId, fields).left.map(commentParseError)
         }
     }
+
+  private def parseJsonObject(body: String): Either[HttpApiError, io.circe.JsonObject] = {
+    val trimmed = Option(body).getOrElse("").trim
+    val parsed = if trimmed.isEmpty then Right(Json.obj()) else parse(trimmed)
+
+    parsed match {
+      case Left(_) =>
+        Left(BadJsonObjectError)
+      case Right(json) =>
+        json.asObject.toRight(BadJsonObjectError)
+    }
+  }
 
   private def recordParseError(error: ReplayRecordCommandParseError): HttpApiError =
     error match {

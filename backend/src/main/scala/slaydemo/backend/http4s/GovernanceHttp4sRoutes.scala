@@ -11,7 +11,6 @@ import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentCommandParseError,
   ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListResponse,
-  GovernanceCommandParsers,
   GovernanceNotificationListQueryParseResult,
   GovernanceQueryParsers,
   GovernanceReviewNotificationApiRequest,
@@ -93,7 +92,7 @@ private[http4s] object GovernanceHttp4sRoutes {
       case Left(_) =>
         IO.pure(apiError(RequestBodyJsonObjectError))
       case Right(parsedRequest) =>
-        GovernanceCommandParsers.parseContributionAdjustmentCommand(parsedRequest.toCommandRequest) match {
+        parsedRequest.toCommand match {
           case Left(error) =>
             IO.pure(apiError(contributionAdjustmentApiError(error)))
           case Right(command) =>
@@ -128,7 +127,7 @@ private[http4s] object GovernanceHttp4sRoutes {
       case Left(_) =>
         IO.pure(apiError(RequestBodyJsonObjectError))
       case Right(parsedRequest) =>
-        GovernanceCommandParsers.parseReviewNotificationCommand(parsedRequest.toCommandRequest) match {
+        parsedRequest.toCommand match {
           case Left(error) =>
             IO.pure(apiError(reviewNotificationApiError(error)))
           case Right(command) =>

@@ -10,7 +10,9 @@ import slaydemo.backend.governance.objects.{
   GovernanceReviewTargetType
 }
 import slaydemo.backend.governance.services.{
+  ContributionAdjustmentCommand,
   ContributionAdjustmentSubmissionResult,
+  GovernanceReviewNotificationCommand,
   GovernanceReviewNotificationSubmissionResult
 }
 import slaydemo.backend.mail.objects.MailKind
@@ -51,6 +53,9 @@ final case class ContributionAdjustmentApiRequest(
       sourceLabel = sourceLabel,
       sourcePath = sourcePath
     )
+
+  def toCommand: Either[ContributionAdjustmentCommandParseError, ContributionAdjustmentCommand] =
+    GovernanceCommandParsers.parseContributionAdjustmentCommand(toCommandRequest)
 }
 
 object ContributionAdjustmentApiRequest {
@@ -86,6 +91,9 @@ final case class GovernanceReviewNotificationApiRequest(
       targetPath = targetPath,
       body = body
     )
+
+  def toCommand: Either[GovernanceReviewNotificationCommandParseError, GovernanceReviewNotificationCommand] =
+    GovernanceCommandParsers.parseReviewNotificationCommand(toCommandRequest)
 }
 
 object GovernanceReviewNotificationApiRequest {

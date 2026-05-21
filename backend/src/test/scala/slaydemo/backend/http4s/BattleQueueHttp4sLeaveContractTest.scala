@@ -24,7 +24,7 @@ object BattleQueueHttp4sLeaveContractTest {
 
   private def leaveReturnsTrueWhenQueueReportsLeft(): Unit = {
     val service = RecordingBattleQueueService(BattleQueueLeaveOutcome.LeftQueue)
-    val response = postJson(service, uri"/api/battlequeueleaveapi", """{"ticketId":"ticket-route"}""")
+    val response = postJson(service, uri"/api/battle/queue/leave", """{"ticketId":"ticket-route"}""")
 
     assertEquals("leave status", response.status, 200)
     assertEquals("leave body", response.body, """{"left":true}""")
@@ -51,7 +51,7 @@ object BattleQueueHttp4sLeaveContractTest {
 
   private def missingTicketIdIsBadRequest(): Unit = {
     val service = RecordingBattleQueueService(BattleQueueLeaveOutcome.LeftQueue)
-    val response = postJson(service, uri"/api/battlequeueleaveapi", "{}")
+    val response = postJson(service, uri"/api/battle/queue/leave", "{}")
 
     assertEquals("missing ticket status", response.status, 400)
     assertEquals("missing ticket body", response.body, """{"error":"ticketId is required.","code":"bad_request"}""")
@@ -60,7 +60,7 @@ object BattleQueueHttp4sLeaveContractTest {
 
   private def nonObjectBodyIsBadRequest(): Unit = {
     val service = RecordingBattleQueueService(BattleQueueLeaveOutcome.LeftQueue)
-    val response = postJson(service, uri"/api/battlequeueleaveapi", "[]")
+    val response = postJson(service, uri"/api/battle/queue/leave", "[]")
 
     assertEquals("non-object status", response.status, 400)
     assertEquals(
@@ -73,7 +73,7 @@ object BattleQueueHttp4sLeaveContractTest {
 
   private def unsupportedMethodIsRejected(): Unit = {
     val service = RecordingBattleQueueService(BattleQueueLeaveOutcome.LeftQueue)
-    val request = Request[IO](method = Method.GET, uri = uri"/api/battlequeueleaveapi")
+    val request = Request[IO](method = Method.GET, uri = uri"/api/battle/queue/leave")
     val response = run(service, request)
 
     assertEquals("unsupported method status", response.status, 405)

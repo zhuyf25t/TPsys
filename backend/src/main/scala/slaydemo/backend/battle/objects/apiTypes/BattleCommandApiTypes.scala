@@ -56,9 +56,7 @@ object BattleCommandRequestTarget {
       "/battle/command",
       "/battle/commands",
       "/api/battle/command",
-      "/api/battle/commands",
-      "/battlecommandapi",
-      "/api/battlecommandapi"
+      "/api/battle/commands"
     )
 
   def isCommandPath(path: String): Boolean =

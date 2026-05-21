@@ -81,28 +81,28 @@ object BackendHttp4sRoutesCompositionContractTest {
       "/api/governance/admin-notifications",
       "/api/replaycatalogapi",
       "/api/bots/profiles",
-      "/api/battlequeuestatusapi",
-      "/api/battlequeuejoinapi",
-      "/api/battlequeueleaveapi",
-      "/api/battleroomsnapshotapi",
-      "/api/battleroomheartbeatapi",
-      "/api/battlestatestreamapi",
-      "/api/battlestatereadapi",
-      "/api/battlecommandapi",
-      "/api/battleresultsapi"
+      "/api/battle/queue/status",
+      "/api/battle/queue/join",
+      "/api/battle/queue/leave",
+      "/api/battle/rooms/snapshot",
+      "/api/battle/rooms/heartbeat",
+      "/api/battle/state/stream",
+      "/api/battle/state",
+      "/api/battle/commands",
+      "/api/battle/results"
     )
 
   private val FrontendProxyStrippedPaths: Vector[String] =
     Vector(
-      "/battlequeuestatusapi",
-      "/battlequeuejoinapi",
-      "/battlequeueleaveapi",
-      "/battleroomsnapshotapi",
-      "/battleroomheartbeatapi",
-      "/battlestatestreamapi",
-      "/battlestatereadapi",
-      "/battlecommandapi",
-      "/battleresultsapi"
+      "/battle/queue/status",
+      "/battle/queue/join",
+      "/battle/queue/leave",
+      "/battle/rooms/snapshot",
+      "/battle/rooms/heartbeat",
+      "/battle/state/stream",
+      "/battle/state",
+      "/battle/commands",
+      "/battle/results"
     )
 
   def main(args: Array[String]): Unit = {
@@ -131,7 +131,7 @@ object BackendHttp4sRoutesCompositionContractTest {
 
   private def backendRoutesAcceptsFrontendCommandShapeThroughComposedRoutes(): Unit = {
     val stateService = RecordingBattleStateService()
-    val request = Request[IO](method = Method.POST, uri = Uri.unsafeFromString("/api/battlecommandapi"))
+    val request = Request[IO](method = Method.POST, uri = Uri.unsafeFromString("/api/battle/commands"))
       .withEntity(FrontendCommandJson)
       .putHeaders(`Content-Type`(MediaType.application.json))
     val response = run(request, battleStateService = stateService)

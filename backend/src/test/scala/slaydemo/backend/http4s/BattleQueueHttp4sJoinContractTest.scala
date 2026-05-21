@@ -17,7 +17,7 @@ object BattleQueueHttp4sJoinContractTest {
   def main(args: Array[String]): Unit = {
     validJoinAuthorizesAndReturnsSnapshot()
     restJoinPathMatchesCurrentHttpApi()
-    frontendProxyJoinPathAliasIsSupported()
+    proxyStrippedRestJoinPathIsSupported()
     invalidHandleIsRejectedBeforeAuthorization()
     missingSessionIsUnauthorizedBeforeQueue()
     invalidRatingIsBadRequest()
@@ -27,20 +27,20 @@ object BattleQueueHttp4sJoinContractTest {
     println("Battle queue http4s join contract checks passed")
   }
 
-  private def frontendProxyJoinPathAliasIsSupported(): Unit = {
+  private def proxyStrippedRestJoinPathIsSupported(): Unit = {
     val queueService = RecordingBattleQueueService()
     val authService = RecordingJoinAuthorizationService(Right(()))
-    val response = postJson(queueService, authService, uri"/battlequeuejoinapi", ValidJoinJson)
+    val response = postJson(queueService, authService, uri"/battle/queue/join", ValidJoinJson)
 
-    assertEquals("frontend proxy join alias status", response.status, 200)
-    assertContains("frontend proxy join alias ticket", response.body, """"ticketId":"ticket-alice"""")
-    assertEquals("frontend proxy join alias queue count", queueService.commands.length, 1)
+    assertEquals("proxy-stripped REST join status", response.status, 200)
+    assertContains("proxy-stripped REST join ticket", response.body, """"ticketId":"ticket-alice"""")
+    assertEquals("proxy-stripped REST join queue count", queueService.commands.length, 1)
   }
 
   private def validJoinAuthorizesAndReturnsSnapshot(): Unit = {
     val queueService = RecordingBattleQueueService()
     val authService = RecordingJoinAuthorizationService(Right(()))
-    val response = postJson(queueService, authService, uri"/api/battlequeuejoinapi", ValidJoinJson)
+    val response = postJson(queueService, authService, uri"/api/battle/queue/join", ValidJoinJson)
 
     assertEquals("valid join status", response.status, 200)
     assertContains("valid join ticket", response.body, """"ticketId":"ticket-alice"""")
@@ -74,7 +74,7 @@ object BattleQueueHttp4sJoinContractTest {
     val response = postJson(
       queueService,
       authService,
-      uri"/api/battlequeuejoinapi",
+      uri"/api/battle/queue/join",
       ValidJoinJson.replace("\"handle\":\"alice\"", "\"handle\":\"visitor\"")
     )
 
@@ -90,7 +90,7 @@ object BattleQueueHttp4sJoinContractTest {
     val response = postJson(
       queueService,
       authService,
-      uri"/api/battlequeuejoinapi",
+      uri"/api/battle/queue/join",
       ValidJoinJson.replace("\"sessionToken\":\"session-alice\",", "")
     )
 
@@ -106,7 +106,7 @@ object BattleQueueHttp4sJoinContractTest {
     val response = postJson(
       queueService,
       authService,
-      uri"/api/battlequeuejoinapi",
+      uri"/api/battle/queue/join",
       ValidJoinJson.replace("\"rating\":1200", "\"rating\":\"bad\"")
     )
 
@@ -120,7 +120,7 @@ object BattleQueueHttp4sJoinContractTest {
   private def invalidSessionIsUnauthorized(): Unit = {
     val queueService = RecordingBattleQueueService()
     val authService = RecordingJoinAuthorizationService(Left(BattleQueueJoinAuthorizationError.InvalidSession))
-    val response = postJson(queueService, authService, uri"/api/battlequeuejoinapi", ValidJoinJson)
+    val response = postJson(queueService, authService, uri"/api/battle/queue/join", ValidJoinJson)
 
     assertEquals("invalid session status", response.status, 401)
     assertContains("invalid session code", response.body, """"code":"invalid_session"""")
@@ -131,7 +131,7 @@ object BattleQueueHttp4sJoinContractTest {
   private def handleMismatchIsForbidden(): Unit = {
     val queueService = RecordingBattleQueueService()
     val authService = RecordingJoinAuthorizationService(Left(BattleQueueJoinAuthorizationError.HandleMismatch))
-    val response = postJson(queueService, authService, uri"/api/battlequeuejoinapi", ValidJoinJson)
+    val response = postJson(queueService, authService, uri"/api/battle/queue/join", ValidJoinJson)
 
     assertEquals("handle mismatch status", response.status, 403)
     assertContains("handle mismatch code", response.body, """"code":"identity_mismatch"""")

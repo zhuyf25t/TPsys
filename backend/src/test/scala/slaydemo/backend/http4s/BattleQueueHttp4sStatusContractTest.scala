@@ -22,7 +22,7 @@ object BattleQueueHttp4sStatusContractTest {
 
   private def statusGetRendersQueueSnapshot(): Unit = {
     val service = RecordingBattleQueueService(Right(snapshot()))
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlequeuestatusapi?ticketId=ticket-alice"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/queue/status?ticketId=ticket-alice"))
 
     assertEquals("status code", response.status, 200)
     assertContains("ticket id", response.body, """"ticketId":"ticket-alice"""")
@@ -51,7 +51,7 @@ object BattleQueueHttp4sStatusContractTest {
 
   private def missingTicketIdIsBadRequest(): Unit = {
     val service = RecordingBattleQueueService(Right(snapshot()))
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlequeuestatusapi"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/queue/status"))
 
     assertEquals("missing ticket status", response.status, 400)
     assertEquals(
@@ -64,7 +64,7 @@ object BattleQueueHttp4sStatusContractTest {
 
   private def ticketNotFoundIsNotFound(): Unit = {
     val service = RecordingBattleQueueService(Left(BattleQueueStatusError.TicketNotFound))
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlequeuestatusapi?ticketId=missing"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/queue/status?ticketId=missing"))
 
     assertEquals("not found status", response.status, 404)
     assertEquals("not found body", response.body, """{"error":"Queue ticket was not found.","code":"ticket_not_found"}""")
@@ -73,7 +73,7 @@ object BattleQueueHttp4sStatusContractTest {
 
   private def unsupportedMethodIsRejected(): Unit = {
     val service = RecordingBattleQueueService(Right(snapshot()))
-    val response = run(service, Request[IO](method = Method.POST, uri = uri"/api/battlequeuestatusapi").withEntity("{}"))
+    val response = run(service, Request[IO](method = Method.POST, uri = uri"/api/battle/queue/status").withEntity("{}"))
 
     assertEquals("unsupported method status", response.status, 405)
     assertEquals(

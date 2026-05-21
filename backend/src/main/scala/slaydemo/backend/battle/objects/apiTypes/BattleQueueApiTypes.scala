@@ -22,11 +22,11 @@ enum BattleQueueLeaveAPIRequestError {
 
 object BattleQueueRequestTarget {
   private val AllowedStatusPaths: Set[String] =
-    Set("/battle/queue/status", "/api/battle/queue/status", "/battlequeuestatusapi", "/api/battlequeuestatusapi")
+    Set("/battle/queue/status", "/api/battle/queue/status")
   private val AllowedJoinPaths: Set[String] =
-    Set("/battle/queue/join", "/api/battle/queue/join", "/battlequeuejoinapi", "/api/battlequeuejoinapi")
+    Set("/battle/queue/join", "/api/battle/queue/join")
   private val AllowedLeavePaths: Set[String] =
-    Set("/battle/queue/leave", "/api/battle/queue/leave", "/battlequeueleaveapi", "/api/battlequeueleaveapi")
+    Set("/battle/queue/leave", "/api/battle/queue/leave")
 
   def isStatusPath(path: String): Boolean =
     AllowedStatusPaths.contains(path)
@@ -149,9 +149,9 @@ object RealtimeRoomHeartbeatAPIRequest {
 
 object RealtimeRoomRequestTarget {
   private val AllowedSnapshotPaths: Set[String] =
-    Set("/battle/rooms/snapshot", "/api/battle/rooms/snapshot", "/battleroomsnapshotapi", "/api/battleroomsnapshotapi")
+    Set("/battle/rooms/snapshot", "/api/battle/rooms/snapshot")
   private val AllowedHeartbeatPaths: Set[String] =
-    Set("/battle/rooms/heartbeat", "/api/battle/rooms/heartbeat", "/battleroomheartbeatapi", "/api/battleroomheartbeatapi")
+    Set("/battle/rooms/heartbeat", "/api/battle/rooms/heartbeat")
 
   def isSnapshotPath(path: String): Boolean =
     AllowedSnapshotPaths.contains(path) || hasSnapshotPathRoomId(path)

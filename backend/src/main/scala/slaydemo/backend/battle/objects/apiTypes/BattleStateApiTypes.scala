@@ -7,9 +7,9 @@ import slaydemo.backend.battle.objects.*
 
 object BattleStateRequestTarget {
   private val AllowedReadPaths: Set[String] =
-    Set("/battle/state", "/api/battle/state", "/battlestatereadapi", "/api/battlestatereadapi")
+    Set("/battle/state", "/api/battle/state")
   private val AllowedStreamPaths: Set[String] =
-    Set("/battle/state/stream", "/api/battle/state/stream", "/battlestatestreamapi", "/api/battlestatestreamapi")
+    Set("/battle/state/stream", "/api/battle/state/stream")
 
   def isReadPath(path: String): Boolean =
     AllowedReadPaths.contains(path) || hasStatePathBattleId(path)

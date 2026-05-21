@@ -26,7 +26,7 @@ object BattleRoomHttp4sContractTest {
 
   private def roomSnapshotReadsQueryRoomId(): Unit = {
     val service = RecordingBattleQueueService()
-    val response = runSnapshot(service, Request[IO](method = Method.GET, uri = uri"/api/battleroomsnapshotapi?roomId=room-route"))
+    val response = runSnapshot(service, Request[IO](method = Method.GET, uri = uri"/api/battle/rooms/snapshot?roomId=room-route"))
 
     assertEquals("snapshot status", response.status, 200)
     assertContains("snapshot room id", response.body, """"roomId":"room-route"""")
@@ -68,7 +68,7 @@ object BattleRoomHttp4sContractTest {
     val service = RecordingBattleQueueService()
     val response = postHeartbeat(
       service,
-      uri"/api/battleroomheartbeatapi?roomId=room-route",
+      uri"/api/battle/rooms/heartbeat?roomId=room-route",
       """{"ticketId":"ticket-route","handle":"Alice"}"""
     )
 
@@ -99,8 +99,8 @@ object BattleRoomHttp4sContractTest {
 
   private def missingRoomIdIsBadRequest(): Unit = {
     val service = RecordingBattleQueueService()
-    val snapshot = runSnapshot(service, Request[IO](method = Method.GET, uri = uri"/api/battleroomsnapshotapi"))
-    val heartbeat = postHeartbeat(service, uri"/api/battleroomheartbeatapi", "{}")
+    val snapshot = runSnapshot(service, Request[IO](method = Method.GET, uri = uri"/api/battle/rooms/snapshot"))
+    val heartbeat = postHeartbeat(service, uri"/api/battle/rooms/heartbeat", "{}")
 
     assertEquals("missing snapshot status", snapshot.status, 400)
     assertEquals("missing snapshot body", snapshot.body, """{"error":"roomId is required.","code":"invalid_room_id"}""")
@@ -110,7 +110,7 @@ object BattleRoomHttp4sContractTest {
 
   private def heartbeatNonObjectBodyIsBadRequest(): Unit = {
     val service = RecordingBattleQueueService()
-    val response = postHeartbeat(service, uri"/api/battleroomheartbeatapi?roomId=room-route", "[]")
+    val response = postHeartbeat(service, uri"/api/battle/rooms/heartbeat?roomId=room-route", "[]")
 
     assertEquals("non-object heartbeat status", response.status, 400)
     assertEquals(
@@ -123,7 +123,7 @@ object BattleRoomHttp4sContractTest {
 
   private def roomNotFoundIsNotFound(): Unit = {
     val service = RecordingBattleQueueService(roomResult = Left(BattleRoomError.RoomNotFound))
-    val response = runSnapshot(service, Request[IO](method = Method.GET, uri = uri"/api/battleroomsnapshotapi?roomId=missing"))
+    val response = runSnapshot(service, Request[IO](method = Method.GET, uri = uri"/api/battle/rooms/snapshot?roomId=missing"))
 
     assertEquals("room not found status", response.status, 404)
     assertEquals("room not found body", response.body, """{"error":"Battle room was not found.","code":"room_not_found"}""")

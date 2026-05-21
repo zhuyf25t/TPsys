@@ -22,7 +22,7 @@ object BattleStateReadHttp4sContractTest {
 
   private def stateReadMapsSuccessByQuery(): Unit = {
     val service = RecordingBattleStateService()
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlestatereadapi?battleId=battle-route"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state?battleId=battle-route"))
 
     assertEquals("query state status", response.status, 200)
     assertContains("query battle id", response.body, """"battleId":"battle-route"""")
@@ -54,7 +54,7 @@ object BattleStateReadHttp4sContractTest {
 
   private def missingBattleIdIsBadRequest(): Unit = {
     val service = RecordingBattleStateService()
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlestatereadapi"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state"))
 
     assertEquals("missing battle status", response.status, 400)
     assertEquals("missing battle body", response.body, """{"error":"battleId is required.","code":"invalid_battle_id"}""")
@@ -63,7 +63,7 @@ object BattleStateReadHttp4sContractTest {
 
   private def battleNotFoundIsNotFound(): Unit = {
     val service = RecordingBattleStateService(statesById = Map.empty)
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlestatereadapi?battleId=missing"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state?battleId=missing"))
 
     assertEquals("not found status", response.status, 404)
     assertEquals("not found body", response.body, """{"error":"battle_not_found","code":"battle_not_found"}""")
@@ -72,7 +72,7 @@ object BattleStateReadHttp4sContractTest {
 
   private def headDoesNotCallService(): Unit = {
     val service = RecordingBattleStateService()
-    val response = run(service, Request[IO](method = Method.HEAD, uri = uri"/api/battlestatereadapi?battleId=battle-route"))
+    val response = run(service, Request[IO](method = Method.HEAD, uri = uri"/api/battle/state?battleId=battle-route"))
 
     assertEquals("head status", response.status, 200)
     assertEquals("head body", response.body, "")

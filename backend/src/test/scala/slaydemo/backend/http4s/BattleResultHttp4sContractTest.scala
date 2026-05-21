@@ -26,7 +26,7 @@ object BattleResultHttp4sContractTest {
   private def listParsesFiltersAndRendersRecords(): Unit = {
     val service = RecordingBattleResultService()
     service.records = Vector(resultRecord(handle = PlayerHandle("Alice"), currentLoadout = Some("Pistol")))
-    val response = get(service, uri"/api/battleresultsapi?handle=Alice&battleId=battle-route&limit=2")
+    val response = get(service, uri"/api/battle/results?handle=Alice&battleId=battle-route&limit=2")
 
     assertEquals("list status", response.status, 200)
     assertContains("list wrapper", response.body, """"results":[""")
@@ -37,7 +37,7 @@ object BattleResultHttp4sContractTest {
 
   private def invalidHandleFilterShortCircuitsList(): Unit = {
     val service = RecordingBattleResultService()
-    val response = get(service, uri"/api/battleresultsapi?handle=visitor")
+    val response = get(service, uri"/api/battle/results?handle=visitor")
 
     assertEquals("invalid handle filter status", response.status, 200)
     assertEquals("invalid handle filter body", response.body, """{"results":[]}""")
@@ -46,9 +46,9 @@ object BattleResultHttp4sContractTest {
 
   private def recordPostParsesCommandAndValidationErrors(): Unit = {
     val service = RecordingBattleResultService()
-    val success = postJson(service, uri"/api/battleresultsapi", ValidRecordJson)
-    val visitor = postJson(service, uri"/api/battleresultsapi", ValidRecordJson.replace("\"handle\":\"Alice\"", "\"handle\":\"visitor\""))
-    val invalidBattle = postJson(service, uri"/api/battleresultsapi", ValidRecordJson.replace("\" battle-route \"", "\"  \""))
+    val success = postJson(service, uri"/api/battle/results", ValidRecordJson)
+    val visitor = postJson(service, uri"/api/battle/results", ValidRecordJson.replace("\"handle\":\"Alice\"", "\"handle\":\"visitor\""))
+    val invalidBattle = postJson(service, uri"/api/battle/results", ValidRecordJson.replace("\" battle-route \"", "\"  \""))
 
     assertEquals("record status", success.status, 201)
     assertContains("record response battle id", success.body, """"battleId":"battle-route"""")
@@ -71,7 +71,7 @@ object BattleResultHttp4sContractTest {
 
     val failingService = RecordingBattleResultService()
     failingService.recordResults = Vector(Left(BattleResultRecordError.VisitorNotAllowed))
-    val serviceFailure = postJson(failingService, uri"/api/battleresultsapi", ValidRecordJson)
+    val serviceFailure = postJson(failingService, uri"/api/battle/results", ValidRecordJson)
 
     assertEquals("service record error status", serviceFailure.status, 403)
     assertContains("service record error code", serviceFailure.body, """"code":"visitor_not_allowed"""")

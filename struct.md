@@ -200,21 +200,21 @@ BackendHttp4sApp.run
 
 前端 `normalizeApiBase(..., "/api")` 默认把 battle 请求拼到 `/api` 下，所以前端代码里写 `"/battlequeuejoinapi"`，真实请求通常是 `"/api/battlequeuejoinapi"`。后端当前 target parser 同时支持无 `/api` 前缀和有 `/api` 前缀的旧 alias。
 
-BE-LEGACY-PATH-FE-MIGRATION-63 已把运行中的 v1 前端 battle runtime 从旧 alias 迁到 REST 风格 `/battle/...`。脚本层面的 smoke/contract 检查此前也大多已经使用 REST 风格路径。当前剩余复杂度在后端 target parser 仍然保留 legacy alias；这些 alias 已经具备进入单独后端删除 ticket 的条件。
+BE-LEGACY-PATH-FE-MIGRATION-63 已把运行中的 v1 前端 battle runtime 从旧 alias 迁到 REST 风格 `/battle/...`。BE-BATTLE-LEGACY-ALIAS-DELETE-64 已删除后端 battle target parser 中的 legacy alias，并把对应 http4s contract tests 改成 REST path。脚本层面的 smoke/contract 检查此前也大多已经使用 REST 风格路径。
 
 | 业务 | 后端 REST path | 后端 legacy alias | 前端当前调用证据 | 脚本当前调用倾向 | 当前建议 |
 | --- | --- | --- | --- | --- | --- |
-| queue join | `/battle/queue/join`、`/api/battle/queue/join` | `/battlequeuejoinapi`、`/api/battlequeuejoinapi` | `frontend/src/domains/battle/runtime/matchmaking/matchmakingQueueGateway.ts` 已调用 `"/battle/queue/join"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| queue status | `/battle/queue/status`、`/api/battle/queue/status` | `/battlequeuestatusapi`、`/api/battlequeuestatusapi` | `matchmakingQueueGateway.ts` 已调用 `"/battle/queue/status"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| queue leave | `/battle/queue/leave`、`/api/battle/queue/leave` | `/battlequeueleaveapi`、`/api/battlequeueleaveapi` | `matchmakingQueueGateway.ts` 已调用 `"/battle/queue/leave"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| room snapshot | `/battle/rooms/snapshot`、`/api/battle/rooms/snapshot`、`/battle/rooms/:roomId/snapshot`、`/api/battle/rooms/:roomId/snapshot` | `/battleroomsnapshotapi`、`/api/battleroomsnapshotapi` | `frontend/src/domains/battle/runtime/matchmaking/realtimeRoomClient.ts` 已调用 `"/battle/rooms/snapshot"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| room heartbeat | `/battle/rooms/heartbeat`、`/api/battle/rooms/heartbeat`、`/battle/rooms/:roomId/heartbeat`、`/api/battle/rooms/:roomId/heartbeat` | `/battleroomheartbeatapi`、`/api/battleroomheartbeatapi` | `realtimeRoomClient.ts` 已调用 `"/battle/rooms/heartbeat"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| state read | `/battle/state`、`/api/battle/state`、`/battle/state/:battleId`、`/api/battle/state/:battleId` | `/battlestatereadapi`、`/api/battlestatereadapi` | `frontend/src/domains/battle/runtime/authoritative/authoritativeBattleClient.ts` 已调用 `"/battle/state"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| state stream | `/battle/state/stream`、`/api/battle/state/stream` | `/battlestatestreamapi`、`/api/battlestatestreamapi` | `authoritativeBattleClient.ts` 已调用 `"/battle/state/stream"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| command submit | `/battle/command`、`/battle/commands`、`/api/battle/command`、`/api/battle/commands` | `/battlecommandapi`、`/api/battlecommandapi` | `authoritativeBattleClient.ts` 已调用 `"/battle/commands"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
-| result list/record | `/battle/results`、`/api/battle/results` | `/battleresultsapi`、`/api/battleresultsapi` | `frontend/src/domains/battle/api/battleResultsApi.ts` 和 `runtime/local/state/battleResultSync.ts` 已调用 `"/battle/results"` | smoke 脚本使用 REST path | 后端 alias 可在下一 ticket 删除 |
+| queue join | `/battle/queue/join`、`/api/battle/queue/join` | 已删除 | `frontend/src/domains/battle/runtime/matchmaking/matchmakingQueueGateway.ts` 已调用 `"/battle/queue/join"` | smoke 脚本使用 REST path | 保留 REST contract |
+| queue status | `/battle/queue/status`、`/api/battle/queue/status` | 已删除 | `matchmakingQueueGateway.ts` 已调用 `"/battle/queue/status"` | smoke 脚本使用 REST path | 保留 REST contract |
+| queue leave | `/battle/queue/leave`、`/api/battle/queue/leave` | 已删除 | `matchmakingQueueGateway.ts` 已调用 `"/battle/queue/leave"` | smoke 脚本使用 REST path | 保留 REST contract |
+| room snapshot | `/battle/rooms/snapshot`、`/api/battle/rooms/snapshot`、`/battle/rooms/:roomId/snapshot`、`/api/battle/rooms/:roomId/snapshot` | 已删除 | `frontend/src/domains/battle/runtime/matchmaking/realtimeRoomClient.ts` 已调用 `"/battle/rooms/snapshot"` | smoke 脚本使用 REST path | 保留 REST contract |
+| room heartbeat | `/battle/rooms/heartbeat`、`/api/battle/rooms/heartbeat`、`/battle/rooms/:roomId/heartbeat`、`/api/battle/rooms/:roomId/heartbeat` | 已删除 | `realtimeRoomClient.ts` 已调用 `"/battle/rooms/heartbeat"` | smoke 脚本使用 REST path | 保留 REST contract |
+| state read | `/battle/state`、`/api/battle/state`、`/battle/state/:battleId`、`/api/battle/state/:battleId` | 已删除 | `frontend/src/domains/battle/runtime/authoritative/authoritativeBattleClient.ts` 已调用 `"/battle/state"` | smoke 脚本使用 REST path | 保留 REST contract |
+| state stream | `/battle/state/stream`、`/api/battle/state/stream` | 已删除 | `authoritativeBattleClient.ts` 已调用 `"/battle/state/stream"` | smoke 脚本使用 REST path | 保留 REST contract |
+| command submit | `/battle/command`、`/battle/commands`、`/api/battle/command`、`/api/battle/commands` | 已删除 | `authoritativeBattleClient.ts` 已调用 `"/battle/commands"` | smoke 脚本使用 REST path | 保留 REST contract |
+| result list/record | `/battle/results`、`/api/battle/results` | 已删除 | `frontend/src/domains/battle/api/battleResultsApi.ts` 和 `runtime/local/state/battleResultSync.ts` 已调用 `"/battle/results"` | smoke 脚本使用 REST path | 保留 REST contract |
 
-当前大小写敏感搜索 `battlequeuejoinapi|battlequeuestatusapi|battlequeueleaveapi|battleroomsnapshotapi|battleroomheartbeatapi|battlestatereadapi|battlestatestreamapi|battlecommandapi|battleresultsapi` 在 `frontend/src` 和 `scripts` 下没有命中。下一步可以删除后端 target parser 中对应 legacy alias，并删除只验证 legacy alias 的 contract case；REST contract case 必须保留。
+当前大小写敏感搜索 `battlequeuejoinapi|battlequeuestatusapi|battlequeueleaveapi|battleroomsnapshotapi|battleroomheartbeatapi|battlestatereadapi|battlestatestreamapi|battlecommandapi|battleresultsapi` 在 `frontend/src`、`scripts`、`backend/src/main/scala`、`backend/src/test/scala` 下没有命中。battle 侧不再保留旧 APIMessage 风格 path alias。
 
 ### 4.4 test 中有大量 stub service
 

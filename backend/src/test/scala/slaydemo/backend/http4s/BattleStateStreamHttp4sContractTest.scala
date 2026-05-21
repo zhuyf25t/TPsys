@@ -22,7 +22,7 @@ object BattleStateStreamHttp4sContractTest {
     val service = RecordingBattleStateService(
       statesById = Map(BattleId("battle-route") -> battleState(phase = BattlePhase.Finished))
     )
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlestatestreamapi?battleId=battle-route"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state/stream?battleId=battle-route"))
 
     assertEquals("state stream status", response.status, 200)
     assertContains("state stream content type", response.contentType, "text/event-stream")
@@ -48,7 +48,7 @@ object BattleStateStreamHttp4sContractTest {
 
   private def missingBattleIdIsBadRequest(): Unit = {
     val service = RecordingBattleStateService()
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlestatestreamapi"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state/stream"))
 
     assertEquals("missing stream battle status", response.status, 400)
     assertEquals("missing stream battle body", response.body, """{"error":"battleId is required.","code":"invalid_battle_id"}""")
@@ -57,7 +57,7 @@ object BattleStateStreamHttp4sContractTest {
 
   private def battleNotFoundIsNotFound(): Unit = {
     val service = RecordingBattleStateService(statesById = Map.empty)
-    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battlestatestreamapi?battleId=missing"))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/state/stream?battleId=missing"))
 
     assertEquals("stream not found status", response.status, 404)
     assertEquals("stream not found body", response.body, """{"error":"battle_not_found","code":"battle_not_found"}""")

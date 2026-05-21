@@ -16,7 +16,7 @@ object BattleCommandHttp4sContractTest {
   def main(args: Array[String]): Unit = {
     validCommandReachesService()
     pluralCommandPathMatchesFrontendProxy()
-    singularCommandPathAliasMatchesFrontendProxy()
+    singularCommandPathMatchesFrontendProxy()
     nullableOptionalFieldsReachServiceAsAbsent()
     skillBooleansReachServiceAsTypedIntents()
     switchIndexReachesServiceAsTypedTarget()
@@ -29,12 +29,12 @@ object BattleCommandHttp4sContractTest {
     println("Battle command http4s contract checks passed")
   }
 
-  private def singularCommandPathAliasMatchesFrontendProxy(): Unit = {
+  private def singularCommandPathMatchesFrontendProxy(): Unit = {
     val stateService = RecordingBattleStateService()
-    val response = postJson(stateService, uri"/battlecommandapi", ValidCommandJson)
+    val response = postJson(stateService, uri"/battle/command", ValidCommandJson)
 
-    assertEquals("singular command path alias status", response.status, 200)
-    assertEquals("singular command path alias reaches service", stateService.requests.length, 1)
+    assertEquals("singular command path status", response.status, 200)
+    assertEquals("singular command path reaches service", stateService.requests.length, 1)
   }
 
   private def pluralCommandPathMatchesFrontendProxy(): Unit = {
@@ -47,7 +47,7 @@ object BattleCommandHttp4sContractTest {
 
   private def validCommandReachesService(): Unit = {
     val stateService = RecordingBattleStateService()
-    val response = postJson(stateService, uri"/api/battlecommandapi", ValidCommandJson)
+    val response = postJson(stateService, uri"/api/battle/commands", ValidCommandJson)
 
     assertEquals("valid command status", response.status, 200)
     assertContains("valid command response battle id", response.body, """"battleId":"battle-state-runtime"""")
@@ -66,7 +66,7 @@ object BattleCommandHttp4sContractTest {
       "\"switchWeaponDirection\":2",
       "\"pointerWorld\":null,\"switchWeaponIndex\":null,\"switchWeaponDirection\":2"
     )
-    val response = postJson(stateService, uri"/api/battlecommandapi", body)
+    val response = postJson(stateService, uri"/api/battle/commands", body)
 
     assertEquals("nullable optional command status", response.status, 200)
     assertEquals("nullable optional command reaches service", stateService.requests.length, 1)
@@ -80,7 +80,7 @@ object BattleCommandHttp4sContractTest {
       "\"switchWeaponDirection\":2",
       "\"castDash\":true,\"castBlink\":true,\"castFreeze\":true,\"switchWeaponDirection\":2"
     )
-    val response = postJson(stateService, uri"/api/battlecommandapi", body)
+    val response = postJson(stateService, uri"/api/battle/commands", body)
 
     assertEquals("skill command status", response.status, 200)
     assertEquals(
@@ -101,8 +101,8 @@ object BattleCommandHttp4sContractTest {
       "\"switchWeaponDirection\":2,\"switchWeaponIndex\":-1"
     )
 
-    val positive = postJson(stateService, uri"/api/battlecommandapi", positiveBody)
-    val negative = postJson(stateService, uri"/api/battlecommandapi", negativeBody)
+    val positive = postJson(stateService, uri"/api/battle/commands", positiveBody)
+    val negative = postJson(stateService, uri"/api/battle/commands", negativeBody)
 
     assertEquals("positive switch index status", positive.status, 200)
     assertEquals("negative switch index status", negative.status, 200)
@@ -112,7 +112,7 @@ object BattleCommandHttp4sContractTest {
 
   private def missingTicketIsUnauthorizedBeforeService(): Unit = {
     val stateService = RecordingBattleStateService()
-    val response = postJson(stateService, uri"/api/battlecommandapi", ValidCommandJson.replace("\"ticketId\":\"ticket-alice\",", ""))
+    val response = postJson(stateService, uri"/api/battle/commands", ValidCommandJson.replace("\"ticketId\":\"ticket-alice\",", ""))
 
     assertEquals("missing ticket status", response.status, 403)
     assertContains("missing ticket code", response.body, """"code":"command_not_authorized"""")
@@ -149,7 +149,7 @@ object BattleCommandHttp4sContractTest {
 
   private def assertBadRequest(label: String, body: String, expectedCode: String): Unit = {
     val stateService = RecordingBattleStateService()
-    val response = postJson(stateService, uri"/api/battlecommandapi", body)
+    val response = postJson(stateService, uri"/api/battle/commands", body)
 
     assertEquals(s"$label status", response.status, 400)
     assertContains(s"$label code", response.body, s""""code":"$expectedCode"""")

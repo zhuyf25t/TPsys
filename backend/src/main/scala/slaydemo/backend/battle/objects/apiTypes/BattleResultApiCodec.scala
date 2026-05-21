@@ -27,7 +27,7 @@ enum BattleResultRecordDecodeError {
 
 object BattleResultRequestTarget {
   private val AllowedResultPaths: Set[String] =
-    Set("/battle/results", "/api/battle/results", "/battleresultsapi", "/api/battleresultsapi")
+    Set("/battle/results", "/api/battle/results")
 
   def isResultPath(path: String): Boolean =
     AllowedResultPaths.contains(path)

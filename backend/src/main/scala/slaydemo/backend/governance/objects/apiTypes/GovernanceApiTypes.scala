@@ -17,6 +17,19 @@ import slaydemo.backend.governance.services.{
 }
 import slaydemo.backend.mail.objects.MailKind
 
+object GovernanceRequestTarget {
+  private val ContributionAdjustmentPaths: Set[String] =
+    Set("/governance/contribution-adjustments", "/api/governance/contribution-adjustments")
+  private val AdminNotificationPaths: Set[String] =
+    Set("/governance/admin-notifications", "/api/governance/admin-notifications")
+
+  def isContributionAdjustmentPath(path: String): Boolean =
+    ContributionAdjustmentPaths.contains(path)
+
+  def isAdminNotificationPath(path: String): Boolean =
+    AdminNotificationPaths.contains(path)
+}
+
 final case class ContributionAdjustmentRequest(
   actorHandle: String,
   targetHandle: String,

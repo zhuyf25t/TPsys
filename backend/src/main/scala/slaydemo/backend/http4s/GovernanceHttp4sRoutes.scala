@@ -13,6 +13,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentListResponse,
   GovernanceNotificationListQueryParseResult,
   GovernanceQueryParsers,
+  GovernanceRequestTarget,
   GovernanceReviewNotificationApiRequest,
   GovernanceReviewNotificationCommandParseError,
   GovernanceReviewNotificationCreateResponse,
@@ -24,11 +25,6 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
-
-  private val ContributionAdjustmentPaths: Set[String] =
-    Set("/governance/contribution-adjustments", "/api/governance/contribution-adjustments")
-  private val AdminNotificationPaths: Set[String] =
-    Set("/governance/admin-notifications", "/api/governance/admin-notifications")
 
   private val MethodNotAllowedError =
     HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
@@ -50,7 +46,7 @@ private[http4s] object GovernanceHttp4sRoutes {
     notificationService: GovernanceNotificationService
   ): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if ContributionAdjustmentPaths.contains(path(request)) =>
+      case request if GovernanceRequestTarget.isContributionAdjustmentPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))
@@ -61,7 +57,7 @@ private[http4s] object GovernanceHttp4sRoutes {
           case _ =>
             IO.pure(apiError(MethodNotAllowedError))
         }
-      case request if AdminNotificationPaths.contains(path(request)) =>
+      case request if GovernanceRequestTarget.isAdminNotificationPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))

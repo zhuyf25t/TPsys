@@ -72,7 +72,7 @@ BackendHttp4sApp.run
 | `http4s/MailHttp4sRoutes.scala` | 邮件列表和已读操作；list/read API path、owner query、read body DTO 由 `mail/objects/apiTypes/MailApiTypes.scala` 管理。 |
 | `http4s/SocialHttp4sRoutes.scala` | 好友请求创建、查询、响应；friend request API path、owner query 和 request DTO 由 `social/objects/apiTypes/SocialApiTypes.scala` 管理。 |
 | `http4s/ForumHttp4sRoutes.scala` | 讨论区 topic、reply、vote。 |
-| `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知。 |
+| `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知；contribution/notification API path、query parser 和 request/response DTO 由 `governance/objects/apiTypes/GovernanceApiTypes.scala` 管理。 |
 | `http4s/ReplayHttp4sRoutes.scala` | replay catalog、详情、评论。 |
 | `http4s/BotProfileHttp4sRoutes.scala` | bot profile 列表；固定 API path 由 `bots/objects/apiTypes/BotProfileApiTypes.scala` 管理。 |
 | `http4s/BattleQueueHttp4sRoutes.scala` | battle 排队 join/status/leave。 |

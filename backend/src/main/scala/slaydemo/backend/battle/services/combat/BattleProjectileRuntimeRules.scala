@@ -33,9 +33,8 @@ private[services] object BattleProjectileRuntimeRules {
           else motion.terminalReason
       }
 
-      reason match {
-        case Some(terminalReason) if playerHit.nonEmpty =>
-          val hit = playerHit.get
+      (reason, playerHit) match {
+        case (Some(terminalReason), Some(hit)) =>
           current.copy(
             state = applyProjectileImpact(
               current.state,
@@ -47,7 +46,7 @@ private[services] object BattleProjectileRuntimeRules {
               Some(hit.player)
             )
           )
-        case Some(terminalReason) =>
+        case (Some(terminalReason), None) =>
           current.copy(
             state = applyProjectileImpact(
               current.state,
@@ -59,7 +58,7 @@ private[services] object BattleProjectileRuntimeRules {
               None
             )
           )
-        case None =>
+        case (None, _) =>
           current.copy(
             activeProjectiles = current.activeProjectiles :+ projectile.copy(
               position = motion.destination,

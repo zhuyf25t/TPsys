@@ -35,7 +35,7 @@ export async function joinMatchmakingQueue(input: {
     return null;
   }
 
-  return fetchQueueState(buildApiUrl(BATTLE_API_BASE, "/battlequeuejoinapi"), {
+  return fetchQueueState(buildApiUrl(BATTLE_API_BASE, "/battle/queue/join"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -56,7 +56,7 @@ export async function loadMatchmakingQueueStatus(ticketId: string): Promise<Matc
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, "/battlequeuestatusapi", { ticketId: normalizedTicket });
+  const url = buildApiUrl(BATTLE_API_BASE, "/battle/queue/status", { ticketId: normalizedTicket });
 
   return fetchQueueState(url, {
     method: "GET",
@@ -71,7 +71,7 @@ export function leaveMatchmakingQueue(ticketId: string): void {
     return;
   }
 
-  void fetch(buildApiUrl(BATTLE_API_BASE, "/battlequeueleaveapi"), {
+  void fetch(buildApiUrl(BATTLE_API_BASE, "/battle/queue/leave"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticketId: normalizedTicket }),

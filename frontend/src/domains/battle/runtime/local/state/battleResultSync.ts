@@ -30,7 +30,7 @@ export async function syncBattleResultToBackend(payload: BattleResultSyncPayload
   }
 
   try {
-    const response = await fetch(buildApiUrl(BATTLE_API_BASE, "/battleresultsapi"), {
+    const response = await fetch(buildApiUrl(BATTLE_API_BASE, "/battle/results"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

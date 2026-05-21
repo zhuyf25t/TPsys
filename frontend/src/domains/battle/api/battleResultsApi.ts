@@ -123,7 +123,7 @@ async function loadRemoteBattleResults(options?: {
   const timeout = window.setTimeout(() => controller.abort(), BATTLE_RESULTS_TIMEOUT_MS);
 
   try {
-    const url = buildApiUrl(BATTLE_API_BASE, "/battleresultsapi", {
+    const url = buildApiUrl(BATTLE_API_BASE, "/battle/results", {
       handle: options?.handle,
       battleId: options?.battleId,
       limit: options?.limit

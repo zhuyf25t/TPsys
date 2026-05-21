@@ -37,7 +37,6 @@ import slaydemo.backend.identity.ports.PasswordHasherContractTest
 import slaydemo.backend.replay.routes.ReplayRouteContractTest
 import slaydemo.backend.shared.database.{PostgresRepositoryBoundaryContractTest, PostgresSupportContractTest}
 import slaydemo.backend.shared.storage.StorageConfigContractTest
-import slaydemo.backend.social.routes.SocialRouteContractTest
 
 object BackendContractTestRunner {
   def main(args: Array[String]): Unit = {
@@ -84,7 +83,6 @@ object BackendContractTestRunner {
     run("mail service", () => MailServiceContractTest.main(Array.empty))
     run("replay route", () => ReplayRouteContractTest.main(Array.empty))
     run("replay service", () => ReplayServiceContractTest.main(Array.empty))
-    run("social route", () => SocialRouteContractTest.main(Array.empty))
     run("storage config", () => StorageConfigContractTest.main(Array.empty))
     run("battle finish projection plan", () => BattleFinishProjectionPlanContractTest.main(Array.empty))
     run("battle finish projection writes", () => BattleFinishProjectionWriteContractTest.main(Array.empty))

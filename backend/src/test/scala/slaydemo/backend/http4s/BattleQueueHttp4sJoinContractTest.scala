@@ -17,7 +17,7 @@ object BattleQueueHttp4sJoinContractTest {
   def main(args: Array[String]): Unit = {
     validJoinAuthorizesAndReturnsSnapshot()
     restJoinPathMatchesCurrentHttpApi()
-    frontendProxyLegacyJoinPathIsSupported()
+    frontendProxyJoinPathAliasIsSupported()
     invalidHandleIsRejectedBeforeAuthorization()
     missingSessionIsUnauthorizedBeforeQueue()
     invalidRatingIsBadRequest()
@@ -27,14 +27,14 @@ object BattleQueueHttp4sJoinContractTest {
     println("Battle queue http4s join contract checks passed")
   }
 
-  private def frontendProxyLegacyJoinPathIsSupported(): Unit = {
+  private def frontendProxyJoinPathAliasIsSupported(): Unit = {
     val queueService = RecordingBattleQueueService()
     val authService = RecordingJoinAuthorizationService(Right(()))
     val response = postJson(queueService, authService, uri"/battlequeuejoinapi", ValidJoinJson)
 
-    assertEquals("frontend proxy legacy join status", response.status, 200)
-    assertContains("frontend proxy legacy join ticket", response.body, """"ticketId":"ticket-alice"""")
-    assertEquals("frontend proxy legacy join queue count", queueService.commands.length, 1)
+    assertEquals("frontend proxy join alias status", response.status, 200)
+    assertContains("frontend proxy join alias ticket", response.body, """"ticketId":"ticket-alice"""")
+    assertEquals("frontend proxy join alias queue count", queueService.commands.length, 1)
   }
 
   private def validJoinAuthorizesAndReturnsSnapshot(): Unit = {

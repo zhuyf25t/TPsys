@@ -12,7 +12,7 @@ import slaydemo.backend.shared.storage.StorageMode
 
 object HealthHttp4sRouteContractTest {
   def main(args: Array[String]): Unit = {
-    getRendersLegacyAndApiHealthPaths()
+    getRendersHealthPathAliases()
     headDoesNotCallService()
     optionsIsCorsPreflight()
     unsupportedMethodIsRejected()
@@ -20,7 +20,7 @@ object HealthHttp4sRouteContractTest {
     println("Health http4s route contract checks passed")
   }
 
-  private def getRendersLegacyAndApiHealthPaths(): Unit =
+  private def getRendersHealthPathAliases(): Unit =
     Vector("/health", "/api/health", "/api/healthapi").foreach { path =>
       val service = RecordingHealthService()
       val response = run(service, Request[IO](method = Method.GET, uri = uriFrom(path)))

@@ -38,7 +38,7 @@ import slaydemo.backend.replay.services.{
 object ReplayHttp4sCatalogContractTest {
   def main(args: Array[String]): Unit = {
     catalogGetRendersSelectedSettlement()
-    legacyCatalogPathIsSupported()
+    catalogAliasPathIsSupported()
     catalogPostRecordsReplay()
     detailAndCommentsUseFrontendProxyPaths()
     invalidReplayIdPathIsBadRequest()
@@ -61,14 +61,14 @@ object ReplayHttp4sCatalogContractTest {
     assertContains("catalog selected placement", response.body, """"placement":2""")
   }
 
-  private def legacyCatalogPathIsSupported(): Unit = {
+  private def catalogAliasPathIsSupported(): Unit = {
     val service = RecordingReplayService(Vector(replayRecord()))
     val response = run(service, Request[IO](method = Method.GET, uri = uri"/replay/catalog?limit=1"))
     val apiAliasResponse = run(service, Request[IO](method = Method.GET, uri = uri"/api/replay/catalog?handle=Bob&limit=1"))
 
-    assertEquals("legacy catalog status", response.status, 200)
-    assertContains("legacy catalog replay id", response.body, """"replayId":"route-replay"""")
-    assertContains("legacy catalog base result", response.body, """"resultLabel":"Victory"""")
+    assertEquals("catalog alias status", response.status, 200)
+    assertContains("catalog alias replay id", response.body, """"replayId":"route-replay"""")
+    assertContains("catalog alias base result", response.body, """"resultLabel":"Victory"""")
     assertEquals("api alias catalog status", apiAliasResponse.status, 200)
     assertContains("api alias catalog replay id", apiAliasResponse.body, """"replayId":"route-replay"""")
     assertContains("api alias catalog selected result", apiAliasResponse.body, """"resultLabel":"Defeat"""")

@@ -17,7 +17,7 @@ object BattleCommandHttp4sContractTest {
   def main(args: Array[String]): Unit = {
     validCommandReachesService()
     pluralCommandPathMatchesFrontendProxy()
-    legacyCommandPathMatchesFrontendProxy()
+    singularCommandPathAliasMatchesFrontendProxy()
     nullableOptionalFieldsReachServiceAsAbsent()
     skillBooleansReachServiceAsTypedIntents()
     switchIndexReachesServiceAsTypedTarget()
@@ -30,12 +30,12 @@ object BattleCommandHttp4sContractTest {
     println("Battle command http4s contract checks passed")
   }
 
-  private def legacyCommandPathMatchesFrontendProxy(): Unit = {
+  private def singularCommandPathAliasMatchesFrontendProxy(): Unit = {
     val stateService = RecordingBattleStateService()
     val response = postJson(stateService, uri"/battlecommandapi", ValidCommandJson)
 
-    assertEquals("legacy command path status", response.status, 200)
-    assertEquals("legacy command path reaches service", stateService.requests.length, 1)
+    assertEquals("singular command path alias status", response.status, 200)
+    assertEquals("singular command path alias reaches service", stateService.requests.length, 1)
   }
 
   private def pluralCommandPathMatchesFrontendProxy(): Unit = {

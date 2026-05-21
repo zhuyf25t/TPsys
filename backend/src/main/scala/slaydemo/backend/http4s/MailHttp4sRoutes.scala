@@ -8,6 +8,7 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
+  MailApiErrorCode,
   MailListResponse,
   MailOwnerQuery,
   MailReadApiRequest,
@@ -20,21 +21,6 @@ import slaydemo.backend.mail.objects.apiTypes.{
 import slaydemo.backend.mail.services.{MailReadError, MailService}
 
 private[http4s] object MailHttp4sRoutes {
-  private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
-  private val MissingOwnerError =
-    HttpApiError(status = Status.BadRequest, code = "missing_owner", message = "missing_owner")
-  private val VisitorNotAllowedError =
-    HttpApiError(status = Status.Forbidden, code = "visitor_not_allowed", message = "visitor_not_allowed")
-  private val InvalidOwnerError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_owner", message = "invalid_owner")
-  private val MissingMailIdError =
-    HttpApiError(status = Status.BadRequest, code = "missing_mail_id", message = "missing_mail_id")
-  private val MailNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "mail_not_found", message = "mail_not_found")
-  private val InvalidJsonObjectError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
-
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
 
@@ -47,7 +33,7 @@ private[http4s] object MailHttp4sRoutes {
           case Method.GET =>
             listMails(request, service)
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(mailApiError(MailApiErrorCode.MethodNotAllowed)))
         }
       case request if MailRequestTarget.isReadPath(path(request)) =>
         request.method match {
@@ -56,7 +42,7 @@ private[http4s] object MailHttp4sRoutes {
           case Method.POST =>
             markRead(request, service)
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(mailApiError(MailApiErrorCode.MethodNotAllowed)))
         }
     }
 
@@ -73,7 +59,7 @@ private[http4s] object MailHttp4sRoutes {
   private def markRead(request: Request[IO], service: MailService): IO[Response[IO]] =
     readReadRequest(request).flatMap {
       case Left(MailReadApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(InvalidJsonObjectError))
+        IO.pure(apiError(mailApiError(MailApiErrorCode.InvalidJsonObject)))
       case Right(readRequest) =>
         readRequest.toCommand match {
           case Left(error) =>
@@ -83,7 +69,7 @@ private[http4s] object MailHttp4sRoutes {
               case Right(_) =>
                 Ok(MailReadResponse(ok = true).asJson).map(withCors)
               case Left(MailReadError.MailNotFound) =>
-                IO.pure(apiError(MailNotFoundError))
+                IO.pure(apiError(mailApiError(MailApiErrorCode.MailNotFound)))
             }
         }
     }
@@ -95,18 +81,25 @@ private[http4s] object MailHttp4sRoutes {
       .map(_.left.map(_ => MailReadApiRequestDecodeError.InvalidJsonObject))
 
   private def ownerApiError(error: MailRouteOwnerError): HttpApiError =
-    error match {
-      case MailRouteOwnerError.MissingOwner      => MissingOwnerError
-      case MailRouteOwnerError.VisitorNotAllowed => VisitorNotAllowedError
-      case MailRouteOwnerError.InvalidOwner      => InvalidOwnerError
-    }
+    mailApiError(MailApiErrorCode.fromOwnerError(error))
 
   private def readApiError(error: MailRouteReadError): HttpApiError =
-    error match {
-      case MailRouteReadError.MissingOwner      => MissingOwnerError
-      case MailRouteReadError.VisitorNotAllowed => VisitorNotAllowedError
-      case MailRouteReadError.InvalidOwner      => InvalidOwnerError
-      case MailRouteReadError.MissingMailId     => MissingMailIdError
+    mailApiError(MailApiErrorCode.fromReadError(error))
+
+  private def mailApiError(code: MailApiErrorCode): HttpApiError =
+    HttpApiError(
+      status = statusFrom(MailApiErrorCode.statusCode(code)),
+      code = MailApiErrorCode.wireValue(code),
+      message = MailApiErrorCode.message(code)
+    )
+
+  private def statusFrom(value: Int): Status =
+    value match {
+      case 400 => Status.BadRequest
+      case 403 => Status.Forbidden
+      case 404 => Status.NotFound
+      case 405 => Status.MethodNotAllowed
+      case _   => Status.InternalServerError
     }
 
   private def path(request: Request[IO]): String =

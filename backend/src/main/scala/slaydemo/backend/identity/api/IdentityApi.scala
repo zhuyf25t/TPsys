@@ -1,9 +1,41 @@
 package slaydemo.backend.identity.api
 
-import io.circe.Encoder
+import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
 import io.circe.generic.semiauto.deriveEncoder
 
 import slaydemo.backend.identity.objects.{IdentityAccount, SkinId}
+
+final case class IdentityRegistrationApiRequest(
+  handle: Option[String],
+  password: Option[String],
+  skinId: Option[String]
+)
+
+object IdentityRegistrationApiRequest {
+  given Decoder[IdentityRegistrationApiRequest] = (cursor: HCursor) =>
+    requireObject(cursor).flatMap { _ =>
+      for
+        handle <- optionalString(cursor, "handle")
+        password <- optionalString(cursor, "password")
+        skinId <- optionalString(cursor, "skinId")
+      yield IdentityRegistrationApiRequest(handle = handle, password = password, skinId = skinId)
+    }
+}
+
+final case class IdentitySessionApiRequest(
+  handle: Option[String],
+  password: Option[String]
+)
+
+object IdentitySessionApiRequest {
+  given Decoder[IdentitySessionApiRequest] = (cursor: HCursor) =>
+    requireObject(cursor).flatMap { _ =>
+      for
+        handle <- optionalString(cursor, "handle")
+        password <- optionalString(cursor, "password")
+      yield IdentitySessionApiRequest(handle = handle, password = password)
+    }
+}
 
 final case class IdentityAuthResponse(
   handle: String,
@@ -37,3 +69,19 @@ final case class IdentityAccountsResponse(accounts: Vector[IdentityAccountSummar
 object IdentityAccountsResponse {
   given Encoder[IdentityAccountsResponse] = deriveEncoder
 }
+
+private def requireObject(cursor: HCursor): Decoder.Result[Unit] =
+  cursor.value.asObject match {
+    case Some(_) => Right(())
+    case None    => Left(DecodingFailure("identity request must be a JSON object.", cursor.history))
+  }
+
+private def optionalString(cursor: HCursor, field: String): Decoder.Result[Option[String]] =
+  cursor.downField(field).focus match {
+    case None =>
+      Right(None)
+    case Some(value) if value.isString =>
+      Right(value.asString)
+    case Some(_) =>
+      Left(DecodingFailure(s"$field must be a string.", cursor.history))
+  }

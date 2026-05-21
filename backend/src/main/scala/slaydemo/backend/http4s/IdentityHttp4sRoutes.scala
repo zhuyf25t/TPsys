@@ -12,7 +12,9 @@ import slaydemo.backend.identity.api.{
   IdentityAccountsResponse,
   IdentityAuthResponse,
   IdentityCommandParsers,
+  IdentityRegistrationApiRequest,
   IdentityRegistrationCommandParseError,
+  IdentitySessionApiRequest,
   IdentitySessionCommandParseError,
   IdentitySessionTokenParser
 }
@@ -99,11 +101,11 @@ private[http4s] object IdentityHttp4sRoutes {
     }
 
   private def register(request: Request[IO], service: IdentityService): IO[Response[IO]] =
-    readStringFields(request).flatMap {
+    readRegistrationRequest(request).flatMap {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
-      case Right(fields) =>
-        IdentityCommandParsers.parseRegistrationCommand(fields) match {
+      case Right(registrationRequest) =>
+        IdentityCommandParsers.parseRegistrationCommand(registrationRequest) match {
           case Left(IdentityRegistrationCommandParseError.InvalidHandle) =>
             IO.pure(apiError(InvalidHandleError))
           case Left(IdentityRegistrationCommandParseError.InvalidPassword) =>
@@ -121,11 +123,11 @@ private[http4s] object IdentityHttp4sRoutes {
     }
 
   private def issueSession(request: Request[IO], service: IdentityService): IO[Response[IO]] =
-    readStringFields(request).flatMap {
+    readSessionRequest(request).flatMap {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
-      case Right(fields) =>
-        IdentityCommandParsers.parseSessionCommand(fields) match {
+      case Right(sessionRequest) =>
+        IdentityCommandParsers.parseSessionCommand(sessionRequest) match {
           case Left(IdentitySessionCommandParseError.InvalidCredentials) =>
             IO.pure(apiError(InvalidCredentialsError))
           case Right(command) =>
@@ -148,9 +150,15 @@ private[http4s] object IdentityHttp4sRoutes {
         IO.pure(apiError(InvalidSessionError))
     }
 
-  private def readStringFields(request: Request[IO]): IO[Either[String, Map[String, String]]] =
+  private def readRegistrationRequest(request: Request[IO]): IO[Either[String, IdentityRegistrationApiRequest]] =
     request
-      .as[Map[String, String]]
+      .as[IdentityRegistrationApiRequest]
+      .attempt
+      .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
+
+  private def readSessionRequest(request: Request[IO]): IO[Either[String, IdentitySessionApiRequest]] =
+    request
+      .as[IdentitySessionApiRequest]
       .attempt
       .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
 

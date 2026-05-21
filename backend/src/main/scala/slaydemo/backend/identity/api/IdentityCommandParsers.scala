@@ -5,14 +5,14 @@ import slaydemo.backend.identity.services.{IdentityRegistrationCommand, Identity
 
 object IdentityCommandParsers {
   def parseRegistrationCommand(
-    fields: Map[String, String]
+    request: IdentityRegistrationApiRequest
   ): Either[IdentityRegistrationCommandParseError, IdentityRegistrationCommand] =
     for {
-      handle <- PlayerHandle.forRegistration(fields.getOrElse("handle", ""))
+      handle <- PlayerHandle.forRegistration(request.handle.getOrElse(""))
         .toRight(IdentityRegistrationCommandParseError.InvalidHandle)
-      password <- PlainTextPassword.fromString(fields.getOrElse("password", ""))
+      password <- PlainTextPassword.fromString(request.password.getOrElse(""))
         .toRight(IdentityRegistrationCommandParseError.InvalidPassword)
-      skinId <- SkinId.fromString(fields.getOrElse("skinId", "blue"))
+      skinId <- SkinId.fromString(request.skinId.getOrElse("blue"))
         .toRight(IdentityRegistrationCommandParseError.InvalidSkin)
     } yield IdentityRegistrationCommand(
       handle = handle,
@@ -21,12 +21,12 @@ object IdentityCommandParsers {
     )
 
   def parseSessionCommand(
-    fields: Map[String, String]
+    request: IdentitySessionApiRequest
   ): Either[IdentitySessionCommandParseError, IdentitySessionCommand] =
     for {
-      handle <- PlayerHandle.forLookup(fields.getOrElse("handle", ""))
+      handle <- PlayerHandle.forLookup(request.handle.getOrElse(""))
         .toRight(IdentitySessionCommandParseError.InvalidCredentials)
-      password <- PlainTextPassword.fromString(fields.getOrElse("password", ""))
+      password <- PlainTextPassword.fromString(request.password.getOrElse(""))
         .toRight(IdentitySessionCommandParseError.InvalidCredentials)
     } yield IdentitySessionCommand(
       handle = handle,

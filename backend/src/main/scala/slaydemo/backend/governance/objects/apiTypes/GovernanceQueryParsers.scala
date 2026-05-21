@@ -1,4 +1,4 @@
-package slaydemo.backend.governance.routes
+package slaydemo.backend.governance.objects.apiTypes
 
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets

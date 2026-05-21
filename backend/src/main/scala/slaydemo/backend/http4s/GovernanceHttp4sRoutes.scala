@@ -12,14 +12,12 @@ import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListResponse,
   GovernanceCommandParsers,
+  GovernanceNotificationListQueryParseResult,
+  GovernanceQueryParsers,
   GovernanceReviewNotificationApiRequest,
   GovernanceReviewNotificationCommandParseError,
   GovernanceReviewNotificationCreateResponse,
   GovernanceReviewNotificationListResponse
-}
-import slaydemo.backend.governance.routes.{
-  GovernanceNotificationListQueryParseResult,
-  GovernanceQueryParsers
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}

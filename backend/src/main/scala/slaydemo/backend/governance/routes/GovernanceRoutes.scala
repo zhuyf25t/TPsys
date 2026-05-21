@@ -9,6 +9,8 @@ import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListResponse,
   GovernanceCommandParsers,
+  GovernanceNotificationListQueryParseResult,
+  GovernanceQueryParsers,
   GovernanceReviewNotificationCommandParseError,
   GovernanceReviewNotificationCreateResponse,
   GovernanceReviewNotificationListResponse

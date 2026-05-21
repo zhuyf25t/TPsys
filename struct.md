@@ -208,6 +208,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ForumRouteTargetParsers.scala` | `ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path。 |
 | `ForumRouteErrorMapper.scala` | `ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理命令。 |
+| `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query。 |
 | `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
 | `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
 | `BattleResultApiCodec.scala` | `BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
@@ -326,6 +327,7 @@ BackendHttp4sApp 不再间接构造旧 route object
 | 已完成 | `mail/routes/MailCommandParsers.scala` | `mail/objects/apiTypes/MailCommandParsers.scala` |
 | 已完成 | `social/routes/SocialCommandParsers.scala` | `social/objects/apiTypes/SocialCommandParsers.scala` |
 | 已完成 | `governance/routes/GovernanceCommandParsers.scala` | `governance/objects/apiTypes/GovernanceCommandParsers.scala` |
+| 已完成 | `governance/routes/GovernanceQueryParsers.scala` | `governance/objects/apiTypes/GovernanceQueryParsers.scala` |
 | 已完成 | `forum/routes/ForumCommandParsers.scala` | `forum/objects/apiTypes/ForumCommandParsers.scala` |
 | 已完成 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes/ReplayCommandParsers.scala` |
 | 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | `replay/objects/apiTypes/ReplayJsonObjectParser.scala` |

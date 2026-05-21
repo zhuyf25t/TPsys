@@ -1,15 +1,12 @@
 package slaydemo.backend.mail.objects.apiTypes
 
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
-
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.MailId
 import slaydemo.backend.shared.policies.HandlePolicy
 
 object MailCommandParsers {
-  def parseOwner(rawQuery: String): Either[MailRouteOwnerError, PlayerHandle] =
-    parseOwnerHandle(queryParams(rawQuery).get("ownerHandle"))
+  def parseOwner(ownerHandle: Option[String]): Either[MailRouteOwnerError, PlayerHandle] =
+    parseOwnerHandle(ownerHandle)
 
   def parseReadCommand(request: MailReadApiRequest): Either[MailRouteReadError, MailReadCommand] =
     parseReadCommandFields(ownerHandle = request.ownerHandle, mailId = request.mailId)
@@ -29,18 +26,6 @@ object MailCommandParsers {
         parseMailId(mailId).map(mailId => MailReadCommand(owner, mailId))
     }
 
-  private def queryParams(rawQuery: String): Map[String, String] =
-    Option(rawQuery).toVector
-      .flatMap(_.split("&").toVector)
-      .flatMap { pair =>
-        pair.split("=", 2).toList match {
-          case key :: value :: Nil if key.nonEmpty => Some(decode(key) -> decode(value))
-          case key :: Nil if key.nonEmpty          => Some(decode(key) -> "")
-          case _                                   => None
-        }
-      }
-      .toMap
-
   private def parseOwnerHandle(value: Option[String]): Either[MailRouteOwnerError, PlayerHandle] = {
     val trimmed = value.map(HandlePolicy.trim).getOrElse("")
     if trimmed.isEmpty then Left(MailRouteOwnerError.MissingOwner)
@@ -50,9 +35,6 @@ object MailCommandParsers {
 
   private def parseMailId(value: Option[String]): Either[MailRouteReadError, MailId] =
     value.map(_.trim).filter(_.nonEmpty).map(MailId.apply).toRight(MailRouteReadError.MissingMailId)
-
-  private def decode(value: String): String =
-    URLDecoder.decode(value, StandardCharsets.UTF_8)
 }
 
 final case class MailReadCommand(

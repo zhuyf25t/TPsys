@@ -20,7 +20,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
@@ -40,7 +40,7 @@ private[http4s] object GovernanceHttp4sRoutes {
           case Method.POST =>
             createContributionAdjustment(request, contributionAdjustmentService)
           case _ =>
-            IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed)))
+            errorResponse(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed))
         }
       case request if GovernanceRequestTarget.isAdminNotificationPath(requestPath(request)) =>
         request.method match {
@@ -51,7 +51,7 @@ private[http4s] object GovernanceHttp4sRoutes {
           case Method.POST =>
             createAdminNotification(request, notificationService)
           case _ =>
-            IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed)))
+            errorResponse(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed))
         }
     }
 
@@ -74,11 +74,11 @@ private[http4s] object GovernanceHttp4sRoutes {
       GovernanceApiErrorCode.InvalidJsonObject
     ).flatMap {
       case Left(errorCode) =>
-        IO.pure(apiError(governanceApiError(errorCode)))
+        errorResponse(governanceApiError(errorCode))
       case Right(parsedRequest) =>
         parsedRequest.toCommand match {
           case Left(error) =>
-            IO.pure(apiError(contributionAdjustmentApiError(error)))
+            errorResponse(contributionAdjustmentApiError(error))
           case Right(command) =>
             blocking(service.create(command)).map(result =>
               withCors(Response[IO](Status.Ok).withEntity(ContributionAdjustmentCreateResponse.fromResult(result).asJson))
@@ -112,11 +112,11 @@ private[http4s] object GovernanceHttp4sRoutes {
       GovernanceApiErrorCode.InvalidJsonObject
     ).flatMap {
       case Left(errorCode) =>
-        IO.pure(apiError(governanceApiError(errorCode)))
+        errorResponse(governanceApiError(errorCode))
       case Right(parsedRequest) =>
         parsedRequest.toCommand match {
           case Left(error) =>
-            IO.pure(apiError(reviewNotificationApiError(error)))
+            errorResponse(reviewNotificationApiError(error))
           case Right(command) =>
             blocking(service.createReviewNotification(command)).map(result =>
               withCors(

@@ -12,43 +12,12 @@ import slaydemo.backend.identity.objects.PlayerHandle
 
 object BattleRoomStateRouteContractTest {
   def main(args: Array[String]): Unit = {
-    queueStatusReturnsSnapshot()
-    queueLeaveReturnsOutcome()
     roomSnapshotAndHeartbeatUsePathRoomId()
     stateReadMapsSuccessAndNotFound()
     stateStreamEmitsFinishedStateAndCloses()
     legacyApiAliasesRemainSupported()
 
     println("Battle room/state route contract checks passed")
-  }
-
-  private def queueStatusReturnsSnapshot(): Unit = {
-    val queueService = RecordingBattleQueueService()
-
-    withBattleServer(queueService, RecordingBattleStateService()) { uri =>
-      val response = get(uri.resolve("/api/battle/queue/status?ticketId=ticket-route"))
-
-      assertEquals("status code", response.status, 200)
-      assertContains("status ticket", response.body, """"ticketId":"ticket-route"""")
-      assertContains("status phase", response.body, """"phase":"waiting"""")
-      assertContains("status battle session null", response.body, """"battleSession":null""")
-      assertNotContains("status omits absent rating", response.body, """"rating":null""")
-      assertNotContains("status omits absent avatar", response.body, """"avatar":null""")
-      assertNotContains("status omits absent skin", response.body, """"skin":null""")
-      assertEquals("status calls", queueService.statusCalls, Vector(TicketId("ticket-route")))
-    }
-  }
-
-  private def queueLeaveReturnsOutcome(): Unit = {
-    val queueService = RecordingBattleQueueService()
-
-    withBattleServer(queueService, RecordingBattleStateService()) { uri =>
-      val response = postJson(uri.resolve("/api/battle/queue/leave"), """{"ticketId":"ticket-route"}""")
-
-      assertEquals("leave status", response.status, 200)
-      assertEquals("leave body", response.body, """{"left":true}""")
-      assertEquals("leave calls", queueService.leaveCalls, Vector(TicketId("ticket-route")))
-    }
   }
 
   private def roomSnapshotAndHeartbeatUsePathRoomId(): Unit = {
@@ -111,12 +80,9 @@ object BattleRoomStateRouteContractTest {
     stateService.statesById = Map(BattleId("battle-route") -> battleState(phase = BattlePhase.Finished))
 
     withBattleServer(queueService, stateService) { uri =>
-      val status = get(uri.resolve("/api/battlequeuestatusapi?ticketId=ticket-route"))
       val snapshot = get(uri.resolve("/api/battleroomsnapshotapi?roomId=room-route"))
       val stream = get(uri.resolve("/api/battlestatestreamapi?battleId=battle-route"))
 
-      assertEquals("legacy status code", status.status, 200)
-      assertContains("legacy status ticket", status.body, """"ticketId":"ticket-route"""")
       assertEquals("legacy room snapshot status", snapshot.status, 200)
       assertContains("legacy room snapshot id", snapshot.body, """"roomId":"room-route"""")
       assertEquals("legacy state stream status", stream.status, 200)
@@ -129,14 +95,11 @@ object BattleRoomStateRouteContractTest {
     stateService: RecordingBattleStateService
   )(run: URI => A): A = {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
-    val routes = BattleRoutes(queueService, stateService, UnusedJoinAuthorizationService)
-    server.createContext("/api/battle/queue/status", exchange => routes.status(exchange))
-    server.createContext("/api/battle/queue/leave", exchange => routes.leave(exchange))
+    val routes = BattleRoutes(queueService, stateService)
     server.createContext("/api/battle/rooms/snapshot", exchange => routes.rooms(exchange))
     server.createContext("/api/battle/rooms/heartbeat", exchange => routes.rooms(exchange))
     server.createContext("/api/battle/state/stream", exchange => routes.state(exchange))
     server.createContext("/api/battle/state", exchange => routes.state(exchange))
-    server.createContext("/api/battlequeuestatusapi", exchange => routes.status(exchange))
     server.createContext("/api/battleroomsnapshotapi", exchange => routes.rooms(exchange))
     server.createContext("/api/battlestatestreamapi", exchange => routes.state(exchange))
     server.start()
@@ -163,23 +126,17 @@ object BattleRoomStateRouteContractTest {
   private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingBattleQueueService extends BattleQueueService {
-    var statusCalls: Vector[TicketId] = Vector.empty
-    var leaveCalls: Vector[TicketId] = Vector.empty
     var roomSnapshotCalls: Vector[RoomId] = Vector.empty
     var heartbeatCalls: Vector[RealtimeRoomHeartbeatCommand] = Vector.empty
 
     override def join(command: BattleQueueJoinCommand): BattleQueueSnapshot =
       failUnused()
 
-    override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] = {
-      statusCalls = statusCalls :+ ticketId
-      Right(queueSnapshot(ticketId))
-    }
+    override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] =
+      failUnused()
 
-    override def leave(ticketId: TicketId): BattleQueueLeaveOutcome = {
-      leaveCalls = leaveCalls :+ ticketId
-      BattleQueueLeaveOutcome.LeftQueue
-    }
+    override def leave(ticketId: TicketId): BattleQueueLeaveOutcome =
+      failUnused()
 
     override def roomSnapshot(roomId: RoomId): Either[BattleRoomError, RealtimeRoomSnapshot] = {
       roomSnapshotCalls = roomSnapshotCalls :+ roomId
@@ -210,28 +167,6 @@ object BattleRoomStateRouteContractTest {
     override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] =
       failUnused()
   }
-
-  private object UnusedJoinAuthorizationService extends BattleQueueJoinAuthorizationService {
-    override def authorize(command: BattleQueueJoinCommand): Either[BattleQueueJoinAuthorizationError, Unit] =
-      failUnused()
-  }
-
-  private def queueSnapshot(ticketId: TicketId): BattleQueueSnapshot =
-    BattleQueueSnapshot(
-      ticketId = ticketId,
-      playerId = PlayerId("player-route"),
-      roomId = RoomId("room-route"),
-      createdAt = EpochMillis(1_000L),
-      startsAt = EpochMillis(6_000L),
-      deadline = EpochMillis(6_000L),
-      serverTime = EpochMillis(1_500L),
-      participants = Vector(participant()),
-      capacity = BattleCapacity(2),
-      durationMs = DurationMillis(5_000L),
-      phase = MatchmakingRoomPhase.Waiting,
-      finishedAt = None,
-      battleSession = None
-    )
 
   private def roomSnapshotFor(roomId: RoomId): RealtimeRoomSnapshot =
     RealtimeRoomSnapshot(

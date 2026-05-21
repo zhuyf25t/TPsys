@@ -190,7 +190,8 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleRoutes.scala` | 否。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
 | `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 解码 command request。 |
-| `battle/routes/BattleQueueRouteHandler.scala` | 否。当前使用 `BattleQueueHttp4sRoutes`。 |
+| `battle/routes/BattleQueueRouteHandler.scala` | 已删除。当前使用 `BattleQueueHttp4sRoutes`，并由 `BattleQueueHttp4sJoin/Status/LeaveContractTest` 覆盖。 |
+| `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 解码 queue join request。 |
 | `battle/routes/BattleRoomRouteHandler.scala` | 否。当前使用 `BattleRoomHttp4sRoutes`。 |
 | `battle/routes/BattleStateRouteHandler.scala` | 否。当前使用 `BattleStateHttp4sRoutes`。 |
 | `battle/routes/BattleStateStreamWriter.scala` | 否。当前 http4s SSE 在 `BattleStateHttp4sRoutes` 内实现。 |
@@ -233,7 +234,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | governance | `GovernanceHttp4sRoutes` | `GovernanceRoutes` 已删除 |
 | replay | `ReplayHttp4sRoutes` | `ReplayRoutes` 已删除 |
 | bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` 已删除 |
-| battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler` |
+| battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler`、`BattleJoinCommandParser` 已删除 |
 | battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler` |
 | battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter` |
 | battle command | `BattleCommandHttp4sRoutes` | `BattleCommandRouteHandler`、`BattleCommandRequestParser` 已删除 |

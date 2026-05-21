@@ -12,6 +12,7 @@ import slaydemo.backend.identity.objects.PlayerHandle
 object BattleQueueHttp4sStatusContractTest {
   def main(args: Array[String]): Unit = {
     statusGetRendersQueueSnapshot()
+    restStatusPathOmitsAbsentParticipantCosmetics()
     missingTicketIdIsBadRequest()
     ticketNotFoundIsNotFound()
     unsupportedMethodIsRejected()
@@ -32,6 +33,20 @@ object BattleQueueHttp4sStatusContractTest {
     assertContains("finishedAt null", response.body, """"finishedAt":null""")
     assertContains("battleSession null", response.body, """"battleSession":null""")
     assertEquals("status ticket", service.statusTicketIds, Vector(TicketId("ticket-alice")))
+  }
+
+  private def restStatusPathOmitsAbsentParticipantCosmetics(): Unit = {
+    val service = RecordingBattleQueueService(Right(snapshot(rating = None, avatar = None, skin = None)))
+    val response = run(service, Request[IO](method = Method.GET, uri = uri"/api/battle/queue/status?ticketId=ticket-route"))
+
+    assertEquals("rest status code", response.status, 200)
+    assertContains("rest status ticket", response.body, """"ticketId":"ticket-alice"""")
+    assertContains("rest status phase", response.body, """"phase":"waiting"""")
+    assertContains("rest status battle session null", response.body, """"battleSession":null""")
+    assertNotContains("rest status omits absent rating", response.body, """"rating":null""")
+    assertNotContains("rest status omits absent avatar", response.body, """"avatar":null""")
+    assertNotContains("rest status omits absent skin", response.body, """"skin":null""")
+    assertEquals("rest status ticket id", service.statusTicketIds, Vector(TicketId("ticket-route")))
   }
 
   private def missingTicketIdIsBadRequest(): Unit = {
@@ -74,7 +89,11 @@ object BattleQueueHttp4sStatusContractTest {
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 
-  private def snapshot(): BattleQueueSnapshot =
+  private def snapshot(
+    rating: Option[Rating] = Some(Rating(1200)),
+    avatar: Option[String] = Some("blue"),
+    skin: Option[String] = Some("pilot")
+  ): BattleQueueSnapshot =
     BattleQueueSnapshot(
       ticketId = TicketId("ticket-alice"),
       playerId = PlayerId("alice"),
@@ -89,9 +108,9 @@ object BattleQueueHttp4sStatusContractTest {
           handle = PlayerHandle("alice"),
           joinedAt = EpochMillis(1_000L),
           lastSeen = EpochMillis(1_000L),
-          rating = Some(Rating(1200)),
-          avatar = Some("blue"),
-          skin = Some("pilot")
+          rating = rating,
+          avatar = avatar,
+          skin = skin
         )
       ),
       capacity = BattleCapacity(2),
@@ -147,4 +166,7 @@ object BattleQueueHttp4sStatusContractTest {
 
   private def assertContains(label: String, actual: String, expectedSubstring: String): Unit =
     assert(actual.contains(expectedSubstring), s"$label: expected body to contain $expectedSubstring, got $actual")
+
+  private def assertNotContains(label: String, actual: String, unexpectedSubstring: String): Unit =
+    assert(!actual.contains(unexpectedSubstring), s"$label: did not expect body to contain $unexpectedSubstring, got $actual")
 }

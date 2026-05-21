@@ -3,28 +3,16 @@ package slaydemo.backend.battle.routes
 import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.battle.services.{
-  BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleStateService
 }
 
 final class BattleRoutes(
   queueService: BattleQueueService,
-  battleStateService: BattleStateService,
-  joinAuthorizationService: BattleQueueJoinAuthorizationService
+  battleStateService: BattleStateService
 ) {
-  private val queueRouteHandler = BattleQueueRouteHandler(queueService, joinAuthorizationService)
   private val roomRouteHandler = BattleRoomRouteHandler(queueService)
   private val stateRouteHandler = BattleStateRouteHandler(battleStateService)
-
-  def join(exchange: HttpExchange): Unit =
-    queueRouteHandler.join(exchange)
-
-  def status(exchange: HttpExchange): Unit =
-    queueRouteHandler.status(exchange)
-
-  def leave(exchange: HttpExchange): Unit =
-    queueRouteHandler.leave(exchange)
 
   def rooms(exchange: HttpExchange): Unit =
     roomRouteHandler.handle(exchange)
@@ -36,8 +24,7 @@ final class BattleRoutes(
 object BattleRoutes {
   def apply(
     queueService: BattleQueueService,
-    battleStateService: BattleStateService,
-    joinAuthorizationService: BattleQueueJoinAuthorizationService
+    battleStateService: BattleStateService
   ): BattleRoutes =
-    new BattleRoutes(queueService, battleStateService, joinAuthorizationService)
+    new BattleRoutes(queueService, battleStateService)
 }

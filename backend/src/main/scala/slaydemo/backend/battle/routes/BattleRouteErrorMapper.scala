@@ -1,11 +1,6 @@
 package slaydemo.backend.battle.routes
 
-import slaydemo.backend.battle.services.{
-  BattleQueueJoinAuthorizationError,
-  BattleQueueStatusError,
-  BattleRoomError,
-  BattleStateReadError
-}
+import slaydemo.backend.battle.services.{BattleRoomError, BattleStateReadError}
 
 private[routes] final case class BattleRouteError(
   status: Int,
@@ -15,37 +10,6 @@ private[routes] final case class BattleRouteError(
 
 private[routes] object BattleRouteErrorMapper {
   def badJsonObject(message: String): BattleRouteError =
-    BattleRouteError(400, "bad_request", message)
-
-  def joinCommandParse(message: String): BattleRouteError =
-    BattleRouteError(400, "bad_request", message)
-
-  def joinCommandParse(error: BattleQueueJoinCommandParseError): BattleRouteError =
-    error match {
-      case BattleQueueJoinCommandParseError.InvalidHandle =>
-        BattleRouteError(400, "invalid_handle", "Handle must be a playable non-visitor handle.")
-      case BattleQueueJoinCommandParseError.MissingSession =>
-        BattleRouteError(401, "missing_session", "Session token is required.")
-    }
-
-  def joinAuthorization(error: BattleQueueJoinAuthorizationError): BattleRouteError =
-    error match {
-      case BattleQueueJoinAuthorizationError.InvalidSession =>
-        BattleRouteError(401, "invalid_session", "Session token is not valid.")
-      case BattleQueueJoinAuthorizationError.HandleMismatch =>
-        BattleRouteError(403, "identity_mismatch", "Session does not belong to the requested handle.")
-    }
-
-  def missingTicketId: BattleRouteError =
-    BattleRouteError(400, "missing_ticket_id", "ticketId query parameter is required.")
-
-  def queueStatus(error: BattleQueueStatusError): BattleRouteError =
-    error match {
-      case BattleQueueStatusError.TicketNotFound =>
-        BattleRouteError(404, "ticket_not_found", "Queue ticket was not found.")
-    }
-
-  def queueLeaveParse(message: String): BattleRouteError =
     BattleRouteError(400, "bad_request", message)
 
   def unsupportedPost: BattleRouteError =

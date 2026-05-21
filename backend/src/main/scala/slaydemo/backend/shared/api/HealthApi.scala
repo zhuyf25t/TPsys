@@ -1,7 +1,6 @@
 package slaydemo.backend.shared.api
 
 import io.circe.Encoder
-import io.circe.syntax.*
 
 import slaydemo.backend.shared.objects.{ServiceName, ServicePort}
 import slaydemo.backend.shared.storage.StorageMode
@@ -51,10 +50,4 @@ object HealthJsonCodec {
 
   given Encoder[HealthErrorResponse] =
     Encoder.forProduct1("error")(_.error)
-
-  def render(response: HealthResponse): String =
-    response.asJson.noSpaces
-
-  def renderError(response: HealthErrorResponse): String =
-    response.asJson.noSpaces
 }

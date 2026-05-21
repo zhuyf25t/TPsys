@@ -6,7 +6,7 @@ import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,
   MailListResponse,
@@ -33,7 +33,7 @@ private[http4s] object MailHttp4sRoutes {
           case Method.GET =>
             listMails(request, service)
           case _ =>
-            IO.pure(apiError(mailApiError(MailApiErrorCode.MethodNotAllowed)))
+            errorResponse(mailApiError(MailApiErrorCode.MethodNotAllowed))
         }
       case request if MailRequestTarget.isReadPath(requestPath(request)) =>
         request.method match {
@@ -42,14 +42,14 @@ private[http4s] object MailHttp4sRoutes {
           case Method.POST =>
             markRead(request, service)
           case _ =>
-            IO.pure(apiError(mailApiError(MailApiErrorCode.MethodNotAllowed)))
+            errorResponse(mailApiError(MailApiErrorCode.MethodNotAllowed))
         }
     }
 
   private def listMails(request: Request[IO], service: MailService): IO[Response[IO]] =
     MailOwnerQuery.parseFromQuery(request.params) match {
       case Left(error) =>
-        IO.pure(apiError(ownerApiError(error)))
+        errorResponse(ownerApiError(error))
       case Right(ownerHandle) =>
         blocking(service.list(ownerHandle)).flatMap(records =>
           Ok(MailListResponse.fromRecords(records).asJson).map(withCors)
@@ -59,17 +59,17 @@ private[http4s] object MailHttp4sRoutes {
   private def markRead(request: Request[IO], service: MailService): IO[Response[IO]] =
     readReadRequest(request).flatMap {
       case Left(MailReadApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(mailApiError(MailApiErrorCode.InvalidJsonObject)))
+        errorResponse(mailApiError(MailApiErrorCode.InvalidJsonObject))
       case Right(readRequest) =>
         readRequest.toCommand match {
           case Left(error) =>
-            IO.pure(apiError(readApiError(error)))
+            errorResponse(readApiError(error))
           case Right(command) =>
             blocking(service.markRead(command.ownerHandle, command.mailId)).flatMap {
               case Right(_) =>
                 Ok(MailReadResponse(ok = true).asJson).map(withCors)
               case Left(MailReadError.MailNotFound) =>
-                IO.pure(apiError(mailApiError(MailApiErrorCode.MailNotFound)))
+                errorResponse(mailApiError(MailApiErrorCode.MailNotFound))
             }
         }
     }

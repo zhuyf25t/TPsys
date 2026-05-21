@@ -7,7 +7,7 @@ import org.http4s.dsl.io.*
 import org.http4s.{Headers, HttpRoutes, Method, Request, Response}
 import org.typelevel.ci.CIString
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
@@ -34,7 +34,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Method.POST =>
             register(request, service)
           case _ =>
-            IO.pure(apiError(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed)))
+            errorResponse(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed))
         }
       case request if IdentityRequestTarget.isSessionPath(requestPath(request)) =>
         request.method match {
@@ -43,7 +43,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Method.POST =>
             issueSession(request, service)
           case _ =>
-            IO.pure(apiError(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed)))
+            errorResponse(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed))
         }
       case request if IdentityRequestTarget.isCurrentPath(requestPath(request)) =>
         request.method match {
@@ -52,7 +52,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Method.GET =>
             current(request, service)
           case _ =>
-            IO.pure(apiError(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed)))
+            errorResponse(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed))
         }
       case request if IdentityRequestTarget.isAccountsPath(requestPath(request)) =>
         request.method match {
@@ -63,24 +63,24 @@ private[http4s] object IdentityHttp4sRoutes {
               Ok(IdentityAccountsResponse(accounts).asJson).map(withCors)
             )
           case _ =>
-            IO.pure(apiError(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed)))
+            errorResponse(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed))
         }
     }
 
   private def register(request: Request[IO], service: IdentityService): IO[Response[IO]] =
     readRegistrationRequest(request).flatMap {
       case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(identityApiError(IdentityApiErrorCode.InvalidJsonObject)))
+        errorResponse(identityApiError(IdentityApiErrorCode.InvalidJsonObject))
       case Right(registrationRequest) =>
         registrationRequest.toCommand match {
           case Left(error) =>
-            IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromRegistrationParseError(error))))
+            errorResponse(identityApiError(IdentityApiErrorCode.fromRegistrationParseError(error)))
           case Right(command) =>
             blocking(service.register(command)).flatMap {
               case Right(account) =>
                 Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
               case Left(error) =>
-                IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromRegistrationServiceError(error))))
+                errorResponse(identityApiError(IdentityApiErrorCode.fromRegistrationServiceError(error)))
             }
         }
     }
@@ -88,17 +88,17 @@ private[http4s] object IdentityHttp4sRoutes {
   private def issueSession(request: Request[IO], service: IdentityService): IO[Response[IO]] =
     readSessionRequest(request).flatMap {
       case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(identityApiError(IdentityApiErrorCode.InvalidJsonObject)))
+        errorResponse(identityApiError(IdentityApiErrorCode.InvalidJsonObject))
       case Right(sessionRequest) =>
         sessionRequest.toCommand match {
           case Left(error) =>
-            IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromSessionParseError(error))))
+            errorResponse(identityApiError(IdentityApiErrorCode.fromSessionParseError(error)))
           case Right(command) =>
             blocking(service.issueSession(command)).flatMap {
               case Right(account) =>
                 Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
               case Left(error) =>
-                IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromSessionServiceError(error))))
+                errorResponse(identityApiError(IdentityApiErrorCode.fromSessionServiceError(error)))
             }
         }
     }
@@ -108,7 +108,7 @@ private[http4s] object IdentityHttp4sRoutes {
       case Right(account) =>
         Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
       case Left(error) =>
-        IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromCurrentSessionError(error))))
+        errorResponse(identityApiError(IdentityApiErrorCode.fromCurrentSessionError(error)))
     }
 
   private def readRegistrationRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentityRegistrationApiRequest]] =

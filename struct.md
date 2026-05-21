@@ -179,7 +179,9 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `social/routes/SocialRoutes.scala` | 已删除。当前使用 `SocialHttp4sRoutes`，并由 `SocialHttp4sContractTest` 覆盖。 |
 | `forum/routes/ForumRoutes.scala` | 否。当前使用 `ForumHttp4sRoutes`。 |
 | `governance/routes/GovernanceRoutes.scala` | 否。当前使用 `GovernanceHttp4sRoutes`。 |
-| `replay/routes/ReplayRoutes.scala` | 否。当前使用 `ReplayHttp4sRoutes`。 |
+| `replay/routes/ReplayRoutes.scala` | 已删除。当前使用 `ReplayHttp4sRoutes`，并由 `ReplayHttp4sCatalogContractTest` 覆盖。 |
+| `replay/routes/ReplayRouteTargetParsers.scala` | 已删除。旧 `ReplayRoutes` 专用 path/query parser 不再保留。 |
+| `replay/routes/ReplayRouteErrorMapper.scala` | 已删除。旧 `ReplayRoutes` 专用 error mapper 不再保留。 |
 | `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleRoutes.scala` | 否。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
 | `battle/routes/BattleCommandRouteHandler.scala` | 否。当前使用 `BattleCommandHttp4sRoutes`。 |
@@ -223,7 +225,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | social | `SocialHttp4sRoutes` | `SocialRoutes` 已删除 |
 | forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` |
 | governance | `GovernanceHttp4sRoutes` | `GovernanceRoutes` |
-| replay | `ReplayHttp4sRoutes` | `ReplayRoutes` |
+| replay | `ReplayHttp4sRoutes` | `ReplayRoutes` 已删除 |
 | bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` 已删除 |
 | battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler` |
 | battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler` |

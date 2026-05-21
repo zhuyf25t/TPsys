@@ -33,7 +33,6 @@ import slaydemo.backend.http4s.{
   SocialHttp4sContractTest
 }
 import slaydemo.backend.identity.ports.PasswordHasherContractTest
-import slaydemo.backend.replay.routes.ReplayRouteContractTest
 import slaydemo.backend.shared.database.{PostgresRepositoryBoundaryContractTest, PostgresSupportContractTest}
 import slaydemo.backend.shared.storage.StorageConfigContractTest
 
@@ -79,7 +78,6 @@ object BackendContractTestRunner {
     run("password hasher", () => PasswordHasherContractTest.main(Array.empty))
     run("identity service", () => IdentityServiceContractTest.main(Array.empty))
     run("mail service", () => MailServiceContractTest.main(Array.empty))
-    run("replay route", () => ReplayRouteContractTest.main(Array.empty))
     run("replay service", () => ReplayServiceContractTest.main(Array.empty))
     run("storage config", () => StorageConfigContractTest.main(Array.empty))
     run("battle finish projection plan", () => BattleFinishProjectionPlanContractTest.main(Array.empty))

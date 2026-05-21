@@ -41,6 +41,8 @@ object ReplayHttp4sCatalogContractTest {
     legacyCatalogPathIsSupported()
     catalogPostRecordsReplay()
     detailAndCommentsUseFrontendProxyPaths()
+    invalidReplayIdPathIsBadRequest()
+    badJsonRecordPostUsesTypedDto()
     unsupportedMethodIsRejected()
 
     println("Replay http4s catalog contract checks passed")
@@ -61,10 +63,14 @@ object ReplayHttp4sCatalogContractTest {
   private def legacyCatalogPathIsSupported(): Unit = {
     val service = RecordingReplayService(Vector(replayRecord()))
     val response = run(service, Request[IO](method = Method.GET, uri = uri"/replay/catalog?limit=1"))
+    val apiAliasResponse = run(service, Request[IO](method = Method.GET, uri = uri"/api/replay/catalog?handle=Bob&limit=1"))
 
     assertEquals("legacy catalog status", response.status, 200)
     assertContains("legacy catalog replay id", response.body, """"replayId":"route-replay"""")
     assertContains("legacy catalog base result", response.body, """"resultLabel":"Victory"""")
+    assertEquals("api alias catalog status", apiAliasResponse.status, 200)
+    assertContains("api alias catalog replay id", apiAliasResponse.body, """"replayId":"route-replay"""")
+    assertContains("api alias catalog selected result", apiAliasResponse.body, """"resultLabel":"Defeat"""")
   }
 
   private def catalogPostRecordsReplay(): Unit = {
@@ -88,7 +94,9 @@ object ReplayHttp4sCatalogContractTest {
           body = "first",
           createdAt = EpochMillis(2_000L)
         )
-      )
+      ),
+      Left(ReplayCommentError.InvalidBody),
+      Left(ReplayCommentError.ReplayNotFound)
     )
 
     val detail = run(service, Request[IO](method = Method.GET, uri = uri"/replay/catalog/route-replay?handle=Bob"))
@@ -98,15 +106,57 @@ object ReplayHttp4sCatalogContractTest {
       Request[IO](method = Method.POST, uri = uri"/replay/catalog/route-replay/comments")
         .withEntity("""{"authorHandle":"Alice","body":" first "}""")
     )
+    val invalidBody = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/replay/catalog/route-replay/comments")
+        .withEntity("""{"authorHandle":"Alice","body":" "}""")
+    )
+    val missingReplay = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/replay/catalog/route-replay/comments")
+        .withEntity("""{"authorHandle":"Alice","body":"again"}""")
+    )
 
     assertEquals("detail status", detail.status, 200)
     assertContains("detail selected handle", detail.body, """"handle":"Bob"""")
+    assertContains("detail selected display name", detail.body, """"displayName":"Bob"""")
+    assertContains("detail selected score", detail.body, """"score":3""")
     assertContains("detail frames", detail.body, """"frames":[{"elapsedMs":0}]""")
     assertEquals("initial comments status", initialComments.status, 200)
     assertContains("initial comments envelope", initialComments.body, """"comments":[]""")
     assertEquals("posted comment status", postedComment.status, 201)
     assertContains("posted comment id", postedComment.body, """"id":"comment-http4s"""")
-    assertEquals("comment command count", service.commentCommands.length, 1)
+    assertEquals("comment invalid body status", invalidBody.status, 400)
+    assertContains("comment invalid body code", invalidBody.body, """"code":"invalid_body"""")
+    assertEquals("comment missing replay status", missingReplay.status, 404)
+    assertContains("comment missing replay code", missingReplay.body, """"code":"replay_not_found"""")
+    assertEquals("comment command count", service.commentCommands.length, 3)
+    assertEquals("comment command replay id", service.commentCommands.head.replayId, ReplayId("route-replay"))
+    assertEquals("comment command author", service.commentCommands.head.authorHandle, PlayerHandle("Alice"))
+    assertEquals("comment command body is raw", service.commentCommands.head.body, " first ")
+    assert(service.loadedReplayIds.contains(ReplayId("route-replay")), "detail/comments should load route-replay")
+  }
+
+  private def invalidReplayIdPathIsBadRequest(): Unit = {
+    val service = RecordingReplayService(Vector(replayRecord()))
+    val response = run(service, Request[IO](method = Method.GET, uri = org.http4s.Uri.unsafeFromString("/replay/catalog/bad%20id")))
+
+    assertEquals("invalid replay id status", response.status, 400)
+    assertContains("invalid replay id code", response.body, """"code":"invalid_replay_id"""")
+    assertEquals("invalid replay id does not call load", service.loadedReplayIds, Vector.empty)
+  }
+
+  private def badJsonRecordPostUsesTypedDto(): Unit = {
+    val service = RecordingReplayService(Vector.empty)
+    val response = run(service, Request[IO](method = Method.POST, uri = uri"/replay/catalog").withEntity("{bad-json}"))
+
+    assertEquals("typed error response status", response.status, 400)
+    assertEquals(
+      "typed error response body",
+      response.body,
+      """{"error":"Request body must be a JSON object.","code":"bad_request"}"""
+    )
+    assertEquals("bad json does not record replay", service.recordCommands, Vector.empty)
   }
 
   private def unsupportedMethodIsRejected(): Unit = {
@@ -190,6 +240,8 @@ object ReplayHttp4sCatalogContractTest {
       Vector.empty
     private var recordedCommentCommands: Vector[ReplayCommentCommand] =
       Vector.empty
+    private var recordedLoadedReplayIds: Vector[ReplayId] =
+      Vector.empty
     var commentResults: Vector[Either[ReplayCommentError, ReplayCommentRecord]] =
       Vector.empty
 
@@ -199,6 +251,9 @@ object ReplayHttp4sCatalogContractTest {
     def commentCommands: Vector[ReplayCommentCommand] =
       recordedCommentCommands
 
+    def loadedReplayIds: Vector[ReplayId] =
+      recordedLoadedReplayIds
+
     override def record(command: ReplayRecordCommand): Either[ReplayRecordError, ReplayRecord] = {
       recordedRecordCommands = recordedRecordCommands :+ command
       Right(replayRecord().copy(replayId = command.replayId, battleId = command.battleId, handle = command.handle))
@@ -207,8 +262,10 @@ object ReplayHttp4sCatalogContractTest {
     override def list(limit: Int): Vector[ReplayRecord] =
       records.take(limit)
 
-    override def load(replayId: ReplayId): Option[ReplayRecord] =
+    override def load(replayId: ReplayId): Option[ReplayRecord] = {
+      recordedLoadedReplayIds = recordedLoadedReplayIds :+ replayId
       records.find(_.replayId == replayId)
+    }
 
     override def addComment(command: ReplayCommentCommand): Either[ReplayCommentError, ReplayCommentRecord] = {
       recordedCommentCommands = recordedCommentCommands :+ command

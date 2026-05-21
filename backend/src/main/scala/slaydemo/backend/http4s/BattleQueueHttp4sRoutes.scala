@@ -26,35 +26,35 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleQueueStatusError
 }
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val InvalidJsonObjectError =
-    HttpApiError(
-      status = Status.BadRequest,
+    typedApiError(
+      statusCode = 400,
       code = "bad_request",
       message = "Request body must be a JSON object with supported primitive or object fields."
     )
   private val MissingTicketIdError =
-    HttpApiError(status = Status.BadRequest, code = "missing_ticket_id", message = "ticketId query parameter is required.")
+    typedApiError(statusCode = 400, code = "missing_ticket_id", message = "ticketId query parameter is required.")
   private val MissingLeaveTicketIdError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "ticketId is required.")
+    typedApiError(statusCode = 400, code = "bad_request", message = "ticketId is required.")
   private val TicketNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "ticket_not_found", message = "Queue ticket was not found.")
+    typedApiError(statusCode = 404, code = "ticket_not_found", message = "Queue ticket was not found.")
   private val InvalidHandleError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_handle", message = "Handle must be a playable non-visitor handle.")
+    typedApiError(statusCode = 400, code = "invalid_handle", message = "Handle must be a playable non-visitor handle.")
   private val InvalidRatingError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "rating must be an integer.")
+    typedApiError(statusCode = 400, code = "bad_request", message = "rating must be an integer.")
   private val MissingSessionError =
-    HttpApiError(status = Status.Unauthorized, code = "missing_session", message = "Session token is required.")
+    typedApiError(statusCode = 401, code = "missing_session", message = "Session token is required.")
   private val InvalidSessionError =
-    HttpApiError(status = Status.Unauthorized, code = "invalid_session", message = "Session token is not valid.")
+    typedApiError(statusCode = 401, code = "invalid_session", message = "Session token is not valid.")
   private val IdentityMismatchError =
-    HttpApiError(status = Status.Forbidden, code = "identity_mismatch", message = "Session does not belong to the requested handle.")
+    typedApiError(statusCode = 403, code = "identity_mismatch", message = "Session does not belong to the requested handle.")
   private val StatusMethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only GET and OPTIONS are supported.")
+    methodNotAllowedError("Only GET and OPTIONS are supported.")
   private val PostMethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only POST and OPTIONS are supported.")
+    methodNotAllowedError("Only POST and OPTIONS are supported.")
 
   def statusRoutes(service: BattleQueueService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {

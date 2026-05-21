@@ -20,17 +20,17 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
+    methodNotAllowedError("Method is not allowed.")
   private val TopicNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "topic_not_found", message = "topic_not_found")
+    codeMessageError(statusCode = 404, code = "topic_not_found")
   private val ReplyNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "reply_not_found", message = "reply_not_found")
+    codeMessageError(statusCode = 404, code = "reply_not_found")
   private val InvalidJsonObjectError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
+    typedApiError(statusCode = 400, code = "bad_request", message = "Request body must be a JSON object with string fields.")
 
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
@@ -194,14 +194,6 @@ private[http4s] object ForumHttp4sRoutes {
     routeError(code)
   }
 
-  private def statusFrom(value: Int): Status =
-    value match {
-      case 400 => Status.BadRequest
-      case 403 => Status.Forbidden
-      case 404 => Status.NotFound
-      case _   => Status.InternalServerError
-    }
-
   private def isForumPath(request: Request[IO]): Boolean =
     path(request).startsWith("/forum/") || path(request).startsWith("/api/forum/")
 
@@ -218,6 +210,6 @@ private[http4s] object ForumHttp4sRoutes {
 
   private def routeError(code: ForumApiErrorCode): HttpApiError = {
     val wireCode = ForumApiErrorCode.wireValue(code)
-    HttpApiError(status = statusFrom(ForumApiErrorCode.statusCode(code)), code = wireCode, message = wireCode)
+    codeMessageError(statusCode = ForumApiErrorCode.statusCode(code), code = wireCode)
   }
 }

@@ -15,19 +15,19 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleResultHttp4sRoutes {
   private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only GET, POST, HEAD, and OPTIONS are supported.")
+    methodNotAllowedError("Only GET, POST, HEAD, and OPTIONS are supported.")
   private val BadJsonError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object.")
+    typedApiError(statusCode = 400, code = "bad_request", message = "Request body must be a JSON object.")
   private val InvalidBattleIdError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_battle_id", message = "invalid_battle_id")
+    codeMessageError(statusCode = 400, code = "invalid_battle_id")
   private val InvalidHandleError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_handle", message = "invalid_handle")
+    codeMessageError(statusCode = 400, code = "invalid_handle")
   private val VisitorNotAllowedError =
-    HttpApiError(status = Status.Forbidden, code = "visitor_not_allowed", message = "visitor_not_allowed")
+    codeMessageError(statusCode = 403, code = "visitor_not_allowed")
 
   def routes(service: BattleResultService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {

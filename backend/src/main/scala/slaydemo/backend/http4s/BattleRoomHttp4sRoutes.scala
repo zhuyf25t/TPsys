@@ -15,23 +15,23 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_room_id", message = "roomId is required.")
+    typedApiError(statusCode = 400, code = "invalid_room_id", message = "roomId is required.")
   private val InvalidJsonObjectError =
-    HttpApiError(
-      status = Status.BadRequest,
+    typedApiError(
+      statusCode = 400,
       code = "bad_request",
       message = "Request body must be a JSON object with supported primitive or object fields."
     )
   private val RoomNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "room_not_found", message = "Battle room was not found.")
+    typedApiError(statusCode = 404, code = "room_not_found", message = "Battle room was not found.")
   private val SnapshotMethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only GET and OPTIONS are supported.")
+    methodNotAllowedError("Only GET and OPTIONS are supported.")
   private val HeartbeatMethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only POST and OPTIONS are supported.")
+    methodNotAllowedError("Only POST and OPTIONS are supported.")
 
   def snapshotRoutes(queueService: BattleQueueService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {

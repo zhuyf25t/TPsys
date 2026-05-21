@@ -6,7 +6,7 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
 import slaydemo.backend.shared.api.{HealthApiErrorCode, HealthRequestTarget}
 import slaydemo.backend.shared.api.HealthJsonCodec.given
 import slaydemo.backend.shared.services.HealthService
@@ -31,15 +31,9 @@ private[http4s] object HealthHttp4sRoutes {
     HealthRequestTarget.isHealthPath(request.uri.path.renderString)
 
   private def healthApiError(code: HealthApiErrorCode): HttpApiError =
-    HttpApiError(
-      status = statusFrom(HealthApiErrorCode.statusCode(code)),
+    typedApiError(
+      statusCode = HealthApiErrorCode.statusCode(code),
       code = HealthApiErrorCode.wireValue(code),
       message = HealthApiErrorCode.message(code)
     )
-
-  private def statusFrom(value: Int): Status =
-    value match {
-      case 405 => Status.MethodNotAllowed
-      case _   => Status.InternalServerError
-    }
 }

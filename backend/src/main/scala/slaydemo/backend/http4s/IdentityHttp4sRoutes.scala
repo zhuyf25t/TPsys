@@ -7,7 +7,7 @@ import org.http4s.dsl.io.*
 import org.http4s.{Headers, HttpRoutes, Method, Request, Response, Status}
 import org.typelevel.ci.CIString
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
@@ -130,20 +130,11 @@ private[http4s] object IdentityHttp4sRoutes {
     headers.get(CIString(name)).flatMap(_.toList.headOption.map(_.value))
 
   private def identityApiError(code: IdentityApiErrorCode): HttpApiError =
-    HttpApiError(
-      status = statusFrom(IdentityApiErrorCode.statusCode(code)),
+    typedApiError(
+      statusCode = IdentityApiErrorCode.statusCode(code),
       code = IdentityApiErrorCode.wireValue(code),
       message = IdentityApiErrorCode.message(code)
     )
-
-  private def statusFrom(value: Int): Status =
-    value match {
-      case 400 => Status.BadRequest
-      case 401 => Status.Unauthorized
-      case 405 => Status.MethodNotAllowed
-      case 409 => Status.Conflict
-      case _   => Status.InternalServerError
-    }
 
   private def path(request: Request[IO]): String =
     request.uri.path.renderString

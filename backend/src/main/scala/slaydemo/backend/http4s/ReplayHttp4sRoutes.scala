@@ -6,7 +6,7 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
@@ -167,20 +167,11 @@ private[http4s] object ReplayHttp4sRoutes {
     ReplayApiCodec.catalogTarget(request.uri.path.renderString)
 
   private def replayApiError(code: ReplayApiErrorCode): HttpApiError =
-    HttpApiError(
-      status = statusFrom(ReplayApiErrorCode.statusCode(code)),
+    typedApiError(
+      statusCode = ReplayApiErrorCode.statusCode(code),
       code = ReplayApiErrorCode.wireValue(code),
       message = ReplayApiErrorCode.message(code)
     )
-
-  private def statusFrom(value: Int): Status =
-    value match {
-      case 400 => Status.BadRequest
-      case 403 => Status.Forbidden
-      case 404 => Status.NotFound
-      case 405 => Status.MethodNotAllowed
-      case _   => Status.InternalServerError
-    }
 
   private object CatalogRequest {
     def unapply(request: Request[IO]): Option[ReplayCatalogTarget] =

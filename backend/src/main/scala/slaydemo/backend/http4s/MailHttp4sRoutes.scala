@@ -6,7 +6,7 @@ import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,
   MailListResponse,
@@ -87,20 +87,11 @@ private[http4s] object MailHttp4sRoutes {
     mailApiError(MailApiErrorCode.fromReadError(error))
 
   private def mailApiError(code: MailApiErrorCode): HttpApiError =
-    HttpApiError(
-      status = statusFrom(MailApiErrorCode.statusCode(code)),
+    typedApiError(
+      statusCode = MailApiErrorCode.statusCode(code),
       code = MailApiErrorCode.wireValue(code),
       message = MailApiErrorCode.message(code)
     )
-
-  private def statusFrom(value: Int): Status =
-    value match {
-      case 400 => Status.BadRequest
-      case 403 => Status.Forbidden
-      case 404 => Status.NotFound
-      case 405 => Status.MethodNotAllowed
-      case _   => Status.InternalServerError
-    }
 
   private def path(request: Request[IO]): String =
     request.uri.path.renderString

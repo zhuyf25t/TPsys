@@ -20,7 +20,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
@@ -129,19 +129,11 @@ private[http4s] object GovernanceHttp4sRoutes {
     governanceApiError(GovernanceApiErrorCode.fromReviewNotificationError(error))
 
   private def governanceApiError(code: GovernanceApiErrorCode): HttpApiError =
-    HttpApiError(
-      status = statusFrom(GovernanceApiErrorCode.statusCode(code)),
+    typedApiError(
+      statusCode = GovernanceApiErrorCode.statusCode(code),
       code = GovernanceApiErrorCode.wireValue(code),
       message = GovernanceApiErrorCode.message(code)
     )
-
-  private def statusFrom(value: Int): Status =
-    value match {
-      case 400 => Status.BadRequest
-      case 403 => Status.Forbidden
-      case 405 => Status.MethodNotAllowed
-      case _   => Status.InternalServerError
-    }
 
   private def path(request: Request[IO]): String =
     request.uri.path.renderString

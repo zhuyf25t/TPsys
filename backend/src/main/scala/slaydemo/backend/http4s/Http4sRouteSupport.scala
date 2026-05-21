@@ -29,6 +29,26 @@ private[http4s] object Http4sRouteSupport {
       )
     )
 
+  def typedApiError(statusCode: Int, code: String, message: String): HttpApiError =
+    HttpApiError(status = statusFrom(statusCode), code = code, message = message)
+
+  def methodNotAllowedError(message: String): HttpApiError =
+    typedApiError(statusCode = 405, code = "method_not_allowed", message = message)
+
+  def codeMessageError(statusCode: Int, code: String): HttpApiError =
+    typedApiError(statusCode = statusCode, code = code, message = code)
+
+  def statusFrom(statusCode: Int): Status =
+    statusCode match {
+      case 400 => Status.BadRequest
+      case 401 => Status.Unauthorized
+      case 403 => Status.Forbidden
+      case 404 => Status.NotFound
+      case 405 => Status.MethodNotAllowed
+      case 409 => Status.Conflict
+      case _   => Status.InternalServerError
+    }
+
   def withCors(response: Response[IO]): Response[IO] =
     response.putHeaders(
       Header.Raw(CIString("Access-Control-Allow-Origin"), "*"),

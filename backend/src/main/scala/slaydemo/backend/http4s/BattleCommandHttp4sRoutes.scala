@@ -15,25 +15,25 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleCommandHttp4sRoutes {
   private val InvalidJsonObjectError =
-    HttpApiError(
-      status = Status.BadRequest,
+    typedApiError(
+      statusCode = 400,
       code = "bad_request",
       message = "Request body must be a JSON object with supported primitive or object fields."
     )
   private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only POST and OPTIONS are supported.")
+    methodNotAllowedError("Only POST and OPTIONS are supported.")
   private val CommandNotAuthorizedError =
-    HttpApiError(status = Status.Forbidden, code = "command_not_authorized", message = "command_not_authorized")
+    codeMessageError(statusCode = 403, code = "command_not_authorized")
   private val BattleNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "battle_not_found", message = "battle_not_found")
+    codeMessageError(statusCode = 404, code = "battle_not_found")
   private val PlayerNotFoundError =
-    HttpApiError(status = Status.BadRequest, code = "player_not_found", message = "player_not_found")
+    codeMessageError(statusCode = 400, code = "player_not_found")
   private val BotCommandsNotSupportedError =
-    HttpApiError(status = Status.BadRequest, code = "bot_commands_not_supported", message = "bot_commands_not_supported")
+    codeMessageError(statusCode = 400, code = "bot_commands_not_supported")
 
   def routes(battleStateService: BattleStateService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
@@ -91,6 +91,6 @@ private[http4s] object BattleCommandHttp4sRoutes {
 
   private def invalidFieldError(field: BattleCommandRequestField): HttpApiError = {
     val code = BattleCommandRequestField.errorCode(field)
-    HttpApiError(status = Status.BadRequest, code = code, message = code)
+    codeMessageError(statusCode = 400, code = code)
   }
 }

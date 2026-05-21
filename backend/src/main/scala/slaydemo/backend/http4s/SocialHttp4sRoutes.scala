@@ -6,7 +6,7 @@ import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,
@@ -119,20 +119,11 @@ private[http4s] object SocialHttp4sRoutes {
     socialApiError(SocialApiErrorCode.fromRespondRouteError(error))
 
   private def socialApiError(code: SocialApiErrorCode): HttpApiError =
-    HttpApiError(
-      status = statusFrom(SocialApiErrorCode.statusCode(code)),
+    typedApiError(
+      statusCode = SocialApiErrorCode.statusCode(code),
       code = SocialApiErrorCode.wireValue(code),
       message = SocialApiErrorCode.message(code)
     )
-
-  private def statusFrom(value: Int): Status =
-    value match {
-      case 400 => Status.BadRequest
-      case 403 => Status.Forbidden
-      case 404 => Status.NotFound
-      case 405 => Status.MethodNotAllowed
-      case _   => Status.InternalServerError
-    }
 
   private def path(request: Request[IO]): String =
     request.uri.path.renderString

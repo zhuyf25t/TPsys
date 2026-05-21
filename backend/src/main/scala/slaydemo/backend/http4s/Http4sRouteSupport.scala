@@ -2,7 +2,7 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.Json
-import org.http4s.{Header, Request, Response, Status}
+import org.http4s.{EntityDecoder, Header, Request, Response, Status}
 import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.typelevel.ci.CIString
@@ -35,6 +35,12 @@ private[http4s] object Http4sRouteSupport {
       case Right(json) =>
         decode(json)
     }
+
+  def decodeEntityBody[E, A](
+    request: Request[IO],
+    invalidBody: E
+  )(using EntityDecoder[IO, A]): IO[Either[E, A]] =
+    request.as[A].attempt.map(_.left.map(_ => invalidBody))
 
   def apiError(status: Status, code: String, message: String): Response[IO] =
     apiError(HttpApiError(status = status, code = code, message = message))

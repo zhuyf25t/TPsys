@@ -6,7 +6,7 @@ import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, typedApiError, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,
   MailListResponse,
@@ -75,10 +75,10 @@ private[http4s] object MailHttp4sRoutes {
     }
 
   private def readReadRequest(request: Request[IO]): IO[Either[MailReadApiRequestDecodeError, MailReadApiRequest]] =
-    request
-      .as[MailReadApiRequest]
-      .attempt
-      .map(_.left.map(_ => MailReadApiRequestDecodeError.InvalidJsonObject))
+    decodeEntityBody[MailReadApiRequestDecodeError, MailReadApiRequest](
+      request,
+      MailReadApiRequestDecodeError.InvalidJsonObject
+    )
 
   private def ownerApiError(error: MailRouteOwnerError): HttpApiError =
     mailApiError(MailApiErrorCode.fromOwnerError(error))

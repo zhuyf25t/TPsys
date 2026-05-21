@@ -6,7 +6,7 @@ import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, typedApiError, withCors}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,
@@ -98,16 +98,16 @@ private[http4s] object SocialHttp4sRoutes {
     }
 
   private def readCreateRequest(request: Request[IO]): IO[Either[SocialApiRequestDecodeError, FriendRequestCreateApiRequest]] =
-    request
-      .as[FriendRequestCreateApiRequest]
-      .attempt
-      .map(_.left.map(_ => SocialApiRequestDecodeError.InvalidJsonObject))
+    decodeEntityBody[SocialApiRequestDecodeError, FriendRequestCreateApiRequest](
+      request,
+      SocialApiRequestDecodeError.InvalidJsonObject
+    )
 
   private def readRespondRequest(request: Request[IO]): IO[Either[SocialApiRequestDecodeError, FriendRequestRespondApiRequest]] =
-    request
-      .as[FriendRequestRespondApiRequest]
-      .attempt
-      .map(_.left.map(_ => SocialApiRequestDecodeError.InvalidJsonObject))
+    decodeEntityBody[SocialApiRequestDecodeError, FriendRequestRespondApiRequest](
+      request,
+      SocialApiRequestDecodeError.InvalidJsonObject
+    )
 
   private def ownerApiError(error: SocialRouteHandleError): HttpApiError =
     socialApiError(SocialApiErrorCode.fromOwnerError(error))

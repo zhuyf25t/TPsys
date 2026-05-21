@@ -7,7 +7,7 @@ import org.http4s.dsl.io.*
 import org.http4s.{Headers, HttpRoutes, Method, Request, Response}
 import org.typelevel.ci.CIString
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, typedApiError, withCors}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
@@ -112,16 +112,16 @@ private[http4s] object IdentityHttp4sRoutes {
     }
 
   private def readRegistrationRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentityRegistrationApiRequest]] =
-    request
-      .as[IdentityRegistrationApiRequest]
-      .attempt
-      .map(_.left.map(_ => IdentityApiRequestDecodeError.InvalidJsonObject))
+    decodeEntityBody[IdentityApiRequestDecodeError, IdentityRegistrationApiRequest](
+      request,
+      IdentityApiRequestDecodeError.InvalidJsonObject
+    )
 
   private def readSessionRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentitySessionApiRequest]] =
-    request
-      .as[IdentitySessionApiRequest]
-      .attempt
-      .map(_.left.map(_ => IdentityApiRequestDecodeError.InvalidJsonObject))
+    decodeEntityBody[IdentityApiRequestDecodeError, IdentitySessionApiRequest](
+      request,
+      IdentityApiRequestDecodeError.InvalidJsonObject
+    )
 
   private def parseSessionToken(request: Request[IO]): Option[SessionToken] =
     IdentitySessionTokenParser.parseFromHeaderLookup(name => headerValue(request.headers, name))

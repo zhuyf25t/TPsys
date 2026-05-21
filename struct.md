@@ -174,6 +174,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | 旧 route 文件 | 当前 8080 是否处理请求 |
 | --- | --- |
 | `shared/routes/HealthRoutes.scala` | 已删除。当前使用 `HealthHttp4sRoutes`，并由 `HealthHttp4sRouteContractTest` 覆盖。 |
+| `shared/routes/HttpRouteSupport.scala` | 已删除。旧 `HttpExchange` helper 已无源码引用，当前使用 `http4s/Http4sRouteSupport.scala`。 |
 | `identity/routes/IdentityRoutes.scala` | 已删除。当前使用 `IdentityHttp4sRoutes`，并由 `IdentityHttp4sContractTest` 覆盖。 |
 | `mail/routes/MailRoutes.scala` | 已删除。当前使用 `MailHttp4sRoutes`，并由 `MailHttp4sContractTest` 覆盖。 |
 | `social/routes/SocialRoutes.scala` | 已删除。当前使用 `SocialHttp4sRoutes`，并由 `SocialHttp4sContractTest` 覆盖。 |
@@ -226,7 +227,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
 
-结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；旧顶层 Java HttpServer 入口和 route catalog/registry 已删除。下一步可以开始评估删除旧 `HttpExchange` route wrapper，但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter。
+结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；旧顶层 Java HttpServer 入口、route catalog/registry、旧 `HttpExchange` route wrapper 和旧 route contract tests 已删除。
 
 ## 7. 当前逻辑重复的位置
 
@@ -258,7 +259,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 
 | 风格 | 文件 | 当前问题 |
 | --- | --- | --- |
-| 旧手写字符串 JSON | `shared/routes/HttpRouteSupport.scala`；battle 旧手写 state JSON renderer 已删除 | 容易漏字段、转义错误、和 Circe DTO drift。 |
+| 旧手写字符串 JSON | battle 旧手写 state JSON renderer 已删除；旧 `shared/routes/HttpRouteSupport.scala` 已删除 | 容易漏字段、转义错误、和 Circe DTO drift。 |
 | typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`http4s/*Routes.scala` | 当前运行路径正在使用，但还没有完全替代旧手写 route JSON。 |
 
 最明显的重复：
@@ -269,7 +270,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleCommandRequestParser.scala` 已删除 | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` 已删除 | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
 | `battle/routes/BattleResultCommandParsers.scala` + manual route response | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes` |
-| `shared/routes/HttpRouteSupport.sendJsonError` | `http4s/Http4sRouteSupport.apiError` |
+| `shared/routes/HttpRouteSupport.sendJsonError` 已删除 | `http4s/Http4sRouteSupport.apiError` |
 
 风险：测试通过某一路径不等于另一条路径正确。battle command 已改为只保留当前运行的 `BattleCommandAPIRequest.decode`，避免旧 parser 和 http4s parser 继续 drift。
 
@@ -357,7 +358,7 @@ BackendHttp4sApp 不再间接构造旧 route object
 
 ```text
 shared/routes/HealthRoutes.scala（已删除）
-shared/routes/HttpRouteSupport.scala
+shared/routes/HttpRouteSupport.scala（已删除）
 各 domain/routes/*Routes.scala
 各 domain/routes/*RouteHandler.scala
 battle/routes/BattleStateStreamWriter.scala 已删除
@@ -384,24 +385,24 @@ battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
 | `objects/apiTypes/**` | 当前 http4s route 的 typed contract 层正在使用。 |
 | `Postgres*Repository` | 当前 postgres 运行模式正在使用。 |
 | `InMemoryBattleQueueService`、`InMemoryBattleStateService` | 名字带 InMemory，但当前 battle 排队和 battle state runtime 实际就是它们。 |
-| `*CommandParsers`、`*RouteTargetParsers`、`*RouteErrorMapper` 中被 http4s import 的部分 | 还在当前 http4s 路径被调用；需要先迁包再删旧 route。 |
+| `*CommandParsers`、`*RouteTargetParsers`、`*RouteErrorMapper` 中被 http4s import 的部分 | 已迁出旧 `routes` 包；当前由 `api` 或 `objects/apiTypes` 持有。 |
 
 ## 10. 下一步建议
 
-最高优先级不是继续大改 service，而是把当前 http4s 仍复用的 parser/codec 从 `routes` 包迁出去。
+最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests 和旧 battle 手写 JSON renderer 已清完；下一步应聚焦 service 简化或继续减少 `apiTypes` 中的手写 codec。
 
 推荐下一个小票：
 
 ```text
 BE-API-PARSER-MOVE-01
-目标：把当前 http4s 仍复用的 parser/codec 从 routes 包迁移到 apiTypes 或 api 包。
-收益：routes 目录只剩真正 route adapter，便于删除 legacy route。
+目标：已完成。当前 http4s 不再复用旧 routes 包中的 parser/codec。
+收益：legacy route 已可删除，且已完成删除。
 ```
 
 最后再做：
 
 ```text
 BE-LEGACY-ROUTES-REMOVE-01
-目标：删除旧 Java HttpServer 入口和旧 HttpExchange route wrappers。
+目标：已完成。旧 Java HttpServer 入口和旧 HttpExchange route wrappers 已删除。
 前提：所有 contract tests 已经覆盖 http4s 路径。
 ```

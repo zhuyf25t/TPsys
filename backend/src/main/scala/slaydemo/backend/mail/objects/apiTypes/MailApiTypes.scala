@@ -26,6 +26,10 @@ final case class MailReadApiRequest(
     MailCommandParsers.parseReadCommand(this)
 }
 
+enum MailReadApiRequestDecodeError {
+  case InvalidJsonObject
+}
+
 object MailReadApiRequest {
   given Decoder[MailReadApiRequest] = (cursor: HCursor) =>
     cursor.value.asObject match {

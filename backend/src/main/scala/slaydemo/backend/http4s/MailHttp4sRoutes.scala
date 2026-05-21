@@ -11,6 +11,7 @@ import slaydemo.backend.mail.objects.apiTypes.{
   MailListResponse,
   MailOwnerQuery,
   MailReadApiRequest,
+  MailReadApiRequestDecodeError,
   MailReadResponse,
   MailRequestTarget,
   MailRouteOwnerError,
@@ -31,6 +32,8 @@ private[http4s] object MailHttp4sRoutes {
     HttpApiError(status = Status.BadRequest, code = "missing_mail_id", message = "missing_mail_id")
   private val MailNotFoundError =
     HttpApiError(status = Status.NotFound, code = "mail_not_found", message = "mail_not_found")
+  private val InvalidJsonObjectError =
+    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
 
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
@@ -69,8 +72,8 @@ private[http4s] object MailHttp4sRoutes {
 
   private def markRead(request: Request[IO], service: MailService): IO[Response[IO]] =
     readReadRequest(request).flatMap {
-      case Left(message) =>
-        IO.pure(apiError(badRequest(message)))
+      case Left(MailReadApiRequestDecodeError.InvalidJsonObject) =>
+        IO.pure(apiError(InvalidJsonObjectError))
       case Right(readRequest) =>
         readRequest.toCommand match {
           case Left(error) =>
@@ -85,11 +88,11 @@ private[http4s] object MailHttp4sRoutes {
         }
     }
 
-  private def readReadRequest(request: Request[IO]): IO[Either[String, MailReadApiRequest]] =
+  private def readReadRequest(request: Request[IO]): IO[Either[MailReadApiRequestDecodeError, MailReadApiRequest]] =
     request
       .as[MailReadApiRequest]
       .attempt
-      .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
+      .map(_.left.map(_ => MailReadApiRequestDecodeError.InvalidJsonObject))
 
   private def ownerApiError(error: MailRouteOwnerError): HttpApiError =
     error match {
@@ -109,6 +112,4 @@ private[http4s] object MailHttp4sRoutes {
   private def path(request: Request[IO]): String =
     request.uri.path.renderString
 
-  private def badRequest(message: String): HttpApiError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = message)
 }

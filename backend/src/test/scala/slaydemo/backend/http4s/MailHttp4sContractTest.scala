@@ -125,7 +125,11 @@ object MailHttp4sContractTest {
     )
 
     assertEquals("bad body status", badBody.status, 400)
-    assertContains("bad body code", badBody.body, """"code":"bad_request"""")
+    assertEquals(
+      "bad body",
+      badBody.body,
+      """{"error":"Request body must be a JSON object with string fields.","code":"bad_request"}"""
+    )
     assertEquals("missing read owner status", missingOwner.status, 400)
     assertContains("missing read owner code", missingOwner.body, """"code":"missing_owner"""")
     assertEquals("missing mail id status", missingMailId.status, 400)

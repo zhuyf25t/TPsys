@@ -162,8 +162,8 @@ object GovernanceHttp4sContractTest {
     notificationService: GovernanceNotificationService,
     request: Request[IO]
   ): RouteResponse = {
-    val response = BackendHttp4sRoutes
-      .governanceRoutes(contributionService, notificationService)
+    val response = GovernanceHttp4sRoutes
+      .routes(contributionService, notificationService)
       .orNotFound
       .run(request)
       .unsafeRunSync()

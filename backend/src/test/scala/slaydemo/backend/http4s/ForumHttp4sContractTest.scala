@@ -197,7 +197,7 @@ object ForumHttp4sContractTest {
   }
 
   private def run(service: ForumService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.forumRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = ForumHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

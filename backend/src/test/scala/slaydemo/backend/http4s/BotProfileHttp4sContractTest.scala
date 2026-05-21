@@ -52,8 +52,8 @@ object BotProfileHttp4sContractTest {
   }
 
   private def run(service: BotProfileService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes
-      .botProfileRoutes(service)
+    val response = BotProfileHttp4sRoutes
+      .routes(service)
       .orNotFound
       .run(request)
       .unsafeRunSync()

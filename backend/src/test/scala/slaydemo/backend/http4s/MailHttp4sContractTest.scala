@@ -140,7 +140,7 @@ object MailHttp4sContractTest {
   }
 
   private def run(service: MailService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.mailRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = MailHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

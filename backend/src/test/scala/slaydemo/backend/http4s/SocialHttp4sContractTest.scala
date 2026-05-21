@@ -175,7 +175,7 @@ object SocialHttp4sContractTest {
   }
 
   private def run(service: FriendRequestService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.socialRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = SocialHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

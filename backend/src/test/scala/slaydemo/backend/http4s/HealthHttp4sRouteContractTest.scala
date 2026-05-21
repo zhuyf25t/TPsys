@@ -60,7 +60,7 @@ object HealthHttp4sRouteContractTest {
   }
 
   private def run(service: RecordingHealthService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.healthRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = HealthHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

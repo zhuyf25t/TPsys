@@ -182,7 +182,7 @@ object ReplayHttp4sCatalogContractTest {
   }
 
   private def run(service: RecordingReplayService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.replayCatalogRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = ReplayHttp4sRoutes.catalogRoutes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

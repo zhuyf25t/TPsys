@@ -201,7 +201,7 @@ object IdentityHttp4sContractTest {
   }
 
   private def run(service: IdentityService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.identityRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = IdentityHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

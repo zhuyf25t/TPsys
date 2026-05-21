@@ -20,7 +20,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, requestPath, typedApiError, withCors}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
@@ -31,7 +31,7 @@ private[http4s] object GovernanceHttp4sRoutes {
     notificationService: GovernanceNotificationService
   ): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if GovernanceRequestTarget.isContributionAdjustmentPath(path(request)) =>
+      case request if GovernanceRequestTarget.isContributionAdjustmentPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -42,7 +42,7 @@ private[http4s] object GovernanceHttp4sRoutes {
           case _ =>
             IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed)))
         }
-      case request if GovernanceRequestTarget.isAdminNotificationPath(path(request)) =>
+      case request if GovernanceRequestTarget.isAdminNotificationPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -141,6 +141,4 @@ private[http4s] object GovernanceHttp4sRoutes {
       message = GovernanceApiErrorCode.message(code)
     )
 
-  private def path(request: Request[IO]): String =
-    request.uri.path.renderString
 }

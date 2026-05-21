@@ -20,7 +20,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -43,19 +43,19 @@ private[http4s] object ForumHttp4sRoutes {
             corsNoContent
           case Method.HEAD =>
             corsOk
-          case Method.GET if ForumApiTargetParsers.isTopicsCollection(path(request)) =>
+          case Method.GET if ForumApiTargetParsers.isTopicsCollection(requestPath(request)) =>
             blocking(service.listTopics(viewerHandle(request))).flatMap(topics =>
               Ok(ForumTopicListResponse.fromViews(topics).asJson).map(withCors)
             )
           case Method.GET =>
             loadTopic(request, service)
-          case Method.POST if ForumApiTargetParsers.isTopicsCollection(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isTopicsCollection(requestPath(request)) =>
             createTopic(request, service)
-          case Method.POST if ForumApiTargetParsers.isReplyVotesPath(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isReplyVotesPath(requestPath(request)) =>
             setReplyVote(request, service)
-          case Method.POST if ForumApiTargetParsers.isRepliesPath(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isRepliesPath(requestPath(request)) =>
             addReply(request, service)
-          case Method.POST if ForumApiTargetParsers.isTopicVotesPath(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isTopicVotesPath(requestPath(request)) =>
             setTopicVote(request, service)
           case _ =>
             IO.pure(apiError(MethodNotAllowedError))
@@ -63,7 +63,7 @@ private[http4s] object ForumHttp4sRoutes {
     }
 
   private def loadTopic(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumApiTargetParsers.topicIdFrom(path(request)) match {
+    ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
       case None =>
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
@@ -94,7 +94,7 @@ private[http4s] object ForumHttp4sRoutes {
     }
 
   private def addReply(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumApiTargetParsers.topicIdFrom(path(request)) match {
+    ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
       case None =>
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
@@ -117,7 +117,7 @@ private[http4s] object ForumHttp4sRoutes {
     }
 
   private def setTopicVote(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumApiTargetParsers.topicIdFrom(path(request)) match {
+    ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
       case None =>
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
@@ -141,8 +141,8 @@ private[http4s] object ForumHttp4sRoutes {
 
   private def setReplyVote(request: Request[IO], service: ForumService): IO[Response[IO]] =
     (
-      ForumApiTargetParsers.topicIdFrom(path(request)),
-      ForumApiTargetParsers.replyIdFrom(path(request))
+      ForumApiTargetParsers.topicIdFrom(requestPath(request)),
+      ForumApiTargetParsers.replyIdFrom(requestPath(request))
     ) match {
       case (Some(topicId), Some(replyId)) =>
         parseBody(request).flatMap {
@@ -195,10 +195,8 @@ private[http4s] object ForumHttp4sRoutes {
   }
 
   private def isForumPath(request: Request[IO]): Boolean =
-    path(request).startsWith("/forum/") || path(request).startsWith("/api/forum/")
-
-  private def path(request: Request[IO]): String =
-    request.uri.path.renderString
+    val path = requestPath(request)
+    path.startsWith("/forum/") || path.startsWith("/api/forum/")
 
   private def voteCommandApiError(error: ForumVoteCommandParseError): HttpApiError =
     error match {

@@ -6,7 +6,7 @@ import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, requestPath, typedApiError, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,
   MailListResponse,
@@ -26,7 +26,7 @@ private[http4s] object MailHttp4sRoutes {
 
   def routes(service: MailService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if MailRequestTarget.isListPath(path(request)) =>
+      case request if MailRequestTarget.isListPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -35,7 +35,7 @@ private[http4s] object MailHttp4sRoutes {
           case _ =>
             IO.pure(apiError(mailApiError(MailApiErrorCode.MethodNotAllowed)))
         }
-      case request if MailRequestTarget.isReadPath(path(request)) =>
+      case request if MailRequestTarget.isReadPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -92,8 +92,5 @@ private[http4s] object MailHttp4sRoutes {
       code = MailApiErrorCode.wireValue(code),
       message = MailApiErrorCode.message(code)
     )
-
-  private def path(request: Request[IO]): String =
-    request.uri.path.renderString
 
 }

@@ -7,7 +7,7 @@ import org.http4s.dsl.io.*
 import org.http4s.{Headers, HttpRoutes, Method, Request, Response}
 import org.typelevel.ci.CIString
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, requestPath, typedApiError, withCors}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
@@ -27,7 +27,7 @@ private[http4s] object IdentityHttp4sRoutes {
 
   def routes(service: IdentityService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if IdentityRequestTarget.isRegisterPath(path(request)) =>
+      case request if IdentityRequestTarget.isRegisterPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -36,7 +36,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case _ =>
             IO.pure(apiError(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed)))
         }
-      case request if IdentityRequestTarget.isSessionPath(path(request)) =>
+      case request if IdentityRequestTarget.isSessionPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -45,7 +45,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case _ =>
             IO.pure(apiError(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed)))
         }
-      case request if IdentityRequestTarget.isCurrentPath(path(request)) =>
+      case request if IdentityRequestTarget.isCurrentPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -54,7 +54,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case _ =>
             IO.pure(apiError(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed)))
         }
-      case request if IdentityRequestTarget.isAccountsPath(path(request)) =>
+      case request if IdentityRequestTarget.isAccountsPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
@@ -135,8 +135,5 @@ private[http4s] object IdentityHttp4sRoutes {
       code = IdentityApiErrorCode.wireValue(code),
       message = IdentityApiErrorCode.message(code)
     )
-
-  private def path(request: Request[IO]): String =
-    request.uri.path.renderString
 
 }

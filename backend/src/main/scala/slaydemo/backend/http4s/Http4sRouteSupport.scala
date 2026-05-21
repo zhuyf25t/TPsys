@@ -17,6 +17,9 @@ private[http4s] object Http4sRouteSupport {
   def blocking[A](thunk: => A): IO[A] =
     IO.blocking(thunk)
 
+  def requestPath(request: Request[IO]): String =
+    request.uri.path.renderString
+
   def corsNoContent: IO[Response[IO]] =
     IO.pure(withCors(Response[IO](Status.NoContent)))
 

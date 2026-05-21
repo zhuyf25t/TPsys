@@ -1,6 +1,5 @@
-package slaydemo.backend.battle.routes
+package slaydemo.backend.battle.objects.apiTypes
 
-import slaydemo.backend.battle.objects.apiTypes.{BattleResultListResponse, BattleResultRecordResponse}
 import slaydemo.backend.battle.objects.{BattleId, BattleResultRecord}
 import slaydemo.backend.battle.services.BattleResultRecordCommand
 import slaydemo.backend.identity.objects.PlayerHandle

@@ -1,19 +1,19 @@
-package slaydemo.backend.battle.routes
+package slaydemo.backend.battle.objects.apiTypes
 
-private[routes] enum ResultJsonValue {
+private[apiTypes] enum ResultJsonValue {
   case StringValue(value: String)
   case NumberValue(value: Double)
   case BooleanValue(value: Boolean)
   case NullValue
 }
 
-private[routes] enum ResultJsonParseError {
+private[apiTypes] enum ResultJsonParseError {
   case ExpectedObject
   case ExpectedField
   case ExpectedValue
 }
 
-private[routes] object ResultJsonObjectParser {
+private[apiTypes] object ResultJsonObjectParser {
   def parse(body: String): Either[ResultJsonParseError, Map[String, ResultJsonValue]] = {
     val trimmed = Option(body).getOrElse("").trim
     if trimmed.isEmpty then Right(Map.empty)

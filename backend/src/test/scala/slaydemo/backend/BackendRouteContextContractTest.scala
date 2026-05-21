@@ -84,18 +84,7 @@ object BackendRouteContextContractTest {
 
   private def registeredHandlersMatchRouteCatalog(): Unit = {
     val runtime = BackendRuntime.fromEnvironment(Map("SLAY_DEMO_STORAGE_MODE" -> "memory"))
-    val handlers = BackendRouteRegistry.routeHandlers(
-      healthRoutes = runtime.healthRoutes,
-      identityRoutes = runtime.identityRoutes,
-      battleRoutes = runtime.battleRoutes,
-      battleResultRoutes = runtime.battleResultRoutes,
-      replayRoutes = runtime.replayRoutes,
-      mailRoutes = runtime.mailRoutes,
-      botProfileRoutes = runtime.botProfileRoutes,
-      socialRoutes = runtime.socialRoutes,
-      forumRoutes = runtime.forumRoutes,
-      governanceRoutes = runtime.governanceRoutes
-    )
+    val handlers = BackendApp.legacyRouteHandlers(runtime)
 
     assertEquals(
       "registered handler paths",

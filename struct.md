@@ -1,231 +1,397 @@
-# Frontend Domain Page Import Structure
+# 后端运行结构审计
 
-## 1. 扫描范围
+本文只分析当前后端运行时真正起作用的代码、当前 8080 请求链完全用不到的代码、以及重复逻辑。判断依据以当前机器上的运行进程、启动脚本和 `backend/src/main` 源码为准。
 
-本文件整理 `frontend/src/domains/**/pages/**/*.{ts,tsx}` 中的 page 级 import 关系，并额外展开 `battle/pages/battle/lib`。原因是 `BattlePage.tsx` 本身只 import 本域 lib，但这些 lib 承担了真实跨 domain 数据聚合。
+## 1. 结论
 
-不纳入统计：
-
-- 第三方库：`react`、`react-router-dom` 等。
-- 同 domain 内部 import：例如 `battle/pages/battle/lib/useBattlePageRuntime` 引用 `battle/runtime`。
-- 非 page 层普通 runtime/component 之间的依赖，除非它们位于 page lib 下并直接服务 page。
-
-当前前端 domain：
-
-| Domain | 是否有 pages | 说明 |
-| --- | --- | --- |
-| `battle` | 是 | 配装页、战斗页，是当前跨域聚合最重的 domain。 |
-| `forum` | 是 | 讨论列表和详情页。 |
-| `governance` | 是 | 排行页、贡献页。 |
-| `identity` | 是 | 玩家档案页。 |
-| `mail` | 是 | 站内信页。 |
-| `replay` | 是 | 回放列表和详情页。 |
-| `social` | 否 | 没有 page，但被多个 page 引用为社交组件和好友请求能力。 |
-| `bots` | 否 | 当前未被 page 直接引用。 |
-
-## 2. App Routes 到 Page 的入口表
-
-入口文件：`frontend/src/app/routes.tsx`
-
-| Route | Page | Domain |
-| --- | --- | --- |
-| `/` | `HomePage` | `app` |
-| `/loadout` | `LoadoutPage` | `battle` |
-| `/battle` | `BattlePage` | `battle` |
-| `/replay` | `ReplayPage` | `replay` |
-| `/replay/:id` | `ReplayDetailPage` | `replay` |
-| `/mails` | `MailsPage` | `mail` |
-| `/rating` | `RatingPage` | `governance` |
-| `/contribution` | `ContributionPage` | `governance` |
-| `/profile/:handle` | `ProfilePage` | `identity` |
-| `/discussion` | `DiscussionPage` | `forum` |
-| `/discussion/:id` | `DiscussionDetailPage` | `forum` |
-
-路由层本身是合理的组合根：它从各 domain 引入 Page，不代表 domain 之间互相依赖。
-
-## 3. Domain Page 跨域 Import 表
-
-| Page 或 Page Lib | Source Domain | Target Domain | 主要 import | 判断 |
-| --- | --- | --- | --- | --- |
-| `battle/pages/loadout/LoadoutPage.tsx` | `battle` | `identity` | `authGateway`, `AuthOverlay` | 配装页需要登录状态和登录弹窗，合理但应保持在页面组合层。 |
-| `battle/pages/loadout/LoadoutPage.tsx` | `battle` | `forum` | `forumGateway` | 用于大厅讨论摘要，属于跨域聚合。 |
-| `battle/pages/loadout/LoadoutPage.tsx` | `battle` | `mail` | `mailsGateway` | 用于大厅站内信摘要，属于跨域聚合。 |
-| `battle/pages/loadout/LoadoutPage.tsx` | `battle` | `governance` | `ratingGateway` | 用于排行榜摘要，属于跨域聚合。 |
-| `battle/pages/loadout/LoadoutPage.tsx` | `battle` | `replay` | `replayGateway` | 用于回放摘要，属于跨域聚合。 |
-| `battle/pages/loadout/LoadoutPage.tsx` | `battle` | `social` | `friendRequestGateway`, `friendRequestPreviewPresenter` | 用于好友请求预览，属于跨域聚合。 |
-| `battle/pages/loadout/LoadoutPage.tsx` | `battle` | `shared` | `LobbyShell`, `useLobbyData` | 共享 UI 依赖，合理。 |
-| `battle/pages/battle/BattlePage.tsx` | `battle` | `shared` | `QuickPreviewOverlay` | 共享 UI 依赖，合理。 |
-| `battle/pages/battle/lib/useBattlePageData.ts` | `battle` | `identity` | `authGateway` | 战斗页读取当前用户，合理但应通过 page data 层隔离。 |
-| `battle/pages/battle/lib/useBattlePageData.ts` | `battle` | `forum` | `forumGateway` | 战斗页抽屉数据，属于跨域聚合。 |
-| `battle/pages/battle/lib/useBattlePageData.ts` | `battle` | `mail` | `mailsGateway` | 战斗页抽屉数据，属于跨域聚合。 |
-| `battle/pages/battle/lib/useBattlePageData.ts` | `battle` | `governance` | `ratingGateway` | 战斗页抽屉数据，属于跨域聚合。 |
-| `battle/pages/battle/lib/useBattlePageData.ts` | `battle` | `replay` | `replayGateway` | 战斗页抽屉数据，属于跨域聚合。 |
-| `battle/pages/battle/lib/useBattlePageData.ts` | `battle` | `social` | `friendRequestGateway`, `friendRequestPreviewPresenter` | 战斗页抽屉数据，属于跨域聚合。 |
-| `battle/pages/battle/lib/battleDrawerPresenter.ts` | `battle` | `forum` | `forumGateway` 类型 | 抽屉 presenter 直接知道 forum 数据类型。 |
-| `battle/pages/battle/lib/battleDrawerPresenter.ts` | `battle` | `mail` | `mailsGateway` | 抽屉会调用 mail read 操作，跨域副作用较强。 |
-| `battle/pages/battle/lib/battleDrawerPresenter.ts` | `battle` | `governance` | `ratingGateway` 类型 | 抽屉 presenter 直接知道 rating 数据类型。 |
-| `battle/pages/battle/lib/battleDrawerPresenter.ts` | `battle` | `replay` | `replayGateway` 类型 | 抽屉 presenter 直接知道 replay 数据类型。 |
-| `battle/pages/battle/lib/battleDrawerPresenter.ts` | `battle` | `social` | `friendRequestPreviewPresenter` 类型 | 抽屉 presenter 直接知道 social 展示模型。 |
-| `battle/pages/battle/lib/activeBattleSessionStore.ts` | `battle` | `replay` | `replayRecorder` | battle session 直接压缩 replay frame，属于 battle 和 replay 的强耦合点。 |
-| `battle/pages/battle/lib/battlePageTypes.ts` | `battle` | `replay` | `replayTypes` | 页面状态类型引用 replay frame，属于可接受但需留意的类型耦合。 |
-| `battle/pages/battle/lib/useBattlePageRuntime.ts` | `battle` | `replay` | `replayRecorder`, `replayTypes` | 战斗运行时直接生成 replay frame，是 battle -> replay 的业务依赖。 |
-| `forum/pages/discussion-list/DiscussionPage.tsx` | `forum` | `social` | `UserActionDot` | 讨论页展示用户社交入口，合理。 |
-| `forum/pages/discussion-list/DiscussionPage.tsx` | `forum` | `shared` | `ShellLayout` | 共享 UI 依赖，合理。 |
-| `forum/pages/discussion-detail/DiscussionDetailPage.tsx` | `forum` | `social` | `UserActionDot` | 讨论详情展示用户社交入口，合理。 |
-| `forum/pages/discussion-detail/DiscussionDetailPage.tsx` | `forum` | `shared` | `ShellLayout` | 共享 UI 依赖，合理。 |
-| `governance/pages/rating/RatingPage.tsx` | `governance` | `identity` | `authGateway` | 排行页读取当前用户，合理。 |
-| `governance/pages/rating/RatingPage.tsx` | `governance` | `social` | `UserActionDot` | 排行页展示用户社交入口，合理。 |
-| `governance/pages/rating/RatingPage.tsx` | `governance` | `shared` | `ShellLayout`, `useLobbyData` | 共享 UI/大厅数据依赖，合理。 |
-| `governance/pages/contribution/ContributionPage.tsx` | `governance` | `identity` | `authGateway` | 贡献页读取当前用户，合理。 |
-| `governance/pages/contribution/ContributionPage.tsx` | `governance` | `social` | `UserActionDot` | 贡献页展示用户社交入口，合理。 |
-| `governance/pages/contribution/ContributionPage.tsx` | `governance` | `shared` | `ShellLayout`, `useLobbyData` | 共享 UI/大厅数据依赖，合理。 |
-| `identity/pages/profile/ProfilePage.tsx` | `identity` | `social` | `UserActionDot` | 个人档案展示社交入口，合理。 |
-| `identity/pages/profile/ProfilePage.tsx` | `identity` | `shared` | `ShellLayout` | 共享 UI 依赖，合理。 |
-| `mail/pages/inbox/MailsPage.tsx` | `mail` | `identity` | `authGateway` | 站内信需要当前用户和管理员判断，合理。 |
-| `mail/pages/inbox/MailsPage.tsx` | `mail` | `governance` | `governanceGateway` | 邮件页处理治理通知，属于跨域业务耦合。 |
-| `mail/pages/inbox/MailsPage.tsx` | `mail` | `social` | `friendRequestGateway`, `UserActionDot` | 邮件页处理社交通知和用户入口，合理但偏聚合。 |
-| `mail/pages/inbox/MailsPage.tsx` | `mail` | `shared` | `ShellLayout` | 共享 UI 依赖，合理。 |
-| `replay/pages/replay-list/ReplayPage.tsx` | `replay` | `identity` | `authGateway` | 回放列表读取当前用户，合理。 |
-| `replay/pages/replay-list/ReplayPage.tsx` | `replay` | `governance` | `governanceGateway` | 回放页提交治理审核通知，属于跨域业务耦合。 |
-| `replay/pages/replay-list/ReplayPage.tsx` | `replay` | `shared` | `ShellLayout` | 共享 UI 依赖，合理。 |
-| `replay/pages/replay-detail/ReplayDetailPage.tsx` | `replay` | `identity` | `authGateway` | 回放详情读取当前用户，合理。 |
-| `replay/pages/replay-detail/ReplayDetailPage.tsx` | `replay` | `governance` | `governanceGateway` | 回放详情提交治理审核通知，属于跨域业务耦合。 |
-| `replay/pages/replay-detail/ReplayDetailPage.tsx` | `replay` | `social` | `UserActionDot` | 回放详情展示用户社交入口，合理。 |
-| `replay/pages/replay-detail/ReplayDetailPage.tsx` | `replay` | `shared` | `ShellLayout` | 共享 UI 依赖，合理。 |
-
-## 4. Battle Page 间接依赖展开
-
-`BattlePage.tsx` 表面依赖较少：
+当前 8080 上运行的后端不是旧的 `BackendApp`，而是 http4s 入口：
 
 ```text
-BattlePage.tsx
-  -> ./lib/useBattlePageRuntime
-  -> ./lib/battleDrawerPresenter
-  -> BattleChrome
-  -> QuickPreviewOverlay
+npm run backend:dev
+  -> cd backend && sbt "runMain slaydemo.backend.http4s.BackendHttp4sApp"
+  -> backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala
 ```
 
-但 `battle/pages/battle/lib` 内部承担了大量跨 domain 组合：
+关键结论：
 
-| Lib 文件 | 跨域依赖 | 职责 |
+| 问题 | 结论 |
+| --- | --- |
+| 真正在跑的是不是 `src/main` 代码 | 是。入口类在 `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala`，不是 `src/test`。 |
+| 真正在跑的是不是旧 `BackendApp` | 不是。旧入口 `slaydemo.backend.BackendApp` 仍存在，但当前 8080 进程没有使用它。 |
+| 真正在跑的是不是 Git 的 `main` 分支 | 不是。当前分支是 `multimodule`，当前 HEAD 是 `8d6fbe6 Cover proxy-stripped battle routes`。 |
+| 当前服务入口 | `slaydemo.backend.http4s.BackendHttp4sApp`。 |
+| 当前 HTTP 框架 | http4s + Ember server + cats-effect `IO`。 |
+| 当前存储模式 | `/api/health` 返回 `storageMode = postgres`，所以当前实际运行使用 Postgres 仓库实现。 |
+
+所以需要区分两个“main”：
+
+1. 源码层级的 main：当前运行的是 `backend/src/main` 下的正式代码。
+2. Git 分支的 main：当前工作区不是 `main` 分支，而是 `multimodule` 分支。
+
+## 2. 当前真正起作用的运行链
+
+当前 8080 进程命令行显示：
+
+```text
+runMain slaydemo.backend.http4s.BackendHttp4sApp
+```
+
+运行链如下：
+
+```text
+BackendHttp4sApp.run
+  -> BackendEnvironment.load()
+  -> BackendRuntime.fromEnvironment(env)
+  -> BackendRepositories.fromStorage(config.storage)
+  -> BackendHttp4sRoutes.backendRoutes(...)
+  -> EmberServerBuilder.default[IO]
+  -> .withHost(0.0.0.0)
+  -> .withPort(config.port)
+  -> .withHttpApp(httpApp)
+```
+
+真正接收 HTTP 请求的是：
+
+| 层级 | 起作用的代码 |
+| --- | --- |
+| 进程入口 | `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala` |
+| 运行时装配 | `backend/src/main/scala/slaydemo/backend/BackendRuntime.scala` |
+| 仓库装配 | `backend/src/main/scala/slaydemo/backend/BackendRepositories.scala`、`BackendLiveRepositoryFactories.scala` |
+| http4s 总路由 | `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sRoutes.scala` |
+| http4s 通用支持 | `backend/src/main/scala/slaydemo/backend/http4s/Http4sRouteSupport.scala` |
+
+## 3. 当前真正处理请求的 http4s route
+
+这些文件是当前 8080 请求链上的 route adapter：
+
+| 文件 | 当前作用 |
+| --- | --- |
+| `http4s/HealthHttp4sRoutes.scala` | 健康检查。 |
+| `http4s/IdentityHttp4sRoutes.scala` | 注册、登录、当前用户、账号列表。 |
+| `http4s/MailHttp4sRoutes.scala` | 邮件列表和已读操作。 |
+| `http4s/SocialHttp4sRoutes.scala` | 好友请求创建、查询、响应。 |
+| `http4s/ForumHttp4sRoutes.scala` | 讨论区 topic、reply、vote。 |
+| `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知。 |
+| `http4s/ReplayHttp4sRoutes.scala` | replay catalog、详情、评论。 |
+| `http4s/BotProfileHttp4sRoutes.scala` | bot profile 列表。 |
+| `http4s/BattleQueueHttp4sRoutes.scala` | battle 排队 join/status/leave。 |
+| `http4s/BattleRoomHttp4sRoutes.scala` | 房间 snapshot/heartbeat。 |
+| `http4s/BattleStateHttp4sRoutes.scala` | battle state 读取和 SSE stream。 |
+| `http4s/BattleCommandHttp4sRoutes.scala` | battle command 提交。 |
+| `http4s/BattleResultHttp4sRoutes.scala` | battle result 查询和写入。 |
+
+这些 route 共同由 `BackendHttp4sRoutes.backendRoutes(...)` 组合成一个 `HttpRoutes[IO]`，然后 `.orNotFound` 交给 Ember server。
+
+## 4. 当前真正起作用的 service/domain 代码
+
+`BackendRuntime.fromEnvironment` 当前会实例化这些业务服务：
+
+| 服务 | 当前作用 |
+| --- | --- |
+| `StaticHealthService` | 生成健康检查响应。 |
+| `DefaultIdentityService` | 注册、登录、session、账号列表。 |
+| `InMemoryBattleQueueService` | 当前 battle 排队、房间等待、ticket、room snapshot。 |
+| `DefaultBattleQueueJoinAuthorizationService` | 检查 battle join 是否拥有合法 identity/session。 |
+| `InMemoryBattleStateService` | 当前 battle authoritative state、tick 推进、command 接收和应用。 |
+| `DefaultBattleResultService` | battle result 查询和写入。 |
+| `DefaultBattleFinishProjector` | battle 结束后投影 result、replay、mail。 |
+| `DefaultReplayService` | replay catalog、详情、评论。 |
+| `DefaultMailService` | 邮件查询和已读。 |
+| `DefaultBotProfileService` | bot profile 查询。 |
+| `DefaultFriendRequestService` | 好友请求和通知邮件。 |
+| `DefaultForumService` | forum topic/reply/vote。 |
+| `DefaultGovernanceService` | 贡献调整和治理通知。 |
+
+Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
+
+| battle service 子域 | 当前作用 |
+| --- | --- |
+| `services/queue` | 排队、房间、ticket、heartbeat、room lifecycle。 |
+| `services/session` | battle session、命令接收、当前状态读取、stored battle。 |
+| `services/runtime` | tick 推进、结束判定、event、聚合状态更新。 |
+| `services/world` | 地图尺寸、出生点、碰撞、移动规则。 |
+| `services/combat` | 武器、射击、projectile、命中、伤害、terminal。 |
+| `services/actors` | 玩家输入、bot、玩家生命周期和运行时更新。 |
+| `services/abilities` | 技能、pickup、slow field。 |
+| `services/results` | result、settlement、replay、history、结束投影。 |
+
+这些 service 虽然很多，但不是“微服务”。它们是同一个 JVM 进程内的业务模块。它们通过 Scala package 和类型组织，没有进程隔离、网络边界或独立部署边界。
+
+## 5. 当前真正起作用的存储代码
+
+当前 `/api/health` 返回：
+
+```json
+{
+  "status": "ok",
+  "service": "slay-demo-backend",
+  "port": 8080,
+  "storageMode": "postgres"
+}
+```
+
+所以当前运行时通过 `BackendRepositories.fromStorage(StorageConfig.Postgres(...))` 使用 Postgres 实现：
+
+| Repository 接口 | 当前实际实现 |
+| --- | --- |
+| `IdentityAccountRepository` | `PostgresIdentityAccountRepository` |
+| `BattleResultRepository` | `PostgresBattleResultRepository` |
+| `MailRepository` | `PostgresMailRepository` |
+| `BotProfileRepository` | `PostgresBotProfileRepository` |
+| `ReplayRepository` | `PostgresReplayRepository` |
+| `FriendRequestRepository` | `PostgresFriendRequestRepository` |
+| `ForumRepository` | `PostgresForumRepository` |
+| `GovernanceRepository` | `PostgresGovernanceRepository` |
+
+`InMemory*Repository` 和 `File*Repository` 当前这次运行没有被使用，但不能简单定义为永久废代码。它们是配置模式分支：
+
+| 代码 | 当前运行是否使用 | 是否可以直接删 |
 | --- | --- | --- |
-| `useBattlePageData.ts` | `identity`, `forum`, `mail`, `governance`, `replay`, `social`, `shared` | 读取战斗页抽屉、当前用户、未读邮件、排行榜、回放、好友请求等页面辅助数据。 |
-| `battleDrawerPresenter.ts` | `forum`, `mail`, `governance`, `replay`, `social`, `shared` | 把各 domain 摘要组装成战斗页快捷抽屉展示模型，并调用 `markMailAsReadRemote`。 |
-| `useBattlePageRuntime.ts` | `replay` | 战斗运行时采样并生成 replay frame，同时处理 authoritative/local 运行时。 |
-| `activeBattleSessionStore.ts` | `replay` | 存储 active battle session，并压缩 replay frames。 |
-| `battlePageTypes.ts` | `replay` | 页面类型包含 `ReplayFrame`。 |
+| `Postgres*Repository` | 使用中 | 不可以。 |
+| `InMemory*Repository` | 当前未使用 | 不建议直接删，测试和内存模式可能依赖。 |
+| `File*Repository` | 当前未使用 | 不建议直接删，file 模式和文件迁移测试可能依赖。 |
+| `*FileJsonParser` / `*FileJsonRenderer` | 当前 postgres 模式未使用 | 只有确认不再支持 file 模式后才可删。 |
 
-结论：`battle` 目前不仅是战斗 domain，也是首页/大厅/快捷预览聚合器。这个设计短期可用，但会让 battle page 对其它 domain 的数据结构和副作用越来越敏感。
+## 6. 当前 8080 请求链完全用不到的代码
 
-## 5. Mermaid 关系图
+以下代码不在当前 8080 的 http4s 请求链上。它们仍可能被编译、被测试引用，或被旧入口引用；因此“当前运行不用”不等于“可以不验证直接删除”。
 
-### 5.1 App Route 到 Page
+### 6.1 旧 Java HttpServer 入口
 
-```mermaid
-flowchart LR
-  AppRoutes --> HomePage
-  AppRoutes --> LoadoutPage
-  AppRoutes --> BattlePage
-  AppRoutes --> ReplayPage
-  AppRoutes --> ReplayDetailPage
-  AppRoutes --> MailsPage
-  AppRoutes --> RatingPage
-  AppRoutes --> ContributionPage
-  AppRoutes --> ProfilePage
-  AppRoutes --> DiscussionPage
-  AppRoutes --> DiscussionDetailPage
+| 文件 | 当前状态 |
+| --- | --- |
+| `BackendApp.scala` | 旧 `com.sun.net.httpserver.HttpServer` 入口；当前 8080 没有运行它。 |
+| `BackendRouteRegistry.scala` | 旧入口注册 `HttpExchange => Unit` handler 用；当前 http4s 入口不用。 |
+| `BackendRouteCatalog.scala` | 旧入口 route context 清单；当前 http4s 入口不用。 |
+
+当前 `package.json` 里仍保留：
+
+```json
+"backend:dev:legacy": "cd backend && sbt \"runMain slaydemo.backend.BackendApp\""
 ```
 
-### 5.2 Domain Page 跨域依赖
+所以旧入口还不是“代码层面完全不可达”，但它不是当前实际服务入口。
 
-```mermaid
-flowchart LR
-  battle --> identity
-  battle --> forum
-  battle --> mail
-  battle --> governance
-  battle --> replay
-  battle --> social
-  battle --> shared
+### 6.2 旧 `HttpExchange` route wrapper
 
-  forum --> social
-  forum --> shared
+这些文件代表旧 Java HttpServer route 层，不是当前 http4s 运行时接收请求的代码：
 
-  governance --> identity
-  governance --> social
-  governance --> shared
+| 旧 route 文件 | 当前 8080 是否处理请求 |
+| --- | --- |
+| `shared/routes/HealthRoutes.scala` | 否。当前使用 `HealthHttp4sRoutes`。 |
+| `identity/routes/IdentityRoutes.scala` | 否。当前使用 `IdentityHttp4sRoutes`。 |
+| `mail/routes/MailRoutes.scala` | 否。当前使用 `MailHttp4sRoutes`。 |
+| `social/routes/SocialRoutes.scala` | 否。当前使用 `SocialHttp4sRoutes`。 |
+| `forum/routes/ForumRoutes.scala` | 否。当前使用 `ForumHttp4sRoutes`。 |
+| `governance/routes/GovernanceRoutes.scala` | 否。当前使用 `GovernanceHttp4sRoutes`。 |
+| `replay/routes/ReplayRoutes.scala` | 否。当前使用 `ReplayHttp4sRoutes`。 |
+| `bots/routes/BotProfileRoutes.scala` | 否。当前使用 `BotProfileHttp4sRoutes`。 |
+| `battle/routes/BattleRoutes.scala` | 否。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
+| `battle/routes/BattleCommandRouteHandler.scala` | 否。当前使用 `BattleCommandHttp4sRoutes`。 |
+| `battle/routes/BattleQueueRouteHandler.scala` | 否。当前使用 `BattleQueueHttp4sRoutes`。 |
+| `battle/routes/BattleRoomRouteHandler.scala` | 否。当前使用 `BattleRoomHttp4sRoutes`。 |
+| `battle/routes/BattleStateRouteHandler.scala` | 否。当前使用 `BattleStateHttp4sRoutes`。 |
+| `battle/routes/BattleStateStreamWriter.scala` | 否。当前 http4s SSE 在 `BattleStateHttp4sRoutes` 内实现。 |
 
-  identity --> social
-  identity --> shared
+### 6.3 不能直接整包删除的 `routes` 目录
 
-  mail --> identity
-  mail --> governance
-  mail --> social
-  mail --> shared
+注意：`routes` 目录里不是所有文件都能删。当前 http4s route 仍复用了部分 parser、target parser、error mapper：
 
-  replay --> identity
-  replay --> governance
-  replay --> social
-  replay --> shared
+| 仍被 http4s 使用的旧 routes 支撑文件 | 原因 |
+| --- | --- |
+| `IdentityCommandParsers.scala` | `IdentityHttp4sRoutes` 仍用它解析注册/登录命令。 |
+| `IdentitySessionTokenParser.scala` | `IdentityHttp4sRoutes` 仍用它解析 session token。 |
+| `MailCommandParsers.scala` | `MailHttp4sRoutes` 仍用它解析 owner/read command。 |
+| `SocialCommandParsers.scala` | `SocialHttp4sRoutes` 仍用它解析好友请求命令。 |
+| `ForumCommandParsers.scala` | `ForumHttp4sRoutes` 仍用它解析 topic/reply/vote 命令。 |
+| `ForumRouteTargetParsers.scala` | `ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path。 |
+| `ForumRouteErrorMapper.scala` | `ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
+| `GovernanceCommandParsers.scala` | `GovernanceHttp4sRoutes` 仍用它解析治理命令。 |
+| `ReplayCommandParsers.scala` | `ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
+| `ReplayJsonObjectParser.scala` | `ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
+| `BattleResultApiCodec.scala` | `BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
+
+结论：可以清理旧 route wrapper，但不能粗暴删除整个 `routes` 目录。正确方向是先把仍被 http4s 复用的 parser/codec 从 `routes` 下沉或迁移到 `objects/apiTypes`、`api`、`support` 等非 route 包，再删除真正的 `HttpExchange` route wrapper。
+
+## 7. 当前逻辑重复的位置
+
+### 7.1 HTTP route 重复
+
+同一个业务接口目前存在两套路由实现：
+
+| 业务 | 当前实际运行 | 旧重复实现 |
+| --- | --- | --- |
+| health | `HealthHttp4sRoutes` | `HealthRoutes` |
+| identity | `IdentityHttp4sRoutes` | `IdentityRoutes` |
+| mail | `MailHttp4sRoutes` | `MailRoutes` |
+| social | `SocialHttp4sRoutes` | `SocialRoutes` |
+| forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` |
+| governance | `GovernanceHttp4sRoutes` | `GovernanceRoutes` |
+| replay | `ReplayHttp4sRoutes` | `ReplayRoutes` |
+| bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` |
+| battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler` |
+| battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler` |
+| battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter` |
+| battle command | `BattleCommandHttp4sRoutes` | `BattleCommandRouteHandler` |
+| battle result | `BattleResultHttp4sRoutes` | `BattleResultRoutes` |
+
+风险：同一个 API contract 有两处行为来源，后续改字段、状态码、错误码时容易只改一边。
+
+### 7.2 JSON 解析和渲染重复
+
+当前存在两套 JSON 风格：
+
+| 风格 | 文件 | 当前问题 |
+| --- | --- | --- |
+| 旧手写字符串 JSON | `shared/routes/HttpRouteSupport.scala`、`battle/routes/BattleStateJson.scala`、多个 `*JsonRenderer.scala` | 容易漏字段、转义错误、和 Circe DTO drift。 |
+| typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`http4s/*Routes.scala` | 当前运行路径正在使用，但还没有完全替代旧手写 route JSON。 |
+
+最明显的重复：
+
+| 旧实现 | 新实现 |
+| --- | --- |
+| `battle/routes/BattleStateJson.scala` | `battle/objects/apiTypes/BattleStateApiTypes.scala` |
+| `battle/routes/BattleCommandRequestParser.scala` | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
+| `battle/routes/BattleQueueRoomJsonRenderer.scala` | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
+| `battle/routes/BattleResultCommandParsers.scala` + manual route response | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes` |
+| `shared/routes/HttpRouteSupport.sendJsonError` | `http4s/Http4sRouteSupport.apiError` |
+
+风险：测试通过某一路径不等于另一条路径正确。比如旧 `BattleCommandRequestParser` 正确，不能证明当前运行的 `BattleCommandAPIRequest.decode` 正确；反过来也一样。
+
+### 7.3 路径兼容表重复
+
+旧入口把兼容路径集中在：
+
+```text
+BackendRouteRegistry.scala
+BackendRouteCatalog.scala
 ```
 
-### 5.3 聚合压力图
+http4s 入口把兼容路径散在每个 route 内：
 
-```mermaid
-flowchart TD
-  BattlePage --> BattlePageLib
-  BattlePageLib --> useBattlePageData
-  BattlePageLib --> battleDrawerPresenter
-  BattlePageLib --> useBattlePageRuntime
-  BattlePageLib --> activeBattleSessionStore
-
-  useBattlePageData --> identity
-  useBattlePageData --> forum
-  useBattlePageData --> mail
-  useBattlePageData --> governance
-  useBattlePageData --> replay
-  useBattlePageData --> social
-
-  battleDrawerPresenter --> forum
-  battleDrawerPresenter --> mail
-  battleDrawerPresenter --> governance
-  battleDrawerPresenter --> replay
-  battleDrawerPresenter --> social
-
-  useBattlePageRuntime --> replay
-  activeBattleSessionStore --> replay
+```text
+BattleQueueHttp4sRoutes.AllowedStatusPaths
+BattleCommandHttp4sRoutes.AllowedPaths
+BattleStateHttp4sRoutes.AllowedReadPaths
+...
 ```
 
-## 6. 架构问题和后续建议
+风险：Vite 代理会把 `/api/...` rewrite 成无 `/api` 的路径；如果只在一套路由表里补路径，另一套就可能 drift。当前 battle proxy-stripped path 已有 contract 测试覆盖，但结构上仍重复。
 
-| 问题 | 当前表现 | 风险 | 建议 |
-| --- | --- | --- | --- |
-| `battle` page 成为跨域聚合中心 | `LoadoutPage` 和 `BattlePage` lib 直接读取 forum/mail/governance/replay/social/identity | battle domain 逐渐承担大厅和社交门户职责，后续修改任一 domain 都可能影响战斗页 | 把跨域摘要读取沉到 `shared/ui/useLobbyData` 或独立 `app/home` 聚合层，battle 只消费聚合后的 view model。 |
-| Page presenter 调用跨域副作用 | `battleDrawerPresenter.ts` 调用 `markMailAsReadRemote` | presenter 不再只是展示转换，出现远程副作用 | 把 read/mark 操作移动到 page data hook 或 mail domain gateway facade，presenter 只返回展示模型和 action id。 |
-| Replay 与 Battle 双向概念接近 | battle runtime 生成 `ReplayFrame`，battle session store 压缩 replay frame | replay 类型渗透 battle page lib，后续 replay 格式变化会影响 battle runtime | 保留 battle -> replay 的单向生成关系，但通过 `BattleReplayRecordingPort` 隔离 replay 具体类型。 |
-| 多个 page 直接引用 `UserActionDot` | forum/governance/identity/mail/replay 都 import social component | 当前是轻量 UI 复用，但 social 展示细节会扩散到所有页面 | 如果继续扩大，抽成 `shared/ui/UserHandleLink`，由 social 提供可选增强能力。 |
-| 多个 page 直接引用 `authGateway` | battle/governance/identity/mail/replay 都读取身份状态 | auth 是横切能力，直接依赖可接受，但容易重复订阅逻辑 | 对页面统一暴露 `useCurrentAuthUser` 或 shared identity hook，减少每页手写 `useSyncExternalStore`。 |
+### 7.4 `BackendRuntime` 和旧 route 的装配边界
 
-## 7. 分层判断
+已修正：`BackendRuntime.fromEnvironment` 当前只装配 config、service、repository 相关运行时对象，不再实例化旧 `HttpExchange` route 对象。
 
-可接受的依赖：
+旧 Java HttpServer 入口需要这些 route 时，会在 `BackendApp.legacyRouteHandlers(runtime)` 内本地构造：
 
-- Page 依赖本 domain 的 `api/objects/components/runtime`。
-- Page 依赖 `shared/ui` 的布局和通用 UI。
-- 业务页面展示用户入口时依赖 `social/components/UserActionDot`，当前规模下可接受。
-- 需要当前用户的页面依赖 `identity/api/authGateway`，但建议后续用 hook 收敛。
+```text
+BackendApp.legacyRouteHandlers(runtime)
+  -> HealthRoutes(runtime.healthService)
+  -> IdentityRoutes(runtime.identityService)
+  -> BattleRoutes(runtime.battleQueueService, runtime.battleStateService, ...)
+...
+```
 
-需要收敛的依赖：
+`BackendHttp4sApp` 仍只把 service 传给 `BackendHttp4sRoutes.backendRoutes(...)`。这意味着当前 http4s 运行对象图已经不再间接初始化旧 route wrapper。
 
-- `battle` page lib 直接依赖过多业务 domain。
-- `battleDrawerPresenter.ts` 中出现 mail remote side effect。
-- `mail` 和 `replay` 直接调用 `governanceGateway` 发送治理通知，说明 governance notification 是横切事件，适合抽出 notification port。
-- `battle` 直接使用 replay recorder/types，建议通过 replay recording adapter 隔离。
+剩余风险：旧 route wrapper 仍存在，并且 legacy tests 仍覆盖它们；只是它们已经从当前 http4s runtime 对象图中移出。
 
-优先级建议：
+## 8. 可以清理但需要分阶段做的代码
 
-1. 先把 `battle/pages/battle/lib/battleDrawerPresenter.ts` 改成纯 presenter，不直接调用 `markMailAsReadRemote`。
-2. 把 `useBattlePageData.ts` 和 `LoadoutPage.tsx` 里的大厅摘要读取合并到一个共享的 lobby data facade。
-3. 为 replay 录制建立 battle 侧 port，避免 battle page lib 直接绑定 replay 文件结构。
-4. 为 auth 状态建立统一 hook，减少 page 内重复订阅。
-5. 后续如果做页面目录治理，保持所有 page 在 `domain/pages/<page-name>`，跨域组合尽量放在 `app` 或 `shared` 的明确聚合层。
+不要一次性删除。建议按这个顺序：
+
+### Phase A：拆分 runtime 装配，先消除误导
+
+状态：已完成。
+
+```text
+BackendRuntime 只保留 service/repository/runtime state
+BackendApp.legacyRouteHandlers(runtime) 内部再创建旧 HttpExchange routes
+BackendHttp4sApp 不再间接构造旧 route object
+```
+
+当前代码已经可以证明：当前 http4s 运行对象图里没有旧 route。
+
+### Phase B：把仍被 http4s 复用的 parser 从 `routes` 迁出去
+
+状态：进行中。已完成 battle result 这一组 API codec/parser 迁移。
+
+迁移方向：
+
+| 状态 | 当前位置 | 建议位置 |
+| --- | --- | --- |
+| 已完成 | `identity/routes/IdentityCommandParsers.scala` | `identity/api/IdentityCommandParsers.scala` |
+| 已完成 | `mail/routes/MailCommandParsers.scala` | `mail/objects/apiTypes/MailCommandParsers.scala` |
+| 待迁移 | `social/routes/SocialCommandParsers.scala` | `social/objects/apiTypes` |
+| 待迁移 | `forum/routes/ForumCommandParsers.scala` | `forum/objects/apiTypes` |
+| 待迁移 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes` |
+| 已完成 | `battle/routes/BattleResultApiCodec.scala` | `battle/objects/apiTypes/BattleResultApiCodec.scala` |
+| 已完成 | `battle/routes/BattleResultCommandParsers.scala` | `battle/objects/apiTypes/BattleResultCommandParsers.scala` |
+| 已完成 | `battle/routes/BattleResultJsonObjectParser.scala` | `battle/objects/apiTypes/BattleResultJsonObjectParser.scala` |
+
+迁完后，`routes` 包才可以更明确地表示“旧 HttpExchange adapter”。
+
+### Phase C：删除旧 `HttpExchange` route wrapper
+
+前提：
+
+1. `backend:dev:legacy` 已确认不再需要。
+2. contract tests 已迁到 http4s 路径。
+3. `BackendRouteCatalog/Registry` 的覆盖测试不再作为主路径测试。
+4. 所有当前前端请求路径都有 http4s composition test 覆盖。
+
+可删候选：
+
+```text
+BackendApp.scala
+BackendRouteRegistry.scala
+BackendRouteCatalog.scala
+shared/routes/HealthRoutes.scala
+shared/routes/HttpRouteSupport.scala
+各 domain/routes/*Routes.scala
+各 domain/routes/*RouteHandler.scala
+battle/routes/BattleStateStreamWriter.scala
+```
+
+### Phase D：删除旧手写 JSON renderer
+
+前提是对应 typed DTO + Circe encoder 已完全覆盖字段和 contract test：
+
+```text
+battle/routes/BattleStateJson.scala
+battle/routes/BattlePlayerStateJsonRenderer.scala
+battle/routes/BattleEntityStateJsonRenderer.scala
+battle/routes/BattleQueueRoomJsonRenderer.scala
+其他只服务旧 route 的 *JsonRenderer
+```
+
+## 9. 当前不能简单删除的代码
+
+| 代码 | 原因 |
+| --- | --- |
+| `backend/src/main/scala/slaydemo/backend/battle/services/**` | 这是当前 battle authoritative runtime 的核心逻辑，不是微服务垃圾代码。 |
+| `backend/src/main/scala/slaydemo/backend/battle/objects/**` | 当前 API DTO、状态、枚举、值对象都依赖这里。 |
+| `objects/apiTypes/**` | 当前 http4s route 的 typed contract 层正在使用。 |
+| `Postgres*Repository` | 当前 postgres 运行模式正在使用。 |
+| `InMemoryBattleQueueService`、`InMemoryBattleStateService` | 名字带 InMemory，但当前 battle 排队和 battle state runtime 实际就是它们。 |
+| `*CommandParsers`、`*RouteTargetParsers`、`*RouteErrorMapper` 中被 http4s import 的部分 | 还在当前 http4s 路径被调用；需要先迁包再删旧 route。 |
+
+## 10. 下一步建议
+
+最高优先级不是继续大改 service，而是把当前 http4s 仍复用的 parser/codec 从 `routes` 包迁出去。
+
+推荐下一个小票：
+
+```text
+BE-API-PARSER-MOVE-01
+目标：把当前 http4s 仍复用的 parser/codec 从 routes 包迁移到 apiTypes 或 api 包。
+收益：routes 目录只剩真正 route adapter，便于删除 legacy route。
+```
+
+最后再做：
+
+```text
+BE-LEGACY-ROUTES-REMOVE-01
+目标：删除旧 Java HttpServer 入口和旧 HttpExchange route wrappers。
+前提：所有 contract tests 已经覆盖 http4s 路径。
+```

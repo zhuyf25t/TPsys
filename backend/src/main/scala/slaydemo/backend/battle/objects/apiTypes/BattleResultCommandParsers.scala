@@ -1,4 +1,4 @@
-package slaydemo.backend.battle.routes
+package slaydemo.backend.battle.objects.apiTypes
 
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -9,7 +9,7 @@ import slaydemo.backend.battle.services.results.BattleResultRecordCommand
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.shared.policies.HandlePolicy
 
-private[routes] object BattleResultCommandParsers {
+private[apiTypes] object BattleResultCommandParsers {
   def parseListRequest(rawQuery: String): BattleResultListRequestParseResult = {
     val query = queryParams(rawQuery)
     val limit = query.get("limit").flatMap(_.toIntOption).getOrElse(25)
@@ -137,18 +137,18 @@ private[routes] object BattleResultCommandParsers {
     Option(value).map(_.trim).filter(_.nonEmpty)
 }
 
-private[routes] final case class BattleResultListRequest(
+private[apiTypes] final case class BattleResultListRequest(
   handle: Option[PlayerHandle],
   battleId: Option[BattleId],
   limit: Int
 )
 
-private[routes] enum BattleResultListRequestParseResult {
+private[apiTypes] enum BattleResultListRequestParseResult {
   case Query(request: BattleResultListRequest)
   case EmptyResults
 }
 
-private[routes] enum BattleResultRecordCommandParseError {
+private[apiTypes] enum BattleResultRecordCommandParseError {
   case InvalidBattleId
   case InvalidHandle
   case VisitorNotAllowed

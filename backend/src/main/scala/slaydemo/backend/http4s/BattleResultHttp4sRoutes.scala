@@ -6,11 +6,12 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.battle.objects.apiTypes.{BattleResultListResponse, BattleResultRecordResponse}
-import slaydemo.backend.battle.routes.{
+import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultApiCodec,
+  BattleResultListResponse,
   BattleResultListQueryDecodeResult,
-  BattleResultRecordDecodeError
+  BattleResultRecordDecodeError,
+  BattleResultRecordResponse
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}

@@ -8,14 +8,15 @@ import org.http4s.{Headers, HttpRoutes, Method, Request, Response, Status}
 import org.typelevel.ci.CIString
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
-import slaydemo.backend.identity.api.{IdentityAccountsResponse, IdentityAuthResponse}
-import slaydemo.backend.identity.objects.SessionToken
-import slaydemo.backend.identity.routes.{
+import slaydemo.backend.identity.api.{
+  IdentityAccountsResponse,
+  IdentityAuthResponse,
   IdentityCommandParsers,
   IdentityRegistrationCommandParseError,
-  IdentitySessionCommandParseError,
-  IdentitySessionTokenParser
+  IdentitySessionCommandParseError
 }
+import slaydemo.backend.identity.objects.SessionToken
+import slaydemo.backend.identity.routes.IdentitySessionTokenParser
 import slaydemo.backend.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationError,

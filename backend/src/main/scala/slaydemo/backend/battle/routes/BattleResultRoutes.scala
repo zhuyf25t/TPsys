@@ -4,7 +4,12 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.battle.objects.apiTypes.BattleResultErrorResponse
+import slaydemo.backend.battle.objects.apiTypes.{
+  BattleResultApiCodec,
+  BattleResultErrorResponse,
+  BattleResultListQueryDecodeResult,
+  BattleResultRecordDecodeError
+}
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
@@ -31,10 +36,10 @@ final class BattleResultRoutes(service: BattleResultService) {
   }
 
   private def handleList(exchange: HttpExchange): Unit = {
-    BattleResultCommandParsers.parseListRequest(exchange.getRequestURI.getRawQuery) match {
-      case BattleResultListRequestParseResult.EmptyResults =>
+    BattleResultApiCodec.parseListRequest(exchange.getRequestURI.getRawQuery) match {
+      case BattleResultListQueryDecodeResult.EmptyResults =>
         HttpRouteSupport.sendJson(exchange, 200, BattleResultApiCodec.renderRecords(Vector.empty))
-      case BattleResultListRequestParseResult.Query(request) =>
+      case BattleResultListQueryDecodeResult.Query(request) =>
         val results = service.list(
           handle = request.handle,
           battleId = request.battleId,
@@ -45,27 +50,24 @@ final class BattleResultRoutes(service: BattleResultService) {
   }
 
   private def handleRecord(exchange: HttpExchange): Unit =
-    ResultJsonObjectParser.parse(HttpRouteSupport.readRequestBody(exchange)) match {
-      case Left(_) =>
-        jsonError(exchange, 400, "bad_request", "Request body must be a JSON object.")
-      case Right(fields) =>
-        BattleResultCommandParsers.parseRecordCommand(fields) match {
-          case Right(command) =>
-            service.record(command) match {
-              case Right(record) =>
-                HttpRouteSupport.sendJson(exchange, 201, BattleResultApiCodec.renderRecord(record))
-              case Left(BattleResultRecordError.InvalidHandle) =>
-                jsonError(exchange, 400, "invalid_handle", "invalid_handle")
-              case Left(BattleResultRecordError.VisitorNotAllowed) =>
-                jsonError(exchange, 403, "visitor_not_allowed", "visitor_not_allowed")
-            }
-          case Left(BattleResultRecordCommandParseError.InvalidBattleId) =>
-            jsonError(exchange, 400, "invalid_battle_id", "invalid_battle_id")
-          case Left(BattleResultRecordCommandParseError.InvalidHandle) =>
+    BattleResultApiCodec.parseRecordCommand(HttpRouteSupport.readRequestBody(exchange)) match {
+      case Right(command) =>
+        service.record(command) match {
+          case Right(record) =>
+            HttpRouteSupport.sendJson(exchange, 201, BattleResultApiCodec.renderRecord(record))
+          case Left(BattleResultRecordError.InvalidHandle) =>
             jsonError(exchange, 400, "invalid_handle", "invalid_handle")
-          case Left(BattleResultRecordCommandParseError.VisitorNotAllowed) =>
+          case Left(BattleResultRecordError.VisitorNotAllowed) =>
             jsonError(exchange, 403, "visitor_not_allowed", "visitor_not_allowed")
         }
+      case Left(BattleResultRecordDecodeError.BadJson) =>
+        jsonError(exchange, 400, "bad_request", "Request body must be a JSON object.")
+      case Left(BattleResultRecordDecodeError.InvalidBattleId) =>
+        jsonError(exchange, 400, "invalid_battle_id", "invalid_battle_id")
+      case Left(BattleResultRecordDecodeError.InvalidHandle) =>
+        jsonError(exchange, 400, "invalid_handle", "invalid_handle")
+      case Left(BattleResultRecordDecodeError.VisitorNotAllowed) =>
+        jsonError(exchange, 403, "visitor_not_allowed", "visitor_not_allowed")
     }
 
   private def jsonError(exchange: HttpExchange, status: Int, code: String, message: String): Unit =

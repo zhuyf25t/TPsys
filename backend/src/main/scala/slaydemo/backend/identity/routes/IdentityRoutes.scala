@@ -4,7 +4,14 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.identity.api.{IdentityAccountsResponse, IdentityAuthResponse, IdentityErrorResponse}
+import slaydemo.backend.identity.api.{
+  IdentityAccountsResponse,
+  IdentityAuthResponse,
+  IdentityCommandParsers,
+  IdentityErrorResponse,
+  IdentityRegistrationCommandParseError,
+  IdentitySessionCommandParseError
+}
 import slaydemo.backend.identity.objects.SessionToken
 import slaydemo.backend.identity.services.{
   IdentityCurrentSessionError,

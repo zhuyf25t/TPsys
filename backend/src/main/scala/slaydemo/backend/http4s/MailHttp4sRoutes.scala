@@ -7,8 +7,13 @@ import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
-import slaydemo.backend.mail.objects.apiTypes.{MailListResponse, MailReadResponse}
-import slaydemo.backend.mail.routes.{MailCommandParsers, MailRouteOwnerError, MailRouteReadError}
+import slaydemo.backend.mail.objects.apiTypes.{
+  MailCommandParsers,
+  MailListResponse,
+  MailReadResponse,
+  MailRouteOwnerError,
+  MailRouteReadError
+}
 import slaydemo.backend.mail.services.{MailReadError, MailService}
 
 private[http4s] object MailHttp4sRoutes {

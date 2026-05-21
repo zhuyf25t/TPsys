@@ -1,4 +1,4 @@
-package slaydemo.backend.mail.routes
+package slaydemo.backend.mail.objects.apiTypes
 
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets

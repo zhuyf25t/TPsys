@@ -43,6 +43,7 @@ object ReplayHttp4sCatalogContractTest {
     detailAndCommentsUseFrontendProxyPaths()
     invalidReplayIdPathIsBadRequest()
     badJsonRecordPostUsesTypedDto()
+    badJsonCommentPostUsesTypedDto()
     unsupportedMethodIsRejected()
 
     println("Replay http4s catalog contract checks passed")
@@ -157,6 +158,19 @@ object ReplayHttp4sCatalogContractTest {
       """{"error":"Request body must be a JSON object.","code":"bad_request"}"""
     )
     assertEquals("bad json does not record replay", service.recordCommands, Vector.empty)
+  }
+
+  private def badJsonCommentPostUsesTypedDto(): Unit = {
+    val service = RecordingReplayService(Vector(replayRecord()))
+    val response = run(service, Request[IO](method = Method.POST, uri = uri"/replay/catalog/route-replay/comments").withEntity("[]"))
+
+    assertEquals("bad comment json response status", response.status, 400)
+    assertEquals(
+      "bad comment json response body",
+      response.body,
+      """{"error":"Request body must be a JSON object.","code":"bad_request"}"""
+    )
+    assertEquals("bad comment json does not add comment", service.commentCommands, Vector.empty)
   }
 
   private def unsupportedMethodIsRejected(): Unit = {

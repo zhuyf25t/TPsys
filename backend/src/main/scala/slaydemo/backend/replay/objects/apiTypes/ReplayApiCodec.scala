@@ -22,6 +22,10 @@ enum ReplayCommentDecodeError {
   case VisitorNotAllowed
 }
 
+private enum ReplayJsonObjectDecodeError {
+  case BadJsonObject
+}
+
 enum ReplayCatalogTarget {
   case Collection
   case Detail(replayId: ReplayId)
@@ -64,7 +68,7 @@ object ReplayApiCodec {
     )
 
   def parseRecordCommand(rawBody: String): Either[ReplayRecordDecodeError, ReplayRecordCommand] =
-    parseJsonObject(rawBody).left.map(_ => ReplayRecordDecodeError.BadJsonObject).flatMap { fields =>
+    parseJsonObject(rawBody).left.map(recordJsonObjectDecodeError).flatMap { fields =>
       val framesJson = ReplayCommandParsers.readString(fields, "framesJson")
         .orElse(ReplayCommandParsers.readRawJson(fields, "frames"))
         .getOrElse("[]")
@@ -76,20 +80,32 @@ object ReplayApiCodec {
     rawBody: String
   ): Either[ReplayCommentDecodeError, ReplayCommentCommand] =
     parseJsonObject(rawBody)
-      .left.map(_ => ReplayCommentDecodeError.BadJsonObject)
+      .left.map(commentJsonObjectDecodeError)
       .flatMap(fields => ReplayCommandParsers.parseReplayCommentCommand(replayId, fields).left.map(commentDecodeError))
 
-  private def parseJsonObject(rawBody: String): Either[Unit, io.circe.JsonObject] = {
+  private def parseJsonObject(rawBody: String): Either[ReplayJsonObjectDecodeError, io.circe.JsonObject] = {
     val trimmed = Option(rawBody).getOrElse("").trim
     val parsed = if trimmed.isEmpty then Right(Json.obj()) else parse(trimmed)
 
     parsed match {
       case Left(_) =>
-        Left(())
+        Left(ReplayJsonObjectDecodeError.BadJsonObject)
       case Right(json) =>
-        json.asObject.toRight(())
+        json.asObject.toRight(ReplayJsonObjectDecodeError.BadJsonObject)
     }
   }
+
+  private def recordJsonObjectDecodeError(error: ReplayJsonObjectDecodeError): ReplayRecordDecodeError =
+    error match {
+      case ReplayJsonObjectDecodeError.BadJsonObject =>
+        ReplayRecordDecodeError.BadJsonObject
+    }
+
+  private def commentJsonObjectDecodeError(error: ReplayJsonObjectDecodeError): ReplayCommentDecodeError =
+    error match {
+      case ReplayJsonObjectDecodeError.BadJsonObject =>
+        ReplayCommentDecodeError.BadJsonObject
+    }
 
   private def recordDecodeError(error: ReplayRecordCommandParseError): ReplayRecordDecodeError =
     error match {

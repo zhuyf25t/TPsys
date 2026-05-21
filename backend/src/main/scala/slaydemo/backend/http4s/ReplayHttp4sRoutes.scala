@@ -7,12 +7,11 @@ import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
-import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
-  ReplayCommandParsers,
   ReplayCatalogResponse,
+  ReplayCatalogTarget,
   ReplayCommentDecodeError,
   ReplayCommentResponse,
   ReplayCommentWrapperResponse,
@@ -41,15 +40,15 @@ private[http4s] object ReplayHttp4sRoutes {
 
   def catalogRoutes(service: ReplayService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if replayTarget(request).nonEmpty =>
-        replayTarget(request).get match {
-          case ReplayHttp4sTarget.Collection =>
+      case request if catalogTarget(request).nonEmpty =>
+        catalogTarget(request).get match {
+          case ReplayCatalogTarget.Collection =>
             handleCollection(service, request)
-          case ReplayHttp4sTarget.Detail(replayId) =>
+          case ReplayCatalogTarget.Detail(replayId) =>
             handleDetail(service, request, replayId)
-          case ReplayHttp4sTarget.Comments(replayId) =>
+          case ReplayCatalogTarget.Comments(replayId) =>
             handleComments(service, request, replayId)
-          case ReplayHttp4sTarget.InvalidReplayId =>
+          case ReplayCatalogTarget.InvalidReplayId =>
             IO.pure(apiError(InvalidReplayIdError))
         }
     }
@@ -61,10 +60,10 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.HEAD =>
         IO.pure(withCors(Response[IO](Status.Ok)))
       case Method.GET =>
-        blocking(service.list(limitFrom(request))).flatMap { records =>
+        blocking(service.list(ReplayApiCodec.limit(request.params))).flatMap { records =>
           val response = ReplayCatalogResponse.fromRecords(
             records = records,
-            selectedHandle = selectedHandle(request)
+            selectedHandle = ReplayApiCodec.selectedHandle(request.params)
           )
           Ok(response.asJson).map(withCors)
         }
@@ -93,7 +92,7 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.GET =>
         blocking(service.load(replayId)).flatMap {
           case Some(record) =>
-            Ok(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, selectedHandle(request))).asJson).map(withCors)
+            Ok(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, ReplayApiCodec.selectedHandle(request.params))).asJson).map(withCors)
           case None =>
             IO.pure(apiError(ReplayNotFoundError))
         }
@@ -112,7 +111,7 @@ private[http4s] object ReplayHttp4sRoutes {
           case None =>
             IO.pure(apiError(ReplayNotFoundError))
           case Some(_) =>
-            blocking(service.listComments(replayId, limitFrom(request))).flatMap { records =>
+            blocking(service.listComments(replayId, ReplayApiCodec.limit(request.params))).flatMap { records =>
               Ok(ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson).map(withCors)
             }
         }
@@ -202,35 +201,6 @@ private[http4s] object ReplayHttp4sRoutes {
         HttpApiError(Status.BadRequest, "invalid_body", "invalid_body")
     }
 
-  private def replayTarget(request: Request[IO]): Option[ReplayHttp4sTarget] = {
-    val path = normalizedPath(request.uri.path.renderString)
-    if path == "/replay/catalog" then Some(ReplayHttp4sTarget.Collection)
-    else if path.startsWith("/replay/catalog/") then {
-      val suffix = path.stripPrefix("/replay/catalog/")
-      if suffix.endsWith("/comments") then
-        replayIdFrom(suffix.stripSuffix("/comments")).map(ReplayHttp4sTarget.Comments.apply).orElse(Some(ReplayHttp4sTarget.InvalidReplayId))
-      else replayIdFrom(suffix).map(ReplayHttp4sTarget.Detail.apply).orElse(Some(ReplayHttp4sTarget.InvalidReplayId))
-    } else None
-  }
-
-  private def normalizedPath(path: String): String =
-    if path == "/api/replaycatalogapi" then "/replay/catalog"
-    else if path.startsWith("/api/replay/catalog") then path.stripPrefix("/api")
-    else path
-
-  private def replayIdFrom(value: String): Option[ReplayId] =
-    ReplayCommandParsers.parseReplayId(value)
-
-  private def selectedHandle(request: Request[IO]): Option[PlayerHandle] =
-    request.params.get("handle").flatMap(PlayerHandle.forLookup)
-
-  private def limitFrom(request: Request[IO]): Int =
-    request.params.get("limit").flatMap(_.toIntOption).getOrElse(25)
-
-  private enum ReplayHttp4sTarget {
-    case Collection
-    case Detail(replayId: ReplayId)
-    case Comments(replayId: ReplayId)
-    case InvalidReplayId
-  }
+  private def catalogTarget(request: Request[IO]): Option[ReplayCatalogTarget] =
+    ReplayApiCodec.catalogTarget(request.uri.path.renderString)
 }

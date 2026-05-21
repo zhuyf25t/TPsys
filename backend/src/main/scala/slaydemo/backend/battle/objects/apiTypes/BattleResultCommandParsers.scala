@@ -4,6 +4,8 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 
+import io.circe.{Json, JsonObject}
+
 import slaydemo.backend.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Rating, RatingDelta, Score}
 import slaydemo.backend.battle.services.results.BattleResultRecordCommand
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
@@ -29,7 +31,7 @@ private[apiTypes] object BattleResultCommandParsers {
   }
 
   def parseRecordCommand(
-    fields: Map[String, ResultJsonValue]
+    fields: JsonObject
   ): Either[BattleResultRecordCommandParseError, BattleResultRecordCommand] =
     for {
       battleId <- nonEmptyText(readString(fields, "battleId").getOrElse(""))
@@ -70,51 +72,70 @@ private[apiTypes] object BattleResultCommandParsers {
       }
       .toMap
 
-  private def readString(fields: Map[String, ResultJsonValue], key: String): Option[String] =
-    fields.get(key) match {
-      case Some(ResultJsonValue.StringValue(value)) => Some(value)
-      case Some(ResultJsonValue.NumberValue(value)) if value.isWhole => Some(value.toLong.toString)
-      case Some(ResultJsonValue.NumberValue(value)) => Some(value.toString)
-      case Some(ResultJsonValue.BooleanValue(value)) => Some(value.toString)
-      case _ => None
+  private def readString(fields: JsonObject, key: String): Option[String] =
+    fields(key) match {
+      case Some(value) if value.isString =>
+        value.asString
+      case Some(value) if value.isNumber =>
+        Some(numberText(value))
+      case Some(value) if value.isBoolean =>
+        value.asBoolean.map(_.toString)
+      case _ =>
+        None
     }
 
-  private def readNullableString(fields: Map[String, ResultJsonValue], key: String): Option[String] =
-    fields.get(key) match {
-      case Some(ResultJsonValue.NullValue) => None
-      case _ => readString(fields, key).map(_.trim).filter(value => value.nonEmpty && value != "null")
+  private def readNullableString(fields: JsonObject, key: String): Option[String] =
+    fields(key) match {
+      case Some(value) if value.isNull =>
+        None
+      case _ =>
+        readString(fields, key).map(_.trim).filter(value => value.nonEmpty && value != "null")
     }
 
-  private def readLong(fields: Map[String, ResultJsonValue], key: String): Option[Long] =
-    fields.get(key) match {
-      case Some(ResultJsonValue.StringValue(value)) => value.trim.toLongOption
-      case Some(ResultJsonValue.NumberValue(value)) if isWholeLong(value) => Some(value.toLong)
-      case _ => None
+  private def readLong(fields: JsonObject, key: String): Option[Long] =
+    fields(key) match {
+      case Some(value) if value.isString =>
+        value.asString.flatMap(_.trim.toLongOption)
+      case Some(value) if value.isNumber =>
+        value.asNumber.flatMap(_.toLong)
+      case _ =>
+        None
     }
 
-  private def readInt(fields: Map[String, ResultJsonValue], key: String): Option[Int] =
-    fields.get(key) match {
-      case Some(ResultJsonValue.StringValue(value)) => value.trim.toIntOption
-      case Some(ResultJsonValue.NumberValue(value)) if isWholeInt(value) => Some(value.toInt)
-      case _ => None
+  private def readInt(fields: JsonObject, key: String): Option[Int] =
+    fields(key) match {
+      case Some(value) if value.isString =>
+        value.asString.flatMap(_.trim.toIntOption)
+      case Some(value) if value.isNumber =>
+        value.asNumber.flatMap(_.toInt)
+      case _ =>
+        None
     }
 
-  private def readOptionalInt(fields: Map[String, ResultJsonValue], key: String): Option[Int] =
-    fields.get(key) match {
-      case Some(ResultJsonValue.NullValue) | None => None
-      case _ => readInt(fields, key)
+  private def readOptionalInt(fields: JsonObject, key: String): Option[Int] =
+    fields(key) match {
+      case Some(value) if value.isNull =>
+        None
+      case None =>
+        None
+      case _ =>
+        readInt(fields, key)
     }
 
-  private def readBoolean(fields: Map[String, ResultJsonValue], key: String): Option[Boolean] =
-    fields.get(key) match {
-      case Some(ResultJsonValue.BooleanValue(value)) => Some(value)
-      case Some(ResultJsonValue.StringValue(value)) =>
-        value.trim.toLowerCase(Locale.ROOT) match {
-          case "true"  => Some(true)
-          case "false" => Some(false)
-          case _       => None
+  private def readBoolean(fields: JsonObject, key: String): Option[Boolean] =
+    fields(key) match {
+      case Some(value) if value.isBoolean =>
+        value.asBoolean
+      case Some(value) if value.isString =>
+        value.asString.flatMap { text =>
+          text.trim.toLowerCase(Locale.ROOT) match {
+            case "true"  => Some(true)
+            case "false" => Some(false)
+            case _       => None
+          }
         }
-      case _ => None
+      case _ =>
+        None
     }
 
   private def parseSubmissionHandle(value: String): Either[BattleResultRecordCommandParseError, PlayerHandle] = {
@@ -124,11 +145,8 @@ private[apiTypes] object BattleResultCommandParsers {
     else PlayerHandle.forLookup(trimmed).toRight(BattleResultRecordCommandParseError.InvalidHandle)
   }
 
-  private def isWholeInt(value: Double): Boolean =
-    value.isWhole && value >= Int.MinValue.toDouble && value <= Int.MaxValue.toDouble
-
-  private def isWholeLong(value: Double): Boolean =
-    value.isWhole && value >= Long.MinValue.toDouble && value <= Long.MaxValue.toDouble
+  private def numberText(value: Json): String =
+    value.asNumber.flatMap(_.toLong).map(_.toString).getOrElse(value.noSpaces)
 
   private def decode(value: String): String =
     URLDecoder.decode(value, StandardCharsets.UTF_8)

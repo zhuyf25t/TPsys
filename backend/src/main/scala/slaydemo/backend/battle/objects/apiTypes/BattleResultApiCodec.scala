@@ -1,5 +1,8 @@
 package slaydemo.backend.battle.objects.apiTypes
 
+import io.circe.Json
+import io.circe.parser.parse
+
 import slaydemo.backend.battle.objects.{BattleId, BattleResultRecord}
 import slaydemo.backend.battle.services.BattleResultRecordCommand
 import slaydemo.backend.identity.objects.PlayerHandle
@@ -38,12 +41,8 @@ object BattleResultApiCodec {
     }
 
   def parseRecordCommand(rawBody: String): Either[BattleResultRecordDecodeError, BattleResultRecordCommand] =
-    ResultJsonObjectParser.parse(rawBody) match {
-      case Left(_) =>
-        Left(BattleResultRecordDecodeError.BadJson)
-      case Right(fields) =>
-        BattleResultCommandParsers.parseRecordCommand(fields).left.map(recordDecodeError)
-    }
+    parseRecordJson(rawBody)
+      .flatMap(jsonObject => BattleResultCommandParsers.parseRecordCommand(jsonObject).left.map(recordDecodeError))
 
   def renderRecords(records: Vector[BattleResultRecord]): String =
     BattleResultListResponse.renderRecords(records)
@@ -60,4 +59,16 @@ object BattleResultApiCodec {
       case BattleResultRecordCommandParseError.VisitorNotAllowed =>
         BattleResultRecordDecodeError.VisitorNotAllowed
     }
+
+  private def parseRecordJson(rawBody: String): Either[BattleResultRecordDecodeError, io.circe.JsonObject] = {
+    val trimmed = Option(rawBody).getOrElse("").trim
+    val parsed = if trimmed.isEmpty then Right(Json.obj()) else parse(trimmed)
+
+    parsed match {
+      case Left(_) =>
+        Left(BattleResultRecordDecodeError.BadJson)
+      case Right(json) =>
+        json.asObject.toRight(BattleResultRecordDecodeError.BadJson)
+    }
+  }
 }

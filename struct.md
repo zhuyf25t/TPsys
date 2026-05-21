@@ -225,7 +225,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query；query 来源已改为 http4s `request.params`。 |
 | `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
 | `ReplayJsonObjectParser.scala` | 已删除。当前 `ReplayHttp4sRoutes` 使用 Circe `JsonObject` 解析 replay JSON body，再交给 `ReplayCommandParsers` 做业务字段校验。 |
-| `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body；POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |
+| `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body；GET query 已使用 http4s `request.params`，POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |
 
 结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；旧顶层 Java HttpServer 入口、route catalog/registry、旧 `HttpExchange` route wrapper 和旧 route contract tests 已删除。
 
@@ -269,7 +269,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleStateJson.scala` 已删除 | `battle/objects/apiTypes/BattleStateApiTypes.scala` |
 | `battle/routes/BattleCommandRequestParser.scala` 已删除 | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` 已删除 | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
-| `battle/routes/BattleResultCommandParsers.scala` 已迁出，`BattleResultJsonObjectParser.scala` 已删除 | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes`，POST body 使用 Circe `JsonObject`，response 通过 DTO encoder 输出 |
+| `battle/routes/BattleResultCommandParsers.scala` 已迁出，`BattleResultJsonObjectParser.scala` 已删除 | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes`，GET query 使用 http4s `request.params`，POST body 使用 Circe `JsonObject`，response 通过 DTO encoder 输出 |
 | `shared/routes/HttpRouteSupport.sendJsonError` 已删除 | `http4s/Http4sRouteSupport.apiError` |
 
 风险：测试通过某一路径不等于另一条路径正确。battle command 已改为只保留当前运行的 `BattleCommandAPIRequest.decode`，避免旧 parser 和 http4s parser 继续 drift。

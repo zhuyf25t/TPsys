@@ -40,7 +40,7 @@ private[http4s] object BattleResultHttp4sRoutes {
           case Method.HEAD =>
             IO.pure(withCors(Response[IO](Status.Ok)))
           case Method.GET =>
-            BattleResultApiCodec.parseListRequest(request.uri.query.renderString) match {
+            BattleResultApiCodec.parseListRequest(request.params) match {
               case BattleResultListQueryDecodeResult.EmptyResults =>
                 Ok(BattleResultListResponse.Empty.asJson).map(withCors)
               case BattleResultListQueryDecodeResult.Query(listRequest) =>

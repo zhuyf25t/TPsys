@@ -1,7 +1,5 @@
 package slaydemo.backend.battle.objects.apiTypes
 
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 import io.circe.{Json, JsonObject}
@@ -12,8 +10,7 @@ import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.shared.policies.HandlePolicy
 
 private[apiTypes] object BattleResultCommandParsers {
-  def parseListRequest(rawQuery: String): BattleResultListRequestParseResult = {
-    val query = queryParams(rawQuery)
+  def parseListRequest(query: Map[String, String]): BattleResultListRequestParseResult = {
     val limit = query.get("limit").flatMap(_.toIntOption).getOrElse(25)
     val handleFilter = query.get("handle").flatMap(nonEmptyText) match {
       case None =>
@@ -59,18 +56,6 @@ private[apiTypes] object BattleResultCommandParsers {
       timelineHint = readString(fields, "timelineHint").getOrElse(""),
       currentLoadout = readNullableString(fields, "currentLoadout")
     )
-
-  private def queryParams(rawQuery: String): Map[String, String] =
-    Option(rawQuery).toVector
-      .flatMap(_.split("&").toVector)
-      .flatMap { pair =>
-        pair.split("=", 2).toList match {
-          case key :: value :: Nil if key.nonEmpty => Some(decode(key) -> decode(value))
-          case key :: Nil if key.nonEmpty          => Some(decode(key) -> "")
-          case _                                   => None
-        }
-      }
-      .toMap
 
   private def readString(fields: JsonObject, key: String): Option[String] =
     fields(key) match {
@@ -147,9 +132,6 @@ private[apiTypes] object BattleResultCommandParsers {
 
   private def numberText(value: Json): String =
     value.asNumber.flatMap(_.toLong).map(_.toString).getOrElse(value.noSpaces)
-
-  private def decode(value: String): String =
-    URLDecoder.decode(value, StandardCharsets.UTF_8)
 
   private def nonEmptyText(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)

@@ -26,8 +26,8 @@ enum BattleResultRecordDecodeError {
 }
 
 object BattleResultApiCodec {
-  def parseListRequest(rawQuery: String): BattleResultListQueryDecodeResult =
-    BattleResultCommandParsers.parseListRequest(rawQuery) match {
+  def parseListRequest(query: Map[String, String]): BattleResultListQueryDecodeResult =
+    BattleResultCommandParsers.parseListRequest(query) match {
       case BattleResultListRequestParseResult.EmptyResults =>
         BattleResultListQueryDecodeResult.EmptyResults
       case BattleResultListRequestParseResult.Query(request) =>

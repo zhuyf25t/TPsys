@@ -190,7 +190,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleRoutes.scala` | 已删除。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
 | `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
-| `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 解码 command request，并在 apiTypes 内完成 JSON 到 domain command 的转换。 |
+| `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 识别 command API path、解码 command request，并在 apiTypes 内完成 JSON 到 domain command 的转换。 |
 | `battle/routes/BattleQueueRouteHandler.scala` | 已删除。当前使用 `BattleQueueHttp4sRoutes`，并由 `BattleQueueHttp4sJoin/Status/LeaveContractTest` 覆盖。 |
 | `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 识别 queue join/status/leave API path，解码 queue join/leave request，并在 apiTypes 内完成 JSON/query 到 join command / ticket id 的转换。 |
 | `battle/routes/BattleRoomRouteHandler.scala` | 已删除。当前使用 `BattleRoomHttp4sRoutes`，并由 `BattleRoomHttp4sContractTest` 覆盖；room snapshot/heartbeat path/query 和 heartbeat JSON 到 domain command 的转换已由 `BattleQueueApiTypes.scala` 承接。 |
@@ -289,7 +289,7 @@ http4s 入口把兼容路径散在每个 route 内：
 
 ```text
 BattleQueueApiTypes.BattleQueueRequestTarget
-BattleCommandHttp4sRoutes.AllowedPaths
+BattleCommandApiTypes.BattleCommandRequestTarget
 BattleStateHttp4sRoutes.AllowedReadPaths
 ...
 ```

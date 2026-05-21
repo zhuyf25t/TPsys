@@ -12,6 +12,21 @@ enum BattleCommandAPIRequestError {
   case BadRequest(code: String)
 }
 
+object BattleCommandRequestTarget {
+  private val AllowedCommandPaths: Set[String] =
+    Set(
+      "/battle/command",
+      "/battle/commands",
+      "/api/battle/command",
+      "/api/battle/commands",
+      "/battlecommandapi",
+      "/api/battlecommandapi"
+    )
+
+  def isCommandPath(path: String): Boolean =
+    AllowedCommandPaths.contains(path)
+}
+
 final case class BattleCommandAPIRequest(
   battleId: String,
   playerId: String,

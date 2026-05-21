@@ -10,22 +10,13 @@ import slaydemo.backend.battle.api.BattleCommandRequest
 import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandAcceptedResponse,
   BattleCommandAPIRequest,
-  BattleCommandAPIRequestError
+  BattleCommandAPIRequestError,
+  BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleCommandHttp4sRoutes {
-  private val AllowedPaths: Set[String] =
-    Set(
-      "/battle/command",
-      "/battle/commands",
-      "/api/battle/command",
-      "/api/battle/commands",
-      "/battlecommandapi",
-      "/api/battlecommandapi"
-    )
-
   private val InvalidJsonObjectError =
     HttpApiError(
       status = Status.BadRequest,
@@ -71,7 +62,7 @@ private[http4s] object BattleCommandHttp4sRoutes {
     }
 
   private def isBattleCommandPath(request: Request[IO]): Boolean =
-    AllowedPaths.contains(request.uri.path.renderString)
+    BattleCommandRequestTarget.isCommandPath(request.uri.path.renderString)
 
   private def decodeCommandRequest(request: Request[IO]): IO[Either[BattleCommandAPIRequestError, BattleCommandRequest]] =
     request.as[Json].attempt.map {

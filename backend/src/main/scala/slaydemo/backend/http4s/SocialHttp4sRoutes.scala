@@ -11,9 +11,9 @@ import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,
   FriendRequestListResponse,
+  FriendRequestOwnerQuery,
   FriendRequestRespondApiRequest,
   FriendRequestRespondResponse,
-  SocialCommandParsers,
   SocialRouteCreateError,
   SocialRouteHandleError,
   SocialRouteRespondError
@@ -75,7 +75,7 @@ private[http4s] object SocialHttp4sRoutes {
     }
 
   private def list(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
-    SocialCommandParsers.parseOwner(request.params.get("ownerHandle")) match {
+    FriendRequestOwnerQuery.parse(request.params.get("ownerHandle")) match {
       case Left(error) =>
         IO.pure(apiError(ownerApiError(error)))
       case Right(ownerHandle) =>
@@ -89,7 +89,7 @@ private[http4s] object SocialHttp4sRoutes {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
       case Right(createRequest) =>
-        SocialCommandParsers.parseCreateHandles(createRequest) match {
+        createRequest.toCreateHandles match {
           case Left(error) =>
             IO.pure(apiError(createApiError(error)))
           case Right(command) =>
@@ -107,7 +107,7 @@ private[http4s] object SocialHttp4sRoutes {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
       case Right(respondRequest) =>
-        SocialCommandParsers.parseRespondCommand(respondRequest) match {
+        respondRequest.toRespondCommand match {
           case Left(error) =>
             IO.pure(apiError(respondParseApiError(error)))
           case Right(command) =>

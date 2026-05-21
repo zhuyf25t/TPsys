@@ -3,6 +3,7 @@ package slaydemo.backend.social.objects.apiTypes
 import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
 import io.circe.generic.semiauto.deriveEncoder
 
+import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.apiTypes.MailItemResponse
 import slaydemo.backend.social.objects.{FriendRequestRecord, FriendRequestStatus}
 import slaydemo.backend.social.services.{FriendRequestResponseResult, FriendRequestSubmissionResult}
@@ -10,7 +11,10 @@ import slaydemo.backend.social.services.{FriendRequestResponseResult, FriendRequ
 final case class FriendRequestCreateApiRequest(
   sourceHandle: Option[String],
   targetHandle: Option[String]
-)
+) {
+  def toCreateHandles: Either[SocialRouteCreateError, SocialCreateHandles] =
+    SocialCommandParsers.parseCreateHandles(this)
+}
 
 object FriendRequestCreateApiRequest {
   given Decoder[FriendRequestCreateApiRequest] = (cursor: HCursor) =>
@@ -26,7 +30,15 @@ final case class FriendRequestRespondApiRequest(
   requestId: Option[String],
   actorHandle: Option[String],
   decision: Option[String]
-)
+) {
+  def toRespondCommand: Either[SocialRouteRespondError, SocialRespondCommand] =
+    SocialCommandParsers.parseRespondCommand(this)
+}
+
+object FriendRequestOwnerQuery {
+  def parse(ownerHandle: Option[String]): Either[SocialRouteHandleError, PlayerHandle] =
+    SocialCommandParsers.parseOwner(ownerHandle)
+}
 
 object FriendRequestRespondApiRequest {
   given Decoder[FriendRequestRespondApiRequest] = (cursor: HCursor) =>

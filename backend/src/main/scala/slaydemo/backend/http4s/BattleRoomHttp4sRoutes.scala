@@ -4,7 +4,7 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomHeartbeatAPIRequest,
@@ -13,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
@@ -36,7 +36,7 @@ private[http4s] object BattleRoomHttp4sRoutes {
       case request if isBattleRoomSnapshotPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             roomIdFromSnapshotRequest(request) match {
               case None =>
@@ -59,7 +59,7 @@ private[http4s] object BattleRoomHttp4sRoutes {
       case request if isBattleRoomHeartbeatPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             decodeHeartbeatRequest(request).flatMap {
               case Left(RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject) =>

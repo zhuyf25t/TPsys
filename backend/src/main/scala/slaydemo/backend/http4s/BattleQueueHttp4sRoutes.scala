@@ -4,7 +4,7 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.TicketId
 import slaydemo.backend.battle.objects.apiTypes.{
@@ -24,7 +24,7 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleQueueStatusError
 }
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -59,7 +59,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
       case request if isBattleQueueStatusPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             BattleQueueRequestTarget.statusTicketIdFrom(request.params) match {
               case None =>
@@ -85,7 +85,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
       case request if isBattleQueueJoinPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             decodeJoinRequest(request).flatMap {
               case Left(BattleQueueJoinAPIRequestError.InvalidJsonObject) =>
@@ -118,7 +118,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
       case request if isBattleQueueLeavePath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             decodeLeaveRequest(request).flatMap {
               case Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject) =>

@@ -17,6 +17,12 @@ private[http4s] object Http4sRouteSupport {
   def blocking[A](thunk: => A): IO[A] =
     IO.blocking(thunk)
 
+  def corsNoContent: IO[Response[IO]] =
+    IO.pure(withCors(Response[IO](Status.NoContent)))
+
+  def corsOk: IO[Response[IO]] =
+    IO.pure(withCors(Response[IO](Status.Ok)))
+
   def decodeJsonObjectBody[E, A](
     request: Request[IO],
     invalidJson: E

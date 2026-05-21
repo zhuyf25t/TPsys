@@ -13,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleCommandHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -38,7 +38,7 @@ private[http4s] object BattleCommandHttp4sRoutes {
       case request if isBattleCommandPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             decodeCommandRequest(request).flatMap {
               case Left(BattleCommandAPIRequestError.InvalidJsonObject) =>

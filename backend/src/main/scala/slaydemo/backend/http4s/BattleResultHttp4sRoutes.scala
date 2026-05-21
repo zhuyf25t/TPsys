@@ -15,7 +15,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleResultHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -34,9 +34,9 @@ private[http4s] object BattleResultHttp4sRoutes {
       case request if isBattleResultPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.HEAD =>
-            IO.pure(withCors(Response[IO](Status.Ok)))
+            corsOk
           case Method.GET =>
             BattleResultApiCodec.parseListRequest(request.params) match {
               case BattleResultListQueryDecodeResult.EmptyResults =>

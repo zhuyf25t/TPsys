@@ -14,7 +14,7 @@ import scala.concurrent.duration.*
 import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val InvalidBattleIdError =
@@ -29,9 +29,9 @@ private[http4s] object BattleStateHttp4sRoutes {
       case request if isBattleStateReadPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.HEAD =>
-            IO.pure(withCors(Response[IO](Status.Ok)))
+            corsOk
           case Method.GET =>
             battleIdFromStateRequest(request) match {
               case None =>
@@ -54,7 +54,7 @@ private[http4s] object BattleStateHttp4sRoutes {
       case request if isBattleStateStreamPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             battleIdFromStateStreamRequest(request) match {
               case None =>

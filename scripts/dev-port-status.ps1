@@ -92,12 +92,6 @@ function Get-ProcessRole {
   if ($haystack -match "BackendHttp4sApp") {
     return "BackendHttp4sApp"
   }
-  if ($haystack -match "runMain\s+slaydemo\.backend\.BackendApp") {
-    return "BackendApp legacy via sbt runMain"
-  }
-  if ($haystack -match "BackendApp") {
-    return "BackendApp legacy"
-  }
   if ($haystack -match "npm(\.cmd)?\s+run\s+backend:dev") {
     return "npm backend:dev wrapper"
   }
@@ -196,7 +190,7 @@ foreach ($process in $allProcesses) {
     }
   }
 
-  $isInterestingCommand = Test-CommandContains -Value $commandLine -Pattern "BackendHttp4sApp|BackendApp|backend:dev|vite|codex|sbt"
+  $isInterestingCommand = Test-CommandContains -Value $commandLine -Pattern "BackendHttp4sApp|backend:dev|vite|codex|sbt"
 
   if ($isInterestingName -or $isInterestingCommand) {
     $processRows += [pscustomobject]@{
@@ -224,7 +218,7 @@ $backendLooksRunning = $false
 $frontendLooksRunning = $false
 
 foreach ($row in $backendRows) {
-  if ($row.CommandLine -match "BackendHttp4sApp|BackendApp" -or $row.Role -match "BackendHttp4sApp|BackendApp") {
+  if ($row.CommandLine -match "BackendHttp4sApp" -or $row.Role -match "BackendHttp4sApp") {
     $backendLooksRunning = $true
   }
 }
@@ -240,9 +234,9 @@ Write-Host "Recommendations"
 if ($backendConnections.Count -eq 0) {
   Write-Host "- 8080 is not listening: backend is not running; start it with npm run backend:dev."
 } elseif ($backendLooksRunning) {
-  Write-Host "- 8080 is listening and the command contains BackendHttp4sApp or BackendApp: backend is already running. Do not repeat sbt run. If you need compile, stop the old backend first or use a clean shell/environment."
+  Write-Host "- 8080 is listening and the command contains BackendHttp4sApp: backend is already running. Do not repeat sbt run. If you need compile, stop the old backend first or use a clean shell/environment."
 } else {
-  Write-Host "- 8080 is listening, but it was not identified as BackendApp. Treat it as a port conflict until the owning process is confirmed."
+  Write-Host "- 8080 is listening, but it was not identified as BackendHttp4sApp. Treat it as a port conflict until the owning process is confirmed."
 }
 
 if ($frontendConnections.Count -eq 0) {

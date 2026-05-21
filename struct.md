@@ -165,7 +165,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `BackendRouteRegistry.scala` | 已删除。旧入口 handler 注册表不再保留。 |
 | `BackendRouteCatalog.scala` | 已删除。旧入口 route context 清单不再保留。 |
 
-当前 `package.json` 已不再暴露 `backend:dev:legacy`，contract runner 也不再运行旧 `BackendRouteContextContractTest`。旧顶层入口装配文件已经删除。
+当前 `package.json` 已不再暴露 `backend:dev:legacy`，contract runner 也不再运行旧 `BackendRouteContextContractTest`。旧顶层入口装配文件已经删除，开发诊断脚本也不再把 `BackendApp` 当作可识别的后端入口。
 
 ### 6.2 旧 `HttpExchange` route wrapper
 

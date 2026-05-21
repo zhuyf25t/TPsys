@@ -69,7 +69,7 @@ BackendHttp4sApp.run
 | --- | --- |
 | `http4s/HealthHttp4sRoutes.scala` | 健康检查；固定 API path 由 `shared/api/HealthApi.scala` 管理。 |
 | `http4s/IdentityHttp4sRoutes.scala` | 注册、登录、当前用户、账号列表。 |
-| `http4s/MailHttp4sRoutes.scala` | 邮件列表和已读操作。 |
+| `http4s/MailHttp4sRoutes.scala` | 邮件列表和已读操作；list/read API path、owner query、read body DTO 由 `mail/objects/apiTypes/MailApiTypes.scala` 管理。 |
 | `http4s/SocialHttp4sRoutes.scala` | 好友请求创建、查询、响应。 |
 | `http4s/ForumHttp4sRoutes.scala` | 讨论区 topic、reply、vote。 |
 | `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知。 |

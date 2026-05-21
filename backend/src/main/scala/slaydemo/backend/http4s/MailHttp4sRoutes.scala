@@ -12,17 +12,13 @@ import slaydemo.backend.mail.objects.apiTypes.{
   MailOwnerQuery,
   MailReadApiRequest,
   MailReadResponse,
+  MailRequestTarget,
   MailRouteOwnerError,
   MailRouteReadError
 }
 import slaydemo.backend.mail.services.{MailReadError, MailService}
 
 private[http4s] object MailHttp4sRoutes {
-  private val MailListPaths: Set[String] =
-    Set("/mails", "/api/mails")
-  private val MailReadPaths: Set[String] =
-    Set("/mails/read", "/api/mails/read")
-
   private val MethodNotAllowedError =
     HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
   private val MissingOwnerError =
@@ -41,7 +37,7 @@ private[http4s] object MailHttp4sRoutes {
 
   def routes(service: MailService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if MailListPaths.contains(path(request)) =>
+      case request if MailRequestTarget.isListPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))
@@ -50,7 +46,7 @@ private[http4s] object MailHttp4sRoutes {
           case _ =>
             IO.pure(apiError(MethodNotAllowedError))
         }
-      case request if MailReadPaths.contains(path(request)) =>
+      case request if MailRequestTarget.isReadPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))

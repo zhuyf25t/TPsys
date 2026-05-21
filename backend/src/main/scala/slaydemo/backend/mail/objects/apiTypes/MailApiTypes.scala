@@ -5,6 +5,19 @@ import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.{MailFriendRequestStatus, MailKind, MailRecord}
 
+object MailRequestTarget {
+  private val MailListPaths: Set[String] =
+    Set("/mails", "/api/mails")
+  private val MailReadPaths: Set[String] =
+    Set("/mails/read", "/api/mails/read")
+
+  def isListPath(path: String): Boolean =
+    MailListPaths.contains(path)
+
+  def isReadPath(path: String): Boolean =
+    MailReadPaths.contains(path)
+}
+
 final case class MailReadApiRequest(
   ownerHandle: Option[String],
   mailId: Option[String]

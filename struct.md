@@ -4,7 +4,7 @@
 
 ## 1. 结论
 
-当前 8080 上运行的后端不是旧的 `BackendApp`，而是 http4s 入口：
+当前 8080 上运行的后端是 http4s 入口：
 
 ```text
 npm run backend:dev
@@ -17,7 +17,7 @@ npm run backend:dev
 | 问题 | 结论 |
 | --- | --- |
 | 真正在跑的是不是 `src/main` 代码 | 是。入口类在 `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala`，不是 `src/test`。 |
-| 真正在跑的是不是旧 `BackendApp` | 不是。旧入口 `slaydemo.backend.BackendApp` 仍存在，但当前 8080 进程没有使用它。 |
+| 真正在跑的是不是旧 `BackendApp` | 不是。旧入口 `slaydemo.backend.BackendApp` 已删除。 |
 | 真正在跑的是不是 Git 的 `main` 分支 | 不是。当前工作分支是 `multimodule`；具体 HEAD 会随提交变化，用 `git log -1 --oneline` 查看。 |
 | 当前服务入口 | `slaydemo.backend.http4s.BackendHttp4sApp`。 |
 | 当前 HTTP 框架 | http4s + Ember server + cats-effect `IO`。 |
@@ -25,7 +25,7 @@ npm run backend:dev
 
 所以需要把三个概念分开：
 
-1. 运行入口：当前 8080 入口是 `BackendHttp4sApp`，不是旧 `BackendApp`。
+1. 运行入口：当前 8080 入口是 `BackendHttp4sApp`。
 2. 源码层级：当前运行的是 `backend/src/main` 下的正式后端源码，不是 `backend/src/test`。
 3. Git 分支差异：当前工作区在 `multimodule` 分支上，不在 Git 的 `main` 分支上；这只影响版本来源，不代表运行了测试代码。
 
@@ -161,11 +161,11 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 
 | 文件 | 当前状态 |
 | --- | --- |
-| `BackendApp.scala` | 旧 `com.sun.net.httpserver.HttpServer` 入口；当前 8080 没有运行它。 |
-| `BackendRouteRegistry.scala` | 旧入口注册 `HttpExchange => Unit` handler 用；当前 http4s 入口不用。 |
-| `BackendRouteCatalog.scala` | 旧入口 route context 清单；当前 http4s 入口不用。 |
+| `BackendApp.scala` | 已删除。旧 `com.sun.net.httpserver.HttpServer` 顶层入口不再保留。 |
+| `BackendRouteRegistry.scala` | 已删除。旧入口 handler 注册表不再保留。 |
+| `BackendRouteCatalog.scala` | 已删除。旧入口 route context 清单不再保留。 |
 
-当前 `package.json` 已不再暴露 `backend:dev:legacy`，contract runner 也不再运行旧 `BackendRouteContextContractTest`。旧入口仍在源码中，但已经不再作为推荐或脚本化启动入口。
+当前 `package.json` 已不再暴露 `backend:dev:legacy`，contract runner 也不再运行旧 `BackendRouteContextContractTest`。旧顶层入口装配文件已经删除。
 
 ### 6.2 旧 `HttpExchange` route wrapper
 
@@ -207,7 +207,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
 
-结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；下一步可以开始评估删除旧 `HttpExchange` route wrapper。但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter，且删除前还需要处理 `BackendRouteCatalog/Registry` 和旧 route tests 的取舍。
+结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；旧顶层 Java HttpServer 入口和 route catalog/registry 已删除。下一步可以开始评估删除旧 `HttpExchange` route wrapper，但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter。
 
 ## 7. 当前逻辑重复的位置
 
@@ -256,12 +256,14 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 
 ### 7.3 路径兼容表重复
 
-旧入口把兼容路径集中在：
+旧入口曾经把兼容路径集中在：
 
 ```text
 BackendRouteRegistry.scala
 BackendRouteCatalog.scala
 ```
+
+这两个文件已经删除；当前兼容路径只应由 http4s route 和对应 composition tests 约束。
 
 http4s 入口把兼容路径散在每个 route 内：
 
@@ -276,21 +278,11 @@ BattleStateHttp4sRoutes.AllowedReadPaths
 
 ### 7.4 `BackendRuntime` 和旧 route 的装配边界
 
-已修正：`BackendRuntime.fromEnvironment` 当前只装配 config、service、repository 相关运行时对象，不再实例化旧 `HttpExchange` route 对象。
+已修正：`BackendRuntime.fromEnvironment` 当前只装配 config、service、repository 相关运行时对象，不再实例化旧 `HttpExchange` route 对象。旧顶层 `BackendApp` / `BackendRouteRegistry` / `BackendRouteCatalog` 已删除。
 
-旧 Java HttpServer 入口需要这些 route 时，会在 `BackendApp.legacyRouteHandlers(runtime)` 内本地构造：
+`BackendHttp4sApp` 只把 service 传给 `BackendHttp4sRoutes.backendRoutes(...)`。这意味着当前 http4s 运行对象图已经不再间接初始化旧 route wrapper。
 
-```text
-BackendApp.legacyRouteHandlers(runtime)
-  -> HealthRoutes(runtime.healthService)
-  -> IdentityRoutes(runtime.identityService)
-  -> BattleRoutes(runtime.battleQueueService, runtime.battleStateService, ...)
-...
-```
-
-`BackendHttp4sApp` 仍只把 service 传给 `BackendHttp4sRoutes.backendRoutes(...)`。这意味着当前 http4s 运行对象图已经不再间接初始化旧 route wrapper。
-
-剩余风险：旧 route wrapper 仍存在，并且 legacy tests 仍覆盖它们；只是它们已经从当前 http4s runtime 对象图中移出。
+剩余风险：旧 route wrapper 仍存在，并且 legacy tests 仍覆盖它们；只是它们已经从当前 http4s runtime 对象图和顶层启动入口中移出。
 
 ## 8. 可以清理但需要分阶段做的代码
 
@@ -302,7 +294,7 @@ BackendApp.legacyRouteHandlers(runtime)
 
 ```text
 BackendRuntime 只保留 service/repository/runtime state
-BackendApp.legacyRouteHandlers(runtime) 内部再创建旧 HttpExchange routes
+旧 BackendApp 顶层入口已删除
 BackendHttp4sApp 不再间接构造旧 route object
 ```
 
@@ -339,15 +331,12 @@ BackendHttp4sApp 不再间接构造旧 route object
 
 1. `backend:dev:legacy` 已移除。
 2. contract tests 已迁到 http4s 路径。
-3. `BackendRouteCatalog/Registry` 的旧覆盖测试不再作为主路径测试。
+3. `BackendRouteCatalog/Registry` 已删除。
 4. 所有当前前端请求路径都有 http4s composition test 覆盖。
 
 可删候选：
 
 ```text
-BackendApp.scala
-BackendRouteRegistry.scala
-BackendRouteCatalog.scala
 shared/routes/HealthRoutes.scala
 shared/routes/HttpRouteSupport.scala
 各 domain/routes/*Routes.scala

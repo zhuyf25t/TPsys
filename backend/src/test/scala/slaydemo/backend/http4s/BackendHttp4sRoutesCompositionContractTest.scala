@@ -93,8 +93,22 @@ object BackendHttp4sRoutesCompositionContractTest {
       "/api/battleresultsapi"
     )
 
+  private val FrontendProxyStrippedPaths: Vector[String] =
+    Vector(
+      "/battlequeuestatusapi",
+      "/battlequeuejoinapi",
+      "/battlequeueleaveapi",
+      "/battleroomsnapshotapi",
+      "/battleroomheartbeatapi",
+      "/battlestatestreamapi",
+      "/battlestatereadapi",
+      "/battlecommandapi",
+      "/battleresultsapi"
+    )
+
   def main(args: Array[String]): Unit = {
     backendRoutesComposesEverySplitRouteFamily()
+    backendRoutesComposesFrontendProxyStrippedBattlePaths()
     backendRoutesAcceptsFrontendCommandShapeThroughComposedRoutes()
 
     println("Backend http4s route composition contract checks passed")
@@ -106,6 +120,14 @@ object BackendHttp4sRoutesCompositionContractTest {
 
       assertEquals(s"$path options status", response.status, 204)
       assertEquals(s"$path options body", response.body, "")
+    }
+
+  private def backendRoutesComposesFrontendProxyStrippedBattlePaths(): Unit =
+    FrontendProxyStrippedPaths.foreach { path =>
+      val response = run(Request[IO](method = Method.OPTIONS, uri = Uri.unsafeFromString(path)))
+
+      assertEquals(s"$path proxy-stripped options status", response.status, 204)
+      assertEquals(s"$path proxy-stripped options body", response.body, "")
     }
 
   private def backendRoutesAcceptsFrontendCommandShapeThroughComposedRoutes(): Unit = {

@@ -24,7 +24,7 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleQueueStatusError
 }
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeJsonObjectBody, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -63,17 +63,17 @@ private[http4s] object BattleQueueHttp4sRoutes {
           case Method.GET =>
             BattleQueueRequestTarget.statusTicketIdFrom(request.params) match {
               case None =>
-                IO.pure(apiError(MissingTicketIdError))
+                errorResponse(MissingTicketIdError)
               case Some(ticketId) =>
                 blocking(service.status(ticketId)).flatMap {
                   case Right(snapshot) =>
                     Ok(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
                   case Left(BattleQueueStatusError.TicketNotFound) =>
-                    IO.pure(apiError(TicketNotFoundError))
+                    errorResponse(TicketNotFoundError)
                 }
             }
           case _ =>
-            IO.pure(apiError(StatusMethodNotAllowedError))
+            errorResponse(StatusMethodNotAllowedError)
         }
     }
 
@@ -89,19 +89,19 @@ private[http4s] object BattleQueueHttp4sRoutes {
           case Method.POST =>
             decodeJoinRequest(request).flatMap {
               case Left(BattleQueueJoinAPIRequestError.InvalidJsonObject) =>
-                IO.pure(apiError(InvalidJsonObjectError))
+                errorResponse(InvalidJsonObjectError)
               case Left(BattleQueueJoinAPIRequestError.InvalidRating) =>
-                IO.pure(apiError(InvalidRatingError))
+                errorResponse(InvalidRatingError)
               case Left(BattleQueueJoinAPIRequestError.InvalidHandle) =>
-                IO.pure(apiError(InvalidHandleError))
+                errorResponse(InvalidHandleError)
               case Left(BattleQueueJoinAPIRequestError.MissingSession) =>
-                IO.pure(apiError(MissingSessionError))
+                errorResponse(MissingSessionError)
               case Right(command) =>
                 blocking(joinAuthorizationService.authorize(command)).flatMap {
                   case Left(BattleQueueJoinAuthorizationError.InvalidSession) =>
-                    IO.pure(apiError(InvalidSessionError))
+                    errorResponse(InvalidSessionError)
                   case Left(BattleQueueJoinAuthorizationError.HandleMismatch) =>
-                    IO.pure(apiError(IdentityMismatchError))
+                    errorResponse(IdentityMismatchError)
                   case Right(()) =>
                     blocking(queueService.join(command)).flatMap(snapshot =>
                       Ok(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
@@ -109,7 +109,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
                 }
             }
           case _ =>
-            IO.pure(apiError(PostMethodNotAllowedError))
+            errorResponse(PostMethodNotAllowedError)
         }
     }
 
@@ -122,9 +122,9 @@ private[http4s] object BattleQueueHttp4sRoutes {
           case Method.POST =>
             decodeLeaveRequest(request).flatMap {
               case Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject) =>
-                IO.pure(apiError(InvalidJsonObjectError))
+                errorResponse(InvalidJsonObjectError)
               case Left(BattleQueueLeaveAPIRequestError.MissingTicketId) =>
-                IO.pure(apiError(MissingLeaveTicketIdError))
+                errorResponse(MissingLeaveTicketIdError)
               case Right(ticketId) =>
                 blocking(queueService.leave(ticketId)).flatMap { outcome =>
                   val left = outcome == BattleQueueLeaveOutcome.LeftQueue
@@ -132,7 +132,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
                 }
             }
           case _ =>
-            IO.pure(apiError(PostMethodNotAllowedError))
+            errorResponse(PostMethodNotAllowedError)
         }
     }
 

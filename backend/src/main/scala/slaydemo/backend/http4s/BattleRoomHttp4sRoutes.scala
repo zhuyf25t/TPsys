@@ -13,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeJsonObjectBody, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
@@ -40,17 +40,17 @@ private[http4s] object BattleRoomHttp4sRoutes {
           case Method.GET =>
             roomIdFromSnapshotRequest(request) match {
               case None =>
-                IO.pure(apiError(InvalidRoomIdError))
+                errorResponse(InvalidRoomIdError)
               case Some(roomId) =>
                 blocking(queueService.roomSnapshot(roomId)).flatMap {
                   case Right(snapshot) =>
                     Ok(RealtimeRoomSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
                   case Left(error) =>
-                    IO.pure(apiError(roomApiError(error)))
+                    errorResponse(roomApiError(error))
                 }
             }
           case _ =>
-            IO.pure(apiError(SnapshotMethodNotAllowedError))
+            errorResponse(SnapshotMethodNotAllowedError)
         }
     }
 
@@ -63,17 +63,17 @@ private[http4s] object BattleRoomHttp4sRoutes {
           case Method.POST =>
             decodeHeartbeatRequest(request).flatMap {
               case Left(RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject) =>
-                IO.pure(apiError(InvalidJsonObjectError))
+                errorResponse(InvalidJsonObjectError)
               case Right(command) =>
                 blocking(queueService.heartbeat(command)).flatMap {
                   case Right(snapshot) =>
                     Ok(RealtimeRoomSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
                   case Left(error) =>
-                    IO.pure(apiError(roomApiError(error)))
+                    errorResponse(roomApiError(error))
                 }
             }
           case _ =>
-            IO.pure(apiError(HeartbeatMethodNotAllowedError))
+            errorResponse(HeartbeatMethodNotAllowedError)
         }
     }
 

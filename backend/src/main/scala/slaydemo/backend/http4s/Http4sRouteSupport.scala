@@ -69,6 +69,9 @@ private[http4s] object Http4sRouteSupport {
       )
     )
 
+  def errorResponse(error: HttpApiError): IO[Response[IO]] =
+    IO.pure(apiError(error))
+
   def typedApiError(statusCode: Int, code: String, message: String): HttpApiError =
     HttpApiError(status = statusFrom(statusCode), code = code, message = message)
 

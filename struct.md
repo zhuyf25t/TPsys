@@ -389,7 +389,7 @@ battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
 
 ## 10. 下一步建议
 
-最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer、各 HTTP response DTO 的旧字符串 render helper，以及 replay 旧手写 JSON object parser 已清完；下一步应聚焦 service 简化或继续减少其他 request parser 中的手写 codec。
+最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer、各 HTTP response DTO 的旧字符串 render helper、replay 旧手写 JSON object parser，以及无引用的 shared 手写 JSON object parser 已清完；下一步应聚焦 service 简化或继续减少其他 request parser 中的手写 codec。
 
 推荐下一个小票：
 

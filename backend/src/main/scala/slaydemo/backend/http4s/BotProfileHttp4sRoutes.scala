@@ -6,13 +6,11 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.bots.objects.apiTypes.BotProfilesResponse
+import slaydemo.backend.bots.objects.apiTypes.{BotProfileRequestTarget, BotProfilesResponse}
 import slaydemo.backend.bots.services.BotProfileService
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BotProfileHttp4sRoutes {
-  private val AllowedPaths: Set[String] =
-    Set("/bots/profiles", "/bot/profiles", "/api/bots/profiles", "/api/bot/profiles")
   private val MethodNotAllowedError =
     HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
 
@@ -32,5 +30,5 @@ private[http4s] object BotProfileHttp4sRoutes {
     }
 
   private def isBotProfilePath(request: Request[IO]): Boolean =
-    AllowedPaths.contains(request.uri.path.renderString)
+    BotProfileRequestTarget.isProfilePath(request.uri.path.renderString)
 }

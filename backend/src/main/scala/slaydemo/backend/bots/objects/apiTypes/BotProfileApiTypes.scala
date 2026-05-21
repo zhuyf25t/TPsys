@@ -5,6 +5,14 @@ import io.circe.generic.semiauto.deriveEncoder
 
 import slaydemo.backend.bots.objects.{BotProfileRecord, BotProfileTone}
 
+object BotProfileRequestTarget {
+  private val AllowedProfilePaths: Set[String] =
+    Set("/bots/profiles", "/bot/profiles", "/api/bots/profiles", "/api/bot/profiles")
+
+  def isProfilePath(path: String): Boolean =
+    AllowedProfilePaths.contains(path)
+}
+
 final case class BotSkinProfileResponse(
   avatarKey: String,
   textureKey: String,

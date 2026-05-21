@@ -74,7 +74,7 @@ BackendHttp4sApp.run
 | `http4s/ForumHttp4sRoutes.scala` | 讨论区 topic、reply、vote。 |
 | `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知。 |
 | `http4s/ReplayHttp4sRoutes.scala` | replay catalog、详情、评论。 |
-| `http4s/BotProfileHttp4sRoutes.scala` | bot profile 列表。 |
+| `http4s/BotProfileHttp4sRoutes.scala` | bot profile 列表；固定 API path 由 `bots/objects/apiTypes/BotProfileApiTypes.scala` 管理。 |
 | `http4s/BattleQueueHttp4sRoutes.scala` | battle 排队 join/status/leave。 |
 | `http4s/BattleRoomHttp4sRoutes.scala` | 房间 snapshot/heartbeat。 |
 | `http4s/BattleStateHttp4sRoutes.scala` | battle state 读取和 SSE stream。 |
@@ -187,7 +187,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `replay/routes/ReplayRoutes.scala` | 已删除。当前使用 `ReplayHttp4sRoutes`，并由 `ReplayHttp4sCatalogContractTest` 覆盖。 |
 | `replay/routes/ReplayRouteTargetParsers.scala` | 已删除。旧 `ReplayRoutes` 专用 path/query parser 不再保留。 |
 | `replay/routes/ReplayRouteErrorMapper.scala` | 已删除。旧 `ReplayRoutes` 专用 error mapper 不再保留。 |
-| `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖。 |
+| `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖；bot profile API path 和 response DTO 由 `BotProfileApiTypes.scala` 承接。 |
 | `battle/routes/BattleRoutes.scala` | 已删除。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
 | `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 识别 command API path、解码 command request，并在 apiTypes 内完成 JSON 到 domain command 的转换。 |

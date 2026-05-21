@@ -8,6 +8,19 @@ import slaydemo.backend.mail.objects.apiTypes.MailItemResponse
 import slaydemo.backend.social.objects.{FriendRequestRecord, FriendRequestStatus}
 import slaydemo.backend.social.services.{FriendRequestResponseResult, FriendRequestSubmissionResult}
 
+object SocialRequestTarget {
+  private val FriendRequestPaths: Set[String] =
+    Set("/social/friend-requests", "/api/social/friend-requests")
+  private val FriendRequestRespondPaths: Set[String] =
+    Set("/social/friend-requests/respond", "/api/social/friend-requests/respond")
+
+  def isFriendRequestPath(path: String): Boolean =
+    FriendRequestPaths.contains(path)
+
+  def isFriendRequestRespondPath(path: String): Boolean =
+    FriendRequestRespondPaths.contains(path)
+}
+
 final case class FriendRequestCreateApiRequest(
   sourceHandle: Option[String],
   targetHandle: Option[String]

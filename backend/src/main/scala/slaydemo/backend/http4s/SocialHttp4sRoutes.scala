@@ -14,6 +14,7 @@ import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestOwnerQuery,
   FriendRequestRespondApiRequest,
   FriendRequestRespondResponse,
+  SocialRequestTarget,
   SocialRouteCreateError,
   SocialRouteHandleError,
   SocialRouteRespondError
@@ -21,11 +22,6 @@ import slaydemo.backend.social.objects.apiTypes.{
 import slaydemo.backend.social.services.{FriendRequestCreateError, FriendRequestRespondError, FriendRequestService}
 
 private[http4s] object SocialHttp4sRoutes {
-  private val FriendRequestPaths: Set[String] =
-    Set("/social/friend-requests", "/api/social/friend-requests")
-  private val FriendRequestRespondPaths: Set[String] =
-    Set("/social/friend-requests/respond", "/api/social/friend-requests/respond")
-
   private val MethodNotAllowedError =
     HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
   private val MissingOwnerError =
@@ -52,7 +48,7 @@ private[http4s] object SocialHttp4sRoutes {
 
   def routes(service: FriendRequestService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if FriendRequestRespondPaths.contains(path(request)) =>
+      case request if SocialRequestTarget.isFriendRequestRespondPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))
@@ -61,7 +57,7 @@ private[http4s] object SocialHttp4sRoutes {
           case _ =>
             IO.pure(apiError(MethodNotAllowedError))
         }
-      case request if FriendRequestPaths.contains(path(request)) =>
+      case request if SocialRequestTarget.isFriendRequestPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))

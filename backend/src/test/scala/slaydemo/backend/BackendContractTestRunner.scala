@@ -11,7 +11,6 @@ import slaydemo.backend.battle.routes.{
   BattleResultRouteContractTest,
   BattleRoomStateRouteContractTest
 }
-import slaydemo.backend.forum.routes.ForumRouteContractTest
 import slaydemo.backend.http4s.{
   BackendHttp4sRoutesCompositionContractTest,
   BotProfileHttp4sContractTest,
@@ -70,7 +69,6 @@ object BackendContractTestRunner {
     run("battle queue authorization", () => BattleQueueAuthorizationContractTest.main(Array.empty))
     run("battle queue runtime", () => BattleQueueRuntimeContractTest.main(Array.empty))
     run("friend request service", () => FriendRequestServiceContractTest.main(Array.empty))
-    run("forum route", () => ForumRouteContractTest.main(Array.empty))
     run("forum service", () => ForumServiceContractTest.main(Array.empty))
     run("governance service", () => GovernanceServiceContractTest.main(Array.empty))
     run("password hasher", () => PasswordHasherContractTest.main(Array.empty))

@@ -177,7 +177,10 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `identity/routes/IdentityRoutes.scala` | 已删除。当前使用 `IdentityHttp4sRoutes`，并由 `IdentityHttp4sContractTest` 覆盖。 |
 | `mail/routes/MailRoutes.scala` | 已删除。当前使用 `MailHttp4sRoutes`，并由 `MailHttp4sContractTest` 覆盖。 |
 | `social/routes/SocialRoutes.scala` | 已删除。当前使用 `SocialHttp4sRoutes`，并由 `SocialHttp4sContractTest` 覆盖。 |
-| `forum/routes/ForumRoutes.scala` | 否。当前使用 `ForumHttp4sRoutes`。 |
+| `forum/routes/ForumRoutes.scala` | 已删除。当前使用 `ForumHttp4sRoutes`，并由 `ForumHttp4sContractTest` 覆盖。 |
+| `forum/routes/ForumMutationRouteHandler.scala` | 已删除。旧 `ForumRoutes` 专用 mutation handler 不再保留。 |
+| `forum/routes/ForumRouteHttpSupport.scala` | 已删除。旧 `ForumRoutes` 专用 HTTP helper 不再保留。 |
+| `forum/routes/ForumRequestBodyParser.scala` | 已删除。旧 `ForumRoutes` 专用 body parser 不再保留。 |
 | `governance/routes/GovernanceRoutes.scala` | 已删除。当前使用 `GovernanceHttp4sRoutes`，并由 `GovernanceHttp4sContractTest` 覆盖。 |
 | `governance/routes/GovernanceRequestBodyParser.scala` | 已删除。旧 `GovernanceRoutes` 专用 body parser 不再保留。 |
 | `replay/routes/ReplayRoutes.scala` | 已删除。当前使用 `ReplayHttp4sRoutes`，并由 `ReplayHttp4sCatalogContractTest` 覆盖。 |
@@ -224,7 +227,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | identity | `IdentityHttp4sRoutes` | `IdentityRoutes` 已删除 |
 | mail | `MailHttp4sRoutes` | `MailRoutes` 已删除 |
 | social | `SocialHttp4sRoutes` | `SocialRoutes` 已删除 |
-| forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` |
+| forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` 已删除 |
 | governance | `GovernanceHttp4sRoutes` | `GovernanceRoutes` 已删除 |
 | replay | `ReplayHttp4sRoutes` | `ReplayRoutes` 已删除 |
 | bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` 已删除 |

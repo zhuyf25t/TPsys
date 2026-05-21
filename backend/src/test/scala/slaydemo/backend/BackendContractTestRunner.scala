@@ -11,7 +11,6 @@ import slaydemo.backend.battle.routes.{
   BattleResultRouteContractTest,
   BattleRoomStateRouteContractTest
 }
-import slaydemo.backend.bots.routes.BotProfileRouteContractTest
 import slaydemo.backend.forum.routes.ForumRouteContractTest
 import slaydemo.backend.governance.routes.GovernanceRouteContractTest
 import slaydemo.backend.http4s.{
@@ -69,7 +68,6 @@ object BackendContractTestRunner {
     run("battle room/state route", () => BattleRoomStateRouteContractTest.main(Array.empty))
     run("battle skill rules", () => BattleSkillRulesContractTest.main(Array.empty))
     run("battle state runtime", () => BattleStateRuntimeContractTest.main(Array.empty))
-    run("bot profile route", () => BotProfileRouteContractTest.main(Array.empty))
     run("bot profile service", () => BotProfileServiceContractTest.main(Array.empty))
     run("battle queue authorization", () => BattleQueueAuthorizationContractTest.main(Array.empty))
     run("battle queue runtime", () => BattleQueueRuntimeContractTest.main(Array.empty))

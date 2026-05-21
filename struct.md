@@ -180,7 +180,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `forum/routes/ForumRoutes.scala` | 否。当前使用 `ForumHttp4sRoutes`。 |
 | `governance/routes/GovernanceRoutes.scala` | 否。当前使用 `GovernanceHttp4sRoutes`。 |
 | `replay/routes/ReplayRoutes.scala` | 否。当前使用 `ReplayHttp4sRoutes`。 |
-| `bots/routes/BotProfileRoutes.scala` | 否。当前使用 `BotProfileHttp4sRoutes`。 |
+| `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleRoutes.scala` | 否。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
 | `battle/routes/BattleCommandRouteHandler.scala` | 否。当前使用 `BattleCommandHttp4sRoutes`。 |
 | `battle/routes/BattleQueueRouteHandler.scala` | 否。当前使用 `BattleQueueHttp4sRoutes`。 |
@@ -224,7 +224,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` |
 | governance | `GovernanceHttp4sRoutes` | `GovernanceRoutes` |
 | replay | `ReplayHttp4sRoutes` | `ReplayRoutes` |
-| bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` |
+| bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` 已删除 |
 | battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler` |
 | battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler` |
 | battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter` |

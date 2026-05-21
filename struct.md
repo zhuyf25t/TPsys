@@ -322,7 +322,7 @@ BackendHttp4sApp 不再间接构造旧 route object
 | --- | --- | --- |
 | 已完成 | `identity/routes/IdentityCommandParsers.scala` | `identity/api/IdentityCommandParsers.scala` |
 | 已完成 | `mail/routes/MailCommandParsers.scala` | `mail/objects/apiTypes/MailCommandParsers.scala` |
-| 待迁移 | `social/routes/SocialCommandParsers.scala` | `social/objects/apiTypes` |
+| 已完成 | `social/routes/SocialCommandParsers.scala` | `social/objects/apiTypes/SocialCommandParsers.scala` |
 | 待迁移 | `forum/routes/ForumCommandParsers.scala` | `forum/objects/apiTypes` |
 | 待迁移 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes` |
 | 已完成 | `battle/routes/BattleResultApiCodec.scala` | `battle/objects/apiTypes/BattleResultApiCodec.scala` |

@@ -9,7 +9,11 @@ import slaydemo.backend.shared.routes.HttpRouteSupport
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateResponse,
   FriendRequestListResponse,
-  FriendRequestRespondResponse
+  FriendRequestRespondResponse,
+  SocialCommandParsers,
+  SocialRouteCreateError,
+  SocialRouteHandleError,
+  SocialRouteRespondError
 }
 import slaydemo.backend.social.services.{
   FriendRequestCreateError,

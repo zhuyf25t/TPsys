@@ -1,4 +1,4 @@
-package slaydemo.backend.social.routes
+package slaydemo.backend.social.objects.apiTypes
 
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets

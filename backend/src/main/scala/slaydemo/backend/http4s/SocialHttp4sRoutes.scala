@@ -10,9 +10,7 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateResponse,
   FriendRequestListResponse,
-  FriendRequestRespondResponse
-}
-import slaydemo.backend.social.routes.{
+  FriendRequestRespondResponse,
   SocialCommandParsers,
   SocialRouteCreateError,
   SocialRouteHandleError,

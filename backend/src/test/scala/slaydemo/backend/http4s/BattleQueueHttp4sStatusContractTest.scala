@@ -85,7 +85,7 @@ object BattleQueueHttp4sStatusContractTest {
   }
 
   private def run(service: RecordingBattleQueueService, request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes.battleQueueStatusRoutes(service).orNotFound.run(request).unsafeRunSync()
+    val response = BattleQueueHttp4sRoutes.statusRoutes(service).orNotFound.run(request).unsafeRunSync()
     RouteResponse(response.status.code, response.as[String].unsafeRunSync())
   }
 

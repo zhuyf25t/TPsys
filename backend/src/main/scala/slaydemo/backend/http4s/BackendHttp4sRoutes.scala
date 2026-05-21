@@ -46,9 +46,9 @@ object BackendHttp4sRoutes {
       governanceRoutes(contributionAdjustmentService, governanceNotificationService) <+>
       replayCatalogRoutes(replayService) <+>
       botProfileRoutes(botProfileService) <+>
-      battleQueueStatusRoutes(battleQueueService) <+>
-      battleQueueJoinRoutes(battleQueueService, battleJoinAuthorizationService) <+>
-      battleQueueLeaveRoutes(battleQueueService) <+>
+      BattleQueueHttp4sRoutes.statusRoutes(battleQueueService) <+>
+      BattleQueueHttp4sRoutes.joinRoutes(battleQueueService, battleJoinAuthorizationService) <+>
+      BattleQueueHttp4sRoutes.leaveRoutes(battleQueueService) <+>
       battleRoomSnapshotRoutes(battleQueueService) <+>
       battleRoomHeartbeatRoutes(battleQueueService) <+>
       battleStateStreamRoutes(battleStateService) <+>
@@ -79,18 +79,6 @@ object BackendHttp4sRoutes {
     notificationService: GovernanceNotificationService
   ): HttpRoutes[IO] =
     GovernanceHttp4sRoutes.routes(contributionAdjustmentService, notificationService)
-
-  def battleQueueStatusRoutes(service: BattleQueueService): HttpRoutes[IO] =
-    BattleQueueHttp4sRoutes.statusRoutes(service)
-
-  def battleQueueJoinRoutes(
-    queueService: BattleQueueService,
-    joinAuthorizationService: BattleQueueJoinAuthorizationService
-  ): HttpRoutes[IO] =
-    BattleQueueHttp4sRoutes.joinRoutes(queueService, joinAuthorizationService)
-
-  def battleQueueLeaveRoutes(queueService: BattleQueueService): HttpRoutes[IO] =
-    BattleQueueHttp4sRoutes.leaveRoutes(queueService)
 
   def battleRoomSnapshotRoutes(queueService: BattleQueueService): HttpRoutes[IO] =
     BattleRoomHttp4sRoutes.snapshotRoutes(queueService)

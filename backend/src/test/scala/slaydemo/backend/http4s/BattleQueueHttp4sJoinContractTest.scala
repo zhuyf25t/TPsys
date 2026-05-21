@@ -137,8 +137,8 @@ object BattleQueueHttp4sJoinContractTest {
     val request = Request[IO](method = Method.POST, uri = targetUri)
       .withEntity(body)
       .putHeaders(`Content-Type`(MediaType.application.json))
-    val response = BackendHttp4sRoutes
-      .battleQueueJoinRoutes(queueService, authService)
+    val response = BattleQueueHttp4sRoutes
+      .joinRoutes(queueService, authService)
       .orNotFound
       .run(request)
       .unsafeRunSync()

@@ -141,6 +141,9 @@ object BattleCommandAPIRequest {
   def decode(json: Json): Either[BattleCommandAPIRequestError, BattleCommandAPIRequest] =
     json.asObject.toRight(BattleCommandAPIRequestError.InvalidJsonObject).flatMap(decodeObject)
 
+  def decodeCommand(json: Json): Either[BattleCommandAPIRequestError, BattleCommandRequest] =
+    decode(json).flatMap(_.toCommand)
+
   private def decodeObject(fields: JsonObject): Either[BattleCommandAPIRequestError, BattleCommandAPIRequest] =
     for
       battleId <- requiredString(fields, "battleId", "missing_battle_id")

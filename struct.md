@@ -190,7 +190,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleRoutes.scala` | 已删除。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
 | `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
-| `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 解码 command request。 |
+| `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 解码 command request，并在 apiTypes 内完成 JSON 到 domain command 的转换。 |
 | `battle/routes/BattleQueueRouteHandler.scala` | 已删除。当前使用 `BattleQueueHttp4sRoutes`，并由 `BattleQueueHttp4sJoin/Status/LeaveContractTest` 覆盖。 |
 | `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 解码 queue join request。 |
 | `battle/routes/BattleRoomRouteHandler.scala` | 已删除。当前使用 `BattleRoomHttp4sRoutes`，并由 `BattleRoomHttp4sContractTest` 覆盖。 |
@@ -272,7 +272,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleResultCommandParsers.scala` 已迁出，`BattleResultJsonObjectParser.scala` 已删除 | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes`，GET query 使用 http4s `request.params`，POST body 使用 Circe `JsonObject`，response 通过 DTO encoder 输出 |
 | `shared/routes/HttpRouteSupport.sendJsonError` 已删除 | `http4s/Http4sRouteSupport.apiError` |
 
-风险：测试通过某一路径不等于另一条路径正确。battle command 已改为只保留当前运行的 `BattleCommandAPIRequest.decode`，避免旧 parser 和 http4s parser 继续 drift。
+风险：测试通过某一路径不等于另一条路径正确。battle command 已改为只保留当前运行的 `BattleCommandAPIRequest.decodeCommand`，避免旧 parser 和 http4s parser 继续 drift。
 
 ### 7.3 路径兼容表重复
 

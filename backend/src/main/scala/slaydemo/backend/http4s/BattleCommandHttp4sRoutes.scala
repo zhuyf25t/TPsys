@@ -6,6 +6,7 @@ import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
+import slaydemo.backend.battle.api.BattleCommandRequest
 import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandAcceptedResponse,
   BattleCommandAPIRequest,
@@ -56,21 +57,12 @@ private[http4s] object BattleCommandHttp4sRoutes {
                 IO.pure(commandNotAuthorized)
               case Left(BattleCommandAPIRequestError.BadRequest(code)) =>
                 IO.pure(apiError(badRequest(code)))
-              case Right(commandRequest) =>
-                commandRequest.toCommand match {
-                  case Left(BattleCommandAPIRequestError.InvalidJsonObject) =>
-                    IO.pure(apiError(InvalidJsonObjectError))
-                  case Left(BattleCommandAPIRequestError.MissingTicket) =>
-                    IO.pure(commandNotAuthorized)
-                  case Left(BattleCommandAPIRequestError.BadRequest(code)) =>
-                    IO.pure(apiError(badRequest(code)))
-                  case Right(command) =>
-                    blocking(battleStateService.acceptCommand(command)).map {
-                      case Right(accepted) =>
-                        withCors(Response[IO](Status.Ok).withEntity(BattleCommandAcceptedResponse.fromAccepted(accepted)))
-                      case Left(error) =>
-                        commandSubmitError(error)
-                    }
+              case Right(command) =>
+                blocking(battleStateService.acceptCommand(command)).map {
+                  case Right(accepted) =>
+                    withCors(Response[IO](Status.Ok).withEntity(BattleCommandAcceptedResponse.fromAccepted(accepted)))
+                  case Left(error) =>
+                    commandSubmitError(error)
                 }
             }
           case _ =>
@@ -81,14 +73,14 @@ private[http4s] object BattleCommandHttp4sRoutes {
   private def isBattleCommandPath(request: Request[IO]): Boolean =
     AllowedPaths.contains(request.uri.path.renderString)
 
-  private def decodeCommandRequest(request: Request[IO]): IO[Either[BattleCommandAPIRequestError, BattleCommandAPIRequest]] =
+  private def decodeCommandRequest(request: Request[IO]): IO[Either[BattleCommandAPIRequestError, BattleCommandRequest]] =
     request.as[Json].attempt.map {
       case Left(_) =>
         Left(BattleCommandAPIRequestError.InvalidJsonObject)
       case Right(json) if json.asObject.isEmpty =>
         Left(BattleCommandAPIRequestError.InvalidJsonObject)
       case Right(json) =>
-        BattleCommandAPIRequest.decode(json)
+        BattleCommandAPIRequest.decodeCommand(json)
     }
 
   private def commandSubmitError(error: BattleCommandSubmitError): Response[IO] =

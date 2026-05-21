@@ -49,6 +49,9 @@ final case class FriendRequestRespondApiRequest(
 }
 
 object FriendRequestOwnerQuery {
+  def parseFromQuery(query: Map[String, String]): Either[SocialRouteHandleError, PlayerHandle] =
+    parse(query.get("ownerHandle"))
+
   def parse(ownerHandle: Option[String]): Either[SocialRouteHandleError, PlayerHandle] =
     SocialCommandParsers.parseOwner(ownerHandle)
 }

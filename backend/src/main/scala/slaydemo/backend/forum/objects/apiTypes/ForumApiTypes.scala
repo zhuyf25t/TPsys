@@ -4,10 +4,9 @@ import io.circe.syntax.*
 import io.circe.{Decoder, Encoder}
 
 import slaydemo.backend.forum.objects.{ForumReplyView, ForumTopicView, ForumVoteChoice}
-import slaydemo.backend.forum.routes.ForumRequestFields
 
 final case class ForumApiRequestFields(fields: Map[String, String], voteSeen: Boolean) {
-  def toRouteFields: ForumRequestFields =
+  def toCommandFields: ForumRequestFields =
     ForumRequestFields(fields, voteSeen)
 }
 
@@ -24,6 +23,11 @@ object ForumApiRequestFields {
           ForumApiRequestFields(stringFields, voteSeen = false)
       }
     }
+}
+
+final case class ForumRequestFields(fields: Map[String, String], voteSeen: Boolean) {
+  def stringValue(name: String): String =
+    fields.getOrElse(name, "")
 }
 
 final case class ForumReplyResponse(

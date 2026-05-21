@@ -1,4 +1,4 @@
-package slaydemo.backend.forum.routes
+package slaydemo.backend.forum.objects.apiTypes
 
 import slaydemo.backend.forum.objects.{
   ForumBody,

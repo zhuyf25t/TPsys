@@ -1,5 +1,6 @@
 package slaydemo.backend.forum.routes
 
+import slaydemo.backend.forum.objects.apiTypes.ForumRequestFields
 import slaydemo.backend.shared.json.{JsonObjectParseError, JsonObjectParser}
 
 object ForumRequestBodyParser {
@@ -20,9 +21,4 @@ object ForumRequestBodyParser {
       case Left(JsonObjectParseError.ExpectedStringField) =>
         Left("Request body must be a JSON object with string fields.")
     }
-}
-
-final case class ForumRequestFields(fields: Map[String, String], voteSeen: Boolean) {
-  def stringValue(name: String): String =
-    fields.getOrElse(name, "")
 }

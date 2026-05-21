@@ -8,11 +8,13 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.forum.objects.apiTypes.{
   ForumApiRequestFields,
+  ForumCommandParsers,
+  ForumCreateTopicParseError,
+  ForumTopicMutationParseError,
   ForumTopicListResponse,
   ForumTopicWrapperResponse
 }
 import slaydemo.backend.forum.routes.{
-  ForumCommandParsers,
   ForumRouteErrorMapper,
   ForumRouteTargetParsers
 }
@@ -179,7 +181,7 @@ private[http4s] object ForumHttp4sRoutes {
     request
       .as[ForumApiRequestFields]
       .attempt
-      .map(_.map(_.toRouteFields).left.map(_ => "Request body must be a JSON object with string fields."))
+      .map(_.map(_.toCommandFields).left.map(_ => "Request body must be a JSON object with string fields."))
 
   private def viewerHandle(request: Request[IO]) =
     ForumRouteTargetParsers.resolveViewerHandle(request.uri.query.renderString)
@@ -189,7 +191,7 @@ private[http4s] object ForumHttp4sRoutes {
     routeError(createStatus(error), code)
   }
 
-  private def createApiError(error: slaydemo.backend.forum.routes.ForumCreateTopicParseError): HttpApiError = {
+  private def createApiError(error: ForumCreateTopicParseError): HttpApiError = {
     val code = ForumRouteErrorMapper.createErrorCode(error)
     routeError(createStatus(error), code)
   }
@@ -199,7 +201,7 @@ private[http4s] object ForumHttp4sRoutes {
     routeError(mutationStatus(error), code)
   }
 
-  private def mutationApiError(error: slaydemo.backend.forum.routes.ForumTopicMutationParseError): HttpApiError = {
+  private def mutationApiError(error: ForumTopicMutationParseError): HttpApiError = {
     val code = ForumRouteErrorMapper.mutationErrorCode(error)
     routeError(mutationStatus(error), code)
   }
@@ -207,13 +209,13 @@ private[http4s] object ForumHttp4sRoutes {
   private def createStatus(error: slaydemo.backend.forum.services.ForumCreateTopicError): Status =
     statusFrom(ForumRouteErrorMapper.createStatusFor(error))
 
-  private def createStatus(error: slaydemo.backend.forum.routes.ForumCreateTopicParseError): Status =
+  private def createStatus(error: ForumCreateTopicParseError): Status =
     statusFrom(ForumRouteErrorMapper.createStatusFor(error))
 
   private def mutationStatus(error: slaydemo.backend.forum.services.ForumTopicMutationError): Status =
     statusFrom(ForumRouteErrorMapper.mutationStatusFor(error))
 
-  private def mutationStatus(error: slaydemo.backend.forum.routes.ForumTopicMutationParseError): Status =
+  private def mutationStatus(error: ForumTopicMutationParseError): Status =
     statusFrom(ForumRouteErrorMapper.mutationStatusFor(error))
 
   private def statusFrom(value: Int): Status =

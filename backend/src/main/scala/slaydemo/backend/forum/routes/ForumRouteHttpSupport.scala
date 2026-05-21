@@ -2,6 +2,7 @@ package slaydemo.backend.forum.routes
 
 import com.sun.net.httpserver.HttpExchange
 
+import slaydemo.backend.forum.objects.apiTypes.ForumRequestFields
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
 private[routes] object ForumRouteHttpSupport {

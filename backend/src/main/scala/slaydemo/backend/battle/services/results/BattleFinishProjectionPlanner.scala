@@ -11,8 +11,38 @@ private[services] final case class BattleSettlement(
   result: BattleResultRecord
 )
 
+private[services] final case class BattleSettlements(
+  first: BattleSettlement,
+  rest: Vector[BattleSettlement]
+) {
+  def toVector: Vector[BattleSettlement] =
+    first +: rest
+
+  def map[A](f: BattleSettlement => A): Vector[A] =
+    toVector.map(f)
+
+  def foreach[U](f: BattleSettlement => U): Unit =
+    toVector.foreach(f)
+
+  def find(f: BattleSettlement => Boolean): Option[BattleSettlement] =
+    toVector.find(f)
+}
+
+private[services] object BattleSettlements {
+  def fromVectorOrFallback(
+    values: Vector[BattleSettlement],
+    fallback: => BattleSettlement
+  ): BattleSettlements =
+    values.headOption match {
+      case Some(first) =>
+        BattleSettlements(first, values.drop(1))
+      case None =>
+        BattleSettlements(fallback, Vector.empty)
+    }
+}
+
 private[services] final case class BattleFinishProjectionPlan(
-  settlements: Vector[BattleSettlement],
+  settlements: BattleSettlements,
   replay: Option[ReplayRecord]
 )
 
@@ -66,7 +96,7 @@ private[services] object BattleFinishProjectionPlanner {
   private def buildSettlements(
     state: BattleAggregateState,
     previousRatings: BattlePreviousRatings
-  ): Vector[BattleSettlement] = {
+  ): BattleSettlements = {
     val orderedPlayers = BattleFinishProjectionPlayerRules.playersByPlacement(state.players)
     val context = settlementBuildContext(state, orderedPlayers)
 
@@ -74,14 +104,13 @@ private[services] object BattleFinishProjectionPlanner {
       .filter(BattleFinishProjectionPlayerRules.isPlayableHumanPlayer)
       .map(player => playableSettlementFor(state, context, previousRatings, player))
 
-    if playableHumanSettlements.nonEmpty then playableHumanSettlements
-    else
-      Vector(
-        BattleSettlement(
-          player = None,
-          result = serverResult(state, context.finishedAt, context.durationMs, context.playersLine, previousRatings)
-        )
+    BattleSettlements.fromVectorOrFallback(
+      playableHumanSettlements,
+      BattleSettlement(
+        player = None,
+        result = serverResult(state, context.finishedAt, context.durationMs, context.playersLine, previousRatings)
       )
+    )
   }
 
   private def settlementBuildContext(

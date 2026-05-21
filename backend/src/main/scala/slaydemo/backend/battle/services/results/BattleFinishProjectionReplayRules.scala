@@ -9,14 +9,14 @@ private[services] object BattleFinishProjectionReplayRules {
   /** 中文名：回放ownersettlement（replayOwnerSettlement）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果。 */
   def replayOwnerSettlement(
     state: BattleAggregateState,
-    settlements: Vector[BattleSettlement]
+    settlements: BattleSettlements
   ): BattleSettlement =
     state.winnerPlayerId
       .flatMap(winnerPlayerId => settlements.find(_.player.exists(_.playerId == winnerPlayerId)))
-      .getOrElse(settlements.head)
+      .getOrElse(settlements.first)
 
   /** 中文名：回放记录（replayRecord）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果。 */
-  def replayRecord(state: BattleAggregateState, settlements: Vector[BattleSettlement]): ReplayRecord = {
+  def replayRecord(state: BattleAggregateState, settlements: BattleSettlements): ReplayRecord = {
     val result = replayOwnerSettlement(state, settlements).result
     val replayFrames = BattleReplayFramesJsonRenderer.render(
       state,

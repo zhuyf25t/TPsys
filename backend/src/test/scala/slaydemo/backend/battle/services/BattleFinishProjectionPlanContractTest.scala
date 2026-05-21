@@ -144,7 +144,7 @@ object BattleFinishProjectionPlanContractTest {
 
     assertEquals("visitor-like humans are excluded", BattleFinishProjectionPlanner.humanPlayersByPlacement(serverOnlyState), Vector.empty)
     assertEquals("server fallback result handle", plan.settlements.map(_.result.handle), Vector(PlayerHandle("server")))
-    assertEquals("server fallback result label", plan.settlements.head.result.resultLabel.value, "对战结束")
+    assertEquals("server fallback result label", plan.settlements.first.result.resultLabel.value, "对战结束")
     assertEquals("server fallback replay owner", replay.handle, PlayerHandle("server"))
     assertEquals("server fallback replay result label", replay.resultLabel, "对战结束")
   }

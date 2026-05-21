@@ -15,6 +15,11 @@ enum BattleQueueJoinAPIRequestError {
   case MissingSession
 }
 
+enum BattleQueueLeaveAPIRequestError {
+  case InvalidJsonObject
+  case MissingTicketId
+}
+
 object BattleQueueRequestTarget {
   private val AllowedStatusPaths: Set[String] =
     Set("/battle/queue/status", "/api/battle/queue/status", "/battlequeuestatusapi", "/api/battlequeuestatusapi")
@@ -67,8 +72,11 @@ final case class BattleQueueJoinAPIRequest(
 }
 
 final case class BattleQueueLeaveAPIRequest(ticketId: Option[String]) {
-  def toTicketId: Either[String, TicketId] =
-    ticketId.flatMap(nonEmptyText).map(TicketId.apply).toRight("ticketId is required.")
+  def toTicketId: Either[BattleQueueLeaveAPIRequestError, TicketId] =
+    ticketId
+      .flatMap(nonEmptyText)
+      .map(TicketId.apply)
+      .toRight(BattleQueueLeaveAPIRequestError.MissingTicketId)
 
   private def nonEmptyText(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
@@ -78,9 +86,9 @@ object BattleQueueLeaveAPIRequest {
   given Decoder[BattleQueueLeaveAPIRequest] = (cursor: HCursor) =>
     BattleQueueJoinAPIRequest.optionalText(cursor, "ticketId").map(BattleQueueLeaveAPIRequest.apply)
 
-  def decodeTicketId(json: Json): Either[String, TicketId] =
+  def decodeTicketId(json: Json): Either[BattleQueueLeaveAPIRequestError, TicketId] =
     json.as[BattleQueueLeaveAPIRequest]
-      .left.map(_ => BattleQueueAPIRequestErrors.InvalidJsonObjectMessage)
+      .left.map(_ => BattleQueueLeaveAPIRequestError.InvalidJsonObject)
       .flatMap(_.toTicketId)
 }
 

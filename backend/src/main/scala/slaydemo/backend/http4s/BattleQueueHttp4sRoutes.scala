@@ -13,6 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleQueueJoinAPIRequest,
   BattleQueueJoinAPIRequestError,
   BattleQueueLeaveAPIRequest,
+  BattleQueueLeaveAPIRequestError,
   BattleQueueLeaveAPIResponse,
   BattleQueueRequestTarget,
   BattleQueueSnapshotResponse
@@ -36,6 +37,8 @@ private[http4s] object BattleQueueHttp4sRoutes {
     )
   private val MissingTicketIdError =
     HttpApiError(status = Status.BadRequest, code = "missing_ticket_id", message = "ticketId query parameter is required.")
+  private val MissingLeaveTicketIdError =
+    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "ticketId is required.")
   private val TicketNotFoundError =
     HttpApiError(status = Status.NotFound, code = "ticket_not_found", message = "Queue ticket was not found.")
   private val InvalidHandleError =
@@ -118,8 +121,10 @@ private[http4s] object BattleQueueHttp4sRoutes {
             IO.pure(withCors(Response[IO](Status.NoContent)))
           case Method.POST =>
             decodeLeaveRequest(request).flatMap {
-              case Left(message) =>
-                IO.pure(apiError(badRequest(message)))
+              case Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject) =>
+                IO.pure(apiError(InvalidJsonObjectError))
+              case Left(BattleQueueLeaveAPIRequestError.MissingTicketId) =>
+                IO.pure(apiError(MissingLeaveTicketIdError))
               case Right(ticketId) =>
                 blocking(queueService.leave(ticketId)).flatMap { outcome =>
                   val left = outcome == BattleQueueLeaveOutcome.LeftQueue
@@ -150,12 +155,12 @@ private[http4s] object BattleQueueHttp4sRoutes {
         BattleQueueJoinAPIRequest.decodeCommand(json)
     }
 
-  private def decodeLeaveRequest(request: Request[IO]): IO[Either[String, TicketId]] =
+  private def decodeLeaveRequest(request: Request[IO]): IO[Either[BattleQueueLeaveAPIRequestError, TicketId]] =
     request.as[Json].attempt.map {
       case Left(_) =>
-        Left("Request body must be a JSON object with supported primitive or object fields.")
+        Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject)
       case Right(json) if json.asObject.isEmpty =>
-        Left("Request body must be a JSON object with supported primitive or object fields.")
+        Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject)
       case Right(json) =>
         BattleQueueLeaveAPIRequest.decodeTicketId(json)
     }

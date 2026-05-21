@@ -16,6 +16,7 @@ object BattleQueueHttp4sLeaveContractTest {
     restLeavePathReturnsTrueWhenQueueReportsLeft()
     leaveReturnsFalseWhenQueueReportsNotWaiting()
     missingTicketIdIsBadRequest()
+    nonObjectBodyIsBadRequest()
     unsupportedMethodIsRejected()
 
     println("Battle queue http4s leave contract checks passed")
@@ -55,6 +56,19 @@ object BattleQueueHttp4sLeaveContractTest {
     assertEquals("missing ticket status", response.status, 400)
     assertEquals("missing ticket body", response.body, """{"error":"ticketId is required.","code":"bad_request"}""")
     assertEquals("missing ticket no service call", service.leaveCalls, Vector.empty)
+  }
+
+  private def nonObjectBodyIsBadRequest(): Unit = {
+    val service = RecordingBattleQueueService(BattleQueueLeaveOutcome.LeftQueue)
+    val response = postJson(service, uri"/api/battlequeueleaveapi", "[]")
+
+    assertEquals("non-object status", response.status, 400)
+    assertEquals(
+      "non-object body",
+      response.body,
+      """{"error":"Request body must be a JSON object with supported primitive or object fields.","code":"bad_request"}"""
+    )
+    assertEquals("non-object no service call", service.leaveCalls, Vector.empty)
   }
 
   private def unsupportedMethodIsRejected(): Unit = {

@@ -8,11 +8,9 @@ import com.sun.net.httpserver.HttpServer
 import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandRequest}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
-import slaydemo.backend.identity.objects.PlayerHandle
 
 object BattleRoomStateRouteContractTest {
   def main(args: Array[String]): Unit = {
-    roomSnapshotAndHeartbeatUsePathRoomId()
     stateReadMapsSuccessAndNotFound()
     stateStreamEmitsFinishedStateAndCloses()
     legacyApiAliasesRemainSupported()
@@ -20,33 +18,10 @@ object BattleRoomStateRouteContractTest {
     println("Battle room/state route contract checks passed")
   }
 
-  private def roomSnapshotAndHeartbeatUsePathRoomId(): Unit = {
-    val queueService = RecordingBattleQueueService()
-
-    withBattleServer(queueService, RecordingBattleStateService()) { uri =>
-      val snapshot = get(uri.resolve("/api/battle/rooms/snapshot?roomId=room-route"))
-      val heartbeat = postJson(
-        uri.resolve("/api/battle/rooms/heartbeat?roomId=room-route"),
-        """{"ticketId":"ticket-route","handle":"Alice"}"""
-      )
-
-      assertEquals("room snapshot status", snapshot.status, 200)
-      assertContains("room snapshot id", snapshot.body, """"roomId":"room-route"""")
-      assertEquals("room snapshot calls", queueService.roomSnapshotCalls, Vector(RoomId("room-route")))
-      assertEquals("heartbeat status", heartbeat.status, 200)
-      assertContains("heartbeat room id", heartbeat.body, """"roomId":"room-route"""")
-      assertEquals("heartbeat call count", queueService.heartbeatCalls.length, 1)
-      val command = queueService.heartbeatCalls.head
-      assertEquals("heartbeat path room id", command.roomId, Some(RoomId("room-route")))
-      assertEquals("heartbeat ticket id", command.ticketId, Some(TicketId("ticket-route")))
-      assertEquals("heartbeat handle", command.handle, Some(PlayerHandle("Alice")))
-    }
-  }
-
   private def stateReadMapsSuccessAndNotFound(): Unit = {
     val stateService = RecordingBattleStateService()
 
-    withBattleServer(RecordingBattleQueueService(), stateService) { uri =>
+    withBattleServer(stateService) { uri =>
       val success = get(uri.resolve("/api/battle/state?battleId=battle-route"))
       val missing = get(uri.resolve("/api/battle/state?battleId=missing"))
 
@@ -63,7 +38,7 @@ object BattleRoomStateRouteContractTest {
     val stateService = RecordingBattleStateService()
     stateService.statesById = Map(BattleId("battle-route") -> battleState(phase = BattlePhase.Finished))
 
-    withBattleServer(RecordingBattleQueueService(), stateService) { uri =>
+    withBattleServer(stateService) { uri =>
       val response = get(uri.resolve("/api/battle/state/stream?battleId=battle-route"))
 
       assertEquals("state stream status", response.status, 200)
@@ -75,32 +50,22 @@ object BattleRoomStateRouteContractTest {
   }
 
   private def legacyApiAliasesRemainSupported(): Unit = {
-    val queueService = RecordingBattleQueueService()
     val stateService = RecordingBattleStateService()
     stateService.statesById = Map(BattleId("battle-route") -> battleState(phase = BattlePhase.Finished))
 
-    withBattleServer(queueService, stateService) { uri =>
-      val snapshot = get(uri.resolve("/api/battleroomsnapshotapi?roomId=room-route"))
+    withBattleServer(stateService) { uri =>
       val stream = get(uri.resolve("/api/battlestatestreamapi?battleId=battle-route"))
 
-      assertEquals("legacy room snapshot status", snapshot.status, 200)
-      assertContains("legacy room snapshot id", snapshot.body, """"roomId":"room-route"""")
       assertEquals("legacy state stream status", stream.status, 200)
       assertContains("legacy state stream event", stream.body, "event: state")
     }
   }
 
-  private def withBattleServer[A](
-    queueService: RecordingBattleQueueService,
-    stateService: RecordingBattleStateService
-  )(run: URI => A): A = {
+  private def withBattleServer[A](stateService: RecordingBattleStateService)(run: URI => A): A = {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
-    val routes = BattleRoutes(queueService, stateService)
-    server.createContext("/api/battle/rooms/snapshot", exchange => routes.rooms(exchange))
-    server.createContext("/api/battle/rooms/heartbeat", exchange => routes.rooms(exchange))
+    val routes = BattleRoutes(stateService)
     server.createContext("/api/battle/state/stream", exchange => routes.state(exchange))
     server.createContext("/api/battle/state", exchange => routes.state(exchange))
-    server.createContext("/api/battleroomsnapshotapi", exchange => routes.rooms(exchange))
     server.createContext("/api/battlestatestreamapi", exchange => routes.state(exchange))
     server.start()
     try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
@@ -113,47 +78,7 @@ object BattleRoomStateRouteContractTest {
     RouteResponse(response.statusCode(), response.body())
   }
 
-  private def postJson(uri: URI, body: String): RouteResponse = {
-    val request = HttpRequest
-      .newBuilder(uri)
-      .header("Content-Type", "application/json")
-      .POST(HttpRequest.BodyPublishers.ofString(body))
-      .build()
-    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
-    RouteResponse(response.statusCode(), response.body())
-  }
-
   private final case class RouteResponse(status: Int, body: String)
-
-  private final class RecordingBattleQueueService extends BattleQueueService {
-    var roomSnapshotCalls: Vector[RoomId] = Vector.empty
-    var heartbeatCalls: Vector[RealtimeRoomHeartbeatCommand] = Vector.empty
-
-    override def join(command: BattleQueueJoinCommand): BattleQueueSnapshot =
-      failUnused()
-
-    override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] =
-      failUnused()
-
-    override def leave(ticketId: TicketId): BattleQueueLeaveOutcome =
-      failUnused()
-
-    override def roomSnapshot(roomId: RoomId): Either[BattleRoomError, RealtimeRoomSnapshot] = {
-      roomSnapshotCalls = roomSnapshotCalls :+ roomId
-      Right(roomSnapshotFor(roomId))
-    }
-
-    override def heartbeat(request: RealtimeRoomHeartbeatCommand): Either[BattleRoomError, RealtimeRoomSnapshot] = {
-      heartbeatCalls = heartbeatCalls :+ request
-      Right(roomSnapshotFor(request.roomId.getOrElse(RoomId("room-route"))))
-    }
-
-    override def activeBattleSession(battleId: BattleId): Option[BattleSessionSeed] =
-      failUnused()
-
-    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): Unit =
-      failUnused()
-  }
 
   private final class RecordingBattleStateService extends BattleStateService {
     var statesById: Map[BattleId, BattleAggregateState] = Map(BattleId("battle-route") -> battleState())
@@ -167,28 +92,6 @@ object BattleRoomStateRouteContractTest {
     override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] =
       failUnused()
   }
-
-  private def roomSnapshotFor(roomId: RoomId): RealtimeRoomSnapshot =
-    RealtimeRoomSnapshot(
-      roomId = roomId,
-      serverTime = EpochMillis(1_500L),
-      participants = Vector(participant()),
-      capacity = BattleCapacity(2),
-      phase = MatchmakingRoomPhase.Waiting,
-      finishedAt = None,
-      battleSession = None
-    )
-
-  private def participant(): BattleQueueParticipant =
-    BattleQueueParticipant(
-      playerId = PlayerId("player-route"),
-      handle = PlayerHandle("Alice"),
-      joinedAt = EpochMillis(1_000L),
-      lastSeen = EpochMillis(1_500L),
-      rating = None,
-      avatar = None,
-      skin = None
-    )
 
   private def battleState(): BattleAggregateState =
     battleState(phase = BattlePhase.Active)
@@ -226,6 +129,4 @@ object BattleRoomStateRouteContractTest {
   private def assertContains(label: String, actual: String, expectedSubstring: String): Unit =
     assert(actual.contains(expectedSubstring), s"$label: expected body to contain $expectedSubstring, got $actual")
 
-  private def assertNotContains(label: String, actual: String, unexpectedSubstring: String): Unit =
-    assert(!actual.contains(unexpectedSubstring), s"$label: did not expect body to contain $unexpectedSubstring, got $actual")
 }

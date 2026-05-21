@@ -14,6 +14,7 @@ object BattleRoomHttp4sContractTest {
   def main(args: Array[String]): Unit = {
     roomSnapshotReadsQueryRoomId()
     roomSnapshotReadsPathRoomId()
+    restRoomSnapshotAndHeartbeatUseQueryRoomId()
     roomHeartbeatCombinesQueryAndBody()
     roomHeartbeatReadsPathRoomId()
     missingRoomIdIsBadRequest()
@@ -39,6 +40,27 @@ object BattleRoomHttp4sContractTest {
     assertEquals("path snapshot status", response.status, 200)
     assertContains("path snapshot room id", response.body, """"roomId":"path-room"""")
     assertEquals("path snapshot calls", service.roomSnapshotCalls, Vector(RoomId("path-room")))
+  }
+
+  private def restRoomSnapshotAndHeartbeatUseQueryRoomId(): Unit = {
+    val service = RecordingBattleQueueService()
+    val snapshot = runSnapshot(service, Request[IO](method = Method.GET, uri = uri"/api/battle/rooms/snapshot?roomId=room-route"))
+    val heartbeat = postHeartbeat(
+      service,
+      uri"/api/battle/rooms/heartbeat?roomId=room-route",
+      """{"ticketId":"ticket-route","handle":"Alice"}"""
+    )
+
+    assertEquals("rest room snapshot status", snapshot.status, 200)
+    assertContains("rest room snapshot id", snapshot.body, """"roomId":"room-route"""")
+    assertEquals("rest room snapshot calls", service.roomSnapshotCalls, Vector(RoomId("room-route")))
+    assertEquals("rest heartbeat status", heartbeat.status, 200)
+    assertContains("rest heartbeat room id", heartbeat.body, """"roomId":"room-route"""")
+    assertEquals("rest heartbeat call count", service.heartbeatCalls.length, 1)
+    val command = service.heartbeatCalls.head
+    assertEquals("rest heartbeat query room id", command.roomId, Some(RoomId("room-route")))
+    assertEquals("rest heartbeat ticket id", command.ticketId, Some(TicketId("ticket-route")))
+    assertEquals("rest heartbeat handle", command.handle, Some(PlayerHandle("Alice")))
   }
 
   private def roomHeartbeatCombinesQueryAndBody(): Unit = {

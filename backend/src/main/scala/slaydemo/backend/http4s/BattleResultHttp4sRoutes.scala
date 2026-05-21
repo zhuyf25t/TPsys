@@ -17,7 +17,7 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleResultHttp4sRoutes {
   private val AllowedPaths: Set[String] =
-    Set("/battle/results", "/api/battle/results", "/api/battleresultsapi")
+    Set("/battle/results", "/api/battle/results", "/battleresultsapi", "/api/battleresultsapi")
 
   private val MethodNotAllowedError =
     HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only GET, POST, HEAD, and OPTIONS are supported.")

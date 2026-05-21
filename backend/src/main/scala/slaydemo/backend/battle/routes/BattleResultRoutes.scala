@@ -4,6 +4,7 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
+import slaydemo.backend.battle.objects.apiTypes.BattleResultErrorResponse
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
@@ -67,14 +68,11 @@ final class BattleResultRoutes(service: BattleResultService) {
         }
     }
 
-  private def jsonString(value: String): String =
-    s""""${HttpRouteSupport.escapeJson(value)}""""
-
   private def jsonError(exchange: HttpExchange, status: Int, code: String, message: String): Unit =
     HttpRouteSupport.sendJson(
       exchange,
       status,
-      s"""{"error":${jsonString(message)},"code":${jsonString(code)}}"""
+      BattleResultErrorResponse.render(message, code)
     )
 }
 

@@ -194,6 +194,8 @@ object BattleCommandAPIRequest {
     fields(key) match {
       case None =>
         Right(None)
+      case Some(value) if value.isNull =>
+        Right(None)
       case Some(value) =>
         numberAsLong(value).map(Some(_)).toRight(BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))
     }
@@ -210,6 +212,8 @@ object BattleCommandAPIRequest {
   private def optionalInt(fields: JsonObject, key: String): Either[BattleCommandAPIRequestError, Option[Int]] =
     fields(key) match {
       case None =>
+        Right(None)
+      case Some(value) if value.isNull =>
         Right(None)
       case Some(value) =>
         numberAsInt(value).map(Some(_)).toRight(BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))
@@ -228,6 +232,8 @@ object BattleCommandAPIRequest {
     fields(key) match {
       case None =>
         Right(None)
+      case Some(value) if value.isNull =>
+        Right(None)
       case Some(value) =>
         value.asBoolean.map(Some(_)).toRight(BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))
     }
@@ -244,6 +250,8 @@ object BattleCommandAPIRequest {
   private def optionalVector(fields: JsonObject, key: String): Either[BattleCommandAPIRequestError, Option[BattleCommandVector]] =
     fields(key) match {
       case None =>
+        Right(None)
+      case Some(value) if value.isNull =>
         Right(None)
       case Some(value) =>
         decodeVector(value).map(Some(_)).left.map(_ => BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))

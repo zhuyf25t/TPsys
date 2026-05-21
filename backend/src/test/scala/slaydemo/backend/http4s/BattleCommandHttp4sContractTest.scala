@@ -16,6 +16,9 @@ object BattleCommandHttp4sContractTest {
 
   def main(args: Array[String]): Unit = {
     validCommandReachesService()
+    pluralCommandPathMatchesFrontendProxy()
+    legacyCommandPathMatchesFrontendProxy()
+    nullableOptionalFieldsReachServiceAsAbsent()
     skillBooleansReachServiceAsTypedIntents()
     switchIndexReachesServiceAsTypedTarget()
     missingTicketIsUnauthorizedBeforeService()
@@ -25,6 +28,22 @@ object BattleCommandHttp4sContractTest {
     stringVectorComponentIsRejected()
 
     println("Battle command http4s contract checks passed")
+  }
+
+  private def legacyCommandPathMatchesFrontendProxy(): Unit = {
+    val stateService = RecordingBattleStateService()
+    val response = postJson(stateService, uri"/battlecommandapi", ValidCommandJson)
+
+    assertEquals("legacy command path status", response.status, 200)
+    assertEquals("legacy command path reaches service", stateService.requests.length, 1)
+  }
+
+  private def pluralCommandPathMatchesFrontendProxy(): Unit = {
+    val stateService = RecordingBattleStateService()
+    val response = postJson(stateService, uri"/battle/commands", ValidCommandJson)
+
+    assertEquals("plural command path status", response.status, 200)
+    assertEquals("plural command path reaches service", stateService.requests.length, 1)
   }
 
   private def validCommandReachesService(): Unit = {
@@ -40,6 +59,20 @@ object BattleCommandHttp4sContractTest {
     assertEquals("valid command ticket id", request.ticketId, TicketId("ticket-alice"))
     assertEquals("valid command switch direction is normalized", request.switchWeaponDirection, BattleWeaponSwitchDirection.Next)
     assertEquals("valid command has no skill intents", request.skillIntents, BattleCommandSkillIntents.empty)
+  }
+
+  private def nullableOptionalFieldsReachServiceAsAbsent(): Unit = {
+    val stateService = RecordingBattleStateService()
+    val body = ValidCommandJson.replace(
+      "\"switchWeaponDirection\":2",
+      "\"pointerWorld\":null,\"switchWeaponIndex\":null,\"switchWeaponDirection\":2"
+    )
+    val response = postJson(stateService, uri"/api/battlecommandapi", body)
+
+    assertEquals("nullable optional command status", response.status, 200)
+    assertEquals("nullable optional command reaches service", stateService.requests.length, 1)
+    assertEquals("nullable pointerWorld becomes absent", stateService.requests.head.pointerWorld, None)
+    assertEquals("nullable switchWeaponIndex becomes absent", stateService.requests.head.switchWeaponIndex, None)
   }
 
   private def skillBooleansReachServiceAsTypedIntents(): Unit = {

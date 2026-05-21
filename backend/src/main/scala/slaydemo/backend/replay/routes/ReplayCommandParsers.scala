@@ -8,20 +8,20 @@ import slaydemo.backend.replay.objects.{ReplayFrameCount, ReplayId, ReplayPlayba
 import slaydemo.backend.replay.services.{ReplayCommentCommand, ReplayIdentifierPolicy, ReplayRecordCommand}
 import slaydemo.backend.shared.policies.HandlePolicy
 
-private[routes] enum ReplayRecordCommandParseError {
+private[backend] enum ReplayRecordCommandParseError {
   case InvalidReplayId
   case InvalidBattleId
   case InvalidHandle
   case VisitorNotAllowed
 }
 
-private[routes] enum ReplayCommentCommandParseError {
+private[backend] enum ReplayCommentCommandParseError {
   case InvalidReplayId
   case InvalidAuthorHandle
   case VisitorNotAllowed
 }
 
-private[routes] object ReplayCommandParsers {
+private[backend] object ReplayCommandParsers {
   def parseReplayRecordCommand(
     fields: Map[String, ReplayJsonValue],
     framesJson: String

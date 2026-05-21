@@ -9,7 +9,8 @@ import slaydemo.backend.replay.objects.apiTypes.{
   ReplayCatalogResponse,
   ReplayCommentWrapperResponse,
   ReplayCommentsResponse,
-  ReplayDetailResponse
+  ReplayDetailResponse,
+  ReplayErrorResponse
 }
 import slaydemo.backend.replay.services.ReplayService
 import slaydemo.backend.shared.routes.HttpRouteSupport
@@ -125,14 +126,11 @@ final class ReplayRoutes(service: ReplayService) {
         }
     }
 
-  private def jsonString(value: String): String =
-    s""""${HttpRouteSupport.escapeJson(value)}""""
-
   private def jsonError(exchange: HttpExchange, error: ReplayRouteError): Unit =
     jsonError(exchange, error.status, error.code, error.message)
 
   private def jsonError(exchange: HttpExchange, status: Int, code: String, message: String): Unit =
-    HttpRouteSupport.sendJson(exchange, status, s"""{"error":${jsonString(message)},"code":${jsonString(code)}}""")
+    HttpRouteSupport.sendJson(exchange, status, ReplayErrorResponse.render(message, code))
 
 }
 

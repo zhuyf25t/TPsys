@@ -31,6 +31,10 @@ object BattleRoomStateRouteContractTest {
       assertEquals("status code", response.status, 200)
       assertContains("status ticket", response.body, """"ticketId":"ticket-route"""")
       assertContains("status phase", response.body, """"phase":"waiting"""")
+      assertContains("status battle session null", response.body, """"battleSession":null""")
+      assertNotContains("status omits absent rating", response.body, """"rating":null""")
+      assertNotContains("status omits absent avatar", response.body, """"avatar":null""")
+      assertNotContains("status omits absent skin", response.body, """"skin":null""")
       assertEquals("status calls", queueService.statusCalls, Vector(TicketId("ticket-route")))
     }
   }
@@ -286,4 +290,7 @@ object BattleRoomStateRouteContractTest {
 
   private def assertContains(label: String, actual: String, expectedSubstring: String): Unit =
     assert(actual.contains(expectedSubstring), s"$label: expected body to contain $expectedSubstring, got $actual")
+
+  private def assertNotContains(label: String, actual: String, unexpectedSubstring: String): Unit =
+    assert(!actual.contains(unexpectedSubstring), s"$label: did not expect body to contain $unexpectedSubstring, got $actual")
 }

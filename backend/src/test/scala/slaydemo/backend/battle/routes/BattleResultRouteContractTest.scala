@@ -17,6 +17,7 @@ object BattleResultRouteContractTest {
     listParsesFiltersAndRendersRecords()
     invalidHandleFilterShortCircuitsList()
     recordPostParsesCommandAndValidationErrors()
+    errorResponsesUseTypedDto()
 
     println("Battle result route contract checks passed")
   }
@@ -83,6 +84,22 @@ object BattleResultRouteContractTest {
 
       assertEquals("service record error status", serviceFailure.status, 403)
       assertContains("service record error code", serviceFailure.body, """"code":"visitor_not_allowed"""")
+    }
+  }
+
+  private def errorResponsesUseTypedDto(): Unit = {
+    val service = RecordingBattleResultService()
+
+    withResultServer(service) { uri =>
+      val response = postJson(uri.resolve("/api/battle/results"), "{bad-json}")
+
+      assertEquals("typed error response status", response.status, 400)
+      assertEquals(
+        "typed error response body",
+        response.body,
+        """{"error":"Request body must be a JSON object.","code":"bad_request"}"""
+      )
+      assertEquals("typed error response avoids service", service.recordCommands, Vector.empty)
     }
   }
 

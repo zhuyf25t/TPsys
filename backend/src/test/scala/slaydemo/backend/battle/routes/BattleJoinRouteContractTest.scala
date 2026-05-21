@@ -32,6 +32,9 @@ object BattleJoinRouteContractTest {
 
       assertEquals("valid join status", response.status, 200)
       assertContains("valid join ticket", response.body, """"ticketId":"ticket-alice"""")
+      assertContains("valid join participant rating", response.body, """"rating":1200""")
+      assertContains("valid join participant avatar", response.body, """"avatar":"blue"""")
+      assertContains("valid join participant skin", response.body, """"skin":"pilot"""")
       assertEquals("valid join auth count", authService.commands.length, 1)
       assertEquals("valid join queue count", queueService.commands.length, 1)
       val command = queueService.commands.head

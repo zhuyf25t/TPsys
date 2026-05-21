@@ -16,7 +16,14 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleCommandHttp4sRoutes {
   private val AllowedPaths: Set[String] =
-    Set("/battle/command", "/api/battle/command", "/api/battlecommandapi")
+    Set(
+      "/battle/command",
+      "/battle/commands",
+      "/api/battle/command",
+      "/api/battle/commands",
+      "/battlecommandapi",
+      "/api/battlecommandapi"
+    )
 
   private val InvalidJsonObjectError =
     HttpApiError(

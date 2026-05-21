@@ -1,6 +1,8 @@
 package slaydemo.backend.battle.services.results
 
-import slaydemo.backend.battle.services.*
+import io.circe.{Encoder, Json}
+import io.circe.generic.semiauto.deriveEncoder
+import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
@@ -8,67 +10,74 @@ import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 private[services] final case class BattleReplayFramesJson(frameCount: Int, json: String)
 
 private[services] object BattleReplayFramesJsonRenderer {
-  /** 中文名：渲染（render）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果。 */
+  /** 中文名：渲染回放帧 JSON（render replay frames JSON）。游戏职责：把权威 battle state/replay frames 转成前端战报播放器使用的 wire JSON；这里只做 DTO 转换和编码，不推进战斗业务。 */
   def render(state: BattleAggregateState, durationMs: DurationMillis): BattleReplayFramesJson = {
-    val frameJson =
+    val frames =
       if state.replayFrames.nonEmpty then
         BattleReplayFrameTimelineRules.normalizeReplayFrames(state.replayFrames, durationMs)
-          .map(frame => replayFrameJson(state, frame))
-      else fallbackReplayFrameJson(state, durationMs)
+          .map(frame => replayFramePayload(state, frame))
+      else fallbackReplayFramePayloads(state, durationMs)
 
     BattleReplayFramesJson(
-      frameCount = frameJson.length,
-      json = frameJson.mkString("[", ",", "]")
+      frameCount = frames.length,
+      json = frames.asJson.noSpaces
     )
   }
 
-  private def fallbackReplayFrameJson(state: BattleAggregateState, durationMs: DurationMillis): Vector[String] = {
+  private def fallbackReplayFramePayloads(
+    state: BattleAggregateState,
+    durationMs: DurationMillis
+  ): Vector[BattleReplayFramePayload] = {
     val timeline = BattleReplayFrameTimelineRules.fallbackTimeline(state.events, durationMs)
-    timeline.frameElapsedMs.map(elapsedMs => replayFrameJson(state, elapsedMs, timeline.finalElapsedMs))
+    timeline.frameElapsedMs.map(elapsedMs => replayFramePayload(state, elapsedMs, timeline.finalElapsedMs))
   }
 
-  private def replayFrameJson(state: BattleAggregateState, frame: BattleReplayFrameState): String =
-    replayFrameJson(
-      state = state,
+  private def replayFramePayload(
+    state: BattleAggregateState,
+    frame: BattleReplayFrameState
+  ): BattleReplayFramePayload =
+    replayFramePayload(
       elapsedMs = frame.elapsedMs,
-      heroesJson = frame.heroes.sortBy(_.seat.value).map(heroFrameJson).mkString("[", ",", "]"),
-      projectilesJson = frame.projectiles.map(projectileFrameJson).mkString("[", ",", "]"),
-      pickupsJson = frame.pickups.map(pickupFrameJson).mkString("[", ",", "]")
+      worldSize = state.worldSize,
+      heroes = frame.heroes.sortBy(_.seat.value).map(heroFramePayload),
+      projectiles = frame.projectiles.map(projectileFramePayload),
+      pickups = frame.pickups.map(pickupFramePayload),
+      eventMessages = eventMessages(state, frame.elapsedMs)
     )
 
-  private def replayFrameJson(
+  private def replayFramePayload(
     state: BattleAggregateState,
     elapsedMs: ElapsedMillis,
     finalElapsedMs: ElapsedMillis
-  ): String =
-    replayFrameJson(
-      state = state,
+  ): BattleReplayFramePayload =
+    replayFramePayload(
       elapsedMs = elapsedMs,
-      heroesJson = state.players.sortBy(_.seat.value).map(player => heroFrameJson(player, elapsedMs, finalElapsedMs)).mkString("[", ",", "]"),
-      projectilesJson = if elapsedMs == finalElapsedMs then state.projectiles.map(projectileFrameJson).mkString("[", ",", "]") else "[]",
-      pickupsJson = state.pickups.map(pickupFrameJson).mkString("[", ",", "]")
+      worldSize = state.worldSize,
+      heroes = state.players.sortBy(_.seat.value).map(player => heroFramePayload(player, elapsedMs, finalElapsedMs)),
+      projectiles = if elapsedMs == finalElapsedMs then state.projectiles.map(projectileFramePayload) else Vector.empty,
+      pickups = state.pickups.map(pickupFramePayload),
+      eventMessages = eventMessages(state, elapsedMs)
     )
 
-  private def replayFrameJson(
-    state: BattleAggregateState,
+  private def replayFramePayload(
     elapsedMs: ElapsedMillis,
-    heroesJson: String,
-    projectilesJson: String,
-    pickupsJson: String
-  ): String =
-    renderObject(
-      Vector(
-        "elapsedMs" -> elapsedMs.value.toString,
-        "worldSize" -> renderVector(state.worldSize),
-        "heroes" -> heroesJson,
-        "projectiles" -> projectilesJson,
-        "pickups" -> pickupsJson,
-        "eventMessages" -> eventMessagesJson(state, elapsedMs)
-      )
+    worldSize: BattleVector2,
+    heroes: Vector[BattleReplayHeroPayload],
+    projectiles: Vector[BattleReplayProjectilePayload],
+    pickups: Vector[BattleReplayPickupPayload],
+    eventMessages: Vector[String]
+  ): BattleReplayFramePayload =
+    BattleReplayFramePayload(
+      elapsedMs = elapsedMs.value,
+      worldSize = vectorPayload(worldSize),
+      heroes = heroes,
+      projectiles = projectiles,
+      pickups = pickups,
+      eventMessages = eventMessages
     )
 
-  private def heroFrameJson(hero: BattleReplayHeroFrameState): String =
-    heroFrameJson(
+  private def heroFramePayload(hero: BattleReplayHeroFrameState): BattleReplayHeroPayload =
+    heroFramePayload(
       playerId = hero.playerId,
       heroId = hero.heroId,
       displayName = hero.displayName,
@@ -83,15 +92,15 @@ private[services] object BattleReplayFramesJsonRenderer {
       eliminatedAtMs = hero.eliminatedAtMs
     )
 
-  private def heroFrameJson(
+  private def heroFramePayload(
     player: BattlePlayerState,
     elapsedMs: ElapsedMillis,
     finalElapsedMs: ElapsedMillis
-  ): String = {
+  ): BattleReplayHeroPayload = {
     val aliveAtFrame =
       if elapsedMs == finalElapsedMs then player.alive
       else player.eliminatedAtMs.forall(_.value > elapsedMs.value)
-    heroFrameJson(
+    heroFramePayload(
       playerId = player.playerId,
       heroId = player.heroId,
       displayName = player.displayName,
@@ -107,7 +116,7 @@ private[services] object BattleReplayFramesJsonRenderer {
     )
   }
 
-  private def heroFrameJson(
+  private def heroFramePayload(
     playerId: PlayerId,
     heroId: HeroId,
     displayName: DisplayName,
@@ -120,25 +129,23 @@ private[services] object BattleReplayFramesJsonRenderer {
     facing: FacingRadians,
     currentWeaponKind: WeaponKind,
     eliminatedAtMs: Option[ElapsedMillis]
-  ): String =
-    renderObject(
-      Vector(
-        "heroId" -> jsonString(heroId.value),
-        "displayName" -> jsonString(replayDisplayName(displayName, handle, playerId)),
-        "position" -> renderVector(position),
-        "hp" -> (if alive then math.max(0, hp.value) else 0).toString,
-        "maxHp" -> math.max(1, maxHp.value).toString,
-        "alive" -> alive.toString,
-        "lifeState" -> jsonString(if alive then "alive" else "dead"),
-        "score" -> score.value.toString,
-        "facing" -> facing.value.toString,
-        "currentWeaponKind" -> jsonString(WeaponKind.wireValue(currentWeaponKind)),
-        "eliminatedAtMs" -> eliminatedAtMs.map(_.value.toString).getOrElse("null")
-      )
+  ): BattleReplayHeroPayload =
+    BattleReplayHeroPayload(
+      heroId = heroId.value,
+      displayName = replayDisplayName(displayName, handle, playerId),
+      position = vectorPayload(position),
+      hp = if alive then math.max(0, hp.value) else 0,
+      maxHp = math.max(1, maxHp.value),
+      alive = alive,
+      lifeState = if alive then "alive" else "dead",
+      score = score.value,
+      facing = facing.value,
+      currentWeaponKind = WeaponKind.wireValue(currentWeaponKind),
+      eliminatedAtMs = eliminatedAtMs.map(_.value)
     )
 
-  private def projectileFrameJson(projectile: BattleReplayProjectileFrameState): String =
-    projectileFrameJson(
+  private def projectileFramePayload(projectile: BattleReplayProjectileFrameState): BattleReplayProjectilePayload =
+    projectileFramePayload(
       projectileId = projectile.projectileId,
       projectileKind = projectile.projectileKind,
       position = projectile.position,
@@ -147,8 +154,8 @@ private[services] object BattleReplayFramesJsonRenderer {
       splashRadius = projectile.splashRadius
     )
 
-  private def projectileFrameJson(projectile: BattleProjectileState): String =
-    projectileFrameJson(
+  private def projectileFramePayload(projectile: BattleProjectileState): BattleReplayProjectilePayload =
+    projectileFramePayload(
       projectileId = projectile.projectileId,
       projectileKind = projectile.projectileKind,
       position = projectile.position,
@@ -157,28 +164,26 @@ private[services] object BattleReplayFramesJsonRenderer {
       splashRadius = projectile.splashRadius
     )
 
-  private def projectileFrameJson(
+  private def projectileFramePayload(
     projectileId: ProjectileId,
     projectileKind: ProjectileKind,
     position: BattleVector2,
     facing: FacingRadians,
     ttlMs: DurationMillis,
     splashRadius: Radius
-  ): String =
-    renderObject(
-      Vector(
-        "projectileId" -> jsonString(projectileId.value),
-        "kind" -> jsonString(ProjectileKind.wireValue(projectileKind)),
-        "position" -> renderVector(position),
-        "facing" -> facing.value.toString,
-        "alive" -> true.toString,
-        "ttlMs" -> math.max(0L, ttlMs.value).toString,
-        "splashRadius" -> math.max(0.0, splashRadius.value).toString
-      )
+  ): BattleReplayProjectilePayload =
+    BattleReplayProjectilePayload(
+      projectileId = projectileId.value,
+      kind = ProjectileKind.wireValue(projectileKind),
+      position = vectorPayload(position),
+      facing = facing.value,
+      alive = true,
+      ttlMs = math.max(0L, ttlMs.value),
+      splashRadius = math.max(0.0, splashRadius.value)
     )
 
-  private def pickupFrameJson(pickup: BattleReplayPickupFrameState): String =
-    pickupFrameJson(
+  private def pickupFramePayload(pickup: BattleReplayPickupFrameState): BattleReplayPickupPayload =
+    pickupFramePayload(
       pickupId = pickup.pickupId,
       pickupKind = pickup.pickupKind,
       weaponKind = pickup.weaponKind,
@@ -186,8 +191,8 @@ private[services] object BattleReplayFramesJsonRenderer {
       available = pickup.available
     )
 
-  private def pickupFrameJson(pickup: BattlePickupState): String =
-    pickupFrameJson(
+  private def pickupFramePayload(pickup: BattlePickupState): BattleReplayPickupPayload =
+    pickupFramePayload(
       pickupId = pickup.pickupId,
       pickupKind = pickup.pickupKind,
       weaponKind = pickup.weaponKind,
@@ -195,29 +200,27 @@ private[services] object BattleReplayFramesJsonRenderer {
       available = pickup.available
     )
 
-  private def pickupFrameJson(
+  private def pickupFramePayload(
     pickupId: PickupId,
     pickupKind: PickupKind,
     weaponKind: Option[WeaponKind],
     position: BattleVector2,
     available: Boolean
-  ): String =
-    renderObject(
-      Vector(
-        "id" -> jsonString(pickupId.value),
-        "kind" -> jsonString(replayPickupKind(pickupKind)),
-        "position" -> renderVector(position),
-        "available" -> available.toString
-      ) ++ optionalStringField("weaponKind", weaponKind.map(WeaponKind.wireValue))
+  ): BattleReplayPickupPayload =
+    BattleReplayPickupPayload(
+      id = pickupId.value,
+      kind = replayPickupKind(pickupKind),
+      position = vectorPayload(position),
+      available = available,
+      weaponKind = weaponKind.map(WeaponKind.wireValue).filter(_.trim.nonEmpty)
     )
 
-  private def eventMessagesJson(state: BattleAggregateState, elapsedMs: ElapsedMillis): String =
+  private def eventMessages(state: BattleAggregateState, elapsedMs: ElapsedMillis): Vector[String] =
     state.events
       .filter(_.elapsedMs.value <= elapsedMs.value)
       .sortBy(_.elapsedMs.value)
       .takeRight(6)
-      .map(event => jsonString(event.message))
-      .mkString("[", ",", "]")
+      .map(_.message)
 
   private def replayDisplayName(displayName: DisplayName, handle: PlayerHandle, playerId: PlayerId): String = {
     val display = displayName.value.trim
@@ -233,29 +236,70 @@ private[services] object BattleReplayFramesJsonRenderer {
       case PickupKind.Medkit => "medkit"
     }
 
-  private def renderVector(vector: BattleVector2): String =
-    renderObject(Vector("x" -> vector.x.toString, "y" -> vector.y.toString))
+  private def vectorPayload(vector: BattleVector2): BattleReplayVectorPayload =
+    BattleReplayVectorPayload(x = vector.x, y = vector.y)
 
-  private def optionalStringField(key: String, value: Option[String]): Vector[(String, String)] =
-    value.filter(_.trim.nonEmpty).map(text => Vector(key -> jsonString(text))).getOrElse(Vector.empty)
+  private final case class BattleReplayFramePayload(
+    elapsedMs: Long,
+    worldSize: BattleReplayVectorPayload,
+    heroes: Vector[BattleReplayHeroPayload],
+    projectiles: Vector[BattleReplayProjectilePayload],
+    pickups: Vector[BattleReplayPickupPayload],
+    eventMessages: Vector[String]
+  )
 
-  private def renderObject(fields: Vector[(String, String)]): String =
-    fields.map { case (key, value) => s"${jsonString(key)}:$value" }.mkString("{", ",", "}")
+  private final case class BattleReplayHeroPayload(
+    heroId: String,
+    displayName: String,
+    position: BattleReplayVectorPayload,
+    hp: Int,
+    maxHp: Int,
+    alive: Boolean,
+    lifeState: String,
+    score: Int,
+    facing: Double,
+    currentWeaponKind: String,
+    eliminatedAtMs: Option[Long]
+  )
 
-  private def jsonString(value: String): String =
-    s""""${escapeJson(value)}""""
+  private final case class BattleReplayProjectilePayload(
+    projectileId: String,
+    kind: String,
+    position: BattleReplayVectorPayload,
+    facing: Double,
+    alive: Boolean,
+    ttlMs: Long,
+    splashRadius: Double
+  )
 
-  private def escapeJson(value: String): String =
-    value.flatMap {
-      case '"'  => "\\\""
-      case '\\' => "\\\\"
-      case '\b' => "\\b"
-      case '\f' => "\\f"
-      case '\n' => "\\n"
-      case '\r' => "\\r"
-      case '\t' => "\\t"
-      case char if char.isControl => f"\\u${char.toInt}%04x"
-      case char => char.toString
+  private final case class BattleReplayPickupPayload(
+    id: String,
+    kind: String,
+    position: BattleReplayVectorPayload,
+    available: Boolean,
+    weaponKind: Option[String]
+  )
+
+  private final case class BattleReplayVectorPayload(x: Double, y: Double)
+
+  private given Encoder[BattleReplayVectorPayload] = deriveEncoder
+  private given Encoder[BattleReplayHeroPayload] = deriveEncoder
+  private given Encoder[BattleReplayProjectilePayload] = deriveEncoder
+  private given Encoder[BattleReplayFramePayload] = deriveEncoder
+
+  private given Encoder[BattleReplayPickupPayload] =
+    Encoder.instance { pickup =>
+      val baseFields = Vector(
+        "id" -> Json.fromString(pickup.id),
+        "kind" -> Json.fromString(pickup.kind),
+        "position" -> pickup.position.asJson,
+        "available" -> Json.fromBoolean(pickup.available)
+      )
+      val optionalFields =
+        pickup.weaponKind
+          .map(value => Vector("weaponKind" -> Json.fromString(value)))
+          .getOrElse(Vector.empty)
+      Json.obj((baseFields ++ optionalFields)*)
     }
 
 }

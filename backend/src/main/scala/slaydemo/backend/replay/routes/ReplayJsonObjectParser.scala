@@ -1,6 +1,6 @@
 package slaydemo.backend.replay.routes
 
-private[routes] enum ReplayJsonValue {
+private[backend] enum ReplayJsonValue {
   case StringValue(value: String)
   case NumberValue(value: Double)
   case BooleanValue(value: Boolean)
@@ -8,13 +8,13 @@ private[routes] enum ReplayJsonValue {
   case NullValue
 }
 
-private[routes] enum ReplayJsonParseError {
+private[backend] enum ReplayJsonParseError {
   case ExpectedObject
   case ExpectedField
   case ExpectedValue
 }
 
-private[routes] object ReplayJsonObjectParser {
+private[backend] object ReplayJsonObjectParser {
   def parse(body: String): Either[ReplayJsonParseError, Map[String, ReplayJsonValue]] = {
     val trimmed = Option(body).getOrElse("").trim
     if trimmed.isEmpty then Right(Map.empty)

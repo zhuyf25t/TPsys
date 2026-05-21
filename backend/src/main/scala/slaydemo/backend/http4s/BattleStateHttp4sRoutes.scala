@@ -18,9 +18,9 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val AllowedReadPaths: Set[String] =
-    Set("/battle/state", "/api/battle/state", "/api/battlestatereadapi")
+    Set("/battle/state", "/api/battle/state", "/battlestatereadapi", "/api/battlestatereadapi")
   private val AllowedStreamPaths: Set[String] =
-    Set("/battle/state/stream", "/api/battle/state/stream", "/api/battlestatestreamapi")
+    Set("/battle/state/stream", "/api/battle/state/stream", "/battlestatestreamapi", "/api/battlestatestreamapi")
 
   private val InvalidBattleIdError =
     HttpApiError(status = Status.BadRequest, code = "invalid_battle_id", message = "battleId is required.")

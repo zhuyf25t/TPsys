@@ -36,6 +36,7 @@ object ReplayRouteContractTest {
     detailSelectsSettlementByHandle()
     invalidReplayIdPathIsBadRequest()
     commentPostMapsSuccessAndErrors()
+    errorResponsesUseTypedDto()
 
     println("Replay route contract checks passed")
   }
@@ -139,6 +140,21 @@ object ReplayRouteContractTest {
       assertEquals("comment command replay id", service.commentCommands.head.replayId, ReplayId("route-replay"))
       assertEquals("comment command author", service.commentCommands.head.authorHandle, PlayerHandle("Alice"))
       assertEquals("comment command body is route raw", service.commentCommands.head.body, " first ")
+    }
+  }
+
+  private def errorResponsesUseTypedDto(): Unit = {
+    val service = RecordingReplayService()
+
+    withReplayServer(service) { uri =>
+      val response = postJson(uri.resolve("/replay/catalog"), "{bad-json}")
+
+      assertEquals("typed error response status", response.status, 400)
+      assertEquals(
+        "typed error response body",
+        response.body,
+        """{"error":"Request body must be a JSON object.","code":"bad_request"}"""
+      )
     }
   }
 

@@ -1,7 +1,8 @@
 package slaydemo.backend.battle.objects.apiTypes
 
-import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
+import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 import io.circe.generic.semiauto.deriveEncoder
+import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.BattleQueueJoinCommand
@@ -163,7 +164,22 @@ final case class BattleQueueParticipantResponse(
 )
 
 object BattleQueueParticipantResponse {
-  given Encoder[BattleQueueParticipantResponse] = deriveEncoder
+  given Encoder[BattleQueueParticipantResponse] =
+    Encoder.instance { value =>
+      Json.obj(
+        optionalResponseFields(
+          Vector(
+            "playerId" -> Json.fromString(value.playerId),
+            "handle" -> Json.fromString(value.handle),
+            "joinedAt" -> Json.fromLong(value.joinedAt),
+            "lastSeen" -> Json.fromLong(value.lastSeen)
+          ),
+          "rating" -> value.rating.map(Json.fromInt),
+          "avatar" -> value.avatar.map(Json.fromString),
+          "skin" -> value.skin.map(Json.fromString)
+        )*
+      )
+    }
 
   def fromParticipant(participant: BattleQueueParticipant): BattleQueueParticipantResponse =
     BattleQueueParticipantResponse(
@@ -188,7 +204,22 @@ final case class BattleSessionRosterEntryResponse(
 )
 
 object BattleSessionRosterEntryResponse {
-  given Encoder[BattleSessionRosterEntryResponse] = deriveEncoder
+  given Encoder[BattleSessionRosterEntryResponse] =
+    Encoder.instance { value =>
+      Json.obj(
+        optionalResponseFields(
+          Vector(
+            "seat" -> Json.fromInt(value.seat),
+            "playerId" -> Json.fromString(value.playerId),
+            "handle" -> Json.fromString(value.handle),
+            "joinedAt" -> Json.fromLong(value.joinedAt)
+          ),
+          "rating" -> value.rating.map(Json.fromInt),
+          "avatar" -> value.avatar.map(Json.fromString),
+          "skin" -> value.skin.map(Json.fromString)
+        )*
+      )
+    }
 
   def fromEntry(entry: BattleSessionRosterEntry): BattleSessionRosterEntryResponse =
     BattleSessionRosterEntryResponse(
@@ -217,7 +248,26 @@ final case class BattleSessionBootstrapSeatResponse(
 )
 
 object BattleSessionBootstrapSeatResponse {
-  given Encoder[BattleSessionBootstrapSeatResponse] = deriveEncoder
+  given Encoder[BattleSessionBootstrapSeatResponse] =
+    Encoder.instance { value =>
+      Json.obj(
+        optionalResponseFields(
+          Vector(
+            "seat" -> Json.fromInt(value.seat),
+            "playerId" -> Json.fromString(value.playerId),
+            "heroId" -> Json.fromString(value.heroId),
+            "handle" -> Json.fromString(value.handle),
+            "displayName" -> Json.fromString(value.displayName),
+            "joinedAt" -> Json.fromLong(value.joinedAt),
+            "isBot" -> Json.fromBoolean(value.isBot),
+            "spawnPointIndex" -> Json.fromInt(value.spawnPointIndex)
+          ),
+          "rating" -> value.rating.map(Json.fromInt),
+          "avatar" -> value.avatar.map(Json.fromString),
+          "skin" -> value.skin.map(Json.fromString)
+        )*
+      )
+    }
 
   def fromSeat(seat: BattleSessionBootstrapSeat): BattleSessionBootstrapSeatResponse =
     BattleSessionBootstrapSeatResponse(
@@ -303,3 +353,9 @@ object BattleQueueSnapshotResponse {
       battleSession = snapshot.battleSession.map(BattleSessionDescriptorResponse.fromSession)
     )
 }
+
+private def optionalResponseFields(
+  requiredFields: Vector[(String, Json)],
+  optionalFields: (String, Option[Json])*
+): Vector[(String, Json)] =
+  requiredFields ++ optionalFields.toVector.flatMap { case (key, value) => value.map(key -> _) }

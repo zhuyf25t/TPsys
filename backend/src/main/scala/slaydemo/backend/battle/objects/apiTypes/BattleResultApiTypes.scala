@@ -5,6 +5,16 @@ import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.BattleResultRecord
 
+final case class BattleResultErrorResponse(error: String, code: String)
+
+object BattleResultErrorResponse {
+  given Encoder[BattleResultErrorResponse] =
+    Encoder.forProduct2("error", "code")(value => (value.error, value.code))
+
+  def render(error: String, code: String): String =
+    BattleResultErrorResponse(error = error, code = code).asJson.noSpaces
+}
+
 final case class BattleResultRecordResponse(
   resultId: String,
   battleId: String,

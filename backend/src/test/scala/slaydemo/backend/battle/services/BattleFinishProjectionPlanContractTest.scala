@@ -1,5 +1,8 @@
 package slaydemo.backend.battle.services
 
+import io.circe.Json
+import io.circe.parser.parse
+
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.replay.objects.ReplayFrameCount
@@ -148,6 +151,12 @@ object BattleFinishProjectionPlanContractTest {
 
   private def frameJsonEscapesBattleText(plan: BattleFinishProjectionPlan): Unit = {
     val replay = plan.replay.getOrElse(fail("expected replay for JSON checks"))
+    val frames = parseReplayFrames(replay.framesJson.value)
+    val firstFrame = frames.headOption.getOrElse(fail("expected first replay frame"))
+    val firstHero = arrayField(firstFrame, "heroes").headOption.getOrElse(fail("expected first replay hero"))
+    val firstPickup = arrayField(firstFrame, "pickups").headOption.getOrElse(fail("expected first replay pickup"))
+    val projectileFrame = frames.find(frame => arrayField(frame, "projectiles").nonEmpty).getOrElse(fail("expected projectile replay frame"))
+    val projectile = arrayField(projectileFrame, "projectiles").headOption.getOrElse(fail("expected replay projectile"))
 
     assertContains("quoted display name is escaped", replay.framesJson.value, "Alice \\\"Ace\\\"")
     assertContains(
@@ -157,6 +166,12 @@ object BattleFinishProjectionPlanContractTest {
     )
     assertContains("captured projectile is rendered", replay.framesJson.value, "\"projectileId\":\"replay-projectile\"")
     assertContains("captured pickup is rendered", replay.framesJson.value, "\"id\":\"pickup-replay-gatling\"")
+    assertEquals("parsed first frame elapsed", longField(firstFrame, "elapsedMs"), 0L)
+    assertEquals("parsed first hero id", stringField(firstHero, "heroId"), "hero-bob")
+    assertEquals("parsed first hero life state", stringField(firstHero, "lifeState"), "dead")
+    assertEquals("parsed first hero eliminated at", longField(firstHero, "eliminatedAtMs"), 1600L)
+    assertEquals("parsed projectile id", stringField(projectile, "projectileId"), "replay-projectile")
+    assertEquals("parsed pickup weapon kind", stringField(firstPickup, "weaponKind"), WeaponKind.wireValue(WeaponKind.Gatling))
   }
 
   private def fallbackReplayFramesUseEventsAndFinalElapsed(state: BattleAggregateState): Unit = {
@@ -469,6 +484,26 @@ object BattleFinishProjectionPlanContractTest {
     }
     count
   }
+
+  private def parseReplayFrames(framesJson: String): Vector[Json] =
+    parse(framesJson)
+      .fold(error => fail(s"invalid replay frames json: ${error.getMessage}"), identity)
+      .asArray
+      .map(_.toVector)
+      .getOrElse(fail(s"replay frames json must be an array: $framesJson"))
+
+  private def arrayField(json: Json, field: String): Vector[Json] =
+    json.hcursor.downField(field).focus
+      .flatMap(_.asArray.map(_.toVector))
+      .getOrElse(fail(s"expected JSON array field `$field` in ${json.noSpaces}"))
+
+  private def stringField(json: Json, field: String): String =
+    json.hcursor.downField(field).as[String]
+      .getOrElse(fail(s"expected JSON string field `$field` in ${json.noSpaces}"))
+
+  private def longField(json: Json, field: String): Long =
+    json.hcursor.downField(field).as[Long]
+      .getOrElse(fail(s"expected JSON long field `$field` in ${json.noSpaces}"))
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)

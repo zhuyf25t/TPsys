@@ -7,6 +7,16 @@ import io.circe.{Encoder, Json}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.replay.objects.{ReplayCommentRecord, ReplayRecord, ReplaySettlementRecord}
 
+final case class ReplayErrorResponse(error: String, code: String)
+
+object ReplayErrorResponse {
+  given Encoder[ReplayErrorResponse] =
+    Encoder.forProduct2("error", "code")(value => (value.error, value.code))
+
+  def render(error: String, code: String): String =
+    ReplayErrorResponse(error = error, code = code).asJson.noSpaces
+}
+
 final case class ReplayDetailRecordResponse(
   replayId: String,
   battleId: String,

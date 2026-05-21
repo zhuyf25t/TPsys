@@ -1,5 +1,8 @@
 package slaydemo.backend.battle.services
 
+import io.circe.Json
+import io.circe.parser.parse
+
 import slaydemo.backend.battle.database.{BattleResultRepository, InMemoryBattleResultRepository}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
@@ -86,6 +89,18 @@ object BattleFinishProjectionWriteContractTest {
     assertEquals("replay frame count", replay.frameCount, ReplayFrameCount.fromWire(3))
     assertEquals("replay playback flag", replay.playbackAvailable, true)
     assertContains("replay saved captured frame", replay.framesJson.value, "\"elapsedMs\":1000")
+
+    val frames = parseReplayFrames(replay.framesJson.value)
+    val firstFrame = frames.headOption.getOrElse(fail("expected persisted first replay frame"))
+    val firstHero = arrayField(firstFrame, "heroes").headOption.getOrElse(fail("expected persisted first replay hero"))
+    val firstPickup = arrayField(firstFrame, "pickups").headOption.getOrElse(fail("expected persisted first replay pickup"))
+
+    assertEquals("persisted replay frame count matches parsed frames", frames.length, replay.frameCount.value)
+    assertEquals("persisted first frame elapsed", longField(firstFrame, "elapsedMs"), 0L)
+    assertEquals("persisted first hero id", stringField(firstHero, "heroId"), "hero-bob")
+    assertEquals("persisted first pickup id", stringField(firstPickup, "id"), "pickup-finish-write")
+    assertEquals("persisted first pickup kind", stringField(firstPickup, "kind"), "medkit")
+    assertEquals("persisted medkit omits weapon kind", firstPickup.hcursor.downField("weaponKind").focus.isEmpty, true)
   }
 
   private def previousRatingLookupIgnoresCurrentBattleRecords(): Unit = {
@@ -525,6 +540,26 @@ object BattleFinishProjectionWriteContractTest {
 
   private def assertContains(label: String, text: String, expectedPart: String): Unit =
     assert(text.contains(expectedPart), s"$label: expected to find $expectedPart in $text")
+
+  private def parseReplayFrames(framesJson: String): Vector[Json] =
+    parse(framesJson)
+      .fold(error => fail(s"invalid persisted replay frames json: ${error.getMessage}"), identity)
+      .asArray
+      .map(_.toVector)
+      .getOrElse(fail(s"persisted replay frames json must be an array: $framesJson"))
+
+  private def arrayField(json: Json, field: String): Vector[Json] =
+    json.hcursor.downField(field).focus
+      .flatMap(_.asArray.map(_.toVector))
+      .getOrElse(fail(s"expected persisted JSON array field `$field` in ${json.noSpaces}"))
+
+  private def stringField(json: Json, field: String): String =
+    json.hcursor.downField(field).as[String]
+      .getOrElse(fail(s"expected persisted JSON string field `$field` in ${json.noSpaces}"))
+
+  private def longField(json: Json, field: String): Long =
+    json.hcursor.downField(field).as[Long]
+      .getOrElse(fail(s"expected persisted JSON long field `$field` in ${json.noSpaces}"))
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)

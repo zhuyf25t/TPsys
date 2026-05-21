@@ -16,9 +16,9 @@ import slaydemo.backend.identity.objects.PlayerHandle
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val AllowedSnapshotPaths: Set[String] =
-    Set("/battle/rooms/snapshot", "/api/battle/rooms/snapshot", "/api/battleroomsnapshotapi")
+    Set("/battle/rooms/snapshot", "/api/battle/rooms/snapshot", "/battleroomsnapshotapi", "/api/battleroomsnapshotapi")
   private val AllowedHeartbeatPaths: Set[String] =
-    Set("/battle/rooms/heartbeat", "/api/battle/rooms/heartbeat", "/api/battleroomheartbeatapi")
+    Set("/battle/rooms/heartbeat", "/api/battle/rooms/heartbeat", "/battleroomheartbeatapi", "/api/battleroomheartbeatapi")
 
   private val InvalidRoomIdError =
     HttpApiError(status = Status.BadRequest, code = "invalid_room_id", message = "roomId is required.")

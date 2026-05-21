@@ -27,11 +27,11 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val AllowedStatusPaths: Set[String] =
-    Set("/battle/queue/status", "/api/battle/queue/status", "/api/battlequeuestatusapi")
+    Set("/battle/queue/status", "/api/battle/queue/status", "/battlequeuestatusapi", "/api/battlequeuestatusapi")
   private val AllowedJoinPaths: Set[String] =
-    Set("/battle/queue/join", "/api/battle/queue/join", "/api/battlequeuejoinapi")
+    Set("/battle/queue/join", "/api/battle/queue/join", "/battlequeuejoinapi", "/api/battlequeuejoinapi")
   private val AllowedLeavePaths: Set[String] =
-    Set("/battle/queue/leave", "/api/battle/queue/leave", "/api/battlequeueleaveapi")
+    Set("/battle/queue/leave", "/api/battle/queue/leave", "/battlequeueleaveapi", "/api/battlequeueleaveapi")
 
   private val InvalidJsonObjectError =
     HttpApiError(

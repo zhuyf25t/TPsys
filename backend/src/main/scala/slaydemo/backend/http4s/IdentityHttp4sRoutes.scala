@@ -157,7 +157,7 @@ private[http4s] object IdentityHttp4sRoutes {
     IdentitySessionTokenParser.parseFromHeaderLookup(name => headerValue(request.headers, name))
 
   private def headerValue(headers: Headers, name: String): Option[String] =
-    headers.get(CIString(name)).map(_.head.value)
+    headers.get(CIString(name)).flatMap(_.toList.headOption.map(_.value))
 
   private def path(request: Request[IO]): String =
     request.uri.path.renderString

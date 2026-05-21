@@ -8,8 +8,8 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
-  MailCommandParsers,
   MailListResponse,
+  MailOwnerQuery,
   MailReadApiRequest,
   MailReadResponse,
   MailRouteOwnerError,
@@ -62,7 +62,7 @@ private[http4s] object MailHttp4sRoutes {
     }
 
   private def listMails(request: Request[IO], service: MailService): IO[Response[IO]] =
-    MailCommandParsers.parseOwner(request.params.get("ownerHandle")) match {
+    MailOwnerQuery.parse(request.params.get("ownerHandle")) match {
       case Left(error) =>
         IO.pure(apiError(ownerApiError(error)))
       case Right(ownerHandle) =>
@@ -76,7 +76,7 @@ private[http4s] object MailHttp4sRoutes {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
       case Right(readRequest) =>
-        MailCommandParsers.parseReadCommand(readRequest) match {
+        readRequest.toCommand match {
           case Left(error) =>
             IO.pure(apiError(readApiError(error)))
           case Right(command) =>

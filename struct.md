@@ -216,7 +216,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | --- | --- |
 | `IdentityCommandParsers.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析注册/登录命令；register/session POST body 已由 typed DTO 承接。 |
 | `IdentitySessionTokenParser.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析 session token。 |
-| `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，`MailHttp4sRoutes` 仍用它解析 owner/read command；list query 已使用 http4s `request.params`，read POST body 已由 `MailReadApiRequest` typed DTO 承接。 |
+| `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，owner query/read command 转换已由 `MailApiTypes.scala` 承接；list query 使用 http4s `request.params`，read POST body 使用 `MailReadApiRequest` typed DTO。 |
 | `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，`SocialHttp4sRoutes` 仍用它解析好友请求命令；list query 已使用 http4s `request.params`，create/respond POST body 已由 typed DTO 承接。 |
 | `ForumCommandParsers.scala` | 已迁到 `forum/objects/apiTypes`，forum request body 到 create/reply/vote command 的转换已由 `ForumApiTypes.scala` 承接。 |
 | `ForumRouteTargetParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path；topic/reply path id 直接解析成 typed id，viewer query 已使用 http4s `request.params`。 |

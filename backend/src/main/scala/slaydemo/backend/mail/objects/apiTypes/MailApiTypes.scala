@@ -2,12 +2,16 @@ package slaydemo.backend.mail.objects.apiTypes
 
 import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 
+import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.{MailFriendRequestStatus, MailKind, MailRecord}
 
 final case class MailReadApiRequest(
   ownerHandle: Option[String],
   mailId: Option[String]
-)
+) {
+  def toCommand: Either[MailRouteReadError, MailReadCommand] =
+    MailCommandParsers.parseReadCommand(this)
+}
 
 object MailReadApiRequest {
   given Decoder[MailReadApiRequest] = (cursor: HCursor) =>
@@ -30,6 +34,11 @@ object MailReadApiRequest {
       case Some(_) =>
         Left(DecodingFailure(s"$field must be a string.", cursor.history))
     }
+}
+
+object MailOwnerQuery {
+  def parse(ownerHandle: Option[String]): Either[MailRouteOwnerError, PlayerHandle] =
+    MailCommandParsers.parseOwner(ownerHandle)
 }
 
 final case class MailItemResponse(

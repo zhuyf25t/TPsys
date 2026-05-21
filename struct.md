@@ -196,6 +196,31 @@ BackendHttp4sApp.run
 
 这些 alias 是当前前端兼容的一部分，不是死代码。但它们会让 target parser 和 contract test 变复杂。只有在确认前端不再调用旧 alias 后，才能删除。
 
+#### BE-LEGACY-PATH-ALIAS-AUDIT-61 审计结论
+
+前端 `normalizeApiBase(..., "/api")` 默认把 battle 请求拼到 `/api` 下，所以前端代码里写 `"/battlequeuejoinapi"`，真实请求通常是 `"/api/battlequeuejoinapi"`。后端当前 target parser 同时支持无 `/api` 前缀和有 `/api` 前缀的旧 alias。
+
+当前运行中的 v1 前端 runtime 仍然直接调用旧 alias。脚本层面的 smoke/contract 检查大多已经使用 REST 风格 `/battle/...`，但这不能证明旧 alias 可以删除，因为真实浏览器前端还没有迁移。
+
+| 业务 | 后端 REST path | 后端 legacy alias | 前端当前调用证据 | 脚本当前调用倾向 | 当前建议 |
+| --- | --- | --- | --- | --- | --- |
+| queue join | `/battle/queue/join`、`/api/battle/queue/join` | `/battlequeuejoinapi`、`/api/battlequeuejoinapi` | `frontend/src/domains/battle/runtime/matchmaking/matchmakingQueueGateway.ts` 调用 `"/battlequeuejoinapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移前端 gateway |
+| queue status | `/battle/queue/status`、`/api/battle/queue/status` | `/battlequeuestatusapi`、`/api/battlequeuestatusapi` | `matchmakingQueueGateway.ts` 调用 `"/battlequeuestatusapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移前端 gateway |
+| queue leave | `/battle/queue/leave`、`/api/battle/queue/leave` | `/battlequeueleaveapi`、`/api/battlequeueleaveapi` | `matchmakingQueueGateway.ts` 调用 `"/battlequeueleaveapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移前端 gateway |
+| room snapshot | `/battle/rooms/snapshot`、`/api/battle/rooms/snapshot`、`/battle/rooms/:roomId/snapshot`、`/api/battle/rooms/:roomId/snapshot` | `/battleroomsnapshotapi`、`/api/battleroomsnapshotapi` | `frontend/src/domains/battle/runtime/matchmaking/realtimeRoomClient.ts` 调用 `"/battleroomsnapshotapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移 room client |
+| room heartbeat | `/battle/rooms/heartbeat`、`/api/battle/rooms/heartbeat`、`/battle/rooms/:roomId/heartbeat`、`/api/battle/rooms/:roomId/heartbeat` | `/battleroomheartbeatapi`、`/api/battleroomheartbeatapi` | `realtimeRoomClient.ts` 调用 `"/battleroomheartbeatapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移 room client |
+| state read | `/battle/state`、`/api/battle/state`、`/battle/state/:battleId`、`/api/battle/state/:battleId` | `/battlestatereadapi`、`/api/battlestatereadapi` | `frontend/src/domains/battle/runtime/authoritative/authoritativeBattleClient.ts` 调用 `"/battlestatereadapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移 authoritative client |
+| state stream | `/battle/state/stream`、`/api/battle/state/stream` | `/battlestatestreamapi`、`/api/battlestatestreamapi` | `authoritativeBattleClient.ts` 调用 `"/battlestatestreamapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移 SSE client |
+| command submit | `/battle/command`、`/battle/commands`、`/api/battle/command`、`/api/battle/commands` | `/battlecommandapi`、`/api/battlecommandapi` | `authoritativeBattleClient.ts` 调用 `"/battlecommandapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移 command client |
+| result list/record | `/battle/results`、`/api/battle/results` | `/battleresultsapi`、`/api/battleresultsapi` | `frontend/src/domains/battle/api/battleResultsApi.ts` 和 `runtime/local/state/battleResultSync.ts` 调用 `"/battleresultsapi"` | smoke 脚本使用 REST path | 保留 alias，先迁移 battle results API |
+
+因此，当前不应该直接清空这些 alias，也不应该以“test 已经走 REST”为理由删除后端兼容路径。安全顺序应该是：
+
+1. 先把上述前端 gateway/client 改成 REST path。
+2. 跑浏览器前端和 `npm run backend:test-contracts`，确认等待房间、状态流、命令提交、战报读写都仍然可用。
+3. 再删除后端 target parser 中对应 legacy alias。
+4. 最后删除只覆盖 legacy alias 的 contract case，保留 REST contract case。
+
 ### 4.4 test 中有大量 stub service
 
 `BackendHttp4sRoutesCompositionContractTest` 为了验证 route composition，定义了很多 `Unused*Service` stub。这些只存在于 test，不影响 main 运行。

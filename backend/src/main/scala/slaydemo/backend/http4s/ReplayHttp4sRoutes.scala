@@ -40,8 +40,8 @@ private[http4s] object ReplayHttp4sRoutes {
 
   def catalogRoutes(service: ReplayService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if catalogTarget(request).nonEmpty =>
-        catalogTarget(request).get match {
+      case request @ CatalogRequest(target) =>
+        target match {
           case ReplayCatalogTarget.Collection =>
             handleCollection(service, request)
           case ReplayCatalogTarget.Detail(replayId) =>
@@ -206,4 +206,9 @@ private[http4s] object ReplayHttp4sRoutes {
 
   private def catalogTarget(request: Request[IO]): Option[ReplayCatalogTarget] =
     ReplayApiCodec.catalogTarget(request.uri.path.renderString)
+
+  private object CatalogRequest {
+    def unapply(request: Request[IO]): Option[ReplayCatalogTarget] =
+      catalogTarget(request)
+  }
 }

@@ -2,7 +2,6 @@ package slaydemo.backend.bots.objects.apiTypes
 
 import io.circe.Encoder
 import io.circe.generic.semiauto.deriveEncoder
-import io.circe.syntax.*
 
 import slaydemo.backend.bots.objects.{BotProfileRecord, BotProfileTone}
 
@@ -55,7 +54,4 @@ object BotProfilesResponse {
 
   def fromRecords(records: Vector[BotProfileRecord]): BotProfilesResponse =
     BotProfilesResponse(records.map(BotProfileResponse.fromRecord))
-
-  def renderRecords(records: Vector[BotProfileRecord]): String =
-    fromRecords(records).asJson.noSpaces
 }

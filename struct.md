@@ -260,7 +260,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | 风格 | 文件 | 当前问题 |
 | --- | --- | --- |
 | 旧手写字符串 JSON | battle 旧手写 state JSON renderer 已删除；旧 `shared/routes/HttpRouteSupport.scala` 已删除 | 容易漏字段、转义错误、和 Circe DTO drift。 |
-| typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`http4s/*Routes.scala` | 当前运行路径正在使用；battle result response 已删除旧 route 字符串 render helper，只保留 DTO + Circe encoder 出口。 |
+| typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`http4s/*Routes.scala` | 当前运行路径正在使用；battle result 和 bots response 已删除旧 route 字符串 render helper，只保留 DTO + Circe encoder 出口。 |
 
 最明显的重复：
 
@@ -389,7 +389,7 @@ battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
 
 ## 10. 下一步建议
 
-最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer，以及 battle result response 的旧字符串 render helper 已清完；下一步应聚焦 service 简化或继续减少其他 `apiTypes` 中的手写 codec。
+最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer，以及 battle result/bots response 的旧字符串 render helper 已清完；下一步应聚焦 service 简化或继续减少其他 `apiTypes` 中的手写 codec。
 
 推荐下一个小票：
 

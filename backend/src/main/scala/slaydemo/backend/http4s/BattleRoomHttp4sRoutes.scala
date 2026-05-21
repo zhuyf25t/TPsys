@@ -8,13 +8,24 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.battle.objects.apiTypes.{RealtimeRoomHeartbeatAPIRequest, RealtimeRoomRequestTarget, RealtimeRoomSnapshotResponse}
+import slaydemo.backend.battle.objects.apiTypes.{
+  RealtimeRoomHeartbeatAPIRequest,
+  RealtimeRoomHeartbeatAPIRequestError,
+  RealtimeRoomRequestTarget,
+  RealtimeRoomSnapshotResponse
+}
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
     HttpApiError(status = Status.BadRequest, code = "invalid_room_id", message = "roomId is required.")
+  private val InvalidJsonObjectError =
+    HttpApiError(
+      status = Status.BadRequest,
+      code = "bad_request",
+      message = "Request body must be a JSON object with supported primitive or object fields."
+    )
   private val RoomNotFoundError =
     HttpApiError(status = Status.NotFound, code = "room_not_found", message = "Battle room was not found.")
   private val SnapshotMethodNotAllowedError =
@@ -53,8 +64,8 @@ private[http4s] object BattleRoomHttp4sRoutes {
             IO.pure(withCors(Response[IO](Status.NoContent)))
           case Method.POST =>
             decodeHeartbeatRequest(request).flatMap {
-              case Left(message) =>
-                IO.pure(apiError(badRequest(message)))
+              case Left(RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject) =>
+                IO.pure(apiError(InvalidJsonObjectError))
               case Right(command) =>
                 blocking(queueService.heartbeat(command)).flatMap {
                   case Right(snapshot) =>
@@ -74,12 +85,12 @@ private[http4s] object BattleRoomHttp4sRoutes {
   private def isBattleRoomHeartbeatPath(request: Request[IO]): Boolean =
     RealtimeRoomRequestTarget.isHeartbeatPath(request.uri.path.renderString)
 
-  private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[String, RealtimeRoomHeartbeatCommand]] =
+  private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[RealtimeRoomHeartbeatAPIRequestError, RealtimeRoomHeartbeatCommand]] =
     request.as[Json].attempt.map {
       case Left(_) =>
-        Left("Request body must be a JSON object with supported primitive or object fields.")
+        Left(RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject)
       case Right(json) if json.asObject.isEmpty =>
-        Left("Request body must be a JSON object with supported primitive or object fields.")
+        Left(RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject)
       case Right(json) =>
         RealtimeRoomHeartbeatAPIRequest.decodeCommand(
           json,
@@ -96,7 +107,4 @@ private[http4s] object BattleRoomHttp4sRoutes {
       case BattleRoomError.MissingRoomId => InvalidRoomIdError
       case BattleRoomError.RoomNotFound  => RoomNotFoundError
     }
-
-  private def badRequest(message: String): HttpApiError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = message)
 }

@@ -125,6 +125,10 @@ final case class RealtimeRoomHeartbeatAPIRequest(
     Option(value).map(_.trim).filter(_.nonEmpty)
 }
 
+enum RealtimeRoomHeartbeatAPIRequestError {
+  case InvalidJsonObject
+}
+
 object RealtimeRoomHeartbeatAPIRequest {
   given Decoder[RealtimeRoomHeartbeatAPIRequest] = (cursor: HCursor) =>
     for
@@ -137,9 +141,9 @@ object RealtimeRoomHeartbeatAPIRequest {
     json: Json,
     pathRoomId: Option[RoomId],
     query: Map[String, String]
-  ): Either[String, RealtimeRoomHeartbeatCommand] =
+  ): Either[RealtimeRoomHeartbeatAPIRequestError, RealtimeRoomHeartbeatCommand] =
     json.as[RealtimeRoomHeartbeatAPIRequest]
-      .left.map(_ => BattleQueueAPIRequestErrors.InvalidJsonObjectMessage)
+      .left.map(_ => RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject)
       .map(_.toCommand(pathRoomId, query))
 }
 
@@ -268,11 +272,6 @@ object BattleQueueJoinAPIRequest {
     json.as[BattleQueueJoinAPIRequest]
       .left.map(error => BattleQueueJoinAPIRequestError.InvalidRating(error.message))
       .flatMap(_.toCommand)
-}
-
-private object BattleQueueAPIRequestErrors {
-  val InvalidJsonObjectMessage: String =
-    "Request body must be a JSON object with supported primitive or object fields."
 }
 
 final case class BattleQueueParticipantResponse(

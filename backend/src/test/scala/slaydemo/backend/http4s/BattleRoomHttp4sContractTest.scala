@@ -18,6 +18,7 @@ object BattleRoomHttp4sContractTest {
     roomHeartbeatCombinesQueryAndBody()
     roomHeartbeatReadsPathRoomId()
     missingRoomIdIsBadRequest()
+    heartbeatNonObjectBodyIsBadRequest()
     roomNotFoundIsNotFound()
 
     println("Battle room http4s contract checks passed")
@@ -105,6 +106,19 @@ object BattleRoomHttp4sContractTest {
     assertEquals("missing snapshot body", snapshot.body, """{"error":"roomId is required.","code":"invalid_room_id"}""")
     assertEquals("missing heartbeat status", heartbeat.status, 400)
     assertEquals("missing heartbeat body", heartbeat.body, """{"error":"roomId is required.","code":"invalid_room_id"}""")
+  }
+
+  private def heartbeatNonObjectBodyIsBadRequest(): Unit = {
+    val service = RecordingBattleQueueService()
+    val response = postHeartbeat(service, uri"/api/battleroomheartbeatapi?roomId=room-route", "[]")
+
+    assertEquals("non-object heartbeat status", response.status, 400)
+    assertEquals(
+      "non-object heartbeat body",
+      response.body,
+      """{"error":"Request body must be a JSON object with supported primitive or object fields.","code":"bad_request"}"""
+    )
+    assertEquals("non-object heartbeat no service call", service.heartbeatCalls, Vector.empty)
   }
 
   private def roomNotFoundIsNotFound(): Unit = {

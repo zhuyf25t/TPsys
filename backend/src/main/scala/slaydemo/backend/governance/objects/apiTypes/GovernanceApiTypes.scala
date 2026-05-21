@@ -1,6 +1,5 @@
 package slaydemo.backend.governance.objects.apiTypes
 
-import io.circe.syntax.*
 import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 
 import slaydemo.backend.governance.objects.{
@@ -281,9 +280,6 @@ object ContributionAdjustmentListResponse {
 
   def fromRecords(records: Vector[ContributionAdjustmentRecord]): ContributionAdjustmentListResponse =
     ContributionAdjustmentListResponse(records.map(ContributionAdjustmentItemResponse.fromRecord))
-
-  def renderRecords(records: Vector[ContributionAdjustmentRecord]): String =
-    fromRecords(records).asJson.noSpaces
 }
 
 final case class ContributionAdjustmentCreateResponse(
@@ -302,9 +298,6 @@ object ContributionAdjustmentCreateResponse {
       adjustment = ContributionAdjustmentItemResponse.fromRecord(result.adjustment),
       mail = GovernanceMailSnapshotResponse.fromSnapshot(result.mail)
     )
-
-  def renderResult(result: ContributionAdjustmentSubmissionResult): String =
-    fromResult(result).asJson.noSpaces
 }
 
 final case class GovernanceReviewNotificationListResponse(
@@ -317,9 +310,6 @@ object GovernanceReviewNotificationListResponse {
 
   def fromRecords(records: Vector[GovernanceReviewNotificationRecord]): GovernanceReviewNotificationListResponse =
     GovernanceReviewNotificationListResponse(records.map(GovernanceReviewNotificationItemResponse.fromRecord))
-
-  def renderRecords(records: Vector[GovernanceReviewNotificationRecord]): String =
-    fromRecords(records).asJson.noSpaces
 }
 
 final case class GovernanceReviewNotificationCreateResponse(
@@ -338,9 +328,6 @@ object GovernanceReviewNotificationCreateResponse {
       notification = GovernanceReviewNotificationItemResponse.fromRecord(result.notification),
       mail = GovernanceMailSnapshotResponse.fromSnapshot(result.mail)
     )
-
-  def renderResult(result: GovernanceReviewNotificationSubmissionResult): String =
-    fromResult(result).asJson.noSpaces
 }
 
 private def requiredNonEmptyString(cursor: HCursor, field: String): Decoder.Result[String] =

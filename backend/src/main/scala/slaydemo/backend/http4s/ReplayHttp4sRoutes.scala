@@ -1,8 +1,6 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import io.circe.Json
-import io.circe.parser.parse
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
@@ -12,15 +10,16 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
+  ReplayApiCodec,
   ReplayCommandParsers,
   ReplayCatalogResponse,
-  ReplayCommentCommandParseError,
+  ReplayCommentDecodeError,
   ReplayCommentResponse,
   ReplayCommentWrapperResponse,
   ReplayCommentsResponse,
   ReplayDetailRecordResponse,
   ReplayDetailResponse,
-  ReplayRecordCommandParseError
+  ReplayRecordDecodeError
 }
 import slaydemo.backend.replay.services.{
   ReplayCommentCommand,
@@ -143,15 +142,7 @@ private[http4s] object ReplayHttp4sRoutes {
       case Left(_) =>
         Left(BadJsonObjectError)
       case Right(body) =>
-        parseJsonObject(body) match {
-          case Left(error) =>
-            Left(error)
-          case Right(fields) =>
-            val framesJson = ReplayCommandParsers.readString(fields, "framesJson")
-              .orElse(ReplayCommandParsers.readRawJson(fields, "frames"))
-              .getOrElse("[]")
-            ReplayCommandParsers.parseReplayRecordCommand(fields, framesJson).left.map(recordParseError)
-        }
+        ReplayApiCodec.parseRecordCommand(body).left.map(recordDecodeError)
     }
 
   private def decodeCommentRequest(
@@ -162,35 +153,20 @@ private[http4s] object ReplayHttp4sRoutes {
       case Left(_) =>
         Left(BadJsonObjectError)
       case Right(body) =>
-        parseJsonObject(body) match {
-          case Left(error) =>
-            Left(error)
-          case Right(fields) =>
-            ReplayCommandParsers.parseReplayCommentCommand(replayId, fields).left.map(commentParseError)
-        }
+        ReplayApiCodec.parseCommentCommand(replayId, body).left.map(commentDecodeError)
     }
 
-  private def parseJsonObject(body: String): Either[HttpApiError, io.circe.JsonObject] = {
-    val trimmed = Option(body).getOrElse("").trim
-    val parsed = if trimmed.isEmpty then Right(Json.obj()) else parse(trimmed)
-
-    parsed match {
-      case Left(_) =>
-        Left(BadJsonObjectError)
-      case Right(json) =>
-        json.asObject.toRight(BadJsonObjectError)
-    }
-  }
-
-  private def recordParseError(error: ReplayRecordCommandParseError): HttpApiError =
+  private def recordDecodeError(error: ReplayRecordDecodeError): HttpApiError =
     error match {
-      case ReplayRecordCommandParseError.InvalidReplayId =>
+      case ReplayRecordDecodeError.BadJsonObject =>
+        BadJsonObjectError
+      case ReplayRecordDecodeError.InvalidReplayId =>
         InvalidReplayIdError
-      case ReplayRecordCommandParseError.InvalidBattleId =>
+      case ReplayRecordDecodeError.InvalidBattleId =>
         HttpApiError(Status.BadRequest, "invalid_battle_id", "invalid_battle_id")
-      case ReplayRecordCommandParseError.InvalidHandle =>
+      case ReplayRecordDecodeError.InvalidHandle =>
         HttpApiError(Status.BadRequest, "invalid_handle", "invalid_handle")
-      case ReplayRecordCommandParseError.VisitorNotAllowed =>
+      case ReplayRecordDecodeError.VisitorNotAllowed =>
         HttpApiError(Status.Forbidden, "visitor_not_allowed", "visitor_not_allowed")
     }
 
@@ -202,13 +178,15 @@ private[http4s] object ReplayHttp4sRoutes {
         HttpApiError(Status.BadRequest, "invalid_frames_json", "invalid_frames_json")
     }
 
-  private def commentParseError(error: ReplayCommentCommandParseError): HttpApiError =
+  private def commentDecodeError(error: ReplayCommentDecodeError): HttpApiError =
     error match {
-      case ReplayCommentCommandParseError.InvalidReplayId =>
+      case ReplayCommentDecodeError.BadJsonObject =>
+        BadJsonObjectError
+      case ReplayCommentDecodeError.InvalidReplayId =>
         InvalidReplayIdError
-      case ReplayCommentCommandParseError.InvalidAuthorHandle =>
+      case ReplayCommentDecodeError.InvalidAuthorHandle =>
         HttpApiError(Status.BadRequest, "invalid_author_handle", "invalid_author_handle")
-      case ReplayCommentCommandParseError.VisitorNotAllowed =>
+      case ReplayCommentDecodeError.VisitorNotAllowed =>
         HttpApiError(Status.Forbidden, "visitor_not_allowed", "visitor_not_allowed")
     }
 

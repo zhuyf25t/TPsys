@@ -223,8 +223,8 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ForumRouteErrorMapper.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理命令。 |
 | `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query；query 来源已改为 http4s `request.params`。 |
-| `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
-| `ReplayJsonObjectParser.scala` | 已删除。当前 `ReplayHttp4sRoutes` 使用 Circe `JsonObject` 解析 replay JSON body，再交给 `ReplayCommandParsers` 做业务字段校验。 |
+| `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id；record/comment body decode 已由 `ReplayApiCodec` 承接。 |
+| `ReplayJsonObjectParser.scala` | 已删除。当前 replay POST body 由 `ReplayApiCodec` 使用 Circe `JsonObject` 解析，再交给 `ReplayCommandParsers` 做业务字段校验。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body；GET query 已使用 http4s `request.params`，POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |
 
 结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；旧顶层 Java HttpServer 入口、route catalog/registry、旧 `HttpExchange` route wrapper 和旧 route contract tests 已删除。
@@ -338,7 +338,7 @@ BackendHttp4sApp 不再间接构造旧 route object
 | 已完成 | `forum/routes/ForumRouteTargetParsers.scala` | `forum/objects/apiTypes/ForumRouteTargetParsers.scala` |
 | 已完成 | `forum/routes/ForumRouteErrorMapper.scala` | `forum/objects/apiTypes/ForumRouteErrorMapper.scala` |
 | 已完成 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes/ReplayCommandParsers.scala` |
-| 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | 已删除；当前 replay POST body 使用 Circe `JsonObject` |
+| 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | 已删除；当前 replay POST body 由 `replay/objects/apiTypes/ReplayApiCodec.scala` 使用 Circe `JsonObject` |
 | 已完成 | `battle/routes/BattleResultApiCodec.scala` | `battle/objects/apiTypes/BattleResultApiCodec.scala` |
 | 已完成 | `battle/routes/BattleResultCommandParsers.scala` | `battle/objects/apiTypes/BattleResultCommandParsers.scala` |
 | 已完成 | `battle/routes/BattleResultJsonObjectParser.scala` | 已删除；当前 battle result POST body 使用 Circe `JsonObject` |

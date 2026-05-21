@@ -8,7 +8,6 @@ import slaydemo.backend.battle.services.{
 import slaydemo.backend.battle.routes.{
   BattleCommandRouteContractTest,
   BattleJoinRouteContractTest,
-  BattleResultRouteContractTest,
   BattleRoomStateRouteContractTest
 }
 import slaydemo.backend.http4s.{
@@ -58,7 +57,6 @@ object BackendContractTestRunner {
     run("battle state stream http4s", () => BattleStateStreamHttp4sContractTest.main(Array.empty))
     run("battle command http4s", () => BattleCommandHttp4sContractTest.main(Array.empty))
     run("battle result http4s", () => BattleResultHttp4sContractTest.main(Array.empty))
-    run("battle result route", () => BattleResultRouteContractTest.main(Array.empty))
     run("battle result service", () => BattleResultServiceContractTest.main(Array.empty))
     run("battle command route", () => BattleCommandRouteContractTest.main(Array.empty))
     run("battle join route", () => BattleJoinRouteContractTest.main(Array.empty))

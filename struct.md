@@ -193,6 +193,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleRoomRouteHandler.scala` | 否。当前使用 `BattleRoomHttp4sRoutes`。 |
 | `battle/routes/BattleStateRouteHandler.scala` | 否。当前使用 `BattleStateHttp4sRoutes`。 |
 | `battle/routes/BattleStateStreamWriter.scala` | 否。当前 http4s SSE 在 `BattleStateHttp4sRoutes` 内实现。 |
+| `battle/routes/BattleResultRoutes.scala` | 已删除。当前使用 `BattleResultHttp4sRoutes`，并由 `BattleResultHttp4sContractTest` 覆盖。 |
 
 ### 6.3 不能直接整包删除的 `routes` 目录
 
@@ -235,7 +236,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler` |
 | battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter` |
 | battle command | `BattleCommandHttp4sRoutes` | `BattleCommandRouteHandler` |
-| battle result | `BattleResultHttp4sRoutes` | `BattleResultRoutes` |
+| battle result | `BattleResultHttp4sRoutes` | `BattleResultRoutes` 已删除 |
 
 风险：同一个 API contract 有两处行为来源，后续改字段、状态码、错误码时容易只改一边。
 

@@ -18,6 +18,7 @@ object BattleResultHttp4sContractTest {
     listParsesFiltersAndRendersRecords()
     invalidHandleFilterShortCircuitsList()
     recordPostParsesCommandAndValidationErrors()
+    legacyBattleResultsPathAndTypedErrorsRemainCovered()
 
     println("Battle result http4s contract checks passed")
   }
@@ -74,6 +75,27 @@ object BattleResultHttp4sContractTest {
 
     assertEquals("service record error status", serviceFailure.status, 403)
     assertContains("service record error code", serviceFailure.body, """"code":"visitor_not_allowed"""")
+  }
+
+  private def legacyBattleResultsPathAndTypedErrorsRemainCovered(): Unit = {
+    val listService = RecordingBattleResultService()
+    listService.records = Vector(resultRecord(handle = PlayerHandle("Alice"), currentLoadout = Some("Pistol")))
+    val listResponse = get(listService, uri"/api/battle/results?handle=Alice&battleId=battle-route&limit=2")
+
+    assertEquals("legacy list status", listResponse.status, 200)
+    assertContains("legacy list result id", listResponse.body, """"resultId":"battle-route:alice"""")
+    assertEquals("legacy list service calls", listService.listCalls, Vector((Some(PlayerHandle("Alice")), Some(BattleId("battle-route")), 2)))
+
+    val recordService = RecordingBattleResultService()
+    val response = postJson(recordService, uri"/api/battle/results", "{bad-json}")
+
+    assertEquals("typed error response status", response.status, 400)
+    assertEquals(
+      "typed error response body",
+      response.body,
+      """{"error":"Request body must be a JSON object.","code":"bad_request"}"""
+    )
+    assertEquals("typed error response avoids service", recordService.recordCommands, Vector.empty)
   }
 
   private def get(service: RecordingBattleResultService, targetUri: Uri): RouteResponse = {

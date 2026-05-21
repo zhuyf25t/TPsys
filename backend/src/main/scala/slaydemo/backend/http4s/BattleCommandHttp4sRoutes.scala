@@ -1,8 +1,6 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import io.circe.Json
-import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
@@ -15,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleCommandHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -66,14 +64,7 @@ private[http4s] object BattleCommandHttp4sRoutes {
     BattleCommandRequestTarget.isCommandPath(request.uri.path.renderString)
 
   private def decodeCommandRequest(request: Request[IO]): IO[Either[BattleCommandAPIRequestError, BattleCommandRequest]] =
-    request.as[Json].attempt.map {
-      case Left(_) =>
-        Left(BattleCommandAPIRequestError.InvalidJsonObject)
-      case Right(json) if json.asObject.isEmpty =>
-        Left(BattleCommandAPIRequestError.InvalidJsonObject)
-      case Right(json) =>
-        BattleCommandAPIRequest.decodeCommand(json)
-    }
+    decodeJsonObjectBody(request, BattleCommandAPIRequestError.InvalidJsonObject)(BattleCommandAPIRequest.decodeCommand)
 
   private def commandSubmitError(error: BattleCommandSubmitError): Response[IO] =
     apiError(commandSubmitApiError(error))

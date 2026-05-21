@@ -1,9 +1,7 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import io.circe.Json
 import io.circe.syntax.*
-import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
@@ -26,7 +24,7 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleQueueStatusError
 }
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -148,22 +146,8 @@ private[http4s] object BattleQueueHttp4sRoutes {
     BattleQueueRequestTarget.isLeavePath(request.uri.path.renderString)
 
   private def decodeJoinRequest(request: Request[IO]): IO[Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand]] =
-    request.as[Json].attempt.map {
-      case Left(_) =>
-        Left(BattleQueueJoinAPIRequestError.InvalidJsonObject)
-      case Right(json) if json.asObject.isEmpty =>
-        Left(BattleQueueJoinAPIRequestError.InvalidJsonObject)
-      case Right(json) =>
-        BattleQueueJoinAPIRequest.decodeCommand(json)
-    }
+    decodeJsonObjectBody(request, BattleQueueJoinAPIRequestError.InvalidJsonObject)(BattleQueueJoinAPIRequest.decodeCommand)
 
   private def decodeLeaveRequest(request: Request[IO]): IO[Either[BattleQueueLeaveAPIRequestError, TicketId]] =
-    request.as[Json].attempt.map {
-      case Left(_) =>
-        Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject)
-      case Right(json) if json.asObject.isEmpty =>
-        Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject)
-      case Right(json) =>
-        BattleQueueLeaveAPIRequest.decodeTicketId(json)
-    }
+    decodeJsonObjectBody(request, BattleQueueLeaveAPIRequestError.InvalidJsonObject)(BattleQueueLeaveAPIRequest.decodeTicketId)
 }

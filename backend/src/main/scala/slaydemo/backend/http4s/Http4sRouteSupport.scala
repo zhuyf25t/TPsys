@@ -2,7 +2,8 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.Json
-import org.http4s.{Header, Response, Status}
+import org.http4s.{Header, Request, Response, Status}
+import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.typelevel.ci.CIString
 
@@ -15,6 +16,19 @@ private[http4s] final case class HttpApiError(
 private[http4s] object Http4sRouteSupport {
   def blocking[A](thunk: => A): IO[A] =
     IO.blocking(thunk)
+
+  def decodeJsonObjectBody[E, A](
+    request: Request[IO],
+    invalidJson: E
+  )(decode: Json => Either[E, A]): IO[Either[E, A]] =
+    request.as[Json].attempt.map {
+      case Left(_) =>
+        Left(invalidJson)
+      case Right(json) if json.asObject.isEmpty =>
+        Left(invalidJson)
+      case Right(json) =>
+        decode(json)
+    }
 
   def apiError(status: Status, code: String, message: String): Response[IO] =
     apiError(HttpApiError(status = status, code = code, message = message))

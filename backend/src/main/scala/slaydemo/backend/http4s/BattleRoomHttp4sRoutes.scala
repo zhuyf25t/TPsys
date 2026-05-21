@@ -1,9 +1,7 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import io.circe.Json
 import io.circe.syntax.*
-import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
@@ -15,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
@@ -86,17 +84,12 @@ private[http4s] object BattleRoomHttp4sRoutes {
     RealtimeRoomRequestTarget.isHeartbeatPath(request.uri.path.renderString)
 
   private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[RealtimeRoomHeartbeatAPIRequestError, RealtimeRoomHeartbeatCommand]] =
-    request.as[Json].attempt.map {
-      case Left(_) =>
-        Left(RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject)
-      case Right(json) if json.asObject.isEmpty =>
-        Left(RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject)
-      case Right(json) =>
-        RealtimeRoomHeartbeatAPIRequest.decodeCommand(
-          json,
-          RealtimeRoomRequestTarget.roomIdFromHeartbeatPath(request.uri.path.renderString),
-          request.params
-        )
+    decodeJsonObjectBody(request, RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject) { json =>
+      RealtimeRoomHeartbeatAPIRequest.decodeCommand(
+        json,
+        RealtimeRoomRequestTarget.roomIdFromHeartbeatPath(request.uri.path.renderString),
+        request.params
+      )
     }
 
   private def roomIdFromSnapshotRequest(request: Request[IO]) =

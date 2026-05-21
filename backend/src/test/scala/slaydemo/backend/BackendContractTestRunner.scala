@@ -5,7 +5,6 @@ import slaydemo.backend.battle.services.{
   BattleFinishProjectionWriteContractTest,
   BattleSkillRulesContractTest
 }
-import slaydemo.backend.battle.routes.BattleRoomStateRouteContractTest
 import slaydemo.backend.http4s.{
   BackendHttp4sRoutesCompositionContractTest,
   BotProfileHttp4sContractTest,
@@ -54,7 +53,6 @@ object BackendContractTestRunner {
     run("battle command http4s", () => BattleCommandHttp4sContractTest.main(Array.empty))
     run("battle result http4s", () => BattleResultHttp4sContractTest.main(Array.empty))
     run("battle result service", () => BattleResultServiceContractTest.main(Array.empty))
-    run("battle room/state route", () => BattleRoomStateRouteContractTest.main(Array.empty))
     run("battle skill rules", () => BattleSkillRulesContractTest.main(Array.empty))
     run("battle state runtime", () => BattleStateRuntimeContractTest.main(Array.empty))
     run("bot profile service", () => BotProfileServiceContractTest.main(Array.empty))

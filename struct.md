@@ -187,15 +187,24 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `replay/routes/ReplayRouteTargetParsers.scala` | 已删除。旧 `ReplayRoutes` 专用 path/query parser 不再保留。 |
 | `replay/routes/ReplayRouteErrorMapper.scala` | 已删除。旧 `ReplayRoutes` 专用 error mapper 不再保留。 |
 | `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖。 |
-| `battle/routes/BattleRoutes.scala` | 否。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
+| `battle/routes/BattleRoutes.scala` | 已删除。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
 | `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 解码 command request。 |
 | `battle/routes/BattleQueueRouteHandler.scala` | 已删除。当前使用 `BattleQueueHttp4sRoutes`，并由 `BattleQueueHttp4sJoin/Status/LeaveContractTest` 覆盖。 |
 | `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 解码 queue join request。 |
 | `battle/routes/BattleRoomRouteHandler.scala` | 已删除。当前使用 `BattleRoomHttp4sRoutes`，并由 `BattleRoomHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 的 Circe DTO 渲染 queue/room response。 |
-| `battle/routes/BattleStateRouteHandler.scala` | 否。当前使用 `BattleStateHttp4sRoutes`。 |
-| `battle/routes/BattleStateStreamWriter.scala` | 否。当前 http4s SSE 在 `BattleStateHttp4sRoutes` 内实现。 |
+| `battle/routes/BattleStateRouteHandler.scala` | 已删除。当前使用 `BattleStateHttp4sRoutes`，并由 `BattleStateRead/StreamHttp4sContractTest` 覆盖。 |
+| `battle/routes/BattleStateStreamWriter.scala` | 已删除。当前 http4s SSE 在 `BattleStateHttp4sRoutes` 内实现。 |
+| `battle/routes/BattleStateJson.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleStateApiTypes.scala` 的 Circe DTO 渲染 state response。 |
+| `battle/routes/BattlePlayerStateJsonRenderer.scala` | 已删除。旧 `BattleStateJson` 专用 player renderer 不再保留。 |
+| `battle/routes/BattleEntityStateJsonRenderer.scala` | 已删除。旧 `BattleStateJson` 专用 entity renderer 不再保留。 |
+| `battle/routes/BattleStateJsonSupport.scala` | 已删除。旧手写 JSON helper 不再保留。 |
+| `battle/routes/BattleJsonObjectParser.scala` | 已删除。旧 HttpExchange route 专用 JSON parser 不再保留。 |
+| `battle/routes/BattleRouteHttpSupport.scala` | 已删除。旧 HttpExchange route 专用 HTTP helper 不再保留。 |
+| `battle/routes/BattleRouteErrorMapper.scala` | 已删除。旧 HttpExchange route 专用 error mapper 不再保留。 |
+| `battle/routes/BattleRouteRequestParsers.scala` | 已删除。旧 HttpExchange state route 专用 request parser 不再保留。 |
+| `battle/routes/BattleRoomRouteParsers.scala` | 已删除。旧 HttpExchange room/state route 专用 path/query parser 不再保留。 |
 | `battle/routes/BattleResultRoutes.scala` | 已删除。当前使用 `BattleResultHttp4sRoutes`，并由 `BattleResultHttp4sContractTest` 覆盖。 |
 
 ### 6.3 不能直接整包删除的 `routes` 目录
@@ -237,7 +246,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` 已删除 |
 | battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler`、`BattleJoinCommandParser` 已删除 |
 | battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler`、`BattleQueueRoomJsonRenderer` 已删除 |
-| battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter` |
+| battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter`、手写 state JSON renderer 已删除 |
 | battle command | `BattleCommandHttp4sRoutes` | `BattleCommandRouteHandler`、`BattleCommandRequestParser` 已删除 |
 | battle result | `BattleResultHttp4sRoutes` | `BattleResultRoutes` 已删除 |
 
@@ -249,14 +258,14 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 
 | 风格 | 文件 | 当前问题 |
 | --- | --- | --- |
-| 旧手写字符串 JSON | `shared/routes/HttpRouteSupport.scala`、`battle/routes/BattleStateJson.scala`、多个 `*JsonRenderer.scala` | 容易漏字段、转义错误、和 Circe DTO drift。 |
+| 旧手写字符串 JSON | `shared/routes/HttpRouteSupport.scala`；battle 旧手写 state JSON renderer 已删除 | 容易漏字段、转义错误、和 Circe DTO drift。 |
 | typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`http4s/*Routes.scala` | 当前运行路径正在使用，但还没有完全替代旧手写 route JSON。 |
 
 最明显的重复：
 
 | 旧实现 | 新实现 |
 | --- | --- |
-| `battle/routes/BattleStateJson.scala` | `battle/objects/apiTypes/BattleStateApiTypes.scala` |
+| `battle/routes/BattleStateJson.scala` 已删除 | `battle/objects/apiTypes/BattleStateApiTypes.scala` |
 | `battle/routes/BattleCommandRequestParser.scala` 已删除 | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` 已删除 | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
 | `battle/routes/BattleResultCommandParsers.scala` + manual route response | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes` |
@@ -351,7 +360,7 @@ shared/routes/HealthRoutes.scala（已删除）
 shared/routes/HttpRouteSupport.scala
 各 domain/routes/*Routes.scala
 各 domain/routes/*RouteHandler.scala
-battle/routes/BattleStateStreamWriter.scala
+battle/routes/BattleStateStreamWriter.scala 已删除
 ```
 
 ### Phase D：删除旧手写 JSON renderer
@@ -359,9 +368,9 @@ battle/routes/BattleStateStreamWriter.scala
 前提是对应 typed DTO + Circe encoder 已完全覆盖字段和 contract test：
 
 ```text
-battle/routes/BattleStateJson.scala
-battle/routes/BattlePlayerStateJsonRenderer.scala
-battle/routes/BattleEntityStateJsonRenderer.scala
+battle/routes/BattleStateJson.scala 已删除
+battle/routes/BattlePlayerStateJsonRenderer.scala 已删除
+battle/routes/BattleEntityStateJsonRenderer.scala 已删除
 battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
 其他只服务旧 route 的 *JsonRenderer
 ```

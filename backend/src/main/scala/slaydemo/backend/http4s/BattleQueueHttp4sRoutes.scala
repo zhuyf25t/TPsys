@@ -17,6 +17,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleQueueSnapshotResponse
 }
 import slaydemo.backend.battle.services.{
+  BattleQueueJoinCommand,
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueLeaveOutcome,
@@ -98,27 +99,16 @@ private[http4s] object BattleQueueHttp4sRoutes {
                 IO.pure(apiError(InvalidHandleError))
               case Left(BattleQueueJoinAPIRequestError.MissingSession) =>
                 IO.pure(apiError(MissingSessionError))
-              case Right(joinRequest) =>
-                joinRequest.toCommand match {
-                  case Left(BattleQueueJoinAPIRequestError.InvalidJsonObject) =>
-                    IO.pure(apiError(InvalidJsonObjectError))
-                  case Left(BattleQueueJoinAPIRequestError.InvalidRating(message)) =>
-                    IO.pure(apiError(badRequest(message)))
-                  case Left(BattleQueueJoinAPIRequestError.InvalidHandle) =>
-                    IO.pure(apiError(InvalidHandleError))
-                  case Left(BattleQueueJoinAPIRequestError.MissingSession) =>
-                    IO.pure(apiError(MissingSessionError))
-                  case Right(command) =>
-                    blocking(joinAuthorizationService.authorize(command)).flatMap {
-                      case Left(BattleQueueJoinAuthorizationError.InvalidSession) =>
-                        IO.pure(apiError(InvalidSessionError))
-                      case Left(BattleQueueJoinAuthorizationError.HandleMismatch) =>
-                        IO.pure(apiError(IdentityMismatchError))
-                      case Right(()) =>
-                        blocking(queueService.join(command)).flatMap(snapshot =>
-                          Ok(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
-                        )
-                    }
+              case Right(command) =>
+                blocking(joinAuthorizationService.authorize(command)).flatMap {
+                  case Left(BattleQueueJoinAuthorizationError.InvalidSession) =>
+                    IO.pure(apiError(InvalidSessionError))
+                  case Left(BattleQueueJoinAuthorizationError.HandleMismatch) =>
+                    IO.pure(apiError(IdentityMismatchError))
+                  case Right(()) =>
+                    blocking(queueService.join(command)).flatMap(snapshot =>
+                      Ok(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
+                    )
                 }
             }
           case _ =>
@@ -136,15 +126,10 @@ private[http4s] object BattleQueueHttp4sRoutes {
             decodeLeaveRequest(request).flatMap {
               case Left(message) =>
                 IO.pure(apiError(badRequest(message)))
-              case Right(leaveRequest) =>
-                leaveRequest.toTicketId match {
-                  case Left(message) =>
-                    IO.pure(apiError(badRequest(message)))
-                  case Right(ticketId) =>
-                    blocking(queueService.leave(ticketId)).flatMap { outcome =>
-                      val left = outcome == BattleQueueLeaveOutcome.LeftQueue
-                      Ok(BattleQueueLeaveAPIResponse(left).asJson).map(withCors)
-                    }
+              case Right(ticketId) =>
+                blocking(queueService.leave(ticketId)).flatMap { outcome =>
+                  val left = outcome == BattleQueueLeaveOutcome.LeftQueue
+                  Ok(BattleQueueLeaveAPIResponse(left).asJson).map(withCors)
                 }
             }
           case _ =>
@@ -161,24 +146,24 @@ private[http4s] object BattleQueueHttp4sRoutes {
   private def isBattleQueueLeavePath(request: Request[IO]): Boolean =
     AllowedLeavePaths.contains(request.uri.path.renderString)
 
-  private def decodeJoinRequest(request: Request[IO]): IO[Either[BattleQueueJoinAPIRequestError, BattleQueueJoinAPIRequest]] =
+  private def decodeJoinRequest(request: Request[IO]): IO[Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand]] =
     request.as[Json].attempt.map {
       case Left(_) =>
         Left(BattleQueueJoinAPIRequestError.InvalidJsonObject)
       case Right(json) if json.asObject.isEmpty =>
         Left(BattleQueueJoinAPIRequestError.InvalidJsonObject)
       case Right(json) =>
-        json.as[BattleQueueJoinAPIRequest].left.map(error => BattleQueueJoinAPIRequestError.InvalidRating(error.message))
+        BattleQueueJoinAPIRequest.decodeCommand(json)
     }
 
-  private def decodeLeaveRequest(request: Request[IO]): IO[Either[String, BattleQueueLeaveAPIRequest]] =
+  private def decodeLeaveRequest(request: Request[IO]): IO[Either[String, TicketId]] =
     request.as[Json].attempt.map {
       case Left(_) =>
         Left("Request body must be a JSON object with supported primitive or object fields.")
       case Right(json) if json.asObject.isEmpty =>
         Left("Request body must be a JSON object with supported primitive or object fields.")
       case Right(json) =>
-        json.as[BattleQueueLeaveAPIRequest].left.map(_ => "Request body must be a JSON object with supported primitive or object fields.")
+        BattleQueueLeaveAPIRequest.decodeTicketId(json)
     }
 
   private def badRequest(message: String): HttpApiError =

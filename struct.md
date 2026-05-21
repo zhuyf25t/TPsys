@@ -192,7 +192,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 解码 command request，并在 apiTypes 内完成 JSON 到 domain command 的转换。 |
 | `battle/routes/BattleQueueRouteHandler.scala` | 已删除。当前使用 `BattleQueueHttp4sRoutes`，并由 `BattleQueueHttp4sJoin/Status/LeaveContractTest` 覆盖。 |
-| `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 解码 queue join request。 |
+| `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 解码 queue join/leave request，并在 apiTypes 内完成 JSON 到 join command / ticket id 的转换。 |
 | `battle/routes/BattleRoomRouteHandler.scala` | 已删除。当前使用 `BattleRoomHttp4sRoutes`，并由 `BattleRoomHttp4sContractTest` 覆盖。 |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 的 Circe DTO 渲染 queue/room response。 |
 | `battle/routes/BattleStateRouteHandler.scala` | 已删除。当前使用 `BattleStateHttp4sRoutes`，并由 `BattleStateRead/StreamHttp4sContractTest` 覆盖。 |

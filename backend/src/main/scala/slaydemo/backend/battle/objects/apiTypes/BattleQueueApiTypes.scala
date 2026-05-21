@@ -53,6 +53,11 @@ final case class BattleQueueLeaveAPIRequest(ticketId: Option[String]) {
 object BattleQueueLeaveAPIRequest {
   given Decoder[BattleQueueLeaveAPIRequest] = (cursor: HCursor) =>
     BattleQueueJoinAPIRequest.optionalText(cursor, "ticketId").map(BattleQueueLeaveAPIRequest.apply)
+
+  def decodeTicketId(json: Json): Either[String, TicketId] =
+    json.as[BattleQueueLeaveAPIRequest]
+      .left.map(_ => BattleQueueAPIRequestErrors.InvalidJsonObjectMessage)
+      .flatMap(_.toTicketId)
 }
 
 final case class BattleQueueLeaveAPIResponse(left: Boolean)
@@ -151,6 +156,16 @@ object BattleQueueJoinAPIRequest {
       case _ =>
         Left(DecodingFailure(s"$field must be an integer.", cursor.history))
     }
+
+  def decodeCommand(json: Json): Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand] =
+    json.as[BattleQueueJoinAPIRequest]
+      .left.map(error => BattleQueueJoinAPIRequestError.InvalidRating(error.message))
+      .flatMap(_.toCommand)
+}
+
+private object BattleQueueAPIRequestErrors {
+  val InvalidJsonObjectMessage: String =
+    "Request body must be a JSON object with supported primitive or object fields."
 }
 
 final case class BattleQueueParticipantResponse(

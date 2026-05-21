@@ -44,52 +44,45 @@ object ForumCommandParsers {
     )
 
   def parseAddReplyCommand(
-    topicId: String,
+    topicId: ForumTopicId,
     fields: ForumRequestFields
   ): Either[ForumTopicMutationParseError, AddForumReplyCommand] =
     for {
-      parsedTopicId <- parseMutationTopicId(topicId)
       body <- parseReplyBody(fields.stringValue("body"))
       author <- parseMutationAuthor(fields.stringValue("author"))
     } yield AddForumReplyCommand(
-      topicId = parsedTopicId,
+      topicId = topicId,
       body = body,
       authorHandle = author
     )
 
   def parseSetTopicVoteCommand(
-    topicId: String,
+    topicId: ForumTopicId,
     fields: ForumRequestFields,
     vote: Option[ForumVoteChoice]
   ): Either[ForumTopicMutationParseError, SetForumTopicVoteCommand] =
     for {
-      parsedTopicId <- parseMutationTopicId(topicId)
       author <- parseMutationAuthor(fields.stringValue("author"))
     } yield SetForumTopicVoteCommand(
-      topicId = parsedTopicId,
+      topicId = topicId,
       authorHandle = author,
       vote = vote
     )
 
   def parseSetReplyVoteCommand(
-    topicId: String,
-    replyId: String,
+    topicId: ForumTopicId,
+    replyId: ForumReplyId,
     fields: ForumRequestFields,
     vote: Option[ForumVoteChoice]
   ): Either[ForumTopicMutationParseError, SetForumReplyVoteCommand] =
     for {
-      parsedTopicId <- parseMutationTopicId(topicId)
-      parsedReplyId <- parseReplyId(replyId)
       author <- parseMutationAuthor(fields.stringValue("author"))
     } yield SetForumReplyVoteCommand(
-      topicId = parsedTopicId,
-      replyId = parsedReplyId,
+      topicId = topicId,
+      replyId = replyId,
       authorHandle = author,
       vote = vote
     )
-
-  def parseTopicId(value: String): Option[ForumTopicId] =
-    Option(value).map(_.trim).filter(_.nonEmpty).map(ForumTopicId.apply)
 
   private def parseTitle(value: String): Either[ForumCreateTopicParseError, ForumTitle] =
     Option(value).map(_.trim).filter(_.nonEmpty).map(ForumTitle.apply).toRight(ForumCreateTopicParseError.InvalidTitle)
@@ -117,11 +110,6 @@ object ForumCommandParsers {
     else PlayerHandle.forLookup(trimmed).toRight(ForumTopicMutationParseError.InvalidAuthor)
   }
 
-  private def parseMutationTopicId(value: String): Either[ForumTopicMutationParseError, ForumTopicId] =
-    parseTopicId(value).toRight(ForumTopicMutationParseError.TopicNotFound)
-
-  private def parseReplyId(value: String): Either[ForumTopicMutationParseError, ForumReplyId] =
-    Option(value).map(_.trim).filter(_.nonEmpty).map(ForumReplyId.apply).toRight(ForumTopicMutationParseError.ReplyNotFound)
 }
 
 enum ForumCreateTopicParseError {

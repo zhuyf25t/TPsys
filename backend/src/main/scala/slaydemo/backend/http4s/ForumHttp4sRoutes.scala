@@ -8,7 +8,6 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.forum.objects.apiTypes.{
   ForumApiRequestFields,
-  ForumCommandParsers,
   ForumCreateTopicParseError,
   ForumRouteErrorMapper,
   ForumRouteTargetParsers,
@@ -63,16 +62,11 @@ private[http4s] object ForumHttp4sRoutes {
       case None =>
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
-        ForumCommandParsers.parseTopicId(topicId) match {
+        blocking(service.loadTopic(topicId, viewerHandle(request))).flatMap {
+          case Some(topic) =>
+            Ok(ForumTopicWrapperResponse.fromView(topic).asJson).map(withCors)
           case None =>
             IO.pure(apiError(TopicNotFoundError))
-          case Some(parsedTopicId) =>
-            blocking(service.loadTopic(parsedTopicId, viewerHandle(request))).flatMap {
-              case Some(topic) =>
-                Ok(ForumTopicWrapperResponse.fromView(topic).asJson).map(withCors)
-              case None =>
-                IO.pure(apiError(TopicNotFoundError))
-            }
         }
     }
 

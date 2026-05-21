@@ -2,7 +2,7 @@ package slaydemo.backend.forum.objects.apiTypes
 
 import io.circe.{Decoder, Encoder}
 
-import slaydemo.backend.forum.objects.{ForumReplyView, ForumTopicView, ForumVoteChoice}
+import slaydemo.backend.forum.objects.{ForumReplyId, ForumReplyView, ForumTopicId, ForumTopicView, ForumVoteChoice}
 import slaydemo.backend.forum.services.{
   AddForumReplyCommand,
   CreateForumTopicCommand,
@@ -37,16 +37,16 @@ final case class ForumRequestFields(fields: Map[String, String], voteSeen: Boole
   def toCreateTopicCommand: Either[ForumCreateTopicParseError, CreateForumTopicCommand] =
     ForumCommandParsers.parseCreateTopicCommand(this)
 
-  def toAddReplyCommand(topicId: String): Either[ForumTopicMutationParseError, AddForumReplyCommand] =
+  def toAddReplyCommand(topicId: ForumTopicId): Either[ForumTopicMutationParseError, AddForumReplyCommand] =
     ForumCommandParsers.parseAddReplyCommand(topicId, this)
 
-  def toSetTopicVoteCommand(topicId: String): Either[ForumVoteCommandParseError, SetForumTopicVoteCommand] =
+  def toSetTopicVoteCommand(topicId: ForumTopicId): Either[ForumVoteCommandParseError, SetForumTopicVoteCommand] =
     ForumCommandParsers.parseVote(this).left.map(_ => ForumVoteCommandParseError.InvalidVote).flatMap { vote =>
       ForumCommandParsers.parseSetTopicVoteCommand(topicId, this, vote)
         .left.map(ForumVoteCommandParseError.Mutation.apply)
     }
 
-  def toSetReplyVoteCommand(topicId: String, replyId: String): Either[ForumVoteCommandParseError, SetForumReplyVoteCommand] =
+  def toSetReplyVoteCommand(topicId: ForumTopicId, replyId: ForumReplyId): Either[ForumVoteCommandParseError, SetForumReplyVoteCommand] =
     ForumCommandParsers.parseVote(this).left.map(_ => ForumVoteCommandParseError.InvalidVote).flatMap { vote =>
       ForumCommandParsers.parseSetReplyVoteCommand(topicId, replyId, this, vote)
         .left.map(ForumVoteCommandParseError.Mutation.apply)

@@ -3,6 +3,7 @@ package slaydemo.backend.forum.objects.apiTypes
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
+import slaydemo.backend.forum.objects.{ForumReplyId, ForumTopicId}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.policies.HandlePolicy
 
@@ -35,21 +36,21 @@ object ForumRouteTargetParsers {
     segments(5) == "votes"
   }
 
-  def topicIdFrom(path: String): Option[String] = {
+  def topicIdFrom(path: String): Option[ForumTopicId] = {
     val segments = pathSegments(path)
     if segments.length >= 3 && segments(0) == "forum" && segments(1) == "topics" then {
       val topicId = decode(segments(2)).trim
-      Option.when(topicId.nonEmpty)(topicId)
+      Option.when(topicId.nonEmpty)(ForumTopicId(topicId))
     } else {
       None
     }
   }
 
-  def replyIdFrom(path: String): Option[String] = {
+  def replyIdFrom(path: String): Option[ForumReplyId] = {
     val segments = pathSegments(path)
     if isReplyVotesPath(path) then {
       val replyId = decode(segments(4)).trim
-      Option.when(replyId.nonEmpty)(replyId)
+      Option.when(replyId.nonEmpty)(ForumReplyId(replyId))
     } else {
       None
     }

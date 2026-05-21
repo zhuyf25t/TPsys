@@ -29,6 +29,11 @@ enum ReplayCatalogTarget {
   case InvalidReplayId
 }
 
+final case class ReplayCatalogQuery(
+  limit: Int,
+  selectedHandle: Option[PlayerHandle]
+)
+
 object ReplayApiCodec {
   def catalogTarget(path: String): Option[ReplayCatalogTarget] = {
     val normalized = normalizedPath(path)
@@ -51,6 +56,12 @@ object ReplayApiCodec {
 
   def limit(query: Map[String, String]): Int =
     query.get("limit").flatMap(_.toIntOption).getOrElse(25)
+
+  def catalogQuery(query: Map[String, String]): ReplayCatalogQuery =
+    ReplayCatalogQuery(
+      limit = limit(query),
+      selectedHandle = selectedHandle(query)
+    )
 
   def parseRecordCommand(rawBody: String): Either[ReplayRecordDecodeError, ReplayRecordCommand] =
     parseJsonObject(rawBody).left.map(_ => ReplayRecordDecodeError.BadJsonObject).flatMap { fields =>

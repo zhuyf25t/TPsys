@@ -60,10 +60,11 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.HEAD =>
         IO.pure(withCors(Response[IO](Status.Ok)))
       case Method.GET =>
-        blocking(service.list(ReplayApiCodec.limit(request.params))).flatMap { records =>
+        val query = ReplayApiCodec.catalogQuery(request.params)
+        blocking(service.list(query.limit)).flatMap { records =>
           val response = ReplayCatalogResponse.fromRecords(
             records = records,
-            selectedHandle = ReplayApiCodec.selectedHandle(request.params)
+            selectedHandle = query.selectedHandle
           )
           Ok(response.asJson).map(withCors)
         }
@@ -90,9 +91,10 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.HEAD =>
         IO.pure(withCors(Response[IO](Status.Ok)))
       case Method.GET =>
+        val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.load(replayId)).flatMap {
           case Some(record) =>
-            Ok(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, ReplayApiCodec.selectedHandle(request.params))).asJson).map(withCors)
+            Ok(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, query.selectedHandle)).asJson).map(withCors)
           case None =>
             IO.pure(apiError(ReplayNotFoundError))
         }
@@ -107,11 +109,12 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.HEAD =>
         IO.pure(withCors(Response[IO](Status.Ok)))
       case Method.GET =>
+        val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.load(replayId)).flatMap {
           case None =>
             IO.pure(apiError(ReplayNotFoundError))
           case Some(_) =>
-            blocking(service.listComments(replayId, ReplayApiCodec.limit(request.params))).flatMap { records =>
+            blocking(service.listComments(replayId, query.limit)).flatMap { records =>
               Ok(ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson).map(withCors)
             }
         }

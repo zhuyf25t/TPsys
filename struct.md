@@ -73,7 +73,7 @@ BackendHttp4sApp.run
 | `http4s/SocialHttp4sRoutes.scala` | 好友请求创建、查询、响应；friend request API path、owner query key 和 request DTO 由 `social/objects/apiTypes/SocialApiTypes.scala` 管理。 |
 | `http4s/ForumHttp4sRoutes.scala` | 讨论区 topic、reply、vote。 |
 | `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知；contribution/notification API path、query facade 和 request/response DTO 由 `governance/objects/apiTypes/GovernanceApiTypes.scala` 管理。 |
-| `http4s/ReplayHttp4sRoutes.scala` | replay catalog、详情、评论。 |
+| `http4s/ReplayHttp4sRoutes.scala` | replay catalog、详情、评论；catalog target/query 和 record/comment DTO 解码由 `replay/objects/apiTypes/ReplayApiCodec.scala` 管理。 |
 | `http4s/BotProfileHttp4sRoutes.scala` | bot profile 列表；固定 API path 由 `bots/objects/apiTypes/BotProfileApiTypes.scala` 管理。 |
 | `http4s/BattleQueueHttp4sRoutes.scala` | battle 排队 join/status/leave。 |
 | `http4s/BattleRoomHttp4sRoutes.scala` | 房间 snapshot/heartbeat。 |
@@ -223,7 +223,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ForumApiErrorMapper.scala` | 位于 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，typed request 到治理 domain command 的转换已由 `GovernanceApiTypes.scala` 承接。 |
 | `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，当前由 `GovernanceRequestTarget` 作为 route-facing facade 统一承接治理 query。 |
-| `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，catalog target/query 和 record/comment body decode 已由 `ReplayApiCodec` 承接；`ReplayHttp4sRoutes` 不再直接依赖 command parser。 |
+| `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，catalog target/query facade 和 record/comment body decode 已由 `ReplayApiCodec` 承接；`ReplayHttp4sRoutes` 不再直接依赖 command parser。 |
 | `ReplayJsonObjectParser.scala` | 已删除。当前 replay POST body 由 `ReplayApiCodec` 使用 Circe `JsonObject` 解析，再交给 `ReplayCommandParsers` 做业务字段校验。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 用它解析 result API path/query/body；GET query 已使用 http4s `request.params`，POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |
 

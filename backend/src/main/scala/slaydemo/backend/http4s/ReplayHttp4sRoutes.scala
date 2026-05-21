@@ -10,6 +10,8 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
+  ReplayApiErrorCode,
+  ReplayApiErrorMapper,
   ReplayCatalogResponse,
   ReplayCatalogTarget,
   ReplayCommentDecodeError,
@@ -29,15 +31,6 @@ import slaydemo.backend.replay.services.{
 }
 
 private[http4s] object ReplayHttp4sRoutes {
-  private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
-  private val BadJsonObjectError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object.")
-  private val ReplayNotFoundError =
-    HttpApiError(status = Status.NotFound, code = "replay_not_found", message = "replay_not_found")
-  private val InvalidReplayIdError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_replay_id", message = "invalid_replay_id")
-
   def catalogRoutes(service: ReplayService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request @ CatalogRequest(target) =>
@@ -49,7 +42,7 @@ private[http4s] object ReplayHttp4sRoutes {
           case ReplayCatalogTarget.Comments(replayId) =>
             handleComments(service, request, replayId)
           case ReplayCatalogTarget.InvalidReplayId =>
-            IO.pure(apiError(InvalidReplayIdError))
+            IO.pure(apiError(replayApiError(ReplayApiErrorCode.InvalidReplayId)))
         }
     }
 
@@ -81,7 +74,7 @@ private[http4s] object ReplayHttp4sRoutes {
             }
         }
       case _ =>
-        IO.pure(apiError(MethodNotAllowedError))
+        IO.pure(apiError(replayApiError(ReplayApiErrorCode.MethodNotAllowed)))
     }
 
   private def handleDetail(service: ReplayService, request: Request[IO], replayId: ReplayId): IO[Response[IO]] =
@@ -96,10 +89,10 @@ private[http4s] object ReplayHttp4sRoutes {
           case Some(record) =>
             Ok(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, query.selectedHandle)).asJson).map(withCors)
           case None =>
-            IO.pure(apiError(ReplayNotFoundError))
+            IO.pure(apiError(replayApiError(ReplayApiErrorCode.ReplayNotFound)))
         }
       case _ =>
-        IO.pure(apiError(MethodNotAllowedError))
+        IO.pure(apiError(replayApiError(ReplayApiErrorCode.MethodNotAllowed)))
     }
 
   private def handleComments(service: ReplayService, request: Request[IO], replayId: ReplayId): IO[Response[IO]] =
@@ -112,7 +105,7 @@ private[http4s] object ReplayHttp4sRoutes {
         val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.load(replayId)).flatMap {
           case None =>
-            IO.pure(apiError(ReplayNotFoundError))
+            IO.pure(apiError(replayApiError(ReplayApiErrorCode.ReplayNotFound)))
           case Some(_) =>
             blocking(service.listComments(replayId, query.limit)).flatMap { records =>
               Ok(ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson).map(withCors)
@@ -121,7 +114,7 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.POST =>
         blocking(service.load(replayId)).flatMap {
           case None =>
-            IO.pure(apiError(ReplayNotFoundError))
+            IO.pure(apiError(replayApiError(ReplayApiErrorCode.ReplayNotFound)))
           case Some(_) =>
             decodeCommentRequest(request, replayId).flatMap {
               case Left(error) =>
@@ -136,7 +129,7 @@ private[http4s] object ReplayHttp4sRoutes {
             }
         }
       case _ =>
-        IO.pure(apiError(MethodNotAllowedError))
+        IO.pure(apiError(replayApiError(ReplayApiErrorCode.MethodNotAllowed)))
     }
 
   private def decodeRecordRequest(request: Request[IO]): IO[Either[ReplayRecordDecodeError, ReplayRecordCommand]] =
@@ -159,53 +152,35 @@ private[http4s] object ReplayHttp4sRoutes {
     }
 
   private def recordDecodeError(error: ReplayRecordDecodeError): HttpApiError =
-    error match {
-      case ReplayRecordDecodeError.BadJsonObject =>
-        BadJsonObjectError
-      case ReplayRecordDecodeError.InvalidReplayId =>
-        InvalidReplayIdError
-      case ReplayRecordDecodeError.InvalidBattleId =>
-        HttpApiError(Status.BadRequest, "invalid_battle_id", "invalid_battle_id")
-      case ReplayRecordDecodeError.InvalidHandle =>
-        HttpApiError(Status.BadRequest, "invalid_handle", "invalid_handle")
-      case ReplayRecordDecodeError.VisitorNotAllowed =>
-        HttpApiError(Status.Forbidden, "visitor_not_allowed", "visitor_not_allowed")
-    }
+    replayApiError(ReplayApiErrorMapper.recordDecodeErrorCode(error))
 
   private def recordServiceError(error: ReplayRecordError): HttpApiError =
-    error match {
-      case ReplayRecordError.InvalidReplayId =>
-        InvalidReplayIdError
-      case ReplayRecordError.InvalidFramesJson =>
-        HttpApiError(Status.BadRequest, "invalid_frames_json", "invalid_frames_json")
-    }
+    replayApiError(ReplayApiErrorMapper.recordServiceErrorCode(error))
 
   private def commentDecodeError(error: ReplayCommentDecodeError): HttpApiError =
-    error match {
-      case ReplayCommentDecodeError.BadJsonObject =>
-        BadJsonObjectError
-      case ReplayCommentDecodeError.InvalidReplayId =>
-        InvalidReplayIdError
-      case ReplayCommentDecodeError.InvalidAuthorHandle =>
-        HttpApiError(Status.BadRequest, "invalid_author_handle", "invalid_author_handle")
-      case ReplayCommentDecodeError.VisitorNotAllowed =>
-        HttpApiError(Status.Forbidden, "visitor_not_allowed", "visitor_not_allowed")
-    }
+    replayApiError(ReplayApiErrorMapper.commentDecodeErrorCode(error))
 
   private def commentServiceError(error: ReplayCommentError): HttpApiError =
-    error match {
-      case ReplayCommentError.InvalidReplayId =>
-        InvalidReplayIdError
-      case ReplayCommentError.ReplayNotFound =>
-        ReplayNotFoundError
-      case ReplayCommentError.InvalidAuthor =>
-        HttpApiError(Status.Forbidden, "visitor_not_allowed", "visitor_not_allowed")
-      case ReplayCommentError.InvalidBody =>
-        HttpApiError(Status.BadRequest, "invalid_body", "invalid_body")
-    }
+    replayApiError(ReplayApiErrorMapper.commentServiceErrorCode(error))
 
   private def catalogTarget(request: Request[IO]): Option[ReplayCatalogTarget] =
     ReplayApiCodec.catalogTarget(request.uri.path.renderString)
+
+  private def replayApiError(code: ReplayApiErrorCode): HttpApiError =
+    HttpApiError(
+      status = statusFrom(ReplayApiErrorCode.statusCode(code)),
+      code = ReplayApiErrorCode.wireValue(code),
+      message = ReplayApiErrorCode.message(code)
+    )
+
+  private def statusFrom(value: Int): Status =
+    value match {
+      case 400 => Status.BadRequest
+      case 403 => Status.Forbidden
+      case 404 => Status.NotFound
+      case 405 => Status.MethodNotAllowed
+      case _   => Status.InternalServerError
+    }
 
   private object CatalogRequest {
     def unapply(request: Request[IO]): Option[ReplayCatalogTarget] =

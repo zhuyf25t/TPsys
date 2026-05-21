@@ -1,6 +1,5 @@
 package slaydemo.backend.forum.objects.apiTypes
 
-import io.circe.syntax.*
 import io.circe.{Decoder, Encoder}
 
 import slaydemo.backend.forum.objects.{ForumReplyView, ForumTopicView, ForumVoteChoice}
@@ -128,9 +127,6 @@ object ForumTopicListResponse {
 
   def fromViews(views: Vector[ForumTopicView]): ForumTopicListResponse =
     ForumTopicListResponse(views.map(ForumTopicResponse.fromView))
-
-  def renderViews(views: Vector[ForumTopicView]): String =
-    fromViews(views).asJson.noSpaces
 }
 
 final case class ForumTopicWrapperResponse(topic: ForumTopicResponse)
@@ -141,7 +137,4 @@ object ForumTopicWrapperResponse {
 
   def fromView(view: ForumTopicView): ForumTopicWrapperResponse =
     ForumTopicWrapperResponse(ForumTopicResponse.fromView(view))
-
-  def renderView(view: ForumTopicView): String =
-    fromView(view).asJson.noSpaces
 }

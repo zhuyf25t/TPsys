@@ -174,7 +174,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | 旧 route 文件 | 当前 8080 是否处理请求 |
 | --- | --- |
 | `shared/routes/HealthRoutes.scala` | 已删除。当前使用 `HealthHttp4sRoutes`，并由 `HealthHttp4sRouteContractTest` 覆盖。 |
-| `identity/routes/IdentityRoutes.scala` | 否。当前使用 `IdentityHttp4sRoutes`。 |
+| `identity/routes/IdentityRoutes.scala` | 已删除。当前使用 `IdentityHttp4sRoutes`，并由 `IdentityHttp4sContractTest` 覆盖。 |
 | `mail/routes/MailRoutes.scala` | 否。当前使用 `MailHttp4sRoutes`。 |
 | `social/routes/SocialRoutes.scala` | 否。当前使用 `SocialHttp4sRoutes`。 |
 | `forum/routes/ForumRoutes.scala` | 否。当前使用 `ForumHttp4sRoutes`。 |
@@ -218,7 +218,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | 业务 | 当前实际运行 | 旧重复实现 |
 | --- | --- | --- |
 | health | `HealthHttp4sRoutes` | `HealthRoutes` 已删除 |
-| identity | `IdentityHttp4sRoutes` | `IdentityRoutes` |
+| identity | `IdentityHttp4sRoutes` | `IdentityRoutes` 已删除 |
 | mail | `MailHttp4sRoutes` | `MailRoutes` |
 | social | `SocialHttp4sRoutes` | `SocialRoutes` |
 | forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` |

@@ -59,9 +59,16 @@ object IdentityHttp4sContractTest {
       Request[IO](method = Method.POST, uri = uri"/identity/register")
         .withEntity("""{"handle":"Alice","password":"safe-pass","skinId":"purple"}""")
     )
+    val invalidPassword = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/identity/register")
+        .withEntity("""{"handle":"Alice","password":"123","skinId":"blue"}""")
+    )
 
     assertEquals("invalid handle status", invalidHandle.status, 400)
     assertContains("invalid handle code", invalidHandle.body, """"code":"invalid_handle"""")
+    assertEquals("invalid password status", invalidPassword.status, 400)
+    assertContains("invalid password code", invalidPassword.body, """"code":"invalid_password"""")
     assertEquals("invalid skin status", invalidSkin.status, 400)
     assertContains("invalid skin code", invalidSkin.body, """"code":"invalid_skin"""")
     assertEquals("invalid register requests do not call service", service.registerCommands, Vector.empty)
@@ -90,6 +97,8 @@ object IdentityHttp4sContractTest {
     assertContains("session handle", issued.body, """"handle":"Alice"""")
     assertContains("session token", issued.body, """"session":"session-alice"""")
     assertEquals("session command count", service.sessionCommands.length, 1)
+    assertEquals("session command handle", service.sessionCommands.head.handle, PlayerHandle("Alice"))
+    assertEquals("session command password", service.sessionCommands.head.password.value, "safe-pass")
 
     service.sessionResults = Vector(Left(IdentitySessionError.InvalidCredentials))
     val invalidCredentials = run(

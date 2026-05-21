@@ -33,7 +33,6 @@ import slaydemo.backend.http4s.{
   ReplayHttp4sCatalogContractTest,
   SocialHttp4sContractTest
 }
-import slaydemo.backend.identity.routes.IdentityRouteContractTest
 import slaydemo.backend.identity.ports.PasswordHasherContractTest
 import slaydemo.backend.mail.routes.MailRouteContractTest
 import slaydemo.backend.replay.routes.ReplayRouteContractTest
@@ -82,7 +81,6 @@ object BackendContractTestRunner {
     run("governance route", () => GovernanceRouteContractTest.main(Array.empty))
     run("governance service", () => GovernanceServiceContractTest.main(Array.empty))
     run("password hasher", () => PasswordHasherContractTest.main(Array.empty))
-    run("identity route", () => IdentityRouteContractTest.main(Array.empty))
     run("identity service", () => IdentityServiceContractTest.main(Array.empty))
     run("mail route", () => MailRouteContractTest.main(Array.empty))
     run("mail service", () => MailServiceContractTest.main(Array.empty))

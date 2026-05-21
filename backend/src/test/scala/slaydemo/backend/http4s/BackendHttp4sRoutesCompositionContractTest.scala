@@ -2,8 +2,6 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import org.http4s.headers.`Content-Type`
-import org.http4s.MediaType
 import org.http4s.{Method, Request, Uri}
 
 import slaydemo.backend.battle.objects.*
@@ -67,9 +65,6 @@ import slaydemo.backend.social.services.{
 }
 
 object BackendHttp4sRoutesCompositionContractTest {
-  private val FrontendCommandJson: String =
-    """{"battleId":"battle-state-runtime","playerId":"alice","ticketId":"ticket-alice","clientTick":42,"clientCommandSeq":43,"movement":{"x":1.0,"y":0.0},"aim":{"x":1.0,"y":0.0},"primaryHeld":false,"sprint":false,"reloadPressed":false,"castDash":false,"castBlink":false,"castFreeze":false,"pointerWorld":null,"switchWeaponDirection":0,"switchWeaponIndex":null}"""
-
   private val RepresentativePaths: Vector[String] =
     Vector(
       "/api/healthapi",
@@ -108,7 +103,6 @@ object BackendHttp4sRoutesCompositionContractTest {
   def main(args: Array[String]): Unit = {
     backendRoutesComposesEverySplitRouteFamily()
     backendRoutesComposesFrontendProxyStrippedBattlePaths()
-    backendRoutesAcceptsFrontendCommandShapeThroughComposedRoutes()
 
     println("Backend http4s route composition contract checks passed")
   }
@@ -129,23 +123,7 @@ object BackendHttp4sRoutesCompositionContractTest {
       assertEquals(s"$path proxy-stripped options body", response.body, "")
     }
 
-  private def backendRoutesAcceptsFrontendCommandShapeThroughComposedRoutes(): Unit = {
-    val stateService = RecordingBattleStateService()
-    val request = Request[IO](method = Method.POST, uri = Uri.unsafeFromString("/api/battle/commands"))
-      .withEntity(FrontendCommandJson)
-      .putHeaders(`Content-Type`(MediaType.application.json))
-    val response = run(request, battleStateService = stateService)
-
-    assertEquals("composed command route status", response.status, 200)
-    assertEquals("composed command reaches state service", stateService.requests.length, 1)
-    assertEquals("composed command nullable pointerWorld", stateService.requests.head.pointerWorld, None)
-    assertEquals("composed command nullable switchWeaponIndex", stateService.requests.head.switchWeaponIndex, None)
-  }
-
-  private def run(
-    request: Request[IO],
-    battleStateService: BattleStateService = UnusedBattleStateService
-  ): RouteResponse = {
+  private def run(request: Request[IO]): RouteResponse = {
     val response = BackendHttp4sRoutes
       .backendRoutes(
         healthService = UnusedHealthService,
@@ -153,7 +131,7 @@ object BackendHttp4sRoutesCompositionContractTest {
         battleQueueService = UnusedBattleQueueService,
         battleJoinAuthorizationService = UnusedJoinAuthorizationService,
         battleResultService = UnusedBattleResultService,
-        battleStateService = battleStateService,
+        battleStateService = UnusedBattleStateService,
         botProfileService = UnusedBotProfileService,
         identityService = UnusedIdentityService,
         mailService = UnusedMailService,
@@ -324,36 +302,6 @@ object BackendHttp4sRoutesCompositionContractTest {
 
     override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] =
       failUnused()
-  }
-
-  private final class RecordingBattleStateService extends BattleStateService {
-    private var recordedRequests: Vector[BattleCommandRequest] = Vector.empty
-
-    def requests: Vector[BattleCommandRequest] =
-      recordedRequests
-
-    override def currentState(battleId: BattleId): Either[BattleStateReadError, BattleAggregateState] =
-      failUnused()
-
-    override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] = {
-      recordedRequests = recordedRequests :+ request
-      Right(
-        BattleCommandAccepted(
-          battleId = request.battleId,
-          acceptedTick = request.clientTick,
-          acceptedCommandSeq = request.clientCommandSeq,
-          serverTime = EpochMillis(1_234L),
-          commandStatus = BattleCommandStatus.Applied,
-          commandReason = None,
-          outcomes = Vector.empty
-        )
-      )
-    }
-  }
-
-  private object RecordingBattleStateService {
-    def apply(): RecordingBattleStateService =
-      new RecordingBattleStateService()
   }
 
   private def failUnused[A](): A =

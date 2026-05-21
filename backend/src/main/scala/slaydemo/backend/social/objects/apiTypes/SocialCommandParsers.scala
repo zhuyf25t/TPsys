@@ -1,15 +1,12 @@
 package slaydemo.backend.social.objects.apiTypes
 
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
-
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.policies.HandlePolicy
 import slaydemo.backend.social.objects.{FriendRequestDecision, FriendRequestId}
 
 object SocialCommandParsers {
-  def parseOwner(rawQuery: String): Either[SocialRouteHandleError, PlayerHandle] =
-    parseOwnerHandle(queryParams(rawQuery).get("ownerHandle"))
+  def parseOwner(ownerHandle: Option[String]): Either[SocialRouteHandleError, PlayerHandle] =
+    parseOwnerHandle(ownerHandle)
 
   def parseCreateHandles(request: FriendRequestCreateApiRequest): Either[SocialRouteCreateError, SocialCreateHandles] =
     parseCreateHandle(request.sourceHandle) match {
@@ -31,18 +28,6 @@ object SocialCommandParsers {
             parseRespondActor(request.actorHandle).map(actor => SocialRespondCommand(requestId, actor, decision))
         }
     }
-
-  private def queryParams(rawQuery: String): Map[String, String] =
-    Option(rawQuery).toVector
-      .flatMap(_.split("&").toVector)
-      .flatMap { pair =>
-        pair.split("=", 2).toList match {
-          case key :: value :: Nil if key.nonEmpty => Some(decode(key) -> decode(value))
-          case key :: Nil if key.nonEmpty          => Some(decode(key) -> "")
-          case _                                   => None
-        }
-      }
-      .toMap
 
   private def parseCreateHandle(value: Option[String]): Either[SocialRouteCreateError, PlayerHandle] = {
     val trimmed = value.map(HandlePolicy.trim).getOrElse("")
@@ -67,9 +52,6 @@ object SocialCommandParsers {
     else if !HandlePolicy.isPlayableIdentityHandle(trimmed) then Left(SocialRouteRespondError.VisitorNotAllowed)
     else PlayerHandle.forLookup(trimmed).toRight(SocialRouteRespondError.InvalidActorHandle)
   }
-
-  private def decode(value: String): String =
-    URLDecoder.decode(value, StandardCharsets.UTF_8)
 }
 
 final case class SocialCreateHandles(

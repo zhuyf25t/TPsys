@@ -75,7 +75,7 @@ private[http4s] object SocialHttp4sRoutes {
     }
 
   private def list(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
-    SocialCommandParsers.parseOwner(request.uri.query.renderString) match {
+    SocialCommandParsers.parseOwner(request.params.get("ownerHandle")) match {
       case Left(error) =>
         IO.pure(apiError(ownerApiError(error)))
       case Right(ownerHandle) =>

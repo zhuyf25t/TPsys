@@ -29,6 +29,10 @@ object IdentityRequestTarget {
     AccountsPaths.contains(path)
 }
 
+enum IdentityApiRequestDecodeError {
+  case InvalidJsonObject
+}
+
 final case class IdentityRegistrationApiRequest(
   handle: Option[String],
   password: Option[String],

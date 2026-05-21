@@ -9,6 +9,7 @@ import org.typelevel.ci.CIString
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.identity.api.{
+  IdentityApiRequestDecodeError,
   IdentityAccountsResponse,
   IdentityAuthResponse,
   IdentityRegistrationApiRequest,
@@ -45,6 +46,8 @@ private[http4s] object IdentityHttp4sRoutes {
     HttpApiError(status = Status.Unauthorized, code = "missing_session", message = "Session token is required.")
   private val InvalidSessionError =
     HttpApiError(status = Status.Unauthorized, code = "invalid_session", message = "Current session is not valid.")
+  private val InvalidJsonObjectError =
+    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
 
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
@@ -93,8 +96,8 @@ private[http4s] object IdentityHttp4sRoutes {
 
   private def register(request: Request[IO], service: IdentityService): IO[Response[IO]] =
     readRegistrationRequest(request).flatMap {
-      case Left(message) =>
-        IO.pure(apiError(badRequest(message)))
+      case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
+        IO.pure(apiError(InvalidJsonObjectError))
       case Right(registrationRequest) =>
         registrationRequest.toCommand match {
           case Left(IdentityRegistrationCommandParseError.InvalidHandle) =>
@@ -115,8 +118,8 @@ private[http4s] object IdentityHttp4sRoutes {
 
   private def issueSession(request: Request[IO], service: IdentityService): IO[Response[IO]] =
     readSessionRequest(request).flatMap {
-      case Left(message) =>
-        IO.pure(apiError(badRequest(message)))
+      case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
+        IO.pure(apiError(InvalidJsonObjectError))
       case Right(sessionRequest) =>
         sessionRequest.toCommand match {
           case Left(IdentitySessionCommandParseError.InvalidCredentials) =>
@@ -141,17 +144,17 @@ private[http4s] object IdentityHttp4sRoutes {
         IO.pure(apiError(InvalidSessionError))
     }
 
-  private def readRegistrationRequest(request: Request[IO]): IO[Either[String, IdentityRegistrationApiRequest]] =
+  private def readRegistrationRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentityRegistrationApiRequest]] =
     request
       .as[IdentityRegistrationApiRequest]
       .attempt
-      .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
+      .map(_.left.map(_ => IdentityApiRequestDecodeError.InvalidJsonObject))
 
-  private def readSessionRequest(request: Request[IO]): IO[Either[String, IdentitySessionApiRequest]] =
+  private def readSessionRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentitySessionApiRequest]] =
     request
       .as[IdentitySessionApiRequest]
       .attempt
-      .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
+      .map(_.left.map(_ => IdentityApiRequestDecodeError.InvalidJsonObject))
 
   private def parseSessionToken(request: Request[IO]): Option[SessionToken] =
     IdentitySessionTokenParser.parseFromHeaderLookup(name => headerValue(request.headers, name))
@@ -162,6 +165,4 @@ private[http4s] object IdentityHttp4sRoutes {
   private def path(request: Request[IO]): String =
     request.uri.path.renderString
 
-  private def badRequest(message: String): HttpApiError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = message)
 }

@@ -22,7 +22,9 @@ object IdentityHttp4sContractTest {
   def main(args: Array[String]): Unit = {
     registerParsesCommandAndRendersAuth()
     registerValidationAndServiceErrors()
+    registerRejectsNonObjectBody()
     sessionParsesCommandAndMapsInvalidCredentials()
+    sessionRejectsNonObjectBody()
     currentSessionParsesHeadersAndMapsErrors()
     accountsRendersActiveSummaries()
 
@@ -85,6 +87,23 @@ object IdentityHttp4sContractTest {
     assertEquals("handle taken calls service", service.registerCommands.length, 1)
   }
 
+  private def registerRejectsNonObjectBody(): Unit = {
+    val service = RecordingIdentityService()
+    val response = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/identity/register")
+        .withEntity("[]")
+    )
+
+    assertEquals("register non-object status", response.status, 400)
+    assertEquals(
+      "register non-object body",
+      response.body,
+      """{"error":"Request body must be a JSON object with string fields.","code":"bad_request"}"""
+    )
+    assertEquals("register non-object does not call service", service.registerCommands, Vector.empty)
+  }
+
   private def sessionParsesCommandAndMapsInvalidCredentials(): Unit = {
     val service = RecordingIdentityService()
     val issued = run(
@@ -110,6 +129,23 @@ object IdentityHttp4sContractTest {
     assertEquals("invalid credentials status", invalidCredentials.status, 401)
     assertContains("invalid credentials code", invalidCredentials.body, """"code":"invalid_credentials"""")
     assertEquals("invalid credentials calls service", service.sessionCommands.length, 2)
+  }
+
+  private def sessionRejectsNonObjectBody(): Unit = {
+    val service = RecordingIdentityService()
+    val response = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/identity/session")
+        .withEntity("[]")
+    )
+
+    assertEquals("session non-object status", response.status, 400)
+    assertEquals(
+      "session non-object body",
+      response.body,
+      """{"error":"Request body must be a JSON object with string fields.","code":"bad_request"}"""
+    )
+    assertEquals("session non-object does not call service", service.sessionCommands, Vector.empty)
   }
 
   private def currentSessionParsesHeadersAndMapsErrors(): Unit = {

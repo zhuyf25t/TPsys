@@ -43,6 +43,8 @@ private[http4s] object BattleQueueHttp4sRoutes {
     HttpApiError(status = Status.NotFound, code = "ticket_not_found", message = "Queue ticket was not found.")
   private val InvalidHandleError =
     HttpApiError(status = Status.BadRequest, code = "invalid_handle", message = "Handle must be a playable non-visitor handle.")
+  private val InvalidRatingError =
+    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "rating must be an integer.")
   private val MissingSessionError =
     HttpApiError(status = Status.Unauthorized, code = "missing_session", message = "Session token is required.")
   private val InvalidSessionError =
@@ -90,8 +92,8 @@ private[http4s] object BattleQueueHttp4sRoutes {
             decodeJoinRequest(request).flatMap {
               case Left(BattleQueueJoinAPIRequestError.InvalidJsonObject) =>
                 IO.pure(apiError(InvalidJsonObjectError))
-              case Left(BattleQueueJoinAPIRequestError.InvalidRating(message)) =>
-                IO.pure(apiError(badRequest(message)))
+              case Left(BattleQueueJoinAPIRequestError.InvalidRating) =>
+                IO.pure(apiError(InvalidRatingError))
               case Left(BattleQueueJoinAPIRequestError.InvalidHandle) =>
                 IO.pure(apiError(InvalidHandleError))
               case Left(BattleQueueJoinAPIRequestError.MissingSession) =>
@@ -164,7 +166,4 @@ private[http4s] object BattleQueueHttp4sRoutes {
       case Right(json) =>
         BattleQueueLeaveAPIRequest.decodeTicketId(json)
     }
-
-  private def badRequest(message: String): HttpApiError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = message)
 }

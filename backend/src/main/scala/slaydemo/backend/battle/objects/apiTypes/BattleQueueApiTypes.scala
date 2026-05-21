@@ -10,7 +10,7 @@ import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
 
 enum BattleQueueJoinAPIRequestError {
   case InvalidJsonObject
-  case InvalidRating(message: String)
+  case InvalidRating
   case InvalidHandle
   case MissingSession
 }
@@ -270,7 +270,7 @@ object BattleQueueJoinAPIRequest {
 
   def decodeCommand(json: Json): Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand] =
     json.as[BattleQueueJoinAPIRequest]
-      .left.map(error => BattleQueueJoinAPIRequestError.InvalidRating(error.message))
+      .left.map(_ => BattleQueueJoinAPIRequestError.InvalidRating)
       .flatMap(_.toCommand)
 }
 

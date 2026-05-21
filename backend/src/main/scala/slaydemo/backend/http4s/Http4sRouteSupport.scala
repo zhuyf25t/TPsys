@@ -42,6 +42,17 @@ private[http4s] object Http4sRouteSupport {
   )(using EntityDecoder[IO, A]): IO[Either[E, A]] =
     request.as[A].attempt.map(_.left.map(_ => invalidBody))
 
+  def decodeTextBody[E, A](
+    request: Request[IO],
+    invalidBody: E
+  )(decode: String => Either[E, A]): IO[Either[E, A]] =
+    request.bodyText.compile.string.attempt.map {
+      case Left(_) =>
+        Left(invalidBody)
+      case Right(body) =>
+        decode(body)
+    }
+
   def apiError(status: Status, code: String, message: String): Response[IO] =
     apiError(HttpApiError(status = status, code = code, message = message))
 

@@ -6,7 +6,7 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, decodeTextBody, typedApiError, withCors}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
@@ -133,23 +133,15 @@ private[http4s] object ReplayHttp4sRoutes {
     }
 
   private def decodeRecordRequest(request: Request[IO]): IO[Either[ReplayRecordDecodeError, ReplayRecordCommand]] =
-    request.as[String].attempt.map {
-      case Left(_) =>
-        Left(ReplayRecordDecodeError.BadJsonObject)
-      case Right(body) =>
-        ReplayApiCodec.parseRecordCommand(body)
-    }
+    decodeTextBody(request, ReplayRecordDecodeError.BadJsonObject)(ReplayApiCodec.parseRecordCommand)
 
   private def decodeCommentRequest(
     request: Request[IO],
     replayId: ReplayId
   ): IO[Either[ReplayCommentDecodeError, ReplayCommentCommand]] =
-    request.as[String].attempt.map {
-      case Left(_) =>
-        Left(ReplayCommentDecodeError.BadJsonObject)
-      case Right(body) =>
-        ReplayApiCodec.parseCommentCommand(replayId, body)
-    }
+    decodeTextBody(request, ReplayCommentDecodeError.BadJsonObject)(body =>
+      ReplayApiCodec.parseCommentCommand(replayId, body)
+    )
 
   private def recordDecodeError(error: ReplayRecordDecodeError): HttpApiError =
     replayApiError(ReplayApiErrorMapper.recordDecodeErrorCode(error))

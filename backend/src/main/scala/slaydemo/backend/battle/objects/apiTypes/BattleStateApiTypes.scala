@@ -6,6 +6,17 @@ import io.circe.syntax.*
 import slaydemo.backend.battle.objects.*
 
 object BattleStateRequestTarget {
+  private val AllowedReadPaths: Set[String] =
+    Set("/battle/state", "/api/battle/state", "/battlestatereadapi", "/api/battlestatereadapi")
+  private val AllowedStreamPaths: Set[String] =
+    Set("/battle/state/stream", "/api/battle/state/stream", "/battlestatestreamapi", "/api/battlestatestreamapi")
+
+  def isReadPath(path: String): Boolean =
+    AllowedReadPaths.contains(path) || hasStatePathBattleId(path)
+
+  def isStreamPath(path: String): Boolean =
+    AllowedStreamPaths.contains(path)
+
   def battleIdFromRead(path: String, query: Map[String, String]): Option[BattleId] =
     battleIdFromStatePath(path)
       .orElse(battleIdFromQuery(query))

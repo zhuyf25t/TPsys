@@ -17,11 +17,6 @@ import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateServic
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleStateHttp4sRoutes {
-  private val AllowedReadPaths: Set[String] =
-    Set("/battle/state", "/api/battle/state", "/battlestatereadapi", "/api/battlestatereadapi")
-  private val AllowedStreamPaths: Set[String] =
-    Set("/battle/state/stream", "/api/battle/state/stream", "/battlestatestreamapi", "/api/battlestatestreamapi")
-
   private val InvalidBattleIdError =
     HttpApiError(status = Status.BadRequest, code = "invalid_battle_id", message = "battleId is required.")
   private val BattleNotFoundError =
@@ -78,11 +73,10 @@ private[http4s] object BattleStateHttp4sRoutes {
     }
 
   private def isBattleStateReadPath(request: Request[IO]): Boolean =
-    AllowedReadPaths.contains(request.uri.path.renderString) ||
-      BattleStateRequestTarget.hasStatePathBattleId(request.uri.path.renderString)
+    BattleStateRequestTarget.isReadPath(request.uri.path.renderString)
 
   private def isBattleStateStreamPath(request: Request[IO]): Boolean =
-    AllowedStreamPaths.contains(request.uri.path.renderString)
+    BattleStateRequestTarget.isStreamPath(request.uri.path.renderString)
 
   private def battleIdFromStateRequest(request: Request[IO]): Option[BattleId] =
     BattleStateRequestTarget.battleIdFromRead(request.uri.path.renderString, request.params)

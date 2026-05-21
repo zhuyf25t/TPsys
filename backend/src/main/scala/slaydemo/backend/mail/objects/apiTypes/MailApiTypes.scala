@@ -1,6 +1,5 @@
 package slaydemo.backend.mail.objects.apiTypes
 
-import io.circe.syntax.*
 import io.circe.{Encoder, Json}
 
 import slaydemo.backend.mail.objects.{MailFriendRequestStatus, MailKind, MailRecord}
@@ -88,9 +87,6 @@ object MailListResponse {
 
   def fromRecords(records: Vector[MailRecord]): MailListResponse =
     MailListResponse(records.map(MailItemResponse.fromRecord))
-
-  def renderRecords(records: Vector[MailRecord]): String =
-    fromRecords(records).asJson.noSpaces
 }
 
 final case class MailReadResponse(ok: Boolean)
@@ -98,13 +94,4 @@ final case class MailReadResponse(ok: Boolean)
 object MailReadResponse {
   given Encoder[MailReadResponse] =
     Encoder.forProduct1("ok")(_.ok)
-
-  val Ok: MailReadResponse =
-    MailReadResponse(ok = true)
-
-  def render(response: MailReadResponse): String =
-    response.asJson.noSpaces
-
-  def renderOk: String =
-    render(Ok)
 }

@@ -9,46 +9,19 @@ import org.typelevel.ci.CIString
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.identity.api.{
+  IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
   IdentityAccountsResponse,
   IdentityAuthResponse,
   IdentityRegistrationApiRequest,
-  IdentityRegistrationCommandParseError,
   IdentityRequestTarget,
   IdentitySessionApiRequest,
-  IdentitySessionCommandParseError,
   IdentitySessionTokenParser
 }
 import slaydemo.backend.identity.objects.SessionToken
-import slaydemo.backend.identity.services.{
-  IdentityCurrentSessionError,
-  IdentityRegistrationError,
-  IdentityService,
-  IdentitySessionError
-}
+import slaydemo.backend.identity.services.IdentityService
 
 private[http4s] object IdentityHttp4sRoutes {
-  private val PostMethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only POST and OPTIONS are supported.")
-  private val GetMethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only GET and OPTIONS are supported.")
-  private val InvalidHandleError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_handle", message = "Handle must be 3-16 characters and use letters, numbers, -, _.")
-  private val InvalidPasswordError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_password", message = "Password must be at least 4 characters.")
-  private val InvalidSkinError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_skin", message = "Skin must be one of: blue, old, soldier, survivor.")
-  private val HandleTakenError =
-    HttpApiError(status = Status.Conflict, code = "handle_taken", message = "Handle already exists.")
-  private val InvalidCredentialsError =
-    HttpApiError(status = Status.Unauthorized, code = "invalid_credentials", message = "Handle or password is incorrect.")
-  private val MissingSessionError =
-    HttpApiError(status = Status.Unauthorized, code = "missing_session", message = "Session token is required.")
-  private val InvalidSessionError =
-    HttpApiError(status = Status.Unauthorized, code = "invalid_session", message = "Current session is not valid.")
-  private val InvalidJsonObjectError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
-
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
 
@@ -61,7 +34,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Method.POST =>
             register(request, service)
           case _ =>
-            IO.pure(apiError(PostMethodNotAllowedError))
+            IO.pure(apiError(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed)))
         }
       case request if IdentityRequestTarget.isSessionPath(path(request)) =>
         request.method match {
@@ -70,7 +43,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Method.POST =>
             issueSession(request, service)
           case _ =>
-            IO.pure(apiError(PostMethodNotAllowedError))
+            IO.pure(apiError(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed)))
         }
       case request if IdentityRequestTarget.isCurrentPath(path(request)) =>
         request.method match {
@@ -79,7 +52,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Method.GET =>
             current(request, service)
           case _ =>
-            IO.pure(apiError(GetMethodNotAllowedError))
+            IO.pure(apiError(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed)))
         }
       case request if IdentityRequestTarget.isAccountsPath(path(request)) =>
         request.method match {
@@ -90,28 +63,24 @@ private[http4s] object IdentityHttp4sRoutes {
               Ok(IdentityAccountsResponse(accounts).asJson).map(withCors)
             )
           case _ =>
-            IO.pure(apiError(GetMethodNotAllowedError))
+            IO.pure(apiError(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed)))
         }
     }
 
   private def register(request: Request[IO], service: IdentityService): IO[Response[IO]] =
     readRegistrationRequest(request).flatMap {
       case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(InvalidJsonObjectError))
+        IO.pure(apiError(identityApiError(IdentityApiErrorCode.InvalidJsonObject)))
       case Right(registrationRequest) =>
         registrationRequest.toCommand match {
-          case Left(IdentityRegistrationCommandParseError.InvalidHandle) =>
-            IO.pure(apiError(InvalidHandleError))
-          case Left(IdentityRegistrationCommandParseError.InvalidPassword) =>
-            IO.pure(apiError(InvalidPasswordError))
-          case Left(IdentityRegistrationCommandParseError.InvalidSkin) =>
-            IO.pure(apiError(InvalidSkinError))
+          case Left(error) =>
+            IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromRegistrationParseError(error))))
           case Right(command) =>
             blocking(service.register(command)).flatMap {
               case Right(account) =>
                 Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
-              case Left(IdentityRegistrationError.HandleTaken) =>
-                IO.pure(apiError(HandleTakenError))
+              case Left(error) =>
+                IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromRegistrationServiceError(error))))
             }
         }
     }
@@ -119,17 +88,17 @@ private[http4s] object IdentityHttp4sRoutes {
   private def issueSession(request: Request[IO], service: IdentityService): IO[Response[IO]] =
     readSessionRequest(request).flatMap {
       case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(InvalidJsonObjectError))
+        IO.pure(apiError(identityApiError(IdentityApiErrorCode.InvalidJsonObject)))
       case Right(sessionRequest) =>
         sessionRequest.toCommand match {
-          case Left(IdentitySessionCommandParseError.InvalidCredentials) =>
-            IO.pure(apiError(InvalidCredentialsError))
+          case Left(error) =>
+            IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromSessionParseError(error))))
           case Right(command) =>
             blocking(service.issueSession(command)).flatMap {
               case Right(account) =>
                 Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
-              case Left(IdentitySessionError.InvalidCredentials) =>
-                IO.pure(apiError(InvalidCredentialsError))
+              case Left(error) =>
+                IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromSessionServiceError(error))))
             }
         }
     }
@@ -138,10 +107,8 @@ private[http4s] object IdentityHttp4sRoutes {
     blocking(service.current(parseSessionToken(request))).flatMap {
       case Right(account) =>
         Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
-      case Left(IdentityCurrentSessionError.MissingSession) =>
-        IO.pure(apiError(MissingSessionError))
-      case Left(IdentityCurrentSessionError.InvalidSession) =>
-        IO.pure(apiError(InvalidSessionError))
+      case Left(error) =>
+        IO.pure(apiError(identityApiError(IdentityApiErrorCode.fromCurrentSessionError(error))))
     }
 
   private def readRegistrationRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentityRegistrationApiRequest]] =
@@ -161,6 +128,22 @@ private[http4s] object IdentityHttp4sRoutes {
 
   private def headerValue(headers: Headers, name: String): Option[String] =
     headers.get(CIString(name)).flatMap(_.toList.headOption.map(_.value))
+
+  private def identityApiError(code: IdentityApiErrorCode): HttpApiError =
+    HttpApiError(
+      status = statusFrom(IdentityApiErrorCode.statusCode(code)),
+      code = IdentityApiErrorCode.wireValue(code),
+      message = IdentityApiErrorCode.message(code)
+    )
+
+  private def statusFrom(value: Int): Status =
+    value match {
+      case 400 => Status.BadRequest
+      case 401 => Status.Unauthorized
+      case 405 => Status.MethodNotAllowed
+      case 409 => Status.Conflict
+      case _   => Status.InternalServerError
+    }
 
   private def path(request: Request[IO]): String =
     request.uri.path.renderString

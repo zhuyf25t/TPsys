@@ -13,11 +13,6 @@ import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, Re
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleRoomHttp4sRoutes {
-  private val AllowedSnapshotPaths: Set[String] =
-    Set("/battle/rooms/snapshot", "/api/battle/rooms/snapshot", "/battleroomsnapshotapi", "/api/battleroomsnapshotapi")
-  private val AllowedHeartbeatPaths: Set[String] =
-    Set("/battle/rooms/heartbeat", "/api/battle/rooms/heartbeat", "/battleroomheartbeatapi", "/api/battleroomheartbeatapi")
-
   private val InvalidRoomIdError =
     HttpApiError(status = Status.BadRequest, code = "invalid_room_id", message = "roomId is required.")
   private val RoomNotFoundError =
@@ -74,12 +69,10 @@ private[http4s] object BattleRoomHttp4sRoutes {
     }
 
   private def isBattleRoomSnapshotPath(request: Request[IO]): Boolean =
-    AllowedSnapshotPaths.contains(request.uri.path.renderString) ||
-      RealtimeRoomRequestTarget.hasSnapshotPathRoomId(request.uri.path.renderString)
+    RealtimeRoomRequestTarget.isSnapshotPath(request.uri.path.renderString)
 
   private def isBattleRoomHeartbeatPath(request: Request[IO]): Boolean =
-    AllowedHeartbeatPaths.contains(request.uri.path.renderString) ||
-      RealtimeRoomRequestTarget.hasHeartbeatPathRoomId(request.uri.path.renderString)
+    RealtimeRoomRequestTarget.isHeartbeatPath(request.uri.path.renderString)
 
   private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[String, RealtimeRoomHeartbeatCommand]] =
     request.as[Json].attempt.map {

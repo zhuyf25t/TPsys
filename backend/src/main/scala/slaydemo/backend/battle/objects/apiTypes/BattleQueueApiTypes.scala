@@ -136,6 +136,17 @@ object RealtimeRoomHeartbeatAPIRequest {
 }
 
 object RealtimeRoomRequestTarget {
+  private val AllowedSnapshotPaths: Set[String] =
+    Set("/battle/rooms/snapshot", "/api/battle/rooms/snapshot", "/battleroomsnapshotapi", "/api/battleroomsnapshotapi")
+  private val AllowedHeartbeatPaths: Set[String] =
+    Set("/battle/rooms/heartbeat", "/api/battle/rooms/heartbeat", "/battleroomheartbeatapi", "/api/battleroomheartbeatapi")
+
+  def isSnapshotPath(path: String): Boolean =
+    AllowedSnapshotPaths.contains(path) || hasSnapshotPathRoomId(path)
+
+  def isHeartbeatPath(path: String): Boolean =
+    AllowedHeartbeatPaths.contains(path) || hasHeartbeatPathRoomId(path)
+
   def hasSnapshotPathRoomId(path: String): Boolean =
     roomIdFromPath(path, "snapshot").isDefined
 

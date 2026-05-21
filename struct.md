@@ -260,7 +260,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | 风格 | 文件 | 当前问题 |
 | --- | --- | --- |
 | 旧手写字符串 JSON | battle 旧手写 state JSON renderer 已删除；旧 `shared/routes/HttpRouteSupport.scala` 已删除 | 容易漏字段、转义错误、和 Circe DTO drift。 |
-| typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`http4s/*Routes.scala` | 当前运行路径正在使用，但还没有完全替代旧手写 route JSON。 |
+| typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`http4s/*Routes.scala` | 当前运行路径正在使用；battle result response 已删除旧 route 字符串 render helper，只保留 DTO + Circe encoder 出口。 |
 
 最明显的重复：
 
@@ -269,7 +269,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleStateJson.scala` 已删除 | `battle/objects/apiTypes/BattleStateApiTypes.scala` |
 | `battle/routes/BattleCommandRequestParser.scala` 已删除 | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` 已删除 | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
-| `battle/routes/BattleResultCommandParsers.scala` 已迁出，`BattleResultJsonObjectParser.scala` 已删除 | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes`，POST body 使用 Circe `JsonObject` |
+| `battle/routes/BattleResultCommandParsers.scala` 已迁出，`BattleResultJsonObjectParser.scala` 已删除 | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes`，POST body 使用 Circe `JsonObject`，response 通过 DTO encoder 输出 |
 | `shared/routes/HttpRouteSupport.sendJsonError` 已删除 | `http4s/Http4sRouteSupport.apiError` |
 
 风险：测试通过某一路径不等于另一条路径正确。battle command 已改为只保留当前运行的 `BattleCommandAPIRequest.decode`，避免旧 parser 和 http4s parser 继续 drift。
@@ -302,7 +302,7 @@ BattleStateHttp4sRoutes.AllowedReadPaths
 
 `BackendHttp4sApp` 只把 service 传给 `BackendHttp4sRoutes.backendRoutes(...)`。这意味着当前 http4s 运行对象图已经不再间接初始化旧 route wrapper。
 
-剩余风险：旧 route wrapper 仍存在，并且 legacy tests 仍覆盖它们；只是它们已经从当前 http4s runtime 对象图和顶层启动入口中移出。
+剩余风险：旧 route wrapper 已删除；当前主要风险转为少数 domain 的 `apiTypes` 中仍保留旧字符串 render helper，可能和 http4s 的 Circe encoder 出口重复。
 
 ## 8. 可以清理但需要分阶段做的代码
 
@@ -389,7 +389,7 @@ battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
 
 ## 10. 下一步建议
 
-最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests 和旧 battle 手写 JSON renderer 已清完；下一步应聚焦 service 简化或继续减少 `apiTypes` 中的手写 codec。
+最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer，以及 battle result response 的旧字符串 render helper 已清完；下一步应聚焦 service 简化或继续减少其他 `apiTypes` 中的手写 codec。
 
 推荐下一个小票：
 

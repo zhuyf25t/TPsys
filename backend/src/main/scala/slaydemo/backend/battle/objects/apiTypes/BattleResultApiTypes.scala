@@ -1,7 +1,6 @@
 package slaydemo.backend.battle.objects.apiTypes
 
 import io.circe.Encoder
-import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.BattleResultRecord
 
@@ -10,9 +9,6 @@ final case class BattleResultErrorResponse(error: String, code: String)
 object BattleResultErrorResponse {
   given Encoder[BattleResultErrorResponse] =
     Encoder.forProduct2("error", "code")(value => (value.error, value.code))
-
-  def render(error: String, code: String): String =
-    BattleResultErrorResponse(error = error, code = code).asJson.noSpaces
 }
 
 final case class BattleResultRecordResponse(
@@ -109,9 +105,6 @@ object BattleResultRecordResponse {
       timelineHint = record.timelineHint.value,
       currentLoadout = record.currentLoadout
     )
-
-  def renderRecord(record: BattleResultRecord): String =
-    fromRecord(record).asJson.noSpaces
 }
 
 final case class BattleResultListResponse(results: Vector[BattleResultRecordResponse])
@@ -125,7 +118,4 @@ object BattleResultListResponse {
 
   def fromRecords(records: Vector[BattleResultRecord]): BattleResultListResponse =
     BattleResultListResponse(records.map(BattleResultRecordResponse.fromRecord))
-
-  def renderRecords(records: Vector[BattleResultRecord]): String =
-    fromRecords(records).asJson.noSpaces
 }

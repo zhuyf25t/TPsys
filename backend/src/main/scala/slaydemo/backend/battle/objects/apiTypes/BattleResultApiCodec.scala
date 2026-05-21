@@ -3,7 +3,7 @@ package slaydemo.backend.battle.objects.apiTypes
 import io.circe.Json
 import io.circe.parser.parse
 
-import slaydemo.backend.battle.objects.{BattleId, BattleResultRecord}
+import slaydemo.backend.battle.objects.BattleId
 import slaydemo.backend.battle.services.BattleResultRecordCommand
 import slaydemo.backend.identity.objects.PlayerHandle
 
@@ -43,12 +43,6 @@ object BattleResultApiCodec {
   def parseRecordCommand(rawBody: String): Either[BattleResultRecordDecodeError, BattleResultRecordCommand] =
     parseRecordJson(rawBody)
       .flatMap(jsonObject => BattleResultCommandParsers.parseRecordCommand(jsonObject).left.map(recordDecodeError))
-
-  def renderRecords(records: Vector[BattleResultRecord]): String =
-    BattleResultListResponse.renderRecords(records)
-
-  def renderRecord(record: BattleResultRecord): String =
-    BattleResultRecordResponse.renderRecord(record)
 
   private def recordDecodeError(error: BattleResultRecordCommandParseError): BattleResultRecordDecodeError =
     error match {

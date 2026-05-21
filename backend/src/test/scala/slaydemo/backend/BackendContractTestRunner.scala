@@ -37,7 +37,6 @@ import slaydemo.backend.identity.routes.IdentityRouteContractTest
 import slaydemo.backend.identity.ports.PasswordHasherContractTest
 import slaydemo.backend.mail.routes.MailRouteContractTest
 import slaydemo.backend.replay.routes.ReplayRouteContractTest
-import slaydemo.backend.shared.routes.HealthRouteContractTest
 import slaydemo.backend.shared.database.{PostgresRepositoryBoundaryContractTest, PostgresSupportContractTest}
 import slaydemo.backend.shared.storage.StorageConfigContractTest
 import slaydemo.backend.social.routes.SocialRouteContractTest
@@ -49,7 +48,6 @@ object BackendContractTestRunner {
     run("backend API boundaries", () => BackendApiBoundaryContractTest.main(Array.empty))
     run("postgres support", () => PostgresSupportContractTest.main(Array.empty))
     run("postgres repository boundaries", () => PostgresRepositoryBoundaryContractTest.main(Array.empty))
-    run("health route", () => HealthRouteContractTest.main(Array.empty))
     run("backend http4s route composition", () => BackendHttp4sRoutesCompositionContractTest.main(Array.empty))
     run("health http4s route", () => HealthHttp4sRouteContractTest.main(Array.empty))
     run("identity http4s route", () => IdentityHttp4sContractTest.main(Array.empty))

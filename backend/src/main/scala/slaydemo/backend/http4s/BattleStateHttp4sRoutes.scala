@@ -11,7 +11,7 @@ import org.typelevel.ci.CIString
 import java.nio.charset.StandardCharsets
 import scala.concurrent.duration.*
 
-import slaydemo.backend.battle.objects.apiTypes.BattleStateResponse
+import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
@@ -79,28 +79,16 @@ private[http4s] object BattleStateHttp4sRoutes {
 
   private def isBattleStateReadPath(request: Request[IO]): Boolean =
     AllowedReadPaths.contains(request.uri.path.renderString) ||
-      battleIdFromStatePath(request.uri.path.renderString).isDefined
+      BattleStateRequestTarget.hasStatePathBattleId(request.uri.path.renderString)
 
   private def isBattleStateStreamPath(request: Request[IO]): Boolean =
     AllowedStreamPaths.contains(request.uri.path.renderString)
 
   private def battleIdFromStateRequest(request: Request[IO]): Option[BattleId] =
-    battleIdFromStatePath(request.uri.path.renderString)
-      .orElse(request.params.get("battleId").flatMap(nonEmptyText).map(BattleId.apply))
+    BattleStateRequestTarget.battleIdFromRead(request.uri.path.renderString, request.params)
 
   private def battleIdFromStateStreamRequest(request: Request[IO]): Option[BattleId] =
-    request.params.get("battleId").flatMap(nonEmptyText).map(BattleId.apply)
-
-  private def battleIdFromStatePath(path: String): Option[BattleId] = {
-    val normalized = path.stripPrefix("/api")
-    val prefix = "/battle/state/"
-    if normalized.startsWith(prefix) && normalized.length > prefix.length then
-      nonEmptyText(normalized.substring(prefix.length)).map(BattleId.apply)
-    else None
-  }
-
-  private def nonEmptyText(value: String): Option[String] =
-    Option(value).map(_.trim).filter(_.nonEmpty)
+    BattleStateRequestTarget.battleIdFromStream(request.params)
 
   private def stateStreamResponse(
     battleId: BattleId,

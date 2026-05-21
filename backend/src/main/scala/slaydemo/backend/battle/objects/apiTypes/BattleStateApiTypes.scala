@@ -5,6 +5,32 @@ import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.*
 
+object BattleStateRequestTarget {
+  def battleIdFromRead(path: String, query: Map[String, String]): Option[BattleId] =
+    battleIdFromStatePath(path)
+      .orElse(battleIdFromQuery(query))
+
+  def battleIdFromStream(query: Map[String, String]): Option[BattleId] =
+    battleIdFromQuery(query)
+
+  def hasStatePathBattleId(path: String): Boolean =
+    battleIdFromStatePath(path).isDefined
+
+  private def battleIdFromStatePath(path: String): Option[BattleId] = {
+    val normalized = path.stripPrefix("/api")
+    val prefix = "/battle/state/"
+    if normalized.startsWith(prefix) && normalized.length > prefix.length then
+      nonEmptyText(normalized.substring(prefix.length)).map(BattleId.apply)
+    else None
+  }
+
+  private def battleIdFromQuery(query: Map[String, String]): Option[BattleId] =
+    query.get("battleId").flatMap(nonEmptyText).map(BattleId.apply)
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
 final case class BattleStateResponse private (state: BattleAggregateState)
 
 object BattleStateResponse {

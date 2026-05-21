@@ -195,7 +195,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 解码 queue join/leave request，并在 apiTypes 内完成 JSON 到 join command / ticket id 的转换。 |
 | `battle/routes/BattleRoomRouteHandler.scala` | 已删除。当前使用 `BattleRoomHttp4sRoutes`，并由 `BattleRoomHttp4sContractTest` 覆盖；heartbeat JSON/path/query 到 domain command 的转换已由 `BattleQueueApiTypes.scala` 承接。 |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 的 Circe DTO 渲染 queue/room response。 |
-| `battle/routes/BattleStateRouteHandler.scala` | 已删除。当前使用 `BattleStateHttp4sRoutes`，并由 `BattleStateRead/StreamHttp4sContractTest` 覆盖。 |
+| `battle/routes/BattleStateRouteHandler.scala` | 已删除。当前使用 `BattleStateHttp4sRoutes`，并由 `BattleStateRead/StreamHttp4sContractTest` 覆盖；battleId path/query 解析已由 `BattleStateRequestTarget` 承接。 |
 | `battle/routes/BattleStateStreamWriter.scala` | 已删除。当前 http4s SSE 在 `BattleStateHttp4sRoutes` 内实现。 |
 | `battle/routes/BattleStateJson.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleStateApiTypes.scala` 的 Circe DTO 渲染 state response。 |
 | `battle/routes/BattlePlayerStateJsonRenderer.scala` | 已删除。旧 `BattleStateJson` 专用 player renderer 不再保留。 |
@@ -266,7 +266,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 
 | 旧实现 | 新实现 |
 | --- | --- |
-| `battle/routes/BattleStateJson.scala` 已删除 | `battle/objects/apiTypes/BattleStateApiTypes.scala` |
+| `battle/routes/BattleStateJson.scala` 已删除 | `battle/objects/apiTypes/BattleStateApiTypes.scala`，包含 state response DTO 和 battle state request target 解析 |
 | `battle/routes/BattleCommandRequestParser.scala` 已删除 | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
 | `battle/routes/BattleQueueRoomJsonRenderer.scala` 已删除 | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
 | `battle/routes/BattleResultCommandParsers.scala` 已迁出，`BattleResultJsonObjectParser.scala` 已删除 | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultHttp4sRoutes`，GET query 使用 http4s `request.params`，POST body 使用 Circe `JsonObject`，response 通过 DTO encoder 输出 |

@@ -13,6 +13,7 @@ import slaydemo.backend.identity.api.{
   IdentityAuthResponse,
   IdentityRegistrationApiRequest,
   IdentityRegistrationCommandParseError,
+  IdentityRequestTarget,
   IdentitySessionApiRequest,
   IdentitySessionCommandParseError,
   IdentitySessionTokenParser
@@ -26,15 +27,6 @@ import slaydemo.backend.identity.services.{
 }
 
 private[http4s] object IdentityHttp4sRoutes {
-  private val RegisterPaths: Set[String] =
-    Set("/identity/register", "/api/identity/register")
-  private val SessionPaths: Set[String] =
-    Set("/identity/session", "/api/identity/session")
-  private val CurrentPaths: Set[String] =
-    Set("/identity/me", "/api/identity/me")
-  private val AccountsPaths: Set[String] =
-    Set("/identity/accounts", "/api/identity/accounts")
-
   private val PostMethodNotAllowedError =
     HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only POST and OPTIONS are supported.")
   private val GetMethodNotAllowedError =
@@ -59,7 +51,7 @@ private[http4s] object IdentityHttp4sRoutes {
 
   def routes(service: IdentityService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
-      case request if RegisterPaths.contains(path(request)) =>
+      case request if IdentityRequestTarget.isRegisterPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))
@@ -68,7 +60,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case _ =>
             IO.pure(apiError(PostMethodNotAllowedError))
         }
-      case request if SessionPaths.contains(path(request)) =>
+      case request if IdentityRequestTarget.isSessionPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))
@@ -77,7 +69,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case _ =>
             IO.pure(apiError(PostMethodNotAllowedError))
         }
-      case request if CurrentPaths.contains(path(request)) =>
+      case request if IdentityRequestTarget.isCurrentPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))
@@ -86,7 +78,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case _ =>
             IO.pure(apiError(GetMethodNotAllowedError))
         }
-      case request if AccountsPaths.contains(path(request)) =>
+      case request if IdentityRequestTarget.isAccountsPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))

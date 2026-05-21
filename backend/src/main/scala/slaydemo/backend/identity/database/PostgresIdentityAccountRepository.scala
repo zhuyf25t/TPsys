@@ -32,6 +32,23 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
       statement => statement.setString(1, sessionToken.value)
     )
 
+  override def findPasswordHashByHandle(handle: PlayerHandle): Option[PasswordHash] =
+    PostgresSupport.withConnection(settings) { connection =>
+      PostgresSupport.withStatement(
+        connection,
+        """SELECT password
+          |FROM identity_accounts
+          |WHERE lower(handle) = lower(?) AND active = TRUE
+          |LIMIT 1""".stripMargin
+      ) { statement =>
+        statement.setString(1, handle.value.trim)
+        PostgresSupport.withResultSet(statement) { resultSet =>
+          if resultSet.next() then PasswordHash.fromString(resultSet.getString("password"))
+          else None
+        }
+      }
+    }
+
   override def authenticate(handle: PlayerHandle, passwordHash: PasswordHash): Option[IdentityAccount] =
     queryOne(
       """SELECT user_id, handle, display_name, skin_id, session_token
@@ -50,6 +67,7 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
         |WHERE lower(handle) = lower(?)
         |  AND password = ?
         |  AND password !~ '^[0-9a-f]{64}$'
+        |  AND password NOT LIKE '$pbkdf2-sha256$%'
         |  AND active = TRUE""".stripMargin,
       statement => {
         statement.setString(1, handle.value.trim)
@@ -58,7 +76,7 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
     )
 
   override def create(account: IdentityAccount, passwordHash: PasswordHash): IdentityAccountCreateResult = {
-    val insertedRows = PostgresSupport.withConnection(settings) { connection =>
+    val insertedRows = PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """INSERT INTO identity_accounts (
@@ -79,7 +97,7 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
   }
 
   override def replacePasswordHash(handle: PlayerHandle, passwordHash: PasswordHash): Option[IdentityAccount] =
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """UPDATE identity_accounts
@@ -96,7 +114,7 @@ final class PostgresIdentityAccountRepository(settings: PostgresConnectionSettin
     }
 
   override def updateSession(handle: PlayerHandle, sessionToken: SessionToken): Option[IdentityAccount] =
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """UPDATE identity_accounts

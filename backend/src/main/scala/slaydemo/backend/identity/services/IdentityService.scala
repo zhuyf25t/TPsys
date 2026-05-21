@@ -121,11 +121,22 @@ final class DefaultIdentityService(
     HandlePolicy.isPlayableIdentityHandle(account.handle.value)
 
   private def authenticateStoredAccount(command: IdentitySessionCommand): Option[IdentityAccount] = {
-    val passwordHash = passwordHasher.hash(command.password)
-    repository
-      .authenticate(command.handle, passwordHash)
+    val storedHashAccount =
+      repository
+        .findPasswordHashByHandle(command.handle)
+        .filter(storedHash => passwordHasher.verify(command.password, storedHash) == PasswordVerification.Verified)
+        .flatMap { storedHash =>
+          val upgraded =
+            if passwordHasher.needsRehash(storedHash) then
+              repository.replacePasswordHash(command.handle, passwordHasher.hash(command.password))
+            else None
+          upgraded.orElse(repository.findByHandle(command.handle))
+        }
+
+    storedHashAccount
       .orElse {
         repository.authenticateLegacyPlaintext(command.handle, command.password).map { account =>
+          val passwordHash = passwordHasher.hash(command.password)
           repository.replacePasswordHash(account.handle, passwordHash).getOrElse(account)
         }
       }

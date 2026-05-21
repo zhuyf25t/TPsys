@@ -17,7 +17,7 @@ import slaydemo.backend.forum.services.{
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.policies.HandlePolicy
 
-private[routes] object ForumCommandParsers {
+object ForumCommandParsers {
   def parseVote(fields: ForumRequestFields): Either[String, Option[ForumVoteChoice]] =
     fields.fields.get("vote") match {
       case None if !fields.voteSeen =>
@@ -124,7 +124,7 @@ private[routes] object ForumCommandParsers {
     Option(value).map(_.trim).filter(_.nonEmpty).map(ForumReplyId.apply).toRight(ForumTopicMutationParseError.ReplyNotFound)
 }
 
-private[routes] enum ForumCreateTopicParseError {
+enum ForumCreateTopicParseError {
   case InvalidTitle
   case InvalidBody
   case InvalidTag
@@ -132,7 +132,7 @@ private[routes] enum ForumCreateTopicParseError {
   case VisitorNotAllowed
 }
 
-private[routes] enum ForumTopicMutationParseError {
+enum ForumTopicMutationParseError {
   case TopicNotFound
   case ReplyNotFound
   case InvalidBody

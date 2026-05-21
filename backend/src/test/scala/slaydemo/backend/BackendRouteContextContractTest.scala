@@ -4,8 +4,9 @@ object BackendRouteContextContractTest {
   def main(args: Array[String]): Unit = {
     routeContextsHaveNoDuplicates()
     baseRouteContextsAreExplicit()
-    apiMessageRouteContextsAreExplicit()
+    compatibilityRouteContextsAreExplicit()
     everyBaseRouteHasApiAlias()
+    registeredHandlersMatchRouteCatalog()
 
     println("Backend route context contract checks passed")
   }
@@ -22,6 +23,15 @@ object BackendRouteContextContractTest {
       BackendApp.BaseRouteContexts.map(_.path),
       Vector(
         "/health",
+        "/battle/queue/status",
+        "/battle/queue/join",
+        "/battle/queue/leave",
+        "/battle/rooms/snapshot",
+        "/battle/rooms/heartbeat",
+        "/battle/state",
+        "/battle/state/stream",
+        "/battle/command",
+        "/battle/results",
         "/identity/register",
         "/identity/session",
         "/identity/me",
@@ -39,14 +49,14 @@ object BackendRouteContextContractTest {
       )
     )
 
-  private def apiMessageRouteContextsAreExplicit(): Unit =
+  private def compatibilityRouteContextsAreExplicit(): Unit =
     assertEquals(
-      "api message route contexts",
-      BackendRouteCatalog.ApiMessageRouteContexts.map(_.path),
+      "compatibility route contexts",
+      BackendApp.CompatibilityRouteContexts.map(_.path),
       Vector(
         "/api/healthapi",
-        "/api/battlequeuejoinapi",
         "/api/battlequeuestatusapi",
+        "/api/battlequeuejoinapi",
         "/api/battlequeueleaveapi",
         "/api/battleroomsnapshotapi",
         "/api/battleroomheartbeatapi",
@@ -65,13 +75,32 @@ object BackendRouteContextContractTest {
       assert(paths.contains(context.path), s"missing base route ${context.path}")
       assert(paths.contains(s"/api${context.path}"), s"missing api alias for ${context.path}")
     }
-    BackendRouteCatalog.ApiMessageRouteContexts.foreach { context =>
-      assert(paths.contains(context.path), s"missing api message route ${context.path}")
-    }
     assertEquals(
-      "route contexts are base plus aliases plus api messages",
+      "route contexts are base plus aliases plus compatibility aliases",
       paths.size,
-      BackendApp.BaseRouteContexts.length * 2 + BackendRouteCatalog.ApiMessageRouteContexts.length
+      BackendApp.BaseRouteContexts.length * 2 + BackendApp.CompatibilityRouteContexts.length
+    )
+  }
+
+  private def registeredHandlersMatchRouteCatalog(): Unit = {
+    val runtime = BackendRuntime.fromEnvironment(Map("SLAY_DEMO_STORAGE_MODE" -> "memory"))
+    val handlers = BackendRouteRegistry.routeHandlers(
+      healthRoutes = runtime.healthRoutes,
+      identityRoutes = runtime.identityRoutes,
+      battleRoutes = runtime.battleRoutes,
+      battleResultRoutes = runtime.battleResultRoutes,
+      replayRoutes = runtime.replayRoutes,
+      mailRoutes = runtime.mailRoutes,
+      botProfileRoutes = runtime.botProfileRoutes,
+      socialRoutes = runtime.socialRoutes,
+      forumRoutes = runtime.forumRoutes,
+      governanceRoutes = runtime.governanceRoutes
+    )
+
+    assertEquals(
+      "registered handler paths",
+      handlers.map(_.path),
+      BackendRouteCatalog.RouteContexts.map(_.path)
     )
   }
 

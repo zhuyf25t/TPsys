@@ -4,6 +4,7 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
+import slaydemo.backend.identity.api.{IdentityAccountsResponse, IdentityAuthResponse, IdentityErrorResponse}
 import slaydemo.backend.identity.objects.SessionToken
 import slaydemo.backend.identity.services.{
   IdentityCurrentSessionError,
@@ -31,7 +32,7 @@ final class IdentityRoutes(service: IdentityService) {
             case Right(command) =>
               service.register(command) match {
                 case Right(account) =>
-                  jsonOk(exchange, 200, IdentityRouteJsonRenderer.renderAuth(IdentityRouteJsonRenderer.authResponse(account)))
+                  jsonOk(exchange, 200, IdentityAuthResponse.renderAccount(account))
                 case Left(IdentityRegistrationError.HandleTaken) =>
                   jsonError(exchange, 409, "handle_taken", "Handle already exists.")
               }
@@ -51,7 +52,7 @@ final class IdentityRoutes(service: IdentityService) {
             case Right(command) =>
               service.issueSession(command) match {
                 case Right(account) =>
-                  jsonOk(exchange, 200, IdentityRouteJsonRenderer.renderAuth(IdentityRouteJsonRenderer.authResponse(account)))
+                  jsonOk(exchange, 200, IdentityAuthResponse.renderAccount(account))
                 case Left(IdentitySessionError.InvalidCredentials) =>
                   jsonError(exchange, 401, "invalid_credentials", "Handle or password is incorrect.")
               }
@@ -69,7 +70,7 @@ final class IdentityRoutes(service: IdentityService) {
         case "GET" =>
           service.current(parseSessionToken(exchange)) match {
             case Right(account) =>
-              jsonOk(exchange, 200, IdentityRouteJsonRenderer.renderAuth(IdentityRouteJsonRenderer.authResponse(account)))
+              jsonOk(exchange, 200, IdentityAuthResponse.renderAccount(account))
             case Left(IdentityCurrentSessionError.MissingSession) =>
               jsonError(exchange, 401, "missing_session", "Session token is required.")
             case Left(IdentityCurrentSessionError.InvalidSession) =>
@@ -91,7 +92,7 @@ final class IdentityRoutes(service: IdentityService) {
         case "OPTIONS" =>
           HttpRouteSupport.sendEmpty(exchange, 204)
         case "GET" =>
-          HttpRouteSupport.sendJson(exchange, 200, IdentityRouteJsonRenderer.renderAccounts(service.listActiveAccounts()))
+          HttpRouteSupport.sendJson(exchange, 200, IdentityAccountsResponse.render(service.listActiveAccounts()))
         case _ =>
           jsonError(exchange, 405, "method_not_allowed", "Only GET and OPTIONS are supported.")
       }
@@ -136,7 +137,7 @@ final class IdentityRoutes(service: IdentityService) {
     HttpRouteSupport.sendJson(exchange, status, responseJson)
 
   private def jsonError(exchange: HttpExchange, status: Int, code: String, message: String): Unit =
-    HttpRouteSupport.sendJson(exchange, status, IdentityRouteJsonRenderer.renderError(code, message))
+    HttpRouteSupport.sendJson(exchange, status, IdentityErrorResponse.render(code, message))
 }
 
 object IdentityRoutes {

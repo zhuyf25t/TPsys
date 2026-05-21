@@ -4,6 +4,7 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
+import slaydemo.backend.forum.objects.apiTypes.{ForumTopicListResponse, ForumTopicWrapperResponse}
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
@@ -21,7 +22,7 @@ final class ForumRoutes(service: ForumService) {
           HttpRouteSupport.sendEmpty(exchange, 200)
         case "GET" if ForumRouteTargetParsers.isTopicsCollection(exchange.getRequestURI.getPath) =>
           val topics = service.listTopics(resolveViewerHandle(exchange))
-          HttpRouteSupport.sendJson(exchange, 200, ForumRouteJsonRenderer.renderTopics(topics))
+          HttpRouteSupport.sendJson(exchange, 200, ForumTopicListResponse.renderViews(topics))
         case "GET" =>
           ForumRouteTargetParsers.topicIdFrom(exchange.getRequestURI.getPath) match {
             case None =>
@@ -33,7 +34,7 @@ final class ForumRoutes(service: ForumService) {
                 case Some(parsedTopicId) =>
                   service.loadTopic(parsedTopicId, resolveViewerHandle(exchange)) match {
                     case Some(topic) =>
-                      HttpRouteSupport.sendJson(exchange, 200, ForumRouteJsonRenderer.renderTopicWrapper(topic))
+                      HttpRouteSupport.sendJson(exchange, 200, ForumTopicWrapperResponse.renderView(topic))
                     case None =>
                       ForumRouteHttpSupport.jsonError(exchange, 404, "topic_not_found", "topic_not_found")
                   }

@@ -9,6 +9,7 @@ enum IdentityAccountCreateResult {
 
 trait IdentityAccountRepository {
   def findByHandle(handle: PlayerHandle): Option[IdentityAccount]
+  def findPasswordHashByHandle(handle: PlayerHandle): Option[PasswordHash]
   def findBySessionToken(sessionToken: SessionToken): Option[IdentityAccount]
   def authenticate(handle: PlayerHandle, passwordHash: PasswordHash): Option[IdentityAccount]
   def authenticateLegacyPlaintext(handle: PlayerHandle, password: PlainTextPassword): Option[IdentityAccount]

@@ -1,7 +1,5 @@
 package slaydemo.backend.forum.database
 
-import java.sql.Connection
-
 import slaydemo.backend.battle.objects.EpochMillis
 import slaydemo.backend.forum.objects.{
   ForumReplyId,
@@ -48,7 +46,7 @@ final class PostgresForumRepository(
     }
 
   override def saveTopic(topic: ForumTopicRecord): ForumTopicRecord =
-    withTransaction { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresForumTopicQueries.upsertTopic(connection, topic)
       topic.replies.foreach(reply => PostgresForumTopicQueries.upsertReply(connection, topic.id, reply))
       topic
@@ -60,7 +58,7 @@ final class PostgresForumRepository(
     vote: Option[ForumVoteChoice],
     updatedAt: EpochMillis
   ): Either[ForumVoteMutationError, ForumTopicRecord] =
-    withTransaction { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       if !PostgresForumTopicQueries.topicExists(connection, topicId) then Left(ForumVoteMutationError.TopicNotFound)
       else {
         PostgresForumTopicQueries.updateTopicTimestamp(connection, topicId, updatedAt)
@@ -76,7 +74,7 @@ final class PostgresForumRepository(
     vote: Option[ForumVoteChoice],
     updatedAt: EpochMillis
   ): Either[ForumVoteMutationError, ForumTopicRecord] =
-    withTransaction { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       if !PostgresForumTopicQueries.topicExists(connection, topicId) then Left(ForumVoteMutationError.TopicNotFound)
       else if !PostgresForumTopicQueries.replyExists(connection, topicId, replyId) then Left(ForumVoteMutationError.ReplyNotFound)
       else {
@@ -85,23 +83,4 @@ final class PostgresForumRepository(
         PostgresForumRecordReader.readTopicById(connection, topicId).toRight(ForumVoteMutationError.TopicNotFound)
       }
     }
-
-  private def withTransaction[A](body: Connection => A): A = {
-    val connection = PostgresSupport.connect(settings)
-    val previousAutoCommit = connection.getAutoCommit
-    connection.setAutoCommit(false)
-    try {
-      val result = body(connection)
-      connection.commit()
-      result
-    } catch {
-      case error: Throwable =>
-        connection.rollback()
-        throw error
-    } finally {
-      connection.setAutoCommit(previousAutoCommit)
-      connection.close()
-    }
-  }
-
 }

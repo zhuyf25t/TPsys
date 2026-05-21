@@ -7,7 +7,7 @@ import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.policies.HandlePolicy
 import slaydemo.backend.social.objects.{FriendRequestDecision, FriendRequestId}
 
-private[routes] object SocialCommandParsers {
+object SocialCommandParsers {
   def parseOwner(rawQuery: String): Either[SocialRouteHandleError, PlayerHandle] =
     parseOwnerHandle(queryParams(rawQuery).get("ownerHandle"))
 
@@ -72,29 +72,29 @@ private[routes] object SocialCommandParsers {
     URLDecoder.decode(value, StandardCharsets.UTF_8)
 }
 
-private[routes] final case class SocialCreateHandles(
+final case class SocialCreateHandles(
   sourceHandle: PlayerHandle,
   targetHandle: PlayerHandle
 )
 
-private[routes] final case class SocialRespondCommand(
+final case class SocialRespondCommand(
   requestId: FriendRequestId,
   actorHandle: PlayerHandle,
   decision: FriendRequestDecision
 )
 
-private[routes] enum SocialRouteHandleError {
+enum SocialRouteHandleError {
   case Missing
   case VisitorNotAllowed
   case Invalid
 }
 
-private[routes] enum SocialRouteCreateError {
+enum SocialRouteCreateError {
   case InvalidHandles
   case VisitorNotAllowed
 }
 
-private[routes] enum SocialRouteRespondError {
+enum SocialRouteRespondError {
   case InvalidDecision
   case MissingFields
   case InvalidActorHandle

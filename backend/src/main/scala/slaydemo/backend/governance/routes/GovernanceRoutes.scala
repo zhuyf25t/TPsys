@@ -4,6 +4,12 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
+import slaydemo.backend.governance.objects.apiTypes.{
+  ContributionAdjustmentCreateResponse,
+  ContributionAdjustmentListResponse,
+  GovernanceReviewNotificationCreateResponse,
+  GovernanceReviewNotificationListResponse
+}
 import slaydemo.backend.governance.services.*
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
@@ -20,7 +26,7 @@ final class GovernanceRoutes(
           HttpRouteSupport.sendEmpty(exchange, 204)
         case "GET" =>
           val limit = GovernanceQueryParsers.parseContributionAdjustmentLimit(exchange.getRequestURI.getRawQuery)
-          HttpRouteSupport.sendJson(exchange, 200, GovernanceRouteJsonRenderer.renderAdjustments(contributionAdjustmentService.list(limit)))
+          HttpRouteSupport.sendJson(exchange, 200, ContributionAdjustmentListResponse.renderRecords(contributionAdjustmentService.list(limit)))
         case "POST" =>
           GovernanceRequestBodyParser.parseContributionAdjustmentBody(HttpRouteSupport.readRequestBody(exchange)) match {
             case Left(message) =>
@@ -35,7 +41,7 @@ final class GovernanceRoutes(
                   jsonError(exchange, 400, "invalid_delta", "invalid_delta")
                 case Right(command) =>
                   val result = contributionAdjustmentService.create(command)
-                  HttpRouteSupport.sendJson(exchange, 200, GovernanceRouteJsonRenderer.renderAdjustmentResult(result))
+                  HttpRouteSupport.sendJson(exchange, 200, ContributionAdjustmentCreateResponse.renderResult(result))
               }
           }
         case _ =>
@@ -64,7 +70,7 @@ final class GovernanceRoutes(
                 limit = query.limit
               )
           }
-          HttpRouteSupport.sendJson(exchange, 200, GovernanceRouteJsonRenderer.renderNotifications(records))
+          HttpRouteSupport.sendJson(exchange, 200, GovernanceReviewNotificationListResponse.renderRecords(records))
         case "POST" =>
           GovernanceRequestBodyParser.parseReviewNotificationBody(HttpRouteSupport.readRequestBody(exchange)) match {
             case Left(message) =>
@@ -79,7 +85,7 @@ final class GovernanceRoutes(
                   jsonError(exchange, 400, "invalid_body", "invalid_body")
                 case Right(command) =>
                   val result = notificationService.createReviewNotification(command)
-                  HttpRouteSupport.sendJson(exchange, 200, GovernanceRouteJsonRenderer.renderNotificationResult(result))
+                  HttpRouteSupport.sendJson(exchange, 200, GovernanceReviewNotificationCreateResponse.renderResult(result))
               }
           }
         case _ =>

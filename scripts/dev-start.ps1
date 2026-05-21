@@ -94,11 +94,17 @@ function Get-ProcessRole {
 
   $haystack = "$Name $CommandLine"
 
+  if ($haystack -match "runMain\s+slaydemo\.backend\.http4s\.BackendHttp4sApp") {
+    return "BackendHttp4sApp via sbt runMain"
+  }
+  if ($haystack -match "BackendHttp4sApp") {
+    return "BackendHttp4sApp"
+  }
   if ($haystack -match "runMain\s+slaydemo\.backend\.BackendApp") {
-    return "BackendApp via sbt runMain"
+    return "BackendApp legacy via sbt runMain"
   }
   if ($haystack -match "BackendApp") {
-    return "BackendApp"
+    return "BackendApp legacy"
   }
   if ($haystack -match "npm(\.cmd)?\s+run\s+backend:dev") {
     return "npm backend:dev wrapper"

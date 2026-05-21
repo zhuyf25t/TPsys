@@ -2,6 +2,7 @@ package slaydemo.backend.forum.routes
 
 import com.sun.net.httpserver.HttpExchange
 
+import slaydemo.backend.forum.objects.apiTypes.ForumTopicWrapperResponse
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
@@ -15,7 +16,7 @@ private[routes] final class ForumMutationRouteHandler(service: ForumService) {
           case Right(command) =>
             service.createTopic(command) match {
               case Right(topic) =>
-                HttpRouteSupport.sendJson(exchange, 201, ForumRouteJsonRenderer.renderTopicWrapper(topic))
+                HttpRouteSupport.sendJson(exchange, 201, ForumTopicWrapperResponse.renderView(topic))
               case Left(error) =>
                 val code = ForumRouteErrorMapper.createErrorCode(error)
                 ForumRouteHttpSupport.jsonError(exchange, ForumRouteErrorMapper.createStatusFor(error), code, code)
@@ -42,7 +43,7 @@ private[routes] final class ForumMutationRouteHandler(service: ForumService) {
               case Right(command) =>
                 service.addReply(command) match {
                   case Right(topic) =>
-                    HttpRouteSupport.sendJson(exchange, 200, ForumRouteJsonRenderer.renderTopicWrapper(topic))
+                    HttpRouteSupport.sendJson(exchange, 200, ForumTopicWrapperResponse.renderView(topic))
                   case Left(error) =>
                     val code = ForumRouteErrorMapper.mutationErrorCode(error)
                     ForumRouteHttpSupport.jsonError(exchange, ForumRouteErrorMapper.mutationStatusFor(error), code, code)
@@ -71,7 +72,7 @@ private[routes] final class ForumMutationRouteHandler(service: ForumService) {
                   case Right(command) =>
                     service.setTopicVote(command) match {
                       case Right(topic) =>
-                        HttpRouteSupport.sendJson(exchange, 200, ForumRouteJsonRenderer.renderTopicWrapper(topic))
+                        HttpRouteSupport.sendJson(exchange, 200, ForumTopicWrapperResponse.renderView(topic))
                       case Left(error) =>
                         val code = ForumRouteErrorMapper.mutationErrorCode(error)
                         ForumRouteHttpSupport.jsonError(exchange, ForumRouteErrorMapper.mutationStatusFor(error), code, code)
@@ -102,7 +103,7 @@ private[routes] final class ForumMutationRouteHandler(service: ForumService) {
                   case Right(command) =>
                     service.setReplyVote(command) match {
                       case Right(topic) =>
-                        HttpRouteSupport.sendJson(exchange, 200, ForumRouteJsonRenderer.renderTopicWrapper(topic))
+                        HttpRouteSupport.sendJson(exchange, 200, ForumTopicWrapperResponse.renderView(topic))
                       case Left(error) =>
                         val code = ForumRouteErrorMapper.mutationErrorCode(error)
                         ForumRouteHttpSupport.jsonError(exchange, ForumRouteErrorMapper.mutationStatusFor(error), code, code)

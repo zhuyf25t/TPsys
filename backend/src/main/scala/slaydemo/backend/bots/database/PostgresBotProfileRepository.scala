@@ -25,7 +25,7 @@ final class PostgresBotProfileRepository(settings: PostgresConnectionSettings) e
     }
 
   override def save(record: BotProfileRecord): BotProfileRecord = {
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """INSERT INTO bot_profiles (

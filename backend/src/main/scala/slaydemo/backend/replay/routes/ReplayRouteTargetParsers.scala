@@ -48,9 +48,12 @@ private[routes] object ReplayRouteTargetParsers {
 
   private def routePath(path: String): String = {
     val raw = Option(path).getOrElse("")
-    if raw == "/api" then "/"
-    else if raw.startsWith("/api/") then raw.stripPrefix("/api")
-    else raw
+    raw match {
+      case "/api"                  => "/"
+      case "/api/replaycatalogapi" => "/replay/catalog"
+      case value if value.startsWith("/api/") => value.stripPrefix("/api")
+      case value                   => value
+    }
   }
 
   private def decode(value: String): String =

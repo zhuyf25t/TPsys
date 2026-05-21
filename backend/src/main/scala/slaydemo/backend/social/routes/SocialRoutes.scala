@@ -6,6 +6,11 @@ import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.shared.json.JsonObjectParser
 import slaydemo.backend.shared.routes.HttpRouteSupport
+import slaydemo.backend.social.objects.apiTypes.{
+  FriendRequestCreateResponse,
+  FriendRequestListResponse,
+  FriendRequestRespondResponse
+}
 import slaydemo.backend.social.services.{
   FriendRequestCreateError,
   FriendRequestRespondError,
@@ -43,7 +48,7 @@ final class SocialRoutes(service: FriendRequestService) {
       case Left(SocialRouteHandleError.Invalid) =>
         HttpRouteSupport.sendJsonError(exchange, 400, "invalid_owner", "invalid_owner")
       case Right(ownerHandle) =>
-        HttpRouteSupport.sendJson(exchange, 200, SocialRouteJsonRenderer.renderRequests(service.list(ownerHandle)))
+        HttpRouteSupport.sendJson(exchange, 200, FriendRequestListResponse.renderRecords(service.list(ownerHandle)))
     }
 
   private def create(exchange: HttpExchange): Unit =
@@ -59,7 +64,7 @@ final class SocialRoutes(service: FriendRequestService) {
           case Right(command) =>
             service.create(command.sourceHandle, command.targetHandle) match {
               case Right(result) =>
-                HttpRouteSupport.sendJson(exchange, 200, SocialRouteJsonRenderer.renderCreateResult(result))
+                HttpRouteSupport.sendJson(exchange, 200, FriendRequestCreateResponse.renderResult(result))
               case Left(FriendRequestCreateError.InvalidHandles) =>
                 HttpRouteSupport.sendJsonError(exchange, 400, "invalid_handles", "invalid_handles")
             }
@@ -83,7 +88,7 @@ final class SocialRoutes(service: FriendRequestService) {
           case Right(command) =>
             service.respond(command.requestId, command.actorHandle, command.decision) match {
               case Right(result) =>
-                HttpRouteSupport.sendJson(exchange, 200, SocialRouteJsonRenderer.renderResponseResult(result))
+                HttpRouteSupport.sendJson(exchange, 200, FriendRequestRespondResponse.renderResult(result))
               case Left(FriendRequestRespondError.RequestNotFound) =>
                 HttpRouteSupport.sendJsonError(exchange, 404, "request_not_found", "request_not_found")
               case Left(FriendRequestRespondError.Forbidden) =>

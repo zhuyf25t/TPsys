@@ -64,7 +64,7 @@ final class PostgresFriendRequestRepository(
       case Some(existing) =>
         FriendRequestStoreCreateResult.AlreadyExists(existing)
       case None =>
-        val insertedRows = PostgresSupport.withConnection(settings) { connection =>
+        val insertedRows = PostgresSupport.withTransactionConnection(settings) { connection =>
           PostgresSupport.withStatement(
             connection,
             """INSERT INTO social_friend_requests (id, source_handle, target_handle, created_at, status, responded_at)
@@ -82,7 +82,7 @@ final class PostgresFriendRequestRepository(
   }
 
   override def save(record: FriendRequestRecord): FriendRequestRecord = {
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """INSERT INTO social_friend_requests (id, source_handle, target_handle, created_at, status, responded_at)

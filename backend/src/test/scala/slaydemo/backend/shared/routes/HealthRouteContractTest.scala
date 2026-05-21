@@ -5,7 +5,7 @@ import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 
 import com.sun.net.httpserver.HttpServer
 
-import slaydemo.backend.shared.api.{BackendAPIExchangeRouter, HealthResponse, HealthStatus}
+import slaydemo.backend.shared.api.{HealthResponse, HealthStatus}
 import slaydemo.backend.shared.objects.{ServiceName, ServicePort}
 import slaydemo.backend.shared.services.HealthService
 import slaydemo.backend.shared.storage.StorageMode
@@ -13,7 +13,7 @@ import slaydemo.backend.shared.storage.StorageMode
 object HealthRouteContractTest {
   def main(args: Array[String]): Unit = {
     getRendersHealthAndCallsService()
-    apiMessageRouteRendersHealthAndCallsService()
+    apiAliasRouteRendersHealthAndCallsService()
     headDoesNotCallService()
     unsupportedMethodIsRejected()
 
@@ -35,18 +35,21 @@ object HealthRouteContractTest {
     }
   }
 
-  private def apiMessageRouteRendersHealthAndCallsService(): Unit = {
+  private def apiAliasRouteRendersHealthAndCallsService(): Unit = {
     val service = RecordingHealthService()
 
-    withHealthApiMessageServer(service) { uri =>
-      val response = get(uri.resolve("/api/healthapi"))
+    withHealthApiAliasServer(service) { uri =>
+      val response = get(uri.resolve("/api/health"))
+      val legacyResponse = get(uri.resolve("/api/healthapi"))
 
       assertEquals("health api status", response.status, 200)
       assertContains("health api ok", response.body, """"status":"ok"""")
       assertContains("health api service", response.body, """"service":"route-health"""")
       assertContains("health api port", response.body, """"port":18080""")
       assertContains("health api storage mode", response.body, """"storageMode":"postgres"""")
-      assertEquals("health api calls service", service.currentCalls, 1)
+      assertEquals("health legacy api status", legacyResponse.status, 200)
+      assertContains("health legacy api ok", legacyResponse.body, """"status":"ok"""")
+      assertEquals("health api alias calls service", service.currentCalls, 2)
     }
   }
 
@@ -82,12 +85,11 @@ object HealthRouteContractTest {
     finally server.stop(0)
   }
 
-  private def withHealthApiMessageServer[A](service: RecordingHealthService)(run: URI => A): A = {
+  private def withHealthApiAliasServer[A](service: RecordingHealthService)(run: URI => A): A = {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
-    server.createContext(
-      "/api/healthapi",
-      exchange => BackendAPIExchangeRouter.handle(HealthAPIMessagePlanner.endpoint(service))(exchange)
-    )
+    val routes = HealthRoutes(service)
+    server.createContext("/api/health", exchange => routes.handle(exchange))
+    server.createContext("/api/healthapi", exchange => routes.handle(exchange))
     server.start()
     try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/"))
     finally server.stop(0)

@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.policies.HandlePolicy
 
-private[routes] object ForumRouteTargetParsers {
+object ForumRouteTargetParsers {
   def isTopicsCollection(path: String): Boolean =
     normalizePath(path) == "/forum/topics"
 

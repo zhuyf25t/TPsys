@@ -1,0 +1,305 @@
+package slaydemo.backend.battle.objects.apiTypes
+
+import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
+import io.circe.generic.semiauto.deriveEncoder
+
+import slaydemo.backend.battle.objects.*
+import slaydemo.backend.battle.services.BattleQueueJoinCommand
+import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
+
+enum BattleQueueJoinAPIRequestError {
+  case InvalidJsonObject
+  case InvalidRating(message: String)
+  case InvalidHandle
+  case MissingSession
+}
+
+final case class BattleQueueJoinAPIRequest(
+  handle: Option[String],
+  sessionToken: Option[String],
+  queueRequestId: Option[String],
+  rating: Option[Int],
+  avatar: Option[String],
+  skin: Option[String]
+) {
+  def toCommand: Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand] =
+    for
+      playerHandle <- PlayerHandle.forLookup(handle.getOrElse(""))
+        .toRight(BattleQueueJoinAPIRequestError.InvalidHandle)
+      session <- SessionToken.fromString(sessionToken.getOrElse(""))
+        .toRight(BattleQueueJoinAPIRequestError.MissingSession)
+    yield BattleQueueJoinCommand(
+      handle = playerHandle,
+      sessionToken = session,
+      queueRequestId = queueRequestId.flatMap(nonEmptyText).map(QueueRequestId.apply),
+      rating = rating.map(Rating.apply),
+      avatar = avatar.flatMap(nonEmptyText),
+      skin = skin.flatMap(nonEmptyText)
+    )
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
+final case class BattleQueueLeaveAPIRequest(ticketId: Option[String]) {
+  def toTicketId: Either[String, TicketId] =
+    ticketId.flatMap(nonEmptyText).map(TicketId.apply).toRight("ticketId is required.")
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
+object BattleQueueLeaveAPIRequest {
+  given Decoder[BattleQueueLeaveAPIRequest] = (cursor: HCursor) =>
+    BattleQueueJoinAPIRequest.optionalText(cursor, "ticketId").map(BattleQueueLeaveAPIRequest.apply)
+}
+
+final case class BattleQueueLeaveAPIResponse(left: Boolean)
+
+object BattleQueueLeaveAPIResponse {
+  given Encoder[BattleQueueLeaveAPIResponse] = deriveEncoder
+}
+
+final case class RealtimeRoomHeartbeatAPIRequest(
+  roomId: Option[String],
+  ticketId: Option[String],
+  handle: Option[String]
+)
+
+object RealtimeRoomHeartbeatAPIRequest {
+  given Decoder[RealtimeRoomHeartbeatAPIRequest] = (cursor: HCursor) =>
+    for
+      roomId <- BattleQueueJoinAPIRequest.optionalText(cursor, "roomId")
+      ticketId <- BattleQueueJoinAPIRequest.optionalText(cursor, "ticketId")
+      handle <- BattleQueueJoinAPIRequest.optionalText(cursor, "handle")
+    yield RealtimeRoomHeartbeatAPIRequest(roomId = roomId, ticketId = ticketId, handle = handle)
+}
+
+final case class RealtimeRoomSnapshotResponse(
+  roomId: String,
+  serverTime: Long,
+  participants: Vector[BattleQueueParticipantResponse],
+  capacity: Int,
+  phase: String,
+  finishedAt: Option[Long],
+  battleSession: Option[BattleSessionDescriptorResponse]
+)
+
+object RealtimeRoomSnapshotResponse {
+  given Encoder[RealtimeRoomSnapshotResponse] = deriveEncoder
+
+  def fromSnapshot(snapshot: RealtimeRoomSnapshot): RealtimeRoomSnapshotResponse =
+    RealtimeRoomSnapshotResponse(
+      roomId = snapshot.roomId.value,
+      serverTime = snapshot.serverTime.value,
+      participants = snapshot.participants.map(BattleQueueParticipantResponse.fromParticipant),
+      capacity = snapshot.capacity.value,
+      phase = MatchmakingRoomPhase.wireValue(snapshot.phase),
+      finishedAt = snapshot.finishedAt.map(_.value),
+      battleSession = snapshot.battleSession.map(BattleSessionDescriptorResponse.fromSession)
+    )
+}
+
+object BattleQueueJoinAPIRequest {
+  given Decoder[BattleQueueJoinAPIRequest] = (cursor: HCursor) =>
+    for
+      handle <- optionalText(cursor, "handle")
+      sessionToken <- optionalText(cursor, "sessionToken")
+      queueRequestId <- optionalText(cursor, "queueRequestId")
+      rating <- optionalInt(cursor, "rating")
+      avatar <- optionalText(cursor, "avatar")
+      skin <- optionalText(cursor, "skin")
+    yield BattleQueueJoinAPIRequest(
+      handle = handle,
+      sessionToken = sessionToken,
+      queueRequestId = queueRequestId,
+      rating = rating,
+      avatar = avatar,
+      skin = skin
+    )
+
+  def optionalText(cursor: HCursor, field: String): Decoder.Result[Option[String]] =
+    cursor.downField(field).focus match {
+      case None =>
+        Right(None)
+      case Some(value) if value.isNull =>
+        Right(None)
+      case Some(value) if value.isString =>
+        Right(value.asString)
+      case Some(value) if value.isNumber =>
+        value.asNumber.flatMap(_.toLong).map(number => Right(Some(number.toString))).getOrElse(Right(Some(value.noSpaces)))
+      case _ =>
+        Right(None)
+    }
+
+  private def optionalInt(cursor: HCursor, field: String): Decoder.Result[Option[Int]] =
+    cursor.downField(field).focus match {
+      case None =>
+        Right(None)
+      case Some(value) if value.isNull =>
+        Right(None)
+      case Some(value) if value.isString =>
+        value.asString.map(_.trim).filter(_.nonEmpty) match {
+          case None =>
+            Right(None)
+          case Some(trimmed) =>
+            trimmed.toIntOption.map(value => Right(Some(value))).getOrElse(Left(DecodingFailure(s"$field must be an integer.", cursor.history)))
+        }
+      case Some(value) if value.isNumber =>
+        value.asNumber.flatMap(_.toInt).map(value => Right(Some(value))).getOrElse(Left(DecodingFailure(s"$field must fit in a 32-bit integer.", cursor.history)))
+      case _ =>
+        Left(DecodingFailure(s"$field must be an integer.", cursor.history))
+    }
+}
+
+final case class BattleQueueParticipantResponse(
+  playerId: String,
+  handle: String,
+  joinedAt: Long,
+  lastSeen: Long,
+  rating: Option[Int],
+  avatar: Option[String],
+  skin: Option[String]
+)
+
+object BattleQueueParticipantResponse {
+  given Encoder[BattleQueueParticipantResponse] = deriveEncoder
+
+  def fromParticipant(participant: BattleQueueParticipant): BattleQueueParticipantResponse =
+    BattleQueueParticipantResponse(
+      playerId = participant.playerId.value,
+      handle = participant.handle.value,
+      joinedAt = participant.joinedAt.value,
+      lastSeen = participant.lastSeen.value,
+      rating = participant.rating.map(_.value),
+      avatar = participant.avatar,
+      skin = participant.skin
+    )
+}
+
+final case class BattleSessionRosterEntryResponse(
+  seat: Int,
+  playerId: String,
+  handle: String,
+  joinedAt: Long,
+  rating: Option[Int],
+  avatar: Option[String],
+  skin: Option[String]
+)
+
+object BattleSessionRosterEntryResponse {
+  given Encoder[BattleSessionRosterEntryResponse] = deriveEncoder
+
+  def fromEntry(entry: BattleSessionRosterEntry): BattleSessionRosterEntryResponse =
+    BattleSessionRosterEntryResponse(
+      seat = entry.seat.value,
+      playerId = entry.playerId.value,
+      handle = entry.handle.value,
+      joinedAt = entry.joinedAt.value,
+      rating = entry.rating.map(_.value),
+      avatar = entry.avatar,
+      skin = entry.skin
+    )
+}
+
+final case class BattleSessionBootstrapSeatResponse(
+  seat: Int,
+  playerId: String,
+  heroId: String,
+  handle: String,
+  displayName: String,
+  joinedAt: Long,
+  isBot: Boolean,
+  spawnPointIndex: Int,
+  rating: Option[Int],
+  avatar: Option[String],
+  skin: Option[String]
+)
+
+object BattleSessionBootstrapSeatResponse {
+  given Encoder[BattleSessionBootstrapSeatResponse] = deriveEncoder
+
+  def fromSeat(seat: BattleSessionBootstrapSeat): BattleSessionBootstrapSeatResponse =
+    BattleSessionBootstrapSeatResponse(
+      seat = seat.seat.value,
+      playerId = seat.playerId.value,
+      heroId = seat.heroId.value,
+      handle = seat.handle.value,
+      displayName = seat.displayName.value,
+      joinedAt = seat.joinedAt.value,
+      isBot = seat.isBot,
+      spawnPointIndex = seat.spawnPointIndex.value,
+      rating = seat.rating.map(_.value),
+      avatar = seat.avatar,
+      skin = seat.skin
+    )
+}
+
+final case class BattleSessionBootstrapResponse(seats: Vector[BattleSessionBootstrapSeatResponse])
+
+object BattleSessionBootstrapResponse {
+  given Encoder[BattleSessionBootstrapResponse] = deriveEncoder
+
+  def fromBootstrap(bootstrap: BattleSessionBootstrap): BattleSessionBootstrapResponse =
+    BattleSessionBootstrapResponse(bootstrap.seats.map(BattleSessionBootstrapSeatResponse.fromSeat))
+}
+
+final case class BattleSessionDescriptorResponse(
+  battleId: String,
+  startedAt: Long,
+  serverTime: Long,
+  roster: Vector[BattleSessionRosterEntryResponse],
+  capacity: Int,
+  bootstrap: Option[BattleSessionBootstrapResponse]
+)
+
+object BattleSessionDescriptorResponse {
+  given Encoder[BattleSessionDescriptorResponse] = deriveEncoder
+
+  def fromSession(session: BattleSessionDescriptor): BattleSessionDescriptorResponse =
+    BattleSessionDescriptorResponse(
+      battleId = session.battleId.value,
+      startedAt = session.startedAt.value,
+      serverTime = session.serverTime.value,
+      roster = session.roster.map(BattleSessionRosterEntryResponse.fromEntry),
+      capacity = session.capacity.value,
+      bootstrap = session.bootstrap.map(BattleSessionBootstrapResponse.fromBootstrap)
+    )
+}
+
+final case class BattleQueueSnapshotResponse(
+  ticketId: String,
+  playerId: String,
+  roomId: String,
+  createdAt: Long,
+  startsAt: Long,
+  deadline: Long,
+  serverTime: Long,
+  participants: Vector[BattleQueueParticipantResponse],
+  capacity: Int,
+  durationMs: Long,
+  phase: String,
+  finishedAt: Option[Long],
+  battleSession: Option[BattleSessionDescriptorResponse]
+)
+
+object BattleQueueSnapshotResponse {
+  given Encoder[BattleQueueSnapshotResponse] = deriveEncoder
+
+  def fromSnapshot(snapshot: BattleQueueSnapshot): BattleQueueSnapshotResponse =
+    BattleQueueSnapshotResponse(
+      ticketId = snapshot.ticketId.value,
+      playerId = snapshot.playerId.value,
+      roomId = snapshot.roomId.value,
+      createdAt = snapshot.createdAt.value,
+      startsAt = snapshot.startsAt.value,
+      deadline = snapshot.deadline.value,
+      serverTime = snapshot.serverTime.value,
+      participants = snapshot.participants.map(BattleQueueParticipantResponse.fromParticipant),
+      capacity = snapshot.capacity.value,
+      durationMs = snapshot.durationMs.value,
+      phase = MatchmakingRoomPhase.wireValue(snapshot.phase),
+      finishedAt = snapshot.finishedAt.map(_.value),
+      battleSession = snapshot.battleSession.map(BattleSessionDescriptorResponse.fromSession)
+    )
+}

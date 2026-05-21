@@ -5,14 +5,16 @@ import java.util.Locale
 import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.replay.objects.ReplayId
+import slaydemo.backend.replay.objects.apiTypes.{
+  ReplayCatalogResponse,
+  ReplayCommentWrapperResponse,
+  ReplayCommentsResponse,
+  ReplayDetailResponse
+}
 import slaydemo.backend.replay.services.ReplayService
-import slaydemo.backend.shared.api.BackendAPIEndpoint
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
 final class ReplayRoutes(service: ReplayService) {
-  def apiEndpoints: Vector[BackendAPIEndpoint] =
-    Vector(ReplayCatalogAPIMessagePlanner.endpoint(service))
-
   def handle(exchange: HttpExchange): Unit = {
     HttpRouteSupport.addCors(exchange)
 
@@ -44,7 +46,7 @@ final class ReplayRoutes(service: ReplayService) {
         HttpRouteSupport.sendJson(
           exchange,
           200,
-          ReplayRouteJsonRenderer.renderCatalog(service.list(limit), ReplayRouteTargetParsers.replayHandleFromQuery(rawQuery))
+          ReplayCatalogResponse.renderRecords(service.list(limit), ReplayRouteTargetParsers.replayHandleFromQuery(rawQuery))
         )
       case ReplayTarget.Detail(replayId) =>
         service.load(replayId) match {
@@ -52,7 +54,7 @@ final class ReplayRoutes(service: ReplayService) {
             HttpRouteSupport.sendJson(
               exchange,
               200,
-              ReplayRouteJsonRenderer.renderDetail(record, ReplayRouteTargetParsers.replayHandleFromQuery(exchange.getRequestURI.getRawQuery))
+              ReplayDetailResponse.renderRecord(record, ReplayRouteTargetParsers.replayHandleFromQuery(exchange.getRequestURI.getRawQuery))
             )
           case None         => jsonError(exchange, ReplayRouteErrorMapper.replayNotFound)
         }
@@ -62,7 +64,7 @@ final class ReplayRoutes(service: ReplayService) {
             jsonError(exchange, ReplayRouteErrorMapper.replayNotFound)
           case Some(_) =>
             val limit = ReplayRouteTargetParsers.limit(exchange.getRequestURI.getRawQuery, default = 50)
-            HttpRouteSupport.sendJson(exchange, 200, ReplayRouteJsonRenderer.renderComments(service.listComments(replayId, limit)))
+            HttpRouteSupport.sendJson(exchange, 200, ReplayCommentsResponse.renderRecords(service.listComments(replayId, limit)))
         }
       case ReplayTarget.Invalid =>
         ReplayRouteErrorMapper.target(ReplayTarget.Invalid).foreach(error => jsonError(exchange, error))
@@ -96,7 +98,7 @@ final class ReplayRoutes(service: ReplayService) {
           case Right(command) =>
             service.record(command) match {
               case Right(record) =>
-                HttpRouteSupport.sendJson(exchange, 201, ReplayRouteJsonRenderer.renderDetail(record, None))
+                HttpRouteSupport.sendJson(exchange, 201, ReplayDetailResponse.renderRecord(record, None))
               case Left(error) =>
                 jsonError(exchange, ReplayRouteErrorMapper.record(error))
             }
@@ -116,7 +118,7 @@ final class ReplayRoutes(service: ReplayService) {
           case Right(command) =>
             service.addComment(command) match {
               case Right(comment) =>
-                HttpRouteSupport.sendJson(exchange, 201, ReplayRouteJsonRenderer.renderComment(comment))
+                HttpRouteSupport.sendJson(exchange, 201, ReplayCommentWrapperResponse.renderRecord(comment))
               case Left(error) =>
                 jsonError(exchange, ReplayRouteErrorMapper.comment(error))
             }

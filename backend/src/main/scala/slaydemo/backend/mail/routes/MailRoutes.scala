@@ -4,6 +4,7 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
+import slaydemo.backend.mail.objects.apiTypes.{MailListResponse, MailReadResponse}
 import slaydemo.backend.mail.services.{MailReadError, MailService}
 import slaydemo.backend.shared.json.JsonObjectParser
 import slaydemo.backend.shared.routes.HttpRouteSupport
@@ -25,7 +26,7 @@ final class MailRoutes(service: MailService) {
             case Left(MailRouteOwnerError.InvalidOwner) =>
               HttpRouteSupport.sendJsonError(exchange, 400, "invalid_owner", "invalid_owner")
             case Right(ownerHandle) =>
-              HttpRouteSupport.sendJson(exchange, 200, MailRouteJsonRenderer.renderMails(service.list(ownerHandle)))
+              HttpRouteSupport.sendJson(exchange, 200, MailListResponse.renderRecords(service.list(ownerHandle)))
           }
         case _ =>
           HttpRouteSupport.sendJsonError(exchange, 405, "method_not_allowed", "Method is not allowed.")
@@ -59,7 +60,7 @@ final class MailRoutes(service: MailService) {
                 case Right(command) =>
                   service.markRead(command.ownerHandle, command.mailId) match {
                     case Right(_) =>
-                      HttpRouteSupport.sendJson(exchange, 200, """{"ok":true}""")
+                      HttpRouteSupport.sendJson(exchange, 200, MailReadResponse.renderOk)
                     case Left(MailReadError.MailNotFound) =>
                       HttpRouteSupport.sendJsonError(exchange, 404, "mail_not_found", "mail_not_found")
                   }

@@ -1,5 +1,8 @@
 package slaydemo.backend.shared.api
 
+import io.circe.Encoder
+import io.circe.syntax.*
+
 import slaydemo.backend.shared.objects.{ServiceName, ServicePort}
 import slaydemo.backend.shared.storage.StorageMode
 
@@ -20,3 +23,38 @@ final case class HealthResponse(
   port: ServicePort,
   storageMode: StorageMode
 )
+
+final case class HealthErrorResponse(error: String)
+
+object HealthErrorResponse {
+  val MethodNotAllowed: HealthErrorResponse =
+    HealthErrorResponse(error = "method_not_allowed")
+}
+
+object HealthJsonCodec {
+  given Encoder[HealthStatus] =
+    Encoder.encodeString.contramap(HealthStatus.wireValue)
+
+  given Encoder[ServiceName] =
+    Encoder.encodeString.contramap(_.value)
+
+  given Encoder[ServicePort] =
+    Encoder.encodeInt.contramap(_.value)
+
+  given Encoder[StorageMode] =
+    Encoder.encodeString.contramap(StorageMode.wireValue)
+
+  given Encoder[HealthResponse] =
+    Encoder.forProduct4("status", "service", "port", "storageMode")(response =>
+      (response.status, response.service, response.port, response.storageMode)
+    )
+
+  given Encoder[HealthErrorResponse] =
+    Encoder.forProduct1("error")(_.error)
+
+  def render(response: HealthResponse): String =
+    response.asJson.noSpaces
+
+  def renderError(response: HealthErrorResponse): String =
+    response.asJson.noSpaces
+}

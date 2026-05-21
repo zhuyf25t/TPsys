@@ -4,7 +4,7 @@ import slaydemo.backend.governance.objects.*
 import slaydemo.backend.governance.services.{ContributionAdjustmentCommand, GovernanceReviewNotificationCommand}
 import slaydemo.backend.shared.policies.HandlePolicy
 
-private[routes] object GovernanceCommandParsers {
+object GovernanceCommandParsers {
   def parseContributionAdjustmentCommand(
     request: ContributionAdjustmentRequest
   ): Either[ContributionAdjustmentCommandParseError, ContributionAdjustmentCommand] =
@@ -69,13 +69,13 @@ private[routes] object GovernanceCommandParsers {
     if value.isEmpty then "Visitor" else value
 }
 
-private[routes] enum ContributionAdjustmentCommandParseError {
+enum ContributionAdjustmentCommandParseError {
   case InvalidActor
   case InvalidTarget
   case InvalidDelta
 }
 
-private[routes] enum GovernanceReviewNotificationCommandParseError {
+enum GovernanceReviewNotificationCommandParseError {
   case InvalidKind
   case InvalidTarget
   case InvalidBody

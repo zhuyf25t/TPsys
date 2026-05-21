@@ -3,7 +3,7 @@ package slaydemo.backend.identity.routes
 import slaydemo.backend.identity.objects.{PlainTextPassword, PlayerHandle, SkinId}
 import slaydemo.backend.identity.services.{IdentityRegistrationCommand, IdentitySessionCommand}
 
-private[routes] object IdentityCommandParsers {
+object IdentityCommandParsers {
   def parseRegistrationCommand(
     fields: Map[String, String]
   ): Either[IdentityRegistrationCommandParseError, IdentityRegistrationCommand] =
@@ -34,12 +34,12 @@ private[routes] object IdentityCommandParsers {
     )
 }
 
-private[routes] enum IdentityRegistrationCommandParseError {
+enum IdentityRegistrationCommandParseError {
   case InvalidHandle
   case InvalidPassword
   case InvalidSkin
 }
 
-private[routes] enum IdentitySessionCommandParseError {
+enum IdentitySessionCommandParseError {
   case InvalidCredentials
 }

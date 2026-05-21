@@ -11,7 +11,7 @@ import slaydemo.backend.identity.database.{
   InMemoryIdentityAccountRepository
 }
 import slaydemo.backend.identity.objects.{AccountStatus, DisplayName, IdentityAccount, PasswordHash, PlainTextPassword, PlayerHandle, SessionToken, SkinId}
-import slaydemo.backend.identity.ports.{IdentityIdGenerator, SessionTokenGenerator, Sha256PasswordHasher}
+import slaydemo.backend.identity.ports.{IdentityIdGenerator, Pbkdf2PasswordHasher, SessionTokenGenerator, Sha256PasswordHasher}
 import slaydemo.backend.identity.services.{
   DefaultIdentityService,
   IdentityCurrentSessionError,
@@ -33,6 +33,7 @@ object IdentityServiceContractTest {
     builtinAdminSession(identity)
     activeAccountSummariesIncludeAdmin(identity)
     legacyPlaintextPasswordLoginUpgradesToHash()
+    sha256PasswordLoginUpgradesToPbkdf2()
     fileRepositoryPersistsHashAndSessions()
     fileRepositoryUpgradesLegacyPlaintext()
 
@@ -135,6 +136,39 @@ object IdentityServiceContractTest {
       .fold(error => fail(s"upgraded hash session failed: $error"), identity => identity)
 
     assertEquals("upgraded account authenticates through hash without another legacy check", repository.legacyAuthenticationCount, 2)
+  }
+
+  private def sha256PasswordLoginUpgradesToPbkdf2(): Unit = {
+    val repository = new InMemoryIdentityAccountRepository()
+    val handle = PlayerHandle("ShaUser")
+    val password = PlainTextPassword.unsafe("sha-password")
+    val legacyHash = Sha256PasswordHasher().hash(password)
+    val account = IdentityAccount.active(
+      userId = UserId("sha-user-id"),
+      handle = handle,
+      skinId = SkinId.Blue,
+      sessionToken = None
+    )
+    val identity = DefaultIdentityService(
+      repository = repository,
+      identityIdGenerator = DeterministicIdentityIdGenerator,
+      sessionTokenGenerator = DeterministicSessionTokenGenerator,
+      passwordHasher = Pbkdf2PasswordHasher()
+    )
+
+    assertEquals(
+      "sha user is inserted",
+      repository.create(account, legacyHash),
+      IdentityAccountCreateResult.Created(account)
+    )
+
+    identity
+      .issueSession(IdentitySessionCommand(handle, password))
+      .fold(error => fail(s"sha session failed: $error"), identity => identity)
+
+    val upgradedHash = repository.findPasswordHashByHandle(handle).getOrElse(fail("missing upgraded hash"))
+    assertEquals("sha hash is upgraded to pbkdf2", Pbkdf2PasswordHasher.isStructuredHash(upgradedHash), true)
+    assertEquals("upgraded hash differs from legacy sha256", upgradedHash.value == legacyHash.value, false)
   }
 
   private def fileRepositoryPersistsHashAndSessions(): Unit = {
@@ -348,6 +382,9 @@ object IdentityServiceContractTest {
 
     override def findByHandle(handle: PlayerHandle): Option[IdentityAccount] =
       Option.when(handle.key == this.handle.key)(account)
+
+    override def findPasswordHashByHandle(handle: PlayerHandle): Option[PasswordHash] =
+      if handle.key == this.handle.key then passwordHash else None
 
     override def findBySessionToken(sessionToken: SessionToken): Option[IdentityAccount] =
       Option.when(account.sessionToken.contains(sessionToken))(account)

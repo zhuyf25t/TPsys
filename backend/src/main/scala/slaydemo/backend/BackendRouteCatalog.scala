@@ -6,6 +6,15 @@ private[backend] object BackendRouteCatalog {
   val BaseRouteContexts: Vector[BackendRouteContext] =
     Vector(
       "/health",
+      "/battle/queue/status",
+      "/battle/queue/join",
+      "/battle/queue/leave",
+      "/battle/rooms/snapshot",
+      "/battle/rooms/heartbeat",
+      "/battle/state",
+      "/battle/state/stream",
+      "/battle/command",
+      "/battle/results",
       "/identity/register",
       "/identity/session",
       "/identity/me",
@@ -22,11 +31,11 @@ private[backend] object BackendRouteCatalog {
       "/governance/admin-notifications"
     ).map(BackendRouteContext.apply)
 
-  val ApiMessageRouteContexts: Vector[BackendRouteContext] =
+  val CompatibilityRouteContexts: Vector[BackendRouteContext] =
     Vector(
       "/api/healthapi",
-      "/api/battlequeuejoinapi",
       "/api/battlequeuestatusapi",
+      "/api/battlequeuejoinapi",
       "/api/battlequeueleaveapi",
       "/api/battleroomsnapshotapi",
       "/api/battleroomheartbeatapi",
@@ -38,5 +47,7 @@ private[backend] object BackendRouteCatalog {
     ).map(BackendRouteContext.apply)
 
   val RouteContexts: Vector[BackendRouteContext] =
-    BaseRouteContexts ++ BaseRouteContexts.map(context => BackendRouteContext(s"/api${context.path}")) ++ ApiMessageRouteContexts
+    BaseRouteContexts ++
+      BaseRouteContexts.map(context => BackendRouteContext(s"/api${context.path}")) ++
+      CompatibilityRouteContexts
 }

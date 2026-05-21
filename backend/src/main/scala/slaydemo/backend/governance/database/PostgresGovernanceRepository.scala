@@ -34,7 +34,7 @@ final class PostgresGovernanceRepository(
     }
 
   override def saveAdjustment(record: ContributionAdjustmentRecord): ContributionAdjustmentRecord = {
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """INSERT INTO governance_contribution_adjustments (
@@ -83,7 +83,7 @@ final class PostgresGovernanceRepository(
   override def saveReviewNotification(
     record: GovernanceReviewNotificationRecord
   ): GovernanceReviewNotificationRecord = {
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """INSERT INTO governance_review_notifications (

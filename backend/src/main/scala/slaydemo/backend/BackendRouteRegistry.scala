@@ -9,7 +9,6 @@ import slaydemo.backend.governance.routes.GovernanceRoutes
 import slaydemo.backend.identity.routes.IdentityRoutes
 import slaydemo.backend.mail.routes.MailRoutes
 import slaydemo.backend.replay.routes.ReplayRoutes
-import slaydemo.backend.shared.api.BackendAPIExchangeRouter
 import slaydemo.backend.shared.routes.HealthRoutes
 import slaydemo.backend.social.routes.SocialRoutes
 
@@ -30,6 +29,15 @@ private[backend] object BackendRouteRegistry {
   ): Vector[BackendRouteHandler] = {
     val baseHandlers = Vector(
       BackendRouteHandler("/health", healthRoutes.handle),
+      BackendRouteHandler("/battle/queue/status", battleRoutes.status),
+      BackendRouteHandler("/battle/queue/join", battleRoutes.join),
+      BackendRouteHandler("/battle/queue/leave", battleRoutes.leave),
+      BackendRouteHandler("/battle/rooms/snapshot", battleRoutes.rooms),
+      BackendRouteHandler("/battle/rooms/heartbeat", battleRoutes.rooms),
+      BackendRouteHandler("/battle/state", battleRoutes.state),
+      BackendRouteHandler("/battle/state/stream", battleRoutes.state),
+      BackendRouteHandler("/battle/command", battleRoutes.commands),
+      BackendRouteHandler("/battle/results", battleResultRoutes.handle),
       BackendRouteHandler("/identity/register", identityRoutes.register),
       BackendRouteHandler("/identity/session", identityRoutes.issueSession),
       BackendRouteHandler("/identity/me", identityRoutes.current),
@@ -45,18 +53,21 @@ private[backend] object BackendRouteRegistry {
       BackendRouteHandler("/governance/contribution-adjustments", governanceRoutes.contributionAdjustments),
       BackendRouteHandler("/governance/admin-notifications", governanceRoutes.adminNotifications)
     )
-    val apiMessageEndpoints =
-      healthRoutes.apiEndpoints ++
-        battleRoutes.apiEndpoints ++
-        battleResultRoutes.apiEndpoints ++
-        replayRoutes.apiEndpoints
+    val compatibilityHandlers = Vector(
+      BackendRouteHandler("/api/healthapi", healthRoutes.handle),
+      BackendRouteHandler("/api/battlequeuestatusapi", battleRoutes.status),
+      BackendRouteHandler("/api/battlequeuejoinapi", battleRoutes.join),
+      BackendRouteHandler("/api/battlequeueleaveapi", battleRoutes.leave),
+      BackendRouteHandler("/api/battleroomsnapshotapi", battleRoutes.rooms),
+      BackendRouteHandler("/api/battleroomheartbeatapi", battleRoutes.rooms),
+      BackendRouteHandler("/api/battlestatereadapi", battleRoutes.state),
+      BackendRouteHandler("/api/battlestatestreamapi", battleRoutes.state),
+      BackendRouteHandler("/api/battlecommandapi", battleRoutes.commands),
+      BackendRouteHandler("/api/battleresultsapi", battleResultRoutes.handle),
+      BackendRouteHandler("/api/replaycatalogapi", replayRoutes.handle)
+    )
 
-    val apiMessageHandlers =
-      apiMessageEndpoints.map { endpoint =>
-        BackendRouteHandler(s"/api/${endpoint.messageKey}", BackendAPIExchangeRouter.handle(endpoint))
-      }
-
-    baseHandlers ++ baseHandlers.map(handler => handler.copy(path = s"/api${handler.path}")) ++ apiMessageHandlers
+    baseHandlers ++ baseHandlers.map(handler => handler.copy(path = s"/api${handler.path}")) ++ compatibilityHandlers
   }
 
   def register(server: HttpServer, handlers: Vector[BackendRouteHandler]): Unit = {

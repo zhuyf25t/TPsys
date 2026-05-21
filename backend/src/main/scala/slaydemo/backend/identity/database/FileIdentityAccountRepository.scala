@@ -30,6 +30,12 @@ final class FileIdentityAccountRepository(storagePath: Path) extends IdentityAcc
       activeRecord(handle).map(_.account)
     }
 
+  override def findPasswordHashByHandle(handle: PlayerHandle): Option[PasswordHash] =
+    lock.synchronized {
+      activeRecord(handle)
+        .map(stored => PasswordHash.unsafe(stored.passwordSecret))
+    }
+
   override def findBySessionToken(sessionToken: SessionToken): Option[IdentityAccount] =
     lock.synchronized {
       recordsByHandle.values.collectFirst {
@@ -48,6 +54,7 @@ final class FileIdentityAccountRepository(storagePath: Path) extends IdentityAcc
     lock.synchronized {
       activeRecord(handle)
         .filter(stored => !looksLikeSha256Hash(stored.passwordSecret))
+        .filter(stored => !looksLikeStructuredHash(stored.passwordSecret))
         .filter(stored => stored.passwordSecret == password.value)
         .map(_.account)
     }
@@ -119,6 +126,9 @@ final class FileIdentityAccountRepository(storagePath: Path) extends IdentityAcc
         (char >= 'a' && char <= 'f') ||
         (char >= 'A' && char <= 'F')
     }
+
+  private def looksLikeStructuredHash(value: String): Boolean =
+    value.startsWith("$pbkdf2-sha256$")
 }
 
 object FileIdentityAccountRepository {

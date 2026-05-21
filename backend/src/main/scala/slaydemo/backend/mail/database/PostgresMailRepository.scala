@@ -26,7 +26,7 @@ final class PostgresMailRepository(settings: PostgresConnectionSettings) extends
     }
 
   override def save(record: MailRecord): MailRecord = {
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """INSERT INTO mails (
@@ -61,7 +61,7 @@ final class PostgresMailRepository(settings: PostgresConnectionSettings) extends
   }
 
   override def markRead(owner: PlayerHandle, mailId: MailId): Option[MailRecord] =
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """UPDATE mails

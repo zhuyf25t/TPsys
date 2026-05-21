@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 
 import slaydemo.backend.governance.objects.{GovernanceReviewKind, GovernanceReviewTargetType}
 
-private[routes] object GovernanceQueryParsers {
+object GovernanceQueryParsers {
   def parseContributionAdjustmentLimit(rawQuery: String): Int =
     queryParams(rawQuery).get("limit").flatMap(_.toIntOption).getOrElse(500)
 
@@ -45,13 +45,13 @@ private[routes] object GovernanceQueryParsers {
     URLDecoder.decode(value, StandardCharsets.UTF_8)
 }
 
-private[routes] final case class GovernanceNotificationListQuery(
+final case class GovernanceNotificationListQuery(
   kind: Option[GovernanceReviewKind],
   targetType: Option[GovernanceReviewTargetType],
   limit: Int
 )
 
-private[routes] enum GovernanceNotificationListQueryParseResult {
+enum GovernanceNotificationListQueryParseResult {
   case Query(query: GovernanceNotificationListQuery)
   case EmptyResults
 }

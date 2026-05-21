@@ -11,7 +11,7 @@ final class PostgresBattleResultRepository(settings: PostgresConnectionSettings)
   PostgresBattleResultSchema.initialize(settings)
 
   override def save(record: BattleResultRecord): BattleResultRecord = {
-    PostgresSupport.withConnection(settings) { connection =>
+    PostgresSupport.withTransactionConnection(settings) { connection =>
       PostgresSupport.withStatement(
         connection,
         """INSERT INTO battle_results (

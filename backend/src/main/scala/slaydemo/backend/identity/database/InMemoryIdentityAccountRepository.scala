@@ -24,6 +24,9 @@ final class InMemoryIdentityAccountRepository extends IdentityAccountRepository 
   override def findByHandle(handle: PlayerHandle): Option[IdentityAccount] =
     Option(records.get(handle.key)).map(_.account)
 
+  override def findPasswordHashByHandle(handle: PlayerHandle): Option[PasswordHash] =
+    Option(records.get(handle.key)).map(_.passwordHash)
+
   override def findBySessionToken(sessionToken: SessionToken): Option[IdentityAccount] =
     records
       .values()

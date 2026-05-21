@@ -11,9 +11,15 @@ import slaydemo.backend.identity.objects.PlayerHandle
 private[routes] object BattleRoomRouteParsers {
   def routePath(path: String): String = {
     val raw = Option(path).getOrElse("")
-    if raw == "/api" then "/"
-    else if raw.startsWith("/api/") then raw.stripPrefix("/api")
-    else raw
+    raw match {
+      case "/api"                         => "/"
+      case "/api/battleroomsnapshotapi"   => "/battle/rooms/snapshot"
+      case "/api/battleroomheartbeatapi"  => "/battle/rooms/heartbeat"
+      case "/api/battlestatereadapi"      => "/battle/state"
+      case "/api/battlestatestreamapi"    => "/battle/state/stream"
+      case value if value.startsWith("/api/") => value.stripPrefix("/api")
+      case value                          => value
+    }
   }
 
   def queryParams(rawQuery: String): Map[String, String] =

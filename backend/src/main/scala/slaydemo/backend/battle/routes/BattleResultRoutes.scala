@@ -5,13 +5,9 @@ import java.util.Locale
 import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
-import slaydemo.backend.shared.api.BackendAPIEndpoint
 import slaydemo.backend.shared.routes.HttpRouteSupport
 
 final class BattleResultRoutes(service: BattleResultService) {
-  def apiEndpoints: Vector[BackendAPIEndpoint] =
-    Vector(BattleResultsAPIMessagePlanner.endpoint(service))
-
   def handle(exchange: HttpExchange): Unit = {
     HttpRouteSupport.addCors(exchange)
 
@@ -36,14 +32,14 @@ final class BattleResultRoutes(service: BattleResultService) {
   private def handleList(exchange: HttpExchange): Unit = {
     BattleResultCommandParsers.parseListRequest(exchange.getRequestURI.getRawQuery) match {
       case BattleResultListRequestParseResult.EmptyResults =>
-        HttpRouteSupport.sendJson(exchange, 200, BattleResultRouteJsonRenderer.renderRecords(Vector.empty))
+        HttpRouteSupport.sendJson(exchange, 200, BattleResultApiCodec.renderRecords(Vector.empty))
       case BattleResultListRequestParseResult.Query(request) =>
         val results = service.list(
           handle = request.handle,
           battleId = request.battleId,
           limit = request.limit
         )
-        HttpRouteSupport.sendJson(exchange, 200, BattleResultRouteJsonRenderer.renderRecords(results))
+        HttpRouteSupport.sendJson(exchange, 200, BattleResultApiCodec.renderRecords(results))
     }
   }
 
@@ -56,7 +52,7 @@ final class BattleResultRoutes(service: BattleResultService) {
           case Right(command) =>
             service.record(command) match {
               case Right(record) =>
-                HttpRouteSupport.sendJson(exchange, 201, BattleResultRouteJsonRenderer.renderRecord(record))
+                HttpRouteSupport.sendJson(exchange, 201, BattleResultApiCodec.renderRecord(record))
               case Left(BattleResultRecordError.InvalidHandle) =>
                 jsonError(exchange, 400, "invalid_handle", "invalid_handle")
               case Left(BattleResultRecordError.VisitorNotAllowed) =>

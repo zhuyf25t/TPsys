@@ -7,7 +7,7 @@ import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.MailId
 import slaydemo.backend.shared.policies.HandlePolicy
 
-private[routes] object MailCommandParsers {
+object MailCommandParsers {
   def parseOwner(rawQuery: String): Either[MailRouteOwnerError, PlayerHandle] =
     parseOwnerHandle(queryParams(rawQuery).get("ownerHandle"))
 
@@ -49,18 +49,18 @@ private[routes] object MailCommandParsers {
     URLDecoder.decode(value, StandardCharsets.UTF_8)
 }
 
-private[routes] final case class MailReadCommand(
+final case class MailReadCommand(
   ownerHandle: PlayerHandle,
   mailId: MailId
 )
 
-private[routes] enum MailRouteOwnerError {
+enum MailRouteOwnerError {
   case MissingOwner
   case VisitorNotAllowed
   case InvalidOwner
 }
 
-private[routes] enum MailRouteReadError {
+enum MailRouteReadError {
   case MissingOwner
   case VisitorNotAllowed
   case InvalidOwner

@@ -1,6 +1,6 @@
 package slaydemo.backend.governance.routes
 
-private[routes] object GovernanceRequestBodyParser {
+object GovernanceRequestBodyParser {
   def parseContributionAdjustmentBody(rawBody: String): Either[String, ContributionAdjustmentRequest] = {
     val body = Option(rawBody).getOrElse("").trim
     if body.isEmpty || !body.startsWith("{") || !body.endsWith("}") then Left("Request body must be a JSON object.")
@@ -76,7 +76,7 @@ private[routes] object GovernanceRequestBodyParser {
     "\"([^\"]+)\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"".r
 }
 
-private[routes] final case class ContributionAdjustmentRequest(
+final case class ContributionAdjustmentRequest(
   actorHandle: String,
   targetHandle: String,
   delta: Int,
@@ -85,7 +85,7 @@ private[routes] final case class ContributionAdjustmentRequest(
   sourcePath: String
 )
 
-private[routes] final case class GovernanceReviewNotificationRequest(
+final case class GovernanceReviewNotificationRequest(
   actorHandle: String,
   kind: String,
   targetType: String,

@@ -2,7 +2,7 @@ package slaydemo.backend.identity.routes
 
 import slaydemo.backend.identity.objects.SessionToken
 
-private[routes] object IdentitySessionTokenParser {
+object IdentitySessionTokenParser {
   def parse(
     authorization: Option[String],
     xSessionToken: Option[String]

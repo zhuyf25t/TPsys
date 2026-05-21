@@ -2,7 +2,7 @@ package slaydemo.backend.forum.routes
 
 import slaydemo.backend.shared.json.{JsonObjectParseError, JsonObjectParser}
 
-private[routes] object ForumRequestBodyParser {
+object ForumRequestBodyParser {
   def parse(rawBody: String): Either[String, ForumRequestFields] =
     JsonObjectParser.parseNullableStringFields(rawBody) match {
       case Right(parsedFields) =>
@@ -22,7 +22,7 @@ private[routes] object ForumRequestBodyParser {
     }
 }
 
-private[routes] final case class ForumRequestFields(fields: Map[String, String], voteSeen: Boolean) {
+final case class ForumRequestFields(fields: Map[String, String], voteSeen: Boolean) {
   def stringValue(name: String): String =
     fields.getOrElse(name, "")
 }

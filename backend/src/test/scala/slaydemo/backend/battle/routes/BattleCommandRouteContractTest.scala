@@ -8,7 +8,6 @@ import com.sun.net.httpserver.HttpServer
 import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandRequest}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
-import slaydemo.backend.shared.api.BackendAPIExchangeRouter
 
 object BattleCommandRouteContractTest {
   private val ValidCommandJson: String =
@@ -144,10 +143,9 @@ object BattleCommandRouteContractTest {
   private def withCommandServer[A](stateService: RecordingBattleStateService)(run: URI => A): A = {
     val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
     val routes = BattleRoutes(UnusedBattleQueueService, stateService, UnusedJoinAuthorizationService)
-    val endpoint = routes.apiEndpoints.find(_.messageKey == "battlecommandapi").get
-    server.createContext("/api/battlecommandapi", BackendAPIExchangeRouter.handle(endpoint))
+    server.createContext("/api/battle/command", exchange => routes.commands(exchange))
     server.start()
-    try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/api/battlecommandapi"))
+    try run(URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/api/battle/command"))
     finally server.stop(0)
   }
 

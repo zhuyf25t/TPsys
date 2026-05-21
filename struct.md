@@ -172,7 +172,7 @@ BackendHttp4sApp.run
 
 | 位置 | 当前内容 | 问题 |
 | --- | --- | --- |
-| `battle/api` | `BattleCommandRequest`、`BattleCommandAccepted`、`BattleCommandVector`、少量 queue/state API case class。 | 被 service 和 tests 使用，不是废代码；但名字像全局 API 层。 |
+| `battle/api` | `BattleCommandRequest`、`BattleCommandAccepted`、`BattleCommandVector`。 | 被 service 和 tests 使用，不是废代码；但名字像全局 API 层。 |
 | `battle/objects/apiTypes` | request parser、response DTO、route target、error enum。 | 更符合当前“domain 内 apiTypes colocation”的方向。 |
 
 这两个位置不是完全重复，但边界不够清晰。后续应选择一种策略：
@@ -181,6 +181,8 @@ BackendHttp4sApp.run
 - 或把其中稳定 DTO 下沉/合并到 `battle/objects/apiTypes`。
 
 这一步不能直接删除，因为 `BattleStateService`、battle runtime test、http4s command route 都在使用 `BattleCommandRequest`。
+
+已清理：`BattleQueueApi.scala` 和 `BattleStateApi.scala` 只包含无引用旧 request/view case class，当前分支已经删除。queue、room、state 的当前 HTTP contract 都由 `battle/objects/apiTypes` 承接。
 
 ### 4.3 兼容旧前端的 path alias 增加了复杂度
 

@@ -8,7 +8,7 @@ import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.bots.objects.apiTypes.{BotProfileApiErrorCode, BotProfileRequestTarget, BotProfilesResponse}
 import slaydemo.backend.bots.services.BotProfileService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, corsOk, errorResponse, requestPath, typedApiError, withCors}
 
 private[http4s] object BotProfileHttp4sRoutes {
   def routes(service: BotProfileService): HttpRoutes[IO] =
@@ -22,7 +22,7 @@ private[http4s] object BotProfileHttp4sRoutes {
           case Method.GET =>
             blocking(service.list()).flatMap(records => Ok(BotProfilesResponse.fromRecords(records).asJson).map(withCors))
           case _ =>
-            IO.pure(apiError(botProfileApiError(BotProfileApiErrorCode.MethodNotAllowed)))
+            errorResponse(botProfileApiError(BotProfileApiErrorCode.MethodNotAllowed))
         }
     }
 

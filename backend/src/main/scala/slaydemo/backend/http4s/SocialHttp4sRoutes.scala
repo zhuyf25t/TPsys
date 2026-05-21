@@ -8,8 +8,10 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.social.objects.apiTypes.{
+  FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,
   FriendRequestListResponse,
+  FriendRequestRespondApiRequest,
   FriendRequestRespondResponse,
   SocialCommandParsers,
   SocialRouteCreateError,
@@ -83,11 +85,11 @@ private[http4s] object SocialHttp4sRoutes {
     }
 
   private def create(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
-    readStringFields(request).flatMap {
+    readCreateRequest(request).flatMap {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
-      case Right(fields) =>
-        SocialCommandParsers.parseCreateHandles(fields) match {
+      case Right(createRequest) =>
+        SocialCommandParsers.parseCreateHandles(createRequest) match {
           case Left(error) =>
             IO.pure(apiError(createApiError(error)))
           case Right(command) =>
@@ -101,11 +103,11 @@ private[http4s] object SocialHttp4sRoutes {
     }
 
   private def respond(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
-    readStringFields(request).flatMap {
+    readRespondRequest(request).flatMap {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
-      case Right(fields) =>
-        SocialCommandParsers.parseRespondCommand(fields) match {
+      case Right(respondRequest) =>
+        SocialCommandParsers.parseRespondCommand(respondRequest) match {
           case Left(error) =>
             IO.pure(apiError(respondParseApiError(error)))
           case Right(command) =>
@@ -120,9 +122,15 @@ private[http4s] object SocialHttp4sRoutes {
         }
     }
 
-  private def readStringFields(request: Request[IO]): IO[Either[String, Map[String, String]]] =
+  private def readCreateRequest(request: Request[IO]): IO[Either[String, FriendRequestCreateApiRequest]] =
     request
-      .as[Map[String, String]]
+      .as[FriendRequestCreateApiRequest]
+      .attempt
+      .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
+
+  private def readRespondRequest(request: Request[IO]): IO[Either[String, FriendRequestRespondApiRequest]] =
+    request
+      .as[FriendRequestRespondApiRequest]
       .attempt
       .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
 

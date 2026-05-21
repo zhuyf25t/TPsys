@@ -11,24 +11,24 @@ object SocialCommandParsers {
   def parseOwner(rawQuery: String): Either[SocialRouteHandleError, PlayerHandle] =
     parseOwnerHandle(queryParams(rawQuery).get("ownerHandle"))
 
-  def parseCreateHandles(fields: Map[String, String]): Either[SocialRouteCreateError, SocialCreateHandles] =
-    parseCreateHandle(fields.get("sourceHandle")) match {
+  def parseCreateHandles(request: FriendRequestCreateApiRequest): Either[SocialRouteCreateError, SocialCreateHandles] =
+    parseCreateHandle(request.sourceHandle) match {
       case Left(error) =>
         Left(error)
       case Right(source) =>
-        parseCreateHandle(fields.get("targetHandle")).map(target => SocialCreateHandles(source, target))
+        parseCreateHandle(request.targetHandle).map(target => SocialCreateHandles(source, target))
     }
 
-  def parseRespondCommand(fields: Map[String, String]): Either[SocialRouteRespondError, SocialRespondCommand] =
-    FriendRequestDecision.fromWire(fields.getOrElse("decision", "")) match {
+  def parseRespondCommand(request: FriendRequestRespondApiRequest): Either[SocialRouteRespondError, SocialRespondCommand] =
+    FriendRequestDecision.fromWire(request.decision.getOrElse("")) match {
       case None =>
         Left(SocialRouteRespondError.InvalidDecision)
       case Some(decision) =>
-        parseRequestId(fields.get("requestId")) match {
+        parseRequestId(request.requestId) match {
           case Left(error) =>
             Left(error)
           case Right(requestId) =>
-            parseRespondActor(fields.get("actorHandle")).map(actor => SocialRespondCommand(requestId, actor, decision))
+            parseRespondActor(request.actorHandle).map(actor => SocialRespondCommand(requestId, actor, decision))
         }
     }
 

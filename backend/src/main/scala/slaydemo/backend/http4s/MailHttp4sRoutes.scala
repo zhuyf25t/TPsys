@@ -10,6 +10,7 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailCommandParsers,
   MailListResponse,
+  MailReadApiRequest,
   MailReadResponse,
   MailRouteOwnerError,
   MailRouteReadError
@@ -71,11 +72,11 @@ private[http4s] object MailHttp4sRoutes {
     }
 
   private def markRead(request: Request[IO], service: MailService): IO[Response[IO]] =
-    readStringFields(request).flatMap {
+    readReadRequest(request).flatMap {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
-      case Right(fields) =>
-        MailCommandParsers.parseReadCommand(fields) match {
+      case Right(readRequest) =>
+        MailCommandParsers.parseReadCommand(readRequest) match {
           case Left(error) =>
             IO.pure(apiError(readApiError(error)))
           case Right(command) =>
@@ -88,9 +89,9 @@ private[http4s] object MailHttp4sRoutes {
         }
     }
 
-  private def readStringFields(request: Request[IO]): IO[Either[String, Map[String, String]]] =
+  private def readReadRequest(request: Request[IO]): IO[Either[String, MailReadApiRequest]] =
     request
-      .as[Map[String, String]]
+      .as[MailReadApiRequest]
       .attempt
       .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
 

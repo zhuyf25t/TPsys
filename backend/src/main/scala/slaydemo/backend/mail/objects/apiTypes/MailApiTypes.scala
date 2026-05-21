@@ -1,8 +1,36 @@
 package slaydemo.backend.mail.objects.apiTypes
 
-import io.circe.{Encoder, Json}
+import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 
 import slaydemo.backend.mail.objects.{MailFriendRequestStatus, MailKind, MailRecord}
+
+final case class MailReadApiRequest(
+  ownerHandle: Option[String],
+  mailId: Option[String]
+)
+
+object MailReadApiRequest {
+  given Decoder[MailReadApiRequest] = (cursor: HCursor) =>
+    cursor.value.asObject match {
+      case None =>
+        Left(DecodingFailure("mail read request must be a JSON object.", cursor.history))
+      case Some(_) =>
+        for
+          ownerHandle <- optionalString(cursor, "ownerHandle")
+          mailId <- optionalString(cursor, "mailId")
+        yield MailReadApiRequest(ownerHandle = ownerHandle, mailId = mailId)
+    }
+
+  private def optionalString(cursor: HCursor, field: String): Decoder.Result[Option[String]] =
+    cursor.downField(field).focus match {
+      case None =>
+        Right(None)
+      case Some(value) if value.isString =>
+        Right(value.asString)
+      case Some(_) =>
+        Left(DecodingFailure(s"$field must be a string.", cursor.history))
+    }
+}
 
 final case class MailItemResponse(
   id: String,

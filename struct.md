@@ -216,7 +216,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | --- | --- |
 | `IdentityCommandParsers.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析注册/登录命令。 |
 | `IdentitySessionTokenParser.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析 session token。 |
-| `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，`MailHttp4sRoutes` 仍用它解析 owner/read command。 |
+| `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，`MailHttp4sRoutes` 仍用它解析 owner/read command；read POST body 已由 `MailReadApiRequest` typed DTO 承接。 |
 | `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，`SocialHttp4sRoutes` 仍用它解析好友请求命令。 |
 | `ForumCommandParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它解析 topic/reply/vote 命令。 |
 | `ForumRouteTargetParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path。 |
@@ -389,7 +389,7 @@ battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
 
 ## 10. 下一步建议
 
-最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer、各 HTTP response DTO 的旧字符串 render helper、replay 旧手写 JSON object parser，以及无引用的 shared 手写 JSON object parser 已清完；下一步应聚焦 service 简化或继续减少其他 request parser 中的手写 codec。
+最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer、各 HTTP response DTO 的旧字符串 render helper、replay 旧手写 JSON object parser，以及无引用的 shared 手写 JSON object parser 已清完；mail read POST body 也已从 loose `Map[String,String]` 切到 typed DTO。下一步应聚焦 service 简化或继续减少其他 request parser 中的手写 codec。
 
 推荐下一个小票：
 

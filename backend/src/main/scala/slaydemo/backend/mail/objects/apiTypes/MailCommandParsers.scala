@@ -11,8 +11,14 @@ object MailCommandParsers {
   def parseOwner(rawQuery: String): Either[MailRouteOwnerError, PlayerHandle] =
     parseOwnerHandle(queryParams(rawQuery).get("ownerHandle"))
 
-  def parseReadCommand(fields: Map[String, String]): Either[MailRouteReadError, MailReadCommand] =
-    parseOwnerHandle(fields.get("ownerHandle")) match {
+  def parseReadCommand(request: MailReadApiRequest): Either[MailRouteReadError, MailReadCommand] =
+    parseReadCommandFields(ownerHandle = request.ownerHandle, mailId = request.mailId)
+
+  private def parseReadCommandFields(
+    ownerHandle: Option[String],
+    mailId: Option[String]
+  ): Either[MailRouteReadError, MailReadCommand] =
+    parseOwnerHandle(ownerHandle) match {
       case Left(MailRouteOwnerError.MissingOwner) =>
         Left(MailRouteReadError.MissingOwner)
       case Left(MailRouteOwnerError.VisitorNotAllowed) =>
@@ -20,7 +26,7 @@ object MailCommandParsers {
       case Left(MailRouteOwnerError.InvalidOwner) =>
         Left(MailRouteReadError.InvalidOwner)
       case Right(owner) =>
-        parseMailId(fields.get("mailId")).map(mailId => MailReadCommand(owner, mailId))
+        parseMailId(mailId).map(mailId => MailReadCommand(owner, mailId))
     }
 
   private def queryParams(rawQuery: String): Map[String, String] =

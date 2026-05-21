@@ -2,7 +2,7 @@ package slaydemo.backend.forum.objects.apiTypes
 
 import slaydemo.backend.forum.services.{ForumCreateTopicError, ForumTopicMutationError}
 
-object ForumRouteErrorMapper {
+object ForumApiErrorMapper {
   def createErrorCode(error: ForumCreateTopicParseError): String =
     error match {
       case ForumCreateTopicParseError.InvalidTitle      => "invalid_title"

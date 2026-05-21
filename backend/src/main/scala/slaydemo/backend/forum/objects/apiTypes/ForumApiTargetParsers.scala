@@ -7,7 +7,7 @@ import slaydemo.backend.forum.objects.{ForumReplyId, ForumTopicId}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.shared.policies.HandlePolicy
 
-object ForumRouteTargetParsers {
+object ForumApiTargetParsers {
   def isTopicsCollection(path: String): Boolean =
     normalizePath(path) == "/forum/topics"
 

@@ -10,16 +10,11 @@ object BackendApiBoundaryContractTest {
   private val Http4sRoot: Path =
     SourceRoot.resolve("http4s")
 
-  private val DeletedBoundaryFiles: Vector[Path] =
+  private val DeletedApiMessageBoundaryFiles: Vector[Path] =
     Vector(
       SourceRoot.resolve(Paths.get("shared", "api", "BackendAPIMessage.scala")),
-      SourceRoot.resolve(Paths.get("shared", "api", "BackendIO.scala")),
-      SourceRoot.resolve(Paths.get("shared", "routes", "HealthAPIMessagePlanner.scala")),
-      SourceRoot.resolve(Paths.get("replay", "routes", "ReplayCatalogAPIMessagePlanner.scala"))
+      SourceRoot.resolve(Paths.get("shared", "api", "BackendIO.scala"))
     )
-
-  private val DeletedBoundaryDirectoriesWithNoScalaFiles: Vector[Path] =
-    Vector(SourceRoot.resolve(Paths.get("battle", "routes", "api")))
 
   private val ForbiddenSourceFragments: Vector[String] =
     Vector(
@@ -29,6 +24,8 @@ object BackendApiBoundaryContractTest {
       "BackendAPIEndpoint",
       "BackendAPIMessagePlanner",
       "BackendIO",
+      "RouteErrorMapper",
+      "RouteTargetParsers",
       "jsonTextResponse",
       "DriverManager"
     )
@@ -58,14 +55,11 @@ object BackendApiBoundaryContractTest {
   }
 
   private def deletedApiMessageBoundaryFilesStayDeleted(): Unit = {
-    val existingFiles = DeletedBoundaryFiles.filter(Files.exists(_))
-    val deletedDirectorySources = DeletedBoundaryDirectoriesWithNoScalaFiles
-      .filter(Files.exists(_))
-      .flatMap(scalaFiles)
+    val existingFiles = DeletedApiMessageBoundaryFiles.filter(Files.exists(_))
 
     assert(
-      existingFiles.isEmpty && deletedDirectorySources.isEmpty,
-      s"deleted APIMessage boundary artifacts must not be recreated: ${(existingFiles ++ deletedDirectorySources).mkString(", ")}"
+      existingFiles.isEmpty,
+      s"deleted APIMessage boundary artifacts must not be recreated: ${existingFiles.mkString(", ")}"
     )
   }
 

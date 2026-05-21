@@ -8,9 +8,9 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.forum.objects.apiTypes.{
   ForumApiRequestFields,
+  ForumApiErrorMapper,
+  ForumApiTargetParsers,
   ForumCreateTopicParseError,
-  ForumRouteErrorMapper,
-  ForumRouteTargetParsers,
   ForumTopicMutationParseError,
   ForumTopicListResponse,
   ForumTopicWrapperResponse,
@@ -38,19 +38,19 @@ private[http4s] object ForumHttp4sRoutes {
             IO.pure(withCors(Response[IO](Status.NoContent)))
           case Method.HEAD =>
             IO.pure(withCors(Response[IO](Status.Ok)))
-          case Method.GET if ForumRouteTargetParsers.isTopicsCollection(path(request)) =>
+          case Method.GET if ForumApiTargetParsers.isTopicsCollection(path(request)) =>
             blocking(service.listTopics(viewerHandle(request))).flatMap(topics =>
               Ok(ForumTopicListResponse.fromViews(topics).asJson).map(withCors)
             )
           case Method.GET =>
             loadTopic(request, service)
-          case Method.POST if ForumRouteTargetParsers.isTopicsCollection(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isTopicsCollection(path(request)) =>
             createTopic(request, service)
-          case Method.POST if ForumRouteTargetParsers.isReplyVotesPath(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isReplyVotesPath(path(request)) =>
             setReplyVote(request, service)
-          case Method.POST if ForumRouteTargetParsers.isRepliesPath(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isRepliesPath(path(request)) =>
             addReply(request, service)
-          case Method.POST if ForumRouteTargetParsers.isTopicVotesPath(path(request)) =>
+          case Method.POST if ForumApiTargetParsers.isTopicVotesPath(path(request)) =>
             setTopicVote(request, service)
           case _ =>
             IO.pure(apiError(MethodNotAllowedError))
@@ -58,7 +58,7 @@ private[http4s] object ForumHttp4sRoutes {
     }
 
   private def loadTopic(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumRouteTargetParsers.topicIdFrom(path(request)) match {
+    ForumApiTargetParsers.topicIdFrom(path(request)) match {
       case None =>
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
@@ -89,7 +89,7 @@ private[http4s] object ForumHttp4sRoutes {
     }
 
   private def addReply(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumRouteTargetParsers.topicIdFrom(path(request)) match {
+    ForumApiTargetParsers.topicIdFrom(path(request)) match {
       case None =>
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
@@ -112,7 +112,7 @@ private[http4s] object ForumHttp4sRoutes {
     }
 
   private def setTopicVote(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumRouteTargetParsers.topicIdFrom(path(request)) match {
+    ForumApiTargetParsers.topicIdFrom(path(request)) match {
       case None =>
         IO.pure(apiError(TopicNotFoundError))
       case Some(topicId) =>
@@ -136,8 +136,8 @@ private[http4s] object ForumHttp4sRoutes {
 
   private def setReplyVote(request: Request[IO], service: ForumService): IO[Response[IO]] =
     (
-      ForumRouteTargetParsers.topicIdFrom(path(request)),
-      ForumRouteTargetParsers.replyIdFrom(path(request))
+      ForumApiTargetParsers.topicIdFrom(path(request)),
+      ForumApiTargetParsers.replyIdFrom(path(request))
     ) match {
       case (Some(topicId), Some(replyId)) =>
         parseBody(request).flatMap {
@@ -167,39 +167,39 @@ private[http4s] object ForumHttp4sRoutes {
       .map(_.map(_.toCommandFields).left.map(_ => "Request body must be a JSON object with string fields."))
 
   private def viewerHandle(request: Request[IO]) =
-    ForumRouteTargetParsers.resolveViewerHandle(request.params)
+    ForumApiTargetParsers.resolveViewerHandle(request.params)
 
   private def createApiError(error: slaydemo.backend.forum.services.ForumCreateTopicError): HttpApiError = {
-    val code = ForumRouteErrorMapper.createErrorCode(error)
+    val code = ForumApiErrorMapper.createErrorCode(error)
     routeError(createStatus(error), code)
   }
 
   private def createApiError(error: ForumCreateTopicParseError): HttpApiError = {
-    val code = ForumRouteErrorMapper.createErrorCode(error)
+    val code = ForumApiErrorMapper.createErrorCode(error)
     routeError(createStatus(error), code)
   }
 
   private def mutationApiError(error: slaydemo.backend.forum.services.ForumTopicMutationError): HttpApiError = {
-    val code = ForumRouteErrorMapper.mutationErrorCode(error)
+    val code = ForumApiErrorMapper.mutationErrorCode(error)
     routeError(mutationStatus(error), code)
   }
 
   private def mutationApiError(error: ForumTopicMutationParseError): HttpApiError = {
-    val code = ForumRouteErrorMapper.mutationErrorCode(error)
+    val code = ForumApiErrorMapper.mutationErrorCode(error)
     routeError(mutationStatus(error), code)
   }
 
   private def createStatus(error: slaydemo.backend.forum.services.ForumCreateTopicError): Status =
-    statusFrom(ForumRouteErrorMapper.createStatusFor(error))
+    statusFrom(ForumApiErrorMapper.createStatusFor(error))
 
   private def createStatus(error: ForumCreateTopicParseError): Status =
-    statusFrom(ForumRouteErrorMapper.createStatusFor(error))
+    statusFrom(ForumApiErrorMapper.createStatusFor(error))
 
   private def mutationStatus(error: slaydemo.backend.forum.services.ForumTopicMutationError): Status =
-    statusFrom(ForumRouteErrorMapper.mutationStatusFor(error))
+    statusFrom(ForumApiErrorMapper.mutationStatusFor(error))
 
   private def mutationStatus(error: ForumTopicMutationParseError): Status =
-    statusFrom(ForumRouteErrorMapper.mutationStatusFor(error))
+    statusFrom(ForumApiErrorMapper.mutationStatusFor(error))
 
   private def statusFrom(value: Int): Status =
     value match {

@@ -14,7 +14,7 @@ import scala.concurrent.duration.*
 import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val InvalidBattleIdError =
@@ -35,17 +35,17 @@ private[http4s] object BattleStateHttp4sRoutes {
           case Method.GET =>
             battleIdFromStateRequest(request) match {
               case None =>
-                IO.pure(apiError(InvalidBattleIdError))
+                errorResponse(InvalidBattleIdError)
               case Some(battleId) =>
                 blocking(battleStateService.currentState(battleId)).flatMap {
                   case Right(state) =>
                     Ok(BattleStateResponse.fromState(state).asJson).map(withCors)
                   case Left(BattleStateReadError.BattleNotFound) =>
-                    IO.pure(apiError(BattleNotFoundError))
+                    errorResponse(BattleNotFoundError)
                 }
             }
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            errorResponse(MethodNotAllowedError)
         }
     }
 
@@ -58,7 +58,7 @@ private[http4s] object BattleStateHttp4sRoutes {
           case Method.GET =>
             battleIdFromStateStreamRequest(request) match {
               case None =>
-                IO.pure(apiError(InvalidBattleIdError))
+                errorResponse(InvalidBattleIdError)
               case Some(battleId) =>
                 blocking(battleStateService.currentState(battleId)).map {
                   case Left(BattleStateReadError.BattleNotFound) =>
@@ -68,7 +68,7 @@ private[http4s] object BattleStateHttp4sRoutes {
                 }
             }
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            errorResponse(MethodNotAllowedError)
         }
     }
 

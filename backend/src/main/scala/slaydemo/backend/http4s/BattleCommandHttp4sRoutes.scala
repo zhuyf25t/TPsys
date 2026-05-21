@@ -13,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, decodeJsonObjectBody, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleCommandHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -42,11 +42,11 @@ private[http4s] object BattleCommandHttp4sRoutes {
           case Method.POST =>
             decodeCommandRequest(request).flatMap {
               case Left(BattleCommandAPIRequestError.InvalidJsonObject) =>
-                IO.pure(apiError(InvalidJsonObjectError))
+                errorResponse(InvalidJsonObjectError)
               case Left(BattleCommandAPIRequestError.MissingTicket) =>
-                IO.pure(commandNotAuthorized)
+                errorResponse(CommandNotAuthorizedError)
               case Left(BattleCommandAPIRequestError.InvalidField(field)) =>
-                IO.pure(apiError(invalidFieldError(field)))
+                errorResponse(invalidFieldError(field))
               case Right(command) =>
                 blocking(battleStateService.acceptCommand(command)).map {
                   case Right(accepted) =>
@@ -56,7 +56,7 @@ private[http4s] object BattleCommandHttp4sRoutes {
                 }
             }
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            errorResponse(MethodNotAllowedError)
         }
     }
 
@@ -68,9 +68,6 @@ private[http4s] object BattleCommandHttp4sRoutes {
 
   private def commandSubmitError(error: BattleCommandSubmitError): Response[IO] =
     apiError(commandSubmitApiError(error))
-
-  private def commandNotAuthorized: Response[IO] =
-    apiError(CommandNotAuthorizedError)
 
   private def commandSubmitApiError(error: BattleCommandSubmitError): HttpApiError =
     error match {

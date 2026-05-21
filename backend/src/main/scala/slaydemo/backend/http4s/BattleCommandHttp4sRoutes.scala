@@ -11,6 +11,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandAcceptedResponse,
   BattleCommandAPIRequest,
   BattleCommandAPIRequestError,
+  BattleCommandRequestField,
   BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
@@ -46,8 +47,8 @@ private[http4s] object BattleCommandHttp4sRoutes {
                 IO.pure(apiError(InvalidJsonObjectError))
               case Left(BattleCommandAPIRequestError.MissingTicket) =>
                 IO.pure(commandNotAuthorized)
-              case Left(BattleCommandAPIRequestError.BadRequest(code)) =>
-                IO.pure(apiError(badRequest(code)))
+              case Left(BattleCommandAPIRequestError.InvalidField(field)) =>
+                IO.pure(apiError(invalidFieldError(field)))
               case Right(command) =>
                 blocking(battleStateService.acceptCommand(command)).map {
                   case Right(accepted) =>
@@ -88,6 +89,8 @@ private[http4s] object BattleCommandHttp4sRoutes {
       case BattleCommandSubmitError.CommandNotAuthorized      => CommandNotAuthorizedError
     }
 
-  private def badRequest(code: String): HttpApiError =
+  private def invalidFieldError(field: BattleCommandRequestField): HttpApiError = {
+    val code = BattleCommandRequestField.errorCode(field)
     HttpApiError(status = Status.BadRequest, code = code, message = code)
+  }
 }

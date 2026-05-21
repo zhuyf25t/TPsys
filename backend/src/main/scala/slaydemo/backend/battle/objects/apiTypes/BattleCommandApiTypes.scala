@@ -9,7 +9,46 @@ import slaydemo.backend.battle.objects.*
 enum BattleCommandAPIRequestError {
   case InvalidJsonObject
   case MissingTicket
-  case BadRequest(code: String)
+  case InvalidField(field: BattleCommandRequestField)
+}
+
+enum BattleCommandRequestField {
+  case BattleId
+  case PlayerId
+  case ClientTick
+  case ClientCommandSeq
+  case Movement
+  case Aim
+  case PrimaryHeld
+  case Sprint
+  case ReloadPressed
+  case CastDash
+  case CastBlink
+  case CastFreeze
+  case PointerWorld
+  case SwitchWeaponDirection
+  case SwitchWeaponIndex
+}
+
+object BattleCommandRequestField {
+  def errorCode(field: BattleCommandRequestField): String =
+    field match {
+      case BattleCommandRequestField.BattleId                => "missing_battle_id"
+      case BattleCommandRequestField.PlayerId                => "missing_player_id"
+      case BattleCommandRequestField.ClientTick              => "missing_client_tick"
+      case BattleCommandRequestField.ClientCommandSeq        => "missing_client_command_seq"
+      case BattleCommandRequestField.Movement                => "missing_movement"
+      case BattleCommandRequestField.Aim                     => "missing_aim"
+      case BattleCommandRequestField.PrimaryHeld             => "missing_primary_held"
+      case BattleCommandRequestField.Sprint                  => "missing_sprint"
+      case BattleCommandRequestField.ReloadPressed           => "missing_reload_pressed"
+      case BattleCommandRequestField.CastDash                => "missing_cast_dash"
+      case BattleCommandRequestField.CastBlink               => "missing_cast_blink"
+      case BattleCommandRequestField.CastFreeze              => "missing_cast_freeze"
+      case BattleCommandRequestField.PointerWorld            => "missing_pointer_world"
+      case BattleCommandRequestField.SwitchWeaponDirection   => "missing_switch_weapon_direction"
+      case BattleCommandRequestField.SwitchWeaponIndex       => "missing_switch_weapon_index"
+    }
 }
 
 object BattleCommandRequestTarget {
@@ -49,10 +88,10 @@ final case class BattleCommandAPIRequest(
     for
       battleIdValue <- nonEmptyText(battleId)
         .map(BattleId.apply)
-        .toRight(BattleCommandAPIRequestError.BadRequest("missing_battle_id"))
+        .toRight(BattleCommandAPIRequestError.InvalidField(BattleCommandRequestField.BattleId))
       playerIdValue <- nonEmptyText(playerId)
         .map(PlayerId.apply)
-        .toRight(BattleCommandAPIRequestError.BadRequest("missing_player_id"))
+        .toRight(BattleCommandAPIRequestError.InvalidField(BattleCommandRequestField.PlayerId))
       ticketIdValue <- ticketId
         .flatMap(nonEmptyText)
         .map(TicketId.apply)
@@ -161,22 +200,22 @@ object BattleCommandAPIRequest {
 
   private def decodeObject(fields: JsonObject): Either[BattleCommandAPIRequestError, BattleCommandAPIRequest] =
     for
-      battleId <- requiredString(fields, "battleId", "missing_battle_id")
-      playerId <- requiredString(fields, "playerId", "missing_player_id")
+      battleId <- requiredString(fields, "battleId", BattleCommandRequestField.BattleId)
+      playerId <- requiredString(fields, "playerId", BattleCommandRequestField.PlayerId)
       ticketId = optionalString(fields, "ticketId")
-      clientTick <- requiredLong(fields, "clientTick", "missing_client_tick")
-      clientCommandSeq <- optionalLong(fields, "clientCommandSeq")
-      movement <- requiredVector(fields, "movement", "missing_movement")
-      aim <- requiredVector(fields, "aim", "missing_aim")
-      primaryHeld <- requiredBoolean(fields, "primaryHeld", "missing_primary_held")
-      sprint <- optionalBoolean(fields, "sprint")
-      reloadPressed <- requiredBoolean(fields, "reloadPressed", "missing_reload_pressed")
-      castDash <- optionalBoolean(fields, "castDash")
-      castBlink <- optionalBoolean(fields, "castBlink")
-      castFreeze <- optionalBoolean(fields, "castFreeze")
-      pointerWorld <- optionalVector(fields, "pointerWorld")
-      switchWeaponDirection <- requiredInt(fields, "switchWeaponDirection", "missing_switch_weapon_direction")
-      switchWeaponIndex <- optionalInt(fields, "switchWeaponIndex")
+      clientTick <- requiredLong(fields, "clientTick", BattleCommandRequestField.ClientTick)
+      clientCommandSeq <- optionalLong(fields, "clientCommandSeq", BattleCommandRequestField.ClientCommandSeq)
+      movement <- requiredVector(fields, "movement", BattleCommandRequestField.Movement)
+      aim <- requiredVector(fields, "aim", BattleCommandRequestField.Aim)
+      primaryHeld <- requiredBoolean(fields, "primaryHeld", BattleCommandRequestField.PrimaryHeld)
+      sprint <- optionalBoolean(fields, "sprint", BattleCommandRequestField.Sprint)
+      reloadPressed <- requiredBoolean(fields, "reloadPressed", BattleCommandRequestField.ReloadPressed)
+      castDash <- optionalBoolean(fields, "castDash", BattleCommandRequestField.CastDash)
+      castBlink <- optionalBoolean(fields, "castBlink", BattleCommandRequestField.CastBlink)
+      castFreeze <- optionalBoolean(fields, "castFreeze", BattleCommandRequestField.CastFreeze)
+      pointerWorld <- optionalVector(fields, "pointerWorld", BattleCommandRequestField.PointerWorld)
+      switchWeaponDirection <- requiredInt(fields, "switchWeaponDirection", BattleCommandRequestField.SwitchWeaponDirection)
+      switchWeaponIndex <- optionalInt(fields, "switchWeaponIndex", BattleCommandRequestField.SwitchWeaponIndex)
     yield BattleCommandAPIRequest(
       battleId = battleId,
       playerId = playerId,
@@ -202,89 +241,105 @@ object BattleCommandAPIRequest {
   private def requiredString(
     fields: JsonObject,
     key: String,
-    errorCode: String
+    field: BattleCommandRequestField
   ): Either[BattleCommandAPIRequestError, String] =
     optionalString(fields, key)
       .flatMap(nonEmptyText)
-      .toRight(BattleCommandAPIRequestError.BadRequest(errorCode))
+      .toRight(BattleCommandAPIRequestError.InvalidField(field))
 
-  private def optionalLong(fields: JsonObject, key: String): Either[BattleCommandAPIRequestError, Option[Long]] =
+  private def optionalLong(
+    fields: JsonObject,
+    key: String,
+    field: BattleCommandRequestField
+  ): Either[BattleCommandAPIRequestError, Option[Long]] =
     fields(key) match {
       case None =>
         Right(None)
       case Some(value) if value.isNull =>
         Right(None)
       case Some(value) =>
-        numberAsLong(value).map(Some(_)).toRight(BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))
+        numberAsLong(value).map(Some(_)).toRight(BattleCommandAPIRequestError.InvalidField(field))
     }
 
   private def requiredLong(
     fields: JsonObject,
     key: String,
-    errorCode: String
+    field: BattleCommandRequestField
   ): Either[BattleCommandAPIRequestError, Long] =
     fields(key)
       .flatMap(numberAsLong)
-      .toRight(BattleCommandAPIRequestError.BadRequest(errorCode))
+      .toRight(BattleCommandAPIRequestError.InvalidField(field))
 
-  private def optionalInt(fields: JsonObject, key: String): Either[BattleCommandAPIRequestError, Option[Int]] =
+  private def optionalInt(
+    fields: JsonObject,
+    key: String,
+    field: BattleCommandRequestField
+  ): Either[BattleCommandAPIRequestError, Option[Int]] =
     fields(key) match {
       case None =>
         Right(None)
       case Some(value) if value.isNull =>
         Right(None)
       case Some(value) =>
-        numberAsInt(value).map(Some(_)).toRight(BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))
+        numberAsInt(value).map(Some(_)).toRight(BattleCommandAPIRequestError.InvalidField(field))
     }
 
   private def requiredInt(
     fields: JsonObject,
     key: String,
-    errorCode: String
+    field: BattleCommandRequestField
   ): Either[BattleCommandAPIRequestError, Int] =
     fields(key)
       .flatMap(numberAsInt)
-      .toRight(BattleCommandAPIRequestError.BadRequest(errorCode))
+      .toRight(BattleCommandAPIRequestError.InvalidField(field))
 
-  private def optionalBoolean(fields: JsonObject, key: String): Either[BattleCommandAPIRequestError, Option[Boolean]] =
+  private def optionalBoolean(
+    fields: JsonObject,
+    key: String,
+    field: BattleCommandRequestField
+  ): Either[BattleCommandAPIRequestError, Option[Boolean]] =
     fields(key) match {
       case None =>
         Right(None)
       case Some(value) if value.isNull =>
         Right(None)
       case Some(value) =>
-        value.asBoolean.map(Some(_)).toRight(BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))
+        value.asBoolean.map(Some(_)).toRight(BattleCommandAPIRequestError.InvalidField(field))
     }
 
   private def requiredBoolean(
     fields: JsonObject,
     key: String,
-    errorCode: String
+    field: BattleCommandRequestField
   ): Either[BattleCommandAPIRequestError, Boolean] =
     fields(key)
       .flatMap(_.asBoolean)
-      .toRight(BattleCommandAPIRequestError.BadRequest(errorCode))
+      .toRight(BattleCommandAPIRequestError.InvalidField(field))
 
-  private def optionalVector(fields: JsonObject, key: String): Either[BattleCommandAPIRequestError, Option[BattleCommandVector]] =
+  private def optionalVector(
+    fields: JsonObject,
+    key: String,
+    field: BattleCommandRequestField
+  ): Either[BattleCommandAPIRequestError, Option[BattleCommandVector]] =
     fields(key) match {
       case None =>
         Right(None)
       case Some(value) if value.isNull =>
         Right(None)
       case Some(value) =>
-        decodeVector(value).map(Some(_)).left.map(_ => BattleCommandAPIRequestError.BadRequest(s"missing_${camelToSnake(key)}"))
+        decodeVector(value).map(Some(_)).left.map(_ => BattleCommandAPIRequestError.InvalidField(field))
     }
 
   private def requiredVector(
     fields: JsonObject,
     key: String,
-    errorCode: String
+    field: BattleCommandRequestField
   ): Either[BattleCommandAPIRequestError, BattleCommandVector] =
     fields(key) match {
       case Some(value) =>
-        decodeVector(value).left.map(_ => BattleCommandAPIRequestError.BadRequest(errorCode))
+        decodeVector(value).left.map(_ => BattleCommandAPIRequestError.InvalidField(field))
       case None =>
-        Left(BattleCommandAPIRequestError.BadRequest(errorCode))
+        Left(BattleCommandAPIRequestError.InvalidField(field))
     }
 
   private def decodeVector(json: Json): Either[BattleCommandAPIRequestError, BattleCommandVector] =
@@ -309,12 +364,4 @@ object BattleCommandAPIRequest {
 
   private def nonEmptyText(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
-
-  private def camelToSnake(value: String): String =
-    value.flatMap {
-      case char if char.isUpper =>
-        "_" + char.toLower
-      case char =>
-        char.toString
-    }
 }

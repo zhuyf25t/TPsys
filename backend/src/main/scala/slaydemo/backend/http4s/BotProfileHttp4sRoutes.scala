@@ -4,11 +4,11 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.bots.objects.apiTypes.{BotProfileApiErrorCode, BotProfileRequestTarget, BotProfilesResponse}
 import slaydemo.backend.bots.services.BotProfileService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, typedApiError, withCors}
 
 private[http4s] object BotProfileHttp4sRoutes {
   def routes(service: BotProfileService): HttpRoutes[IO] =
@@ -16,9 +16,9 @@ private[http4s] object BotProfileHttp4sRoutes {
       case request if isBotProfilePath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.HEAD =>
-            IO.pure(withCors(Response[IO](Status.Ok)))
+            corsOk
           case Method.GET =>
             blocking(service.list()).flatMap(records => Ok(BotProfilesResponse.fromRecords(records).asJson).map(withCors))
           case _ =>

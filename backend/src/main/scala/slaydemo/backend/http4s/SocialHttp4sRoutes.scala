@@ -4,9 +4,9 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,
@@ -32,7 +32,7 @@ private[http4s] object SocialHttp4sRoutes {
       case request if SocialRequestTarget.isFriendRequestRespondPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             respond(request, service)
           case _ =>
@@ -41,7 +41,7 @@ private[http4s] object SocialHttp4sRoutes {
       case request if SocialRequestTarget.isFriendRequestPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             list(request, service)
           case Method.POST =>

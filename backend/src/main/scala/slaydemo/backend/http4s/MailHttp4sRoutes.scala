@@ -4,9 +4,9 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,
   MailListResponse,
@@ -29,7 +29,7 @@ private[http4s] object MailHttp4sRoutes {
       case request if MailRequestTarget.isListPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             listMails(request, service)
           case _ =>
@@ -38,7 +38,7 @@ private[http4s] object MailHttp4sRoutes {
       case request if MailRequestTarget.isReadPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             markRead(request, service)
           case _ =>

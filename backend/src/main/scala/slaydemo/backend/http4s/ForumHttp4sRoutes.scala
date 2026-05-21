@@ -20,7 +20,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, methodNotAllowedError, typedApiError, withCors}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -40,9 +40,9 @@ private[http4s] object ForumHttp4sRoutes {
       case request if isForumPath(request) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.HEAD =>
-            IO.pure(withCors(Response[IO](Status.Ok)))
+            corsOk
           case Method.GET if ForumApiTargetParsers.isTopicsCollection(path(request)) =>
             blocking(service.listTopics(viewerHandle(request))).flatMap(topics =>
               Ok(ForumTopicListResponse.fromViews(topics).asJson).map(withCors)

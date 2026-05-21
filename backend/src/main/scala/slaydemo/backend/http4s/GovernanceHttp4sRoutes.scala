@@ -20,7 +20,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
@@ -34,7 +34,7 @@ private[http4s] object GovernanceHttp4sRoutes {
       case request if GovernanceRequestTarget.isContributionAdjustmentPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             listContributionAdjustments(request, contributionAdjustmentService)
           case Method.POST =>
@@ -45,7 +45,7 @@ private[http4s] object GovernanceHttp4sRoutes {
       case request if GovernanceRequestTarget.isAdminNotificationPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             listAdminNotifications(request, notificationService)
           case Method.POST =>

@@ -4,10 +4,10 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
-import org.http4s.{Headers, HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{Headers, HttpRoutes, Method, Request, Response}
 import org.typelevel.ci.CIString
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, typedApiError, withCors}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
@@ -30,7 +30,7 @@ private[http4s] object IdentityHttp4sRoutes {
       case request if IdentityRequestTarget.isRegisterPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             register(request, service)
           case _ =>
@@ -39,7 +39,7 @@ private[http4s] object IdentityHttp4sRoutes {
       case request if IdentityRequestTarget.isSessionPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.POST =>
             issueSession(request, service)
           case _ =>
@@ -48,7 +48,7 @@ private[http4s] object IdentityHttp4sRoutes {
       case request if IdentityRequestTarget.isCurrentPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             current(request, service)
           case _ =>
@@ -57,7 +57,7 @@ private[http4s] object IdentityHttp4sRoutes {
       case request if IdentityRequestTarget.isAccountsPath(path(request)) =>
         request.method match {
           case Method.OPTIONS =>
-            IO.pure(withCors(Response[IO](Status.NoContent)))
+            corsNoContent
           case Method.GET =>
             blocking(service.listActiveAccounts()).flatMap(accounts =>
               Ok(IdentityAccountsResponse(accounts).asJson).map(withCors)

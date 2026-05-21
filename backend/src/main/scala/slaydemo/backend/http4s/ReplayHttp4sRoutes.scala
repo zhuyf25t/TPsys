@@ -4,9 +4,9 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, typedApiError, withCors}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
@@ -49,9 +49,9 @@ private[http4s] object ReplayHttp4sRoutes {
   private def handleCollection(service: ReplayService, request: Request[IO]): IO[Response[IO]] =
     request.method match {
       case Method.OPTIONS =>
-        IO.pure(withCors(Response[IO](Status.NoContent)))
+        corsNoContent
       case Method.HEAD =>
-        IO.pure(withCors(Response[IO](Status.Ok)))
+        corsOk
       case Method.GET =>
         val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.list(query.limit)).flatMap { records =>
@@ -80,9 +80,9 @@ private[http4s] object ReplayHttp4sRoutes {
   private def handleDetail(service: ReplayService, request: Request[IO], replayId: ReplayId): IO[Response[IO]] =
     request.method match {
       case Method.OPTIONS =>
-        IO.pure(withCors(Response[IO](Status.NoContent)))
+        corsNoContent
       case Method.HEAD =>
-        IO.pure(withCors(Response[IO](Status.Ok)))
+        corsOk
       case Method.GET =>
         val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.load(replayId)).flatMap {
@@ -98,9 +98,9 @@ private[http4s] object ReplayHttp4sRoutes {
   private def handleComments(service: ReplayService, request: Request[IO], replayId: ReplayId): IO[Response[IO]] =
     request.method match {
       case Method.OPTIONS =>
-        IO.pure(withCors(Response[IO](Status.NoContent)))
+        corsNoContent
       case Method.HEAD =>
-        IO.pure(withCors(Response[IO](Status.Ok)))
+        corsOk
       case Method.GET =>
         val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.load(replayId)).flatMap {

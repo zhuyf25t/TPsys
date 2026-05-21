@@ -14,6 +14,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleQueueJoinAPIRequestError,
   BattleQueueLeaveAPIRequest,
   BattleQueueLeaveAPIResponse,
+  BattleQueueRequestTarget,
   BattleQueueSnapshotResponse
 }
 import slaydemo.backend.battle.services.{
@@ -27,13 +28,6 @@ import slaydemo.backend.battle.services.{
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleQueueHttp4sRoutes {
-  private val AllowedStatusPaths: Set[String] =
-    Set("/battle/queue/status", "/api/battle/queue/status", "/battlequeuestatusapi", "/api/battlequeuestatusapi")
-  private val AllowedJoinPaths: Set[String] =
-    Set("/battle/queue/join", "/api/battle/queue/join", "/battlequeuejoinapi", "/api/battlequeuejoinapi")
-  private val AllowedLeavePaths: Set[String] =
-    Set("/battle/queue/leave", "/api/battle/queue/leave", "/battlequeueleaveapi", "/api/battlequeueleaveapi")
-
   private val InvalidJsonObjectError =
     HttpApiError(
       status = Status.BadRequest,
@@ -64,11 +58,11 @@ private[http4s] object BattleQueueHttp4sRoutes {
           case Method.OPTIONS =>
             IO.pure(withCors(Response[IO](Status.NoContent)))
           case Method.GET =>
-            request.params.get("ticketId").map(_.trim).filter(_.nonEmpty) match {
+            BattleQueueRequestTarget.statusTicketIdFrom(request.params) match {
               case None =>
                 IO.pure(apiError(MissingTicketIdError))
               case Some(ticketId) =>
-                blocking(service.status(TicketId(ticketId))).flatMap {
+                blocking(service.status(ticketId)).flatMap {
                   case Right(snapshot) =>
                     Ok(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
                   case Left(BattleQueueStatusError.TicketNotFound) =>
@@ -138,13 +132,13 @@ private[http4s] object BattleQueueHttp4sRoutes {
     }
 
   private def isBattleQueueStatusPath(request: Request[IO]): Boolean =
-    AllowedStatusPaths.contains(request.uri.path.renderString)
+    BattleQueueRequestTarget.isStatusPath(request.uri.path.renderString)
 
   private def isBattleQueueJoinPath(request: Request[IO]): Boolean =
-    AllowedJoinPaths.contains(request.uri.path.renderString)
+    BattleQueueRequestTarget.isJoinPath(request.uri.path.renderString)
 
   private def isBattleQueueLeavePath(request: Request[IO]): Boolean =
-    AllowedLeavePaths.contains(request.uri.path.renderString)
+    BattleQueueRequestTarget.isLeavePath(request.uri.path.renderString)
 
   private def decodeJoinRequest(request: Request[IO]): IO[Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand]] =
     request.as[Json].attempt.map {

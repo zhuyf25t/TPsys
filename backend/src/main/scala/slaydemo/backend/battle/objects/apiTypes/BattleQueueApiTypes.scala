@@ -15,6 +15,30 @@ enum BattleQueueJoinAPIRequestError {
   case MissingSession
 }
 
+object BattleQueueRequestTarget {
+  private val AllowedStatusPaths: Set[String] =
+    Set("/battle/queue/status", "/api/battle/queue/status", "/battlequeuestatusapi", "/api/battlequeuestatusapi")
+  private val AllowedJoinPaths: Set[String] =
+    Set("/battle/queue/join", "/api/battle/queue/join", "/battlequeuejoinapi", "/api/battlequeuejoinapi")
+  private val AllowedLeavePaths: Set[String] =
+    Set("/battle/queue/leave", "/api/battle/queue/leave", "/battlequeueleaveapi", "/api/battlequeueleaveapi")
+
+  def isStatusPath(path: String): Boolean =
+    AllowedStatusPaths.contains(path)
+
+  def isJoinPath(path: String): Boolean =
+    AllowedJoinPaths.contains(path)
+
+  def isLeavePath(path: String): Boolean =
+    AllowedLeavePaths.contains(path)
+
+  def statusTicketIdFrom(query: Map[String, String]): Option[TicketId] =
+    query.get("ticketId").flatMap(nonEmptyText).map(TicketId.apply)
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
 final case class BattleQueueJoinAPIRequest(
   handle: Option[String],
   sessionToken: Option[String],

@@ -1,10 +1,17 @@
-# 后端运行结构审计
+# 后端运行结构与 route/test 清理审计
 
-本文只分析当前后端运行时真正起作用的代码、当前 8080 请求链完全用不到的代码、以及重复逻辑。判断依据以当前机器上的运行进程、启动脚本和 `backend/src/main` 源码为准。
+本文件只描述当前 `multimodule` 分支、当前 worktree 下的后端事实。判断依据来自：
 
-## 1. 结论
+- `backend/build.sbt`
+- `package.json`
+- `backend/src/main/scala`
+- `backend/src/test/scala`
+- `git diff main..HEAD -- backend`
+- `rg` 对 `routes`、`HttpExchange`、`APIMessage`、`BackendHttp4sRoutes` 的搜索结果
 
-当前 8080 上运行的后端是 http4s 入口：
+## 1. 总结论
+
+当前真正运行的后端是 `src/main` 里的 http4s 后端，不是旧 `BackendApp`，也不是 `src/test`。
 
 ```text
 npm run backend:dev
@@ -12,397 +19,264 @@ npm run backend:dev
   -> backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala
 ```
 
-关键结论：
+`backend/build.sbt` 也明确设置：
 
-| 问题 | 结论 |
-| --- | --- |
-| 真正在跑的是不是 `src/main` 代码 | 是。入口类在 `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala`，不是 `src/test`。 |
-| 真正在跑的是不是旧 `BackendApp` | 不是。旧入口 `slaydemo.backend.BackendApp` 已删除。 |
-| 真正在跑的是不是 Git 的 `main` 分支 | 不是。当前工作分支是 `multimodule`；具体 HEAD 会随提交变化，用 `git log -1 --oneline` 查看。 |
-| 当前服务入口 | `slaydemo.backend.http4s.BackendHttp4sApp`。 |
-| 当前 HTTP 框架 | http4s + Ember server + cats-effect `IO`。 |
-| 当前存储模式 | `/api/health` 返回 `storageMode = postgres`，所以当前实际运行使用 Postgres 仓库实现。 |
-
-所以需要把三个概念分开：
-
-1. 运行入口：当前 8080 入口是 `BackendHttp4sApp`。
-2. 源码层级：当前运行的是 `backend/src/main` 下的正式后端源码，不是 `backend/src/test`。
-3. Git 分支差异：当前工作区在 `multimodule` 分支上，不在 Git 的 `main` 分支上；这只影响版本来源，不代表运行了测试代码。
-
-## 2. 当前真正起作用的运行链
-
-当前 8080 进程命令行显示：
-
-```text
-runMain slaydemo.backend.http4s.BackendHttp4sApp
+```scala
+Compile / mainClass := Some("slaydemo.backend.http4s.BackendHttp4sApp")
 ```
 
-运行链如下：
+所以运行链路是：
 
 ```text
 BackendHttp4sApp.run
   -> BackendEnvironment.load()
   -> BackendRuntime.fromEnvironment(env)
-  -> BackendRepositories.fromStorage(config.storage)
   -> BackendHttp4sRoutes.backendRoutes(...)
-  -> EmberServerBuilder.default[IO]
-  -> .withHost(0.0.0.0)
-  -> .withPort(config.port)
-  -> .withHttpApp(httpApp)
+  -> .orNotFound
+  -> EmberServerBuilder.withHttpApp(httpApp)
 ```
 
-真正接收 HTTP 请求的是：
+结论表：
 
-| 层级 | 起作用的代码 |
+| 问题 | 当前结论 |
 | --- | --- |
-| 进程入口 | `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala` |
-| 运行时装配 | `backend/src/main/scala/slaydemo/backend/BackendRuntime.scala` |
-| 仓库装配 | `backend/src/main/scala/slaydemo/backend/BackendRepositories.scala`、`BackendLiveRepositoryFactories.scala` |
-| http4s 总路由 | `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sRoutes.scala` |
-| http4s 通用支持 | `backend/src/main/scala/slaydemo/backend/http4s/Http4sRouteSupport.scala` |
+| 现在真正跑的是不是 `src/main` | 是。入口是 `BackendHttp4sApp`。 |
+| 现在真正跑的是不是旧 `BackendApp` | 不是。旧 `BackendApp.scala` 在当前分支已经删除。 |
+| 现在 route 包还能不能“清空” | `backend/src/main` 下已经没有 `*/routes` 包；旧 `HttpExchange` route adapter 已经清掉。 |
+| 现在 test 是否仍依赖旧 route | 没有发现依赖旧 `routes` 包的 test；当前 route contract test 走 `BackendHttp4sRoutes`。 |
+| 是否应该删除所有 test | 不应该。应保留当前 main 真实路径的 http4s contract 和 service contract。 |
+| 当前分支是否等于 Git `main` | 不是。当前分支是 `multimodule`，`main` 仍是旧架构基线。 |
 
-## 3. 当前真正处理请求的 http4s route
+## 2. 当前真正起作用的代码
 
-这些文件是当前 8080 请求链上的 route adapter：
+### 2.1 运行入口
+
+| 文件 | 作用 |
+| --- | --- |
+| `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala` | 进程入口；加载环境、创建 runtime、启动 Ember HTTP server。 |
+| `backend/src/main/scala/slaydemo/backend/BackendRuntime.scala` | 组装当前运行所需 service。 |
+| `backend/src/main/scala/slaydemo/backend/BackendRepositories.scala` | 选择当前 repository 实现。 |
+| `backend/src/main/scala/slaydemo/backend/BackendLiveRepositoryFactories.scala` | 创建 live repository。 |
+| `backend/src/main/scala/slaydemo/backend/BackendEnvironment.scala` | 从环境变量读取配置。 |
+| `backend/src/main/scala/slaydemo/backend/BackendConfig.scala` | 后端配置值对象。 |
+
+### 2.2 当前 HTTP adapter
+
+当前所有 HTTP 请求通过 `BackendHttp4sRoutes.backendRoutes(...)` 组合。`backend/src/main/scala/slaydemo/backend/http4s` 下共有这些正式运行文件：
 
 | 文件 | 当前作用 |
 | --- | --- |
-| `http4s/HealthHttp4sRoutes.scala` | 健康检查；固定 API path 由 `shared/api/HealthApi.scala` 管理。 |
-| `http4s/IdentityHttp4sRoutes.scala` | 注册、登录、当前用户、账号列表；identity API path 和 request/response DTO 由 `identity/api/IdentityApi.scala` 管理。 |
-| `http4s/MailHttp4sRoutes.scala` | 邮件列表和已读操作；list/read API path、owner query key、read body DTO 由 `mail/objects/apiTypes/MailApiTypes.scala` 管理。 |
-| `http4s/SocialHttp4sRoutes.scala` | 好友请求创建、查询、响应；friend request API path、owner query key 和 request DTO 由 `social/objects/apiTypes/SocialApiTypes.scala` 管理。 |
-| `http4s/ForumHttp4sRoutes.scala` | 讨论区 topic、reply、vote。 |
-| `http4s/GovernanceHttp4sRoutes.scala` | 贡献调整和治理通知；contribution/notification API path、query facade 和 request/response DTO 由 `governance/objects/apiTypes/GovernanceApiTypes.scala` 管理。 |
-| `http4s/ReplayHttp4sRoutes.scala` | replay catalog、详情、评论；catalog target/query 和 record/comment DTO 解码由 `replay/objects/apiTypes/ReplayApiCodec.scala` 管理。 |
-| `http4s/BotProfileHttp4sRoutes.scala` | bot profile 列表；固定 API path 由 `bots/objects/apiTypes/BotProfileApiTypes.scala` 管理。 |
-| `http4s/BattleQueueHttp4sRoutes.scala` | battle 排队 join/status/leave。 |
-| `http4s/BattleRoomHttp4sRoutes.scala` | 房间 snapshot/heartbeat。 |
-| `http4s/BattleStateHttp4sRoutes.scala` | battle state 读取和 SSE stream。 |
-| `http4s/BattleCommandHttp4sRoutes.scala` | battle command 提交。 |
-| `http4s/BattleResultHttp4sRoutes.scala` | battle result 查询和写入。 |
+| `BackendHttp4sRoutes.scala` | 总 route composition，把各 domain route 组合成一个 `HttpRoutes[IO]`。 |
+| `Http4sRouteSupport.scala` | CORS、错误响应、阻塞 service 调用边界。 |
+| `HealthHttp4sRoutes.scala` | health API。 |
+| `IdentityHttp4sRoutes.scala` | 注册、登录、当前用户、账号列表。 |
+| `MailHttp4sRoutes.scala` | 邮件列表、邮件已读。 |
+| `SocialHttp4sRoutes.scala` | 好友请求查询、创建、响应。 |
+| `ForumHttp4sRoutes.scala` | forum topic、reply、vote。 |
+| `GovernanceHttp4sRoutes.scala` | 贡献调整、治理通知。 |
+| `ReplayHttp4sRoutes.scala` | replay catalog、detail、comments。 |
+| `BotProfileHttp4sRoutes.scala` | bot profile 列表。 |
+| `BattleQueueHttp4sRoutes.scala` | battle queue status/join/leave。 |
+| `BattleRoomHttp4sRoutes.scala` | room snapshot/heartbeat。 |
+| `BattleStateHttp4sRoutes.scala` | battle state read/SSE stream。 |
+| `BattleCommandHttp4sRoutes.scala` | battle command submit。 |
+| `BattleResultHttp4sRoutes.scala` | battle result list/record。 |
 
-这些 route 共同由 `BackendHttp4sRoutes.backendRoutes(...)` 组合成一个 `HttpRoutes[IO]`，然后 `.orNotFound` 交给 Ember server。
+### 2.3 当前业务层
 
-## 4. 当前真正起作用的 service/domain 代码
+`BackendRuntime` 实例化的 service 才是当前 main 真实业务入口。主要分层如下：
 
-`BackendRuntime.fromEnvironment` 当前会实例化这些业务服务：
-
-| 服务 | 当前作用 |
+| 目录 | 当前作用 |
 | --- | --- |
-| `StaticHealthService` | 生成健康检查响应。 |
-| `DefaultIdentityService` | 注册、登录、session、账号列表。 |
-| `InMemoryBattleQueueService` | 当前 battle 排队、房间等待、ticket、room snapshot。 |
-| `DefaultBattleQueueJoinAuthorizationService` | 检查 battle join 是否拥有合法 identity/session。 |
-| `InMemoryBattleStateService` | 当前 battle authoritative state、tick 推进、command 接收和应用。 |
-| `DefaultBattleResultService` | battle result 查询和写入。 |
-| `DefaultBattleFinishProjector` | battle 结束后投影 result、replay、mail。 |
-| `DefaultReplayService` | replay catalog、详情、评论。 |
-| `DefaultMailService` | 邮件查询和已读。 |
-| `DefaultBotProfileService` | bot profile 查询。 |
-| `DefaultFriendRequestService` | 好友请求和通知邮件。 |
-| `DefaultForumService` | forum topic/reply/vote。 |
-| `DefaultGovernanceService` | 贡献调整和治理通知。 |
+| `battle/services` | battle 队列、session、runtime、world、combat、actors、abilities、results。 |
+| `identity/services` | 账号注册、登录、session 当前用户。 |
+| `mail/services` | 邮件列表和已读状态。 |
+| `social/services` | 好友请求。 |
+| `forum/services` | 论坛 topic/reply/vote。 |
+| `governance/services` | 治理与通知。 |
+| `replay/services` | replay 记录、列表、评论。 |
+| `bots/services` | bot profile。 |
+| `shared/services` | health。 |
 
-Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
+这些 service 被 http4s route 调用；它们不是微服务进程，只是同一个 JVM 后端中的业务模块。
 
-| battle service 子域 | 当前作用 |
+## 3. 当前完全用不到或已删除的代码
+
+### 3.1 当前分支已经删除的旧 main 入口和旧 route
+
+和 Git `main` 相比，当前分支已经删除了旧入口：
+
+| 已删除文件 | 原作用 |
 | --- | --- |
-| `services/queue` | 排队、房间、ticket、heartbeat、room lifecycle。 |
-| `services/session` | battle session、命令接收、当前状态读取、stored battle。 |
-| `services/runtime` | tick 推进、结束判定、event、聚合状态更新。 |
-| `services/world` | 地图尺寸、出生点、碰撞、移动规则。 |
-| `services/combat` | 武器、射击、projectile、命中、伤害、terminal。 |
-| `services/actors` | 玩家输入、bot、玩家生命周期和运行时更新。 |
-| `services/abilities` | 技能、pickup、slow field。 |
-| `services/results` | result、settlement、replay、history、结束投影。 |
+| `backend/src/main/scala/slaydemo/backend/BackendApp.scala` | 旧 Java HttpServer 入口。 |
+| `backend/src/main/scala/slaydemo/backend/BackendRouteCatalog.scala` | 旧 route catalog。 |
+| `backend/src/main/scala/slaydemo/backend/BackendRouteRegistry.scala` | 旧 route registry。 |
 
-这些 service 虽然很多，但不是“微服务”。它们是同一个 JVM 进程内的业务模块。它们通过 Scala package 和类型组织，没有进程隔离、网络边界或独立部署边界。
+当前分支也已经删除了这些旧 `routes` 包：
 
-## 5. 当前真正起作用的存储代码
-
-当前 `/api/health` 返回：
-
-```json
-{
-  "status": "ok",
-  "service": "slay-demo-backend",
-  "port": 8080,
-  "storageMode": "postgres"
-}
-```
-
-所以当前运行时通过 `BackendRepositories.fromStorage(StorageConfig.Postgres(...))` 使用 Postgres 实现：
-
-| Repository 接口 | 当前实际实现 |
+| 已删除目录 | 原作用 |
 | --- | --- |
-| `IdentityAccountRepository` | `PostgresIdentityAccountRepository` |
-| `BattleResultRepository` | `PostgresBattleResultRepository` |
-| `MailRepository` | `PostgresMailRepository` |
-| `BotProfileRepository` | `PostgresBotProfileRepository` |
-| `ReplayRepository` | `PostgresReplayRepository` |
-| `FriendRequestRepository` | `PostgresFriendRequestRepository` |
-| `ForumRepository` | `PostgresForumRepository` |
-| `GovernanceRepository` | `PostgresGovernanceRepository` |
+| `battle/routes` | battle 旧 HttpExchange parser/handler/renderer。 |
+| `bots/routes` | bot profile 旧 route。 |
+| `forum/routes` | forum 旧 parser/handler/renderer。 |
+| `governance/routes` | governance 旧 parser/renderer。 |
+| `identity/routes` | identity 旧 route。 |
+| `mail/routes` | mail 旧 route。 |
+| `replay/routes` | replay 旧 route/parser/renderer。 |
+| `shared/routes` | 旧 shared HTTP support/health route。 |
+| `social/routes` | social 旧 route。 |
 
-`InMemory*Repository` 和 `File*Repository` 当前这次运行没有被使用，但不能简单定义为永久废代码。它们是配置模式分支：
+审计搜索结果说明：当前 `backend/src/main/scala` 没有 `routes` 路径，也没有 `HttpExchange` main source。
 
-| 代码 | 当前运行是否使用 | 是否可以直接删 |
+### 3.2 当前分支已经删除或替换的旧 test
+
+和 Git `main` 相比，当前分支已经删除旧 route contract test，例如：
+
+| 已删除 test | 替代方向 |
+| --- | --- |
+| `battle/routes/*RouteContractTest.scala` | `http4s/Battle*Http4sContractTest.scala` |
+| `bots/routes/BotProfileRouteContractTest.scala` | `http4s/BotProfileHttp4sContractTest.scala` |
+| `forum/routes/ForumRouteContractTest.scala` | `http4s/ForumHttp4sContractTest.scala` |
+| `governance/routes/GovernanceRouteContractTest.scala` | `http4s/GovernanceHttp4sContractTest.scala` |
+| `identity/routes/IdentityRouteContractTest.scala` | `http4s/IdentityHttp4sContractTest.scala` |
+| `mail/routes/MailRouteContractTest.scala` | `http4s/MailHttp4sContractTest.scala` |
+| `replay/routes/ReplayRouteContractTest.scala` | `http4s/ReplayHttp4sCatalogContractTest.scala` |
+| `shared/routes/HealthRouteContractTest.scala` | `http4s/HealthHttp4sRouteContractTest.scala` |
+| `social/routes/SocialRouteContractTest.scala` | `http4s/SocialHttp4sContractTest.scala` |
+
+当前 `BackendContractTestRunner` 调用的是新的 http4s contract 和 service contract，不是旧 route 包。
+
+### 3.3 `backend-legacy`
+
+`backend-legacy` 目录当前有 123 个 tracked 文件，但它不在 `backend/build.sbt` 的 project root 内，也不被 `npm run backend:dev`、`npm run backend:compile`、`npm run backend:test-contracts` 调用。
+
+所以对当前后端运行链路来说，`backend-legacy` 是运行时完全不用的历史代码。是否删除它是仓库管理决策，不影响当前 main 后端是否能跑。
+
+## 4. 当前仍然重复或不够干净的地方
+
+### 4.1 http4s route adapter 仍有重复结构
+
+当前 route 已经比旧 `HttpExchange` 简洁，但各 route 文件仍重复这些模式：
+
+- `OPTIONS`/`HEAD`/`GET`/`POST` 的 method match。
+- `statusFrom(Int): Status`。
+- domain `ApiErrorCode` 到 `HttpApiError` 的转换。
+- `request.as[...]` 失败后映射到 `InvalidJsonObject`。
+- `blocking(service.xxx).flatMap(...)` 的样板。
+
+这不是旧 route 残留，但说明 route adapter 还可以继续瘦身。下一步应该抽一个小的 http4s support 层，而不是重新创建 `routes` 包。
+
+### 4.2 battle API 类型位置仍然不统一
+
+当前 battle 有两个 API 相关位置：
+
+| 位置 | 当前内容 | 问题 |
 | --- | --- | --- |
-| `Postgres*Repository` | 使用中 | 不可以。 |
-| `InMemory*Repository` | 当前未使用 | 不建议直接删，测试和内存模式可能依赖。 |
-| `File*Repository` | 当前未使用 | 不建议直接删，file 模式和文件迁移测试可能依赖。 |
-| `*FileJsonParser` / `*FileJsonRenderer` | 当前 postgres 模式未使用 | 只有确认不再支持 file 模式后才可删。 |
+| `battle/api` | `BattleCommandRequest`、`BattleCommandAccepted`、`BattleCommandVector`、少量 queue/state API case class。 | 被 service 和 tests 使用，不是废代码；但名字像全局 API 层。 |
+| `battle/objects/apiTypes` | request parser、response DTO、route target、error enum。 | 更符合当前“domain 内 apiTypes colocation”的方向。 |
 
-## 6. 当前 8080 请求链完全用不到的代码
+这两个位置不是完全重复，但边界不够清晰。后续应选择一种策略：
 
-以下代码不在当前 8080 的 http4s 请求链上。它们仍可能被编译、被测试引用，或被旧入口引用；因此“当前运行不用”不等于“可以不验证直接删除”。
+- 把 `battle/api` 明确改名为 battle command contract 层。
+- 或把其中稳定 DTO 下沉/合并到 `battle/objects/apiTypes`。
 
-### 6.1 旧 Java HttpServer 入口
+这一步不能直接删除，因为 `BattleStateService`、battle runtime test、http4s command route 都在使用 `BattleCommandRequest`。
 
-| 文件 | 当前状态 |
-| --- | --- |
-| `BackendApp.scala` | 已删除。旧 `com.sun.net.httpserver.HttpServer` 顶层入口不再保留。 |
-| `BackendRouteRegistry.scala` | 已删除。旧入口 handler 注册表不再保留。 |
-| `BackendRouteCatalog.scala` | 已删除。旧入口 route context 清单不再保留。 |
+### 4.3 兼容旧前端的 path alias 增加了复杂度
 
-当前 `package.json` 已不再暴露 `backend:dev:legacy`，contract runner 也不再运行旧 `BackendRouteContextContractTest`。旧顶层入口装配文件已经删除，开发诊断脚本也不再把 `BackendApp` 当作可识别的后端入口。
+当前 battle route 同时支持 REST 风格路径和旧 APIMessage 风格路径，例如：
 
-### 6.2 旧 `HttpExchange` route wrapper
+```text
+/api/battle/queue/join
+/api/battlequeuejoinapi
+/battlequeuejoinapi
+```
 
-这些文件代表旧 Java HttpServer route 层，不是当前 http4s 运行时接收请求的代码：
+这些 alias 是当前前端兼容的一部分，不是死代码。但它们会让 target parser 和 contract test 变复杂。只有在确认前端不再调用旧 alias 后，才能删除。
 
-| 旧 route 文件 | 当前 8080 是否处理请求 |
-| --- | --- |
-| `shared/routes/HealthRoutes.scala` | 已删除。当前使用 `HealthHttp4sRoutes`，并由 `HealthHttp4sRouteContractTest` 覆盖。 |
-| `shared/routes/HttpRouteSupport.scala` | 已删除。旧 `HttpExchange` helper 已无源码引用，当前使用 `http4s/Http4sRouteSupport.scala`。 |
-| `identity/routes/IdentityRoutes.scala` | 已删除。当前使用 `IdentityHttp4sRoutes`，并由 `IdentityHttp4sContractTest` 覆盖。 |
-| `mail/routes/MailRoutes.scala` | 已删除。当前使用 `MailHttp4sRoutes`，并由 `MailHttp4sContractTest` 覆盖。 |
-| `social/routes/SocialRoutes.scala` | 已删除。当前使用 `SocialHttp4sRoutes`，并由 `SocialHttp4sContractTest` 覆盖。 |
-| `forum/routes/ForumRoutes.scala` | 已删除。当前使用 `ForumHttp4sRoutes`，并由 `ForumHttp4sContractTest` 覆盖。 |
-| `forum/routes/ForumMutationRouteHandler.scala` | 已删除。旧 `ForumRoutes` 专用 mutation handler 不再保留。 |
-| `forum/routes/ForumRouteHttpSupport.scala` | 已删除。旧 `ForumRoutes` 专用 HTTP helper 不再保留。 |
-| `forum/routes/ForumRequestBodyParser.scala` | 已删除。旧 `ForumRoutes` 专用 body parser 不再保留。 |
-| `governance/routes/GovernanceRoutes.scala` | 已删除。当前使用 `GovernanceHttp4sRoutes`，并由 `GovernanceHttp4sContractTest` 覆盖。 |
-| `governance/routes/GovernanceRequestBodyParser.scala` | 已删除。旧 `GovernanceRoutes` 专用 body parser 不再保留。 |
-| `replay/routes/ReplayRoutes.scala` | 已删除。当前使用 `ReplayHttp4sRoutes`，并由 `ReplayHttp4sCatalogContractTest` 覆盖。 |
-| `replay/routes/ReplayRouteTargetParsers.scala` | 已删除。旧 `ReplayRoutes` 专用 path/query parser 不再保留。 |
-| `replay/routes/ReplayRouteErrorMapper.scala` | 已删除。旧 `ReplayRoutes` 专用 error mapper 不再保留。 |
-| `bots/routes/BotProfileRoutes.scala` | 已删除。当前使用 `BotProfileHttp4sRoutes`，并由 `BotProfileHttp4sContractTest` 覆盖；bot profile API path 和 response DTO 由 `BotProfileApiTypes.scala` 承接。 |
-| `battle/routes/BattleRoutes.scala` | 已删除。当前使用 `BattleQueue/Room/State/Command/ResultHttp4sRoutes`。 |
-| `battle/routes/BattleCommandRouteHandler.scala` | 已删除。当前使用 `BattleCommandHttp4sRoutes`，并由 `BattleCommandHttp4sContractTest` 覆盖。 |
-| `battle/routes/BattleCommandRequestParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleCommandApiTypes.scala` 识别 command API path、解码 command request，并在 apiTypes 内完成 JSON 到 domain command 的转换。 |
-| `battle/routes/BattleQueueRouteHandler.scala` | 已删除。当前使用 `BattleQueueHttp4sRoutes`，并由 `BattleQueueHttp4sJoin/Status/LeaveContractTest` 覆盖。 |
-| `battle/routes/BattleJoinCommandParser.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 识别 queue join/status/leave API path，解码 queue join/leave request，并在 apiTypes 内完成 JSON/query 到 join command / ticket id 的转换。 |
-| `battle/routes/BattleRoomRouteHandler.scala` | 已删除。当前使用 `BattleRoomHttp4sRoutes`，并由 `BattleRoomHttp4sContractTest` 覆盖；room snapshot/heartbeat path/query 和 heartbeat JSON 到 domain command 的转换已由 `BattleQueueApiTypes.scala` 承接。 |
-| `battle/routes/BattleQueueRoomJsonRenderer.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleQueueApiTypes.scala` 的 Circe DTO 渲染 queue/room response。 |
-| `battle/routes/BattleStateRouteHandler.scala` | 已删除。当前使用 `BattleStateHttp4sRoutes`，并由 `BattleStateRead/StreamHttp4sContractTest` 覆盖；state read/stream API path 和 battleId path/query 解析已由 `BattleStateRequestTarget` 承接。 |
-| `battle/routes/BattleStateStreamWriter.scala` | 已删除。当前 http4s SSE 在 `BattleStateHttp4sRoutes` 内实现。 |
-| `battle/routes/BattleStateJson.scala` | 已删除。当前使用 `battle/objects/apiTypes/BattleStateApiTypes.scala` 的 Circe DTO 渲染 state response。 |
-| `battle/routes/BattlePlayerStateJsonRenderer.scala` | 已删除。旧 `BattleStateJson` 专用 player renderer 不再保留。 |
-| `battle/routes/BattleEntityStateJsonRenderer.scala` | 已删除。旧 `BattleStateJson` 专用 entity renderer 不再保留。 |
-| `battle/routes/BattleStateJsonSupport.scala` | 已删除。旧手写 JSON helper 不再保留。 |
-| `battle/routes/BattleJsonObjectParser.scala` | 已删除。旧 HttpExchange route 专用 JSON parser 不再保留。 |
-| `battle/routes/BattleRouteHttpSupport.scala` | 已删除。旧 HttpExchange route 专用 HTTP helper 不再保留。 |
-| `battle/routes/BattleRouteErrorMapper.scala` | 已删除。旧 HttpExchange route 专用 error mapper 不再保留。 |
-| `battle/routes/BattleRouteRequestParsers.scala` | 已删除。旧 HttpExchange state route 专用 request parser 不再保留。 |
-| `battle/routes/BattleRoomRouteParsers.scala` | 已删除。旧 HttpExchange room/state route 专用 path/query parser 不再保留。 |
-| `battle/routes/BattleResultRoutes.scala` | 已删除。当前使用 `BattleResultHttp4sRoutes`，并由 `BattleResultHttp4sContractTest` 覆盖；result API path/query/body 解码已由 `BattleResultApiCodec.scala` 承接。 |
+### 4.4 test 中有大量 stub service
 
-### 6.3 不能直接整包删除的 `routes` 目录
+`BackendHttp4sRoutesCompositionContractTest` 为了验证 route composition，定义了很多 `Unused*Service` stub。这些只存在于 test，不影响 main 运行。
 
-注意：`routes` 目录里不是所有文件都能删。当前 http4s route 已不再直接复用 domain `routes` 包里的 parser、target parser、error mapper；下表记录这些支撑文件已经迁到哪里：
+它们的问题是测试代码偏长，不是业务重复。后续可以抽成 test fixture，但不应该因为“看起来多”就删掉，因为它证明了组合 route 能走到真实 http4s adapter。
 
-| 原旧 routes 支撑文件 | 当前位置和作用 |
-| --- | --- |
-| `IdentityCommandParsers.scala` | 已迁到 `identity/api`，registration/session command 转换已由 `IdentityApi.scala` typed DTO 承接；`IdentityHttp4sRoutes` 不再直接依赖 command parser。 |
-| `IdentitySessionTokenParser.scala` | 已迁到 `identity/api`，session header 名称和 token 解析由它统一承接；`IdentityHttp4sRoutes` 只提供 header lookup。 |
-| `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，owner query key/read command 转换已由 `MailApiTypes.scala` 承接；read POST body 使用 `MailReadApiRequest` typed DTO。 |
-| `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，owner query key/create/respond command 转换已由 `SocialApiTypes.scala` 承接；create/respond POST body 使用 typed DTO。 |
-| `ForumCommandParsers.scala` | 已迁到 `forum/objects/apiTypes`，forum request body 到 create/reply/vote command 的转换已由 `ForumApiTypes.scala` 承接。 |
-| `ForumApiTargetParsers.scala` | 位于 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 用它识别 topic/reply/vote API path；topic/reply path id 直接解析成 typed id，viewer query 已使用 http4s `request.params`。 |
-| `ForumApiErrorMapper.scala` | 位于 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 用它映射 service/parse error。 |
-| `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，typed request 到治理 domain command 的转换已由 `GovernanceApiTypes.scala` 承接。 |
-| `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，当前由 `GovernanceRequestTarget` 作为 route-facing facade 统一承接治理 query。 |
-| `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，catalog target/query facade 和 record/comment body decode 已由 `ReplayApiCodec` 承接；`ReplayHttp4sRoutes` 不再直接依赖 command parser。 |
-| `ReplayJsonObjectParser.scala` | 已删除。当前 replay POST body 由 `ReplayApiCodec` 使用 Circe `JsonObject` 解析，再交给 `ReplayCommandParsers` 做业务字段校验。 |
-| `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 用它解析 result API path/query/body；GET query 已使用 http4s `request.params`，POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |
+## 5. 对“清空 route 和 test”的判断
 
-结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；旧顶层 Java HttpServer 入口、route catalog/registry、旧 `HttpExchange` route wrapper 和旧 route contract tests 已删除。
+### 5.1 route
 
-## 7. 当前逻辑重复的位置
+可以清的旧 route 已经清掉了。当前 `backend/src/main` 没有 `*/routes` 包，也没有 `HttpExchange` route adapter。
 
-### 7.1 HTTP route 重复
+不应该清空 `backend/src/main/scala/slaydemo/backend/http4s`，因为这里就是当前 main 真正运行的 HTTP adapter。
 
-同一个业务接口目前存在两套路由实现：
+正确方向是：
 
-| 业务 | 当前实际运行 | 旧重复实现 |
+1. 保留 `http4s` adapter。
+2. 继续把 path、request DTO、response DTO、error enum 下沉到 domain 的 `apiTypes` 或 `api` contract 文件。
+3. 把 route 文件瘦成“method/path/body -> service -> response”的薄层。
+4. 删除确认无前端调用的旧 path alias。
+
+### 5.2 test
+
+不应该清空所有 test。当前 test 已经按当前 main 路径重建，主要分两类：
+
+| test 类型 | 是否保留 | 原因 |
 | --- | --- | --- |
-| health | `HealthHttp4sRoutes` | `HealthRoutes` 已删除 |
-| identity | `IdentityHttp4sRoutes` | `IdentityRoutes` 已删除 |
-| mail | `MailHttp4sRoutes` | `MailRoutes` 已删除 |
-| social | `SocialHttp4sRoutes` | `SocialRoutes` 已删除 |
-| forum | `ForumHttp4sRoutes` | `ForumRoutes`、`ForumMutationRouteHandler` 已删除 |
-| governance | `GovernanceHttp4sRoutes` | `GovernanceRoutes` 已删除 |
-| replay | `ReplayHttp4sRoutes` | `ReplayRoutes` 已删除 |
-| bot profile | `BotProfileHttp4sRoutes` | `BotProfileRoutes` 已删除 |
-| battle queue | `BattleQueueHttp4sRoutes` | `BattleQueueRouteHandler`、`BattleJoinCommandParser` 已删除 |
-| battle room | `BattleRoomHttp4sRoutes` | `BattleRoomRouteHandler`、`BattleQueueRoomJsonRenderer` 已删除 |
-| battle state | `BattleStateHttp4sRoutes` | `BattleStateRouteHandler`、`BattleStateStreamWriter`、手写 state JSON renderer 已删除 |
-| battle command | `BattleCommandHttp4sRoutes` | `BattleCommandRouteHandler`、`BattleCommandRequestParser` 已删除 |
-| battle result | `BattleResultHttp4sRoutes` | `BattleResultRoutes` 已删除 |
+| `http4s/*ContractTest.scala` | 保留 | 直接验证当前 `BackendHttp4sRoutes`，覆盖 main 真实 HTTP adapter。 |
+| service contract test | 保留 | 验证业务状态转换，不依赖 HTTP adapter。 |
+| `BackendApiBoundaryContractTest` | 保留 | 防止旧 `routes`、`HttpExchange`、`APIMessage` 重新出现。 |
+| 旧 `routes/*RouteContractTest.scala` | 已删除 | 旧 HttpExchange adapter 不再是 main。 |
 
-风险：同一个 API contract 有两处行为来源，后续改字段、状态码、错误码时容易只改一边。
+如果继续重构 test，应该做的是抽 fixture、减少重复 stub，而不是删除验证面。
 
-### 7.2 JSON 解析和渲染重复
+## 6. Git 分支差异
 
-当前存在两套 JSON 风格：
-
-| 风格 | 文件 | 当前问题 |
-| --- | --- | --- |
-| 旧手写字符串 JSON | battle 旧手写 state JSON renderer 已删除；旧 `shared/routes/HttpRouteSupport.scala` 已删除 | 容易漏字段、转义错误、和 Circe DTO drift。 |
-| typed DTO + Circe | `objects/apiTypes/*ApiTypes.scala`、`identity/api`、`shared/api`、`http4s/*Routes.scala` | 当前运行路径正在使用；battle result、bots、mail、social、forum、governance、replay、identity、health response 已删除旧 route 字符串 render helper，只保留 DTO + Circe encoder 出口。 |
-
-最明显的重复：
-
-| 旧实现 | 新实现 |
-| --- | --- |
-| `battle/routes/BattleStateJson.scala` 已删除 | `battle/objects/apiTypes/BattleStateApiTypes.scala`，包含 state response DTO 和 battle state request target 解析 |
-| `battle/routes/BattleCommandRequestParser.scala` 已删除 | `battle/objects/apiTypes/BattleCommandApiTypes.scala` |
-| `battle/routes/BattleQueueRoomJsonRenderer.scala` 已删除 | `battle/objects/apiTypes/BattleQueueApiTypes.scala` |
-| `battle/routes/BattleResultCommandParsers.scala` 已迁出，`BattleResultJsonObjectParser.scala` 已删除 | `battle/objects/apiTypes/BattleResultApiTypes.scala` + `BattleResultApiCodec.scala`，GET query 使用 http4s `request.params`，POST body 使用 Circe `JsonObject`，response 通过 DTO encoder 输出 |
-| `shared/routes/HttpRouteSupport.sendJsonError` 已删除 | `http4s/Http4sRouteSupport.apiError` |
-
-风险：测试通过某一路径不等于另一条路径正确。battle command 已改为只保留当前运行的 `BattleCommandAPIRequest.decodeCommand`，避免旧 parser 和 http4s parser 继续 drift。
-
-### 7.3 路径兼容表重复
-
-旧入口曾经把兼容路径集中在：
+当前分支：
 
 ```text
-BackendRouteRegistry.scala
-BackendRouteCatalog.scala
+multimodule
 ```
 
-这两个文件已经删除；当前兼容路径只应由 http4s route 和对应 composition tests 约束。
-
-http4s 入口把兼容路径散在每个 route 内：
+当前 `main` 指向：
 
 ```text
-BattleQueueApiTypes.BattleQueueRequestTarget
-BattleCommandApiTypes.BattleCommandRequestTarget
-BattleStateApiTypes.BattleStateRequestTarget
-...
+483d4515a776e33aac98e43963c81617400e24dd
 ```
 
-风险：Vite 代理会把 `/api/...` rewrite 成无 `/api` 的路径；如果只在一套路由表里补路径，另一套就可能 drift。当前 battle proxy-stripped path 已有 contract 测试覆盖，但结构上仍重复。
+当前 `multimodule` 相对 `main` 的后端差异很大，核心变化是：
 
-### 7.4 `BackendRuntime` 和旧 route 的装配边界
+- 删除旧 `BackendApp`、`BackendRouteCatalog`、`BackendRouteRegistry`。
+- 删除旧 Java `HttpExchange` route adapter。
+- 新增 `backend/http4s` 入口和 route adapter。
+- 引入 `cats-effect`、`http4s`、`circe`、`log4cats`。
+- 把旧 route parser/renderer 大量迁到各 domain 的 `apiTypes` 或 `api` contract 文件。
+- 删除旧 route contract tests。
+- 新增当前 http4s contract tests。
+- 新增 boundary contract，阻止旧 route/APIMessage 结构回流。
 
-已修正：`BackendRuntime.fromEnvironment` 当前只装配 config、service、repository 相关运行时对象，不再实例化旧 `HttpExchange` route 对象。旧顶层 `BackendApp` / `BackendRouteRegistry` / `BackendRouteCatalog` 已删除。
+所以“当前跑的不是 Git main 分支”是正确的；但“当前跑的是 test 逻辑”是不正确的。当前跑的是 `multimodule` 分支的 `backend/src/main`。
 
-`BackendHttp4sApp` 只把 service 传给 `BackendHttp4sRoutes.backendRoutes(...)`。这意味着当前 http4s 运行对象图已经不再间接初始化旧 route wrapper。
+## 7. 后续建议 ticket
 
-剩余风险：旧 route wrapper 已删除；当前主要风险转为少数 domain 的 `apiTypes` 中仍保留旧字符串 render helper，可能和 http4s 的 Circe encoder 出口重复。
+### BE-HTTP-ROUTE-SUPPORT-59
 
-## 8. 可以清理但需要分阶段做的代码
+目标：把 route adapter 中重复的 `statusFrom`、typed API error 到 `HttpApiError` 的转换、method-not-allowed 响应提取到 `Http4sRouteSupport` 或一个很薄的 `HttpApiErrorRenderer`。
 
-不要一次性删除。建议按这个顺序：
+范围：只改 `backend/http4s` 和必要的 domain error enum 调用点。
 
-### Phase A：拆分 runtime 装配，先消除误导
+验收：`npm run backend:compile` 和 `npm run backend:test-contracts` 通过。
 
-状态：已完成。
+### BE-BATTLE-API-LAYER-60
 
-```text
-BackendRuntime 只保留 service/repository/runtime state
-旧 BackendApp 顶层入口已删除
-BackendHttp4sApp 不再间接构造旧 route object
-```
+目标：整理 `battle/api` 与 `battle/objects/apiTypes` 的职责边界，避免同一个 API contract 概念散在两个位置。
 
-当前代码已经可以证明：当前 http4s 运行对象图里没有旧 route。
+范围：只处理 battle command/queue/state API 类型的包位置和 imports，不改字段、不改 JSON。
 
-### Phase B：把仍被 http4s 复用的 parser 从 `routes` 迁出去
+验收：battle http4s contract、battle runtime contract、全量 backend contract 通过。
 
-状态：已完成。当前 http4s 主运行路径不再直接 import domain `routes` 包。
+### BE-LEGACY-PATH-ALIAS-AUDIT-61
 
-迁移方向：
+目标：审计前端是否仍调用 `/api/battlequeuejoinapi` 这类旧 alias。确认没有调用后，分批删除 alias。
 
-| 状态 | 当前位置 | 建议位置 |
-| --- | --- | --- |
-| 已完成 | `identity/routes/IdentityCommandParsers.scala` | `identity/api/IdentityCommandParsers.scala` |
-| 已完成 | `identity/routes/IdentitySessionTokenParser.scala` | `identity/api/IdentitySessionTokenParser.scala` |
-| 已完成 | `mail/routes/MailCommandParsers.scala` | `mail/objects/apiTypes/MailCommandParsers.scala` |
-| 已完成 | `social/routes/SocialCommandParsers.scala` | `social/objects/apiTypes/SocialCommandParsers.scala` |
-| 已完成 | `governance/routes/GovernanceCommandParsers.scala` | `governance/objects/apiTypes/GovernanceCommandParsers.scala` |
-| 已完成 | `governance/routes/GovernanceQueryParsers.scala` | `governance/objects/apiTypes/GovernanceQueryParsers.scala` |
-| 已完成 | `forum/routes/ForumCommandParsers.scala` | `forum/objects/apiTypes/ForumCommandParsers.scala` |
-| 已完成 | `forum/routes/ForumRouteTargetParsers.scala` | `forum/objects/apiTypes/ForumApiTargetParsers.scala` |
-| 已完成 | `forum/routes/ForumRouteErrorMapper.scala` | `forum/objects/apiTypes/ForumApiErrorMapper.scala` |
-| 已完成 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes/ReplayCommandParsers.scala` |
-| 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | 已删除；当前 replay POST body 由 `replay/objects/apiTypes/ReplayApiCodec.scala` 使用 Circe `JsonObject` |
-| 已完成 | `battle/routes/BattleResultApiCodec.scala` | `battle/objects/apiTypes/BattleResultApiCodec.scala` |
-| 已完成 | `battle/routes/BattleResultCommandParsers.scala` | `battle/objects/apiTypes/BattleResultCommandParsers.scala` |
-| 已完成 | `battle/routes/BattleResultJsonObjectParser.scala` | 已删除；当前 battle result POST body 使用 Circe `JsonObject` |
+范围：先审计，不直接删。
 
-迁完后，`routes` 包已经可以更明确地表示“旧 HttpExchange adapter”。
-
-### Phase C：删除旧 `HttpExchange` route wrapper
-
-前提：
-
-1. `backend:dev:legacy` 已移除。
-2. contract tests 已迁到 http4s 路径。
-3. `BackendRouteCatalog/Registry` 已删除。
-4. 所有当前前端请求路径都有 http4s composition test 覆盖。
-
-可删候选：
-
-```text
-shared/routes/HealthRoutes.scala（已删除）
-shared/routes/HttpRouteSupport.scala（已删除）
-各 domain/routes/*Routes.scala
-各 domain/routes/*RouteHandler.scala
-battle/routes/BattleStateStreamWriter.scala 已删除
-```
-
-### Phase D：删除旧手写 JSON renderer
-
-前提是对应 typed DTO + Circe encoder 已完全覆盖字段和 contract test：
-
-```text
-battle/routes/BattleStateJson.scala 已删除
-battle/routes/BattlePlayerStateJsonRenderer.scala 已删除
-battle/routes/BattleEntityStateJsonRenderer.scala 已删除
-battle/routes/BattleQueueRoomJsonRenderer.scala 已删除
-其他只服务旧 route 的 *JsonRenderer
-```
-
-## 9. 当前不能简单删除的代码
-
-| 代码 | 原因 |
-| --- | --- |
-| `backend/src/main/scala/slaydemo/backend/battle/services/**` | 这是当前 battle authoritative runtime 的核心逻辑，不是微服务垃圾代码。 |
-| `backend/src/main/scala/slaydemo/backend/battle/objects/**` | 当前 API DTO、状态、枚举、值对象都依赖这里。 |
-| `objects/apiTypes/**` | 当前 http4s route 的 typed contract 层正在使用。 |
-| `Postgres*Repository` | 当前 postgres 运行模式正在使用。 |
-| `InMemoryBattleQueueService`、`InMemoryBattleStateService` | 名字带 InMemory，但当前 battle 排队和 battle state runtime 实际就是它们。 |
-| `*CommandParsers`、`*ApiTargetParsers`、`*ApiErrorMapper` 中被 http4s import 的部分 | 已迁出旧 `routes` 包；当前由 `api` 或 `objects/apiTypes` 持有。 |
-
-## 10. 下一步建议
-
-最高优先级不再是清理旧 route。当前旧 Java HttpServer 入口、旧 `HttpExchange` wrapper、旧 route contract tests、旧 battle 手写 JSON renderer、各 HTTP response DTO 的旧字符串 render helper、replay 旧手写 JSON object parser，以及无引用的 shared 手写 JSON object parser 已清完；identity register/session、mail read 与 social create/respond POST body 也已从 loose `Map[String,String]` 切到 typed DTO。下一步应聚焦 service 简化或继续减少其他 request parser 中的手写 codec。
-
-推荐下一个小票：
-
-```text
-BE-API-PARSER-MOVE-01
-目标：已完成。当前 http4s 不再复用旧 routes 包中的 parser/codec。
-收益：legacy route 已可删除，且已完成删除。
-```
-
-最后再做：
-
-```text
-BE-LEGACY-ROUTES-REMOVE-01
-目标：已完成。旧 Java HttpServer 入口和旧 HttpExchange route wrappers 已删除。
-前提：所有 contract tests 已经覆盖 http4s 路径。
-```
+验收：列出每个 alias 的前端调用证据和保留/删除建议。

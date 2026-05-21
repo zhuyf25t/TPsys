@@ -9,6 +9,10 @@ enum HealthStatus {
   case Ok
 }
 
+enum HealthApiErrorCode {
+  case MethodNotAllowed
+}
+
 object HealthRequestTarget {
   private val AllowedHealthPaths: Set[String] =
     Set("/health", "/api/health", "/api/healthapi")
@@ -21,6 +25,23 @@ object HealthStatus {
   def wireValue(status: HealthStatus): String =
     status match {
       case HealthStatus.Ok => "ok"
+    }
+}
+
+object HealthApiErrorCode {
+  def wireValue(code: HealthApiErrorCode): String =
+    code match {
+      case HealthApiErrorCode.MethodNotAllowed => "method_not_allowed"
+    }
+
+  def message(code: HealthApiErrorCode): String =
+    code match {
+      case HealthApiErrorCode.MethodNotAllowed => "Method is not allowed."
+    }
+
+  def statusCode(code: HealthApiErrorCode): Int =
+    code match {
+      case HealthApiErrorCode.MethodNotAllowed => 405
     }
 }
 

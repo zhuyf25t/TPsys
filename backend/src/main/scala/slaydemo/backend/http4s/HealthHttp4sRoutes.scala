@@ -7,14 +7,11 @@ import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
-import slaydemo.backend.shared.api.HealthRequestTarget
+import slaydemo.backend.shared.api.{HealthApiErrorCode, HealthRequestTarget}
 import slaydemo.backend.shared.api.HealthJsonCodec.given
 import slaydemo.backend.shared.services.HealthService
 
 private[http4s] object HealthHttp4sRoutes {
-  private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
-
   def routes(service: HealthService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if isHealthPath(request) =>
@@ -26,10 +23,23 @@ private[http4s] object HealthHttp4sRoutes {
           case Method.GET =>
             blocking(service.current).flatMap(response => Ok(response.asJson).map(withCors))
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(healthApiError(HealthApiErrorCode.MethodNotAllowed)))
         }
     }
 
   private def isHealthPath(request: Request[IO]): Boolean =
     HealthRequestTarget.isHealthPath(request.uri.path.renderString)
+
+  private def healthApiError(code: HealthApiErrorCode): HttpApiError =
+    HttpApiError(
+      status = statusFrom(HealthApiErrorCode.statusCode(code)),
+      code = HealthApiErrorCode.wireValue(code),
+      message = HealthApiErrorCode.message(code)
+    )
+
+  private def statusFrom(value: Int): Status =
+    value match {
+      case 405 => Status.MethodNotAllowed
+      case _   => Status.InternalServerError
+    }
 }

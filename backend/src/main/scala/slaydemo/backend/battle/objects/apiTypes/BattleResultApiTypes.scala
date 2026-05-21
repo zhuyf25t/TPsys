@@ -4,13 +4,6 @@ import io.circe.Encoder
 
 import slaydemo.backend.battle.objects.BattleResultRecord
 
-final case class BattleResultErrorResponse(error: String, code: String)
-
-object BattleResultErrorResponse {
-  given Encoder[BattleResultErrorResponse] =
-    Encoder.forProduct2("error", "code")(value => (value.error, value.code))
-}
-
 final case class BattleResultRecordResponse(
   resultId: String,
   battleId: String,

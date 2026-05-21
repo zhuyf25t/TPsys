@@ -9,6 +9,14 @@ enum HealthStatus {
   case Ok
 }
 
+object HealthRequestTarget {
+  private val AllowedHealthPaths: Set[String] =
+    Set("/health", "/api/health", "/api/healthapi")
+
+  def isHealthPath(path: String): Boolean =
+    AllowedHealthPaths.contains(path)
+}
+
 object HealthStatus {
   def wireValue(status: HealthStatus): String =
     status match {

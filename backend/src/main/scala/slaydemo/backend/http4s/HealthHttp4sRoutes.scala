@@ -7,14 +7,11 @@ import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, withCors}
-import slaydemo.backend.shared.api.HealthErrorResponse
+import slaydemo.backend.shared.api.{HealthErrorResponse, HealthRequestTarget}
 import slaydemo.backend.shared.api.HealthJsonCodec.given
 import slaydemo.backend.shared.services.HealthService
 
 private[http4s] object HealthHttp4sRoutes {
-  private val AllowedPaths: Set[String] =
-    Set("/health", "/api/health", "/api/healthapi")
-
   def routes(service: HealthService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if isHealthPath(request) =>
@@ -31,5 +28,5 @@ private[http4s] object HealthHttp4sRoutes {
     }
 
   private def isHealthPath(request: Request[IO]): Boolean =
-    AllowedPaths.contains(request.uri.path.renderString)
+    HealthRequestTarget.isHealthPath(request.uri.path.renderString)
 }

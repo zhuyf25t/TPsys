@@ -182,7 +182,7 @@ private[http4s] object ForumHttp4sRoutes {
       .map(_.map(_.toCommandFields).left.map(_ => "Request body must be a JSON object with string fields."))
 
   private def viewerHandle(request: Request[IO]) =
-    ForumRouteTargetParsers.resolveViewerHandle(request.uri.query.renderString)
+    ForumRouteTargetParsers.resolveViewerHandle(request.params)
 
   private def createApiError(error: slaydemo.backend.forum.services.ForumCreateTopicError): HttpApiError = {
     val code = ForumRouteErrorMapper.createErrorCode(error)

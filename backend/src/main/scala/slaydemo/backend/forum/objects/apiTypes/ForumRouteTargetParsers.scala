@@ -55,23 +55,11 @@ object ForumRouteTargetParsers {
     }
   }
 
-  def resolveViewerHandle(rawQuery: String): Option[PlayerHandle] =
-    queryParams(rawQuery).get("author").orElse(queryParams(rawQuery).get("viewer"))
+  def resolveViewerHandle(query: Map[String, String]): Option[PlayerHandle] =
+    query.get("author").orElse(query.get("viewer"))
       .map(HandlePolicy.trim)
       .filter(HandlePolicy.isPlayableIdentityHandle)
       .flatMap(PlayerHandle.forLookup)
-
-  private def queryParams(rawQuery: String): Map[String, String] =
-    Option(rawQuery).toVector
-      .flatMap(_.split("&").toVector)
-      .flatMap { pair =>
-        pair.split("=", 2).toList match {
-          case key :: value :: Nil if key.nonEmpty => Some(decode(key) -> decode(value))
-          case key :: Nil if key.nonEmpty          => Some(decode(key) -> "")
-          case _                                   => None
-        }
-      }
-      .toMap
 
   private def pathSegments(path: String): Vector[String] =
     normalizePath(path).split('/').toVector.filter(_.nonEmpty)

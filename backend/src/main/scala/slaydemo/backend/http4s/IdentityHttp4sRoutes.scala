@@ -13,10 +13,10 @@ import slaydemo.backend.identity.api.{
   IdentityAuthResponse,
   IdentityCommandParsers,
   IdentityRegistrationCommandParseError,
-  IdentitySessionCommandParseError
+  IdentitySessionCommandParseError,
+  IdentitySessionTokenParser
 }
 import slaydemo.backend.identity.objects.SessionToken
-import slaydemo.backend.identity.routes.IdentitySessionTokenParser
 import slaydemo.backend.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationError,

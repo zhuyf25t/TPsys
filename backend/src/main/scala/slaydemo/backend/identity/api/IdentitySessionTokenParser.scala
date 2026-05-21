@@ -1,4 +1,4 @@
-package slaydemo.backend.identity.routes
+package slaydemo.backend.identity.api
 
 import slaydemo.backend.identity.objects.SessionToken
 

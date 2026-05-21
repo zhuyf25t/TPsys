@@ -10,7 +10,8 @@ import slaydemo.backend.identity.api.{
   IdentityCommandParsers,
   IdentityErrorResponse,
   IdentityRegistrationCommandParseError,
-  IdentitySessionCommandParseError
+  IdentitySessionCommandParseError,
+  IdentitySessionTokenParser
 }
 import slaydemo.backend.identity.objects.SessionToken
 import slaydemo.backend.identity.services.{

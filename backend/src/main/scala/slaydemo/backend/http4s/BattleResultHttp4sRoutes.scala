@@ -11,15 +11,13 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultListResponse,
   BattleResultListQueryDecodeResult,
   BattleResultRecordDecodeError,
-  BattleResultRecordResponse
+  BattleResultRecordResponse,
+  BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
 private[http4s] object BattleResultHttp4sRoutes {
-  private val AllowedPaths: Set[String] =
-    Set("/battle/results", "/api/battle/results", "/battleresultsapi", "/api/battleresultsapi")
-
   private val MethodNotAllowedError =
     HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Only GET, POST, HEAD, and OPTIONS are supported.")
   private val BadJsonError =
@@ -70,7 +68,7 @@ private[http4s] object BattleResultHttp4sRoutes {
     }
 
   private def isBattleResultPath(request: Request[IO]): Boolean =
-    AllowedPaths.contains(request.uri.path.renderString)
+    BattleResultRequestTarget.isResultPath(request.uri.path.renderString)
 
   private def resultRecordDecodeError(error: BattleResultRecordDecodeError): Response[IO] =
     apiError(resultRecordDecodeApiError(error))

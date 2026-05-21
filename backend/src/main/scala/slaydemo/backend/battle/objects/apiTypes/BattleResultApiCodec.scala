@@ -25,6 +25,14 @@ enum BattleResultRecordDecodeError {
   case VisitorNotAllowed
 }
 
+object BattleResultRequestTarget {
+  private val AllowedResultPaths: Set[String] =
+    Set("/battle/results", "/api/battle/results", "/battleresultsapi", "/api/battleresultsapi")
+
+  def isResultPath(path: String): Boolean =
+    AllowedResultPaths.contains(path)
+}
+
 object BattleResultApiCodec {
   def parseListRequest(query: Map[String, String]): BattleResultListQueryDecodeResult =
     BattleResultCommandParsers.parseListRequest(query) match {

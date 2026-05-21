@@ -58,7 +58,7 @@ private[http4s] object MailHttp4sRoutes {
     }
 
   private def listMails(request: Request[IO], service: MailService): IO[Response[IO]] =
-    MailOwnerQuery.parse(request.params.get("ownerHandle")) match {
+    MailOwnerQuery.parseFromQuery(request.params) match {
       case Left(error) =>
         IO.pure(apiError(ownerApiError(error)))
       case Right(ownerHandle) =>

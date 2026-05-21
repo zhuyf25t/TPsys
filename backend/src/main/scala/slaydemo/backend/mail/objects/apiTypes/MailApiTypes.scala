@@ -50,6 +50,9 @@ object MailReadApiRequest {
 }
 
 object MailOwnerQuery {
+  def parseFromQuery(query: Map[String, String]): Either[MailRouteOwnerError, PlayerHandle] =
+    parse(query.get("ownerHandle"))
+
   def parse(ownerHandle: Option[String]): Either[MailRouteOwnerError, PlayerHandle] =
     MailCommandParsers.parseOwner(ownerHandle)
 }

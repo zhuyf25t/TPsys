@@ -213,7 +213,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
 
-结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦；下一步可以开始评估删除旧 `HttpExchange` route wrapper。但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter，且删除前需要确认 `backend:dev:legacy`、`BackendRouteCatalog/Registry` 和旧 route tests 的取舍。
+结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；下一步可以开始评估删除旧 `HttpExchange` route wrapper。但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter，且删除前需要确认 `backend:dev:legacy`、`BackendRouteCatalog/Registry` 和旧 route tests 的取舍。
 
 ## 7. 当前逻辑重复的位置
 

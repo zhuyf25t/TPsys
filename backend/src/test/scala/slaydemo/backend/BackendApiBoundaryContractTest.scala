@@ -44,6 +44,7 @@ object BackendApiBoundaryContractTest {
     oldApiMessageBoundaryNamesStayOutOfMainSources()
     legacyRouteJsonRenderersStayDeleted()
     http4sRoutesUseTypedApiErrors()
+    http4sRoutesDoNotImportDomainRoutes()
 
     println("Backend API boundary contract checks passed")
   }
@@ -97,6 +98,19 @@ object BackendApiBoundaryContractTest {
     assert(
       violations.isEmpty,
       s"http4s routes must build typed HttpApiError values before rendering errors:\n${violations.mkString("\n")}"
+    )
+  }
+
+  private def http4sRoutesDoNotImportDomainRoutes(): Unit = {
+    val violations = for {
+      file <- scalaFiles(Http4sRoot)
+      line <- Files.readAllLines(file).asScala.map(_.trim)
+      if line.startsWith("import slaydemo.backend.") && line.contains(".routes")
+    } yield s"${Http4sRoot.relativize(file)} imports legacy route adapter package: `$line`"
+
+    assert(
+      violations.isEmpty,
+      s"http4s routes must depend on apiTypes/services, not legacy HttpExchange route packages:\n${violations.mkString("\n")}"
     )
   }
 

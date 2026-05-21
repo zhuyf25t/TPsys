@@ -6,11 +6,13 @@ import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
+  ReplayCommandParsers,
   ReplayCatalogResponse,
   ReplayCommentWrapperResponse,
   ReplayCommentsResponse,
   ReplayDetailResponse,
-  ReplayErrorResponse
+  ReplayErrorResponse,
+  ReplayJsonObjectParser
 }
 import slaydemo.backend.replay.services.ReplayService
 import slaydemo.backend.shared.routes.HttpRouteSupport

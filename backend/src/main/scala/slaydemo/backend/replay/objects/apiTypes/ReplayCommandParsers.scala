@@ -1,4 +1,4 @@
-package slaydemo.backend.replay.routes
+package slaydemo.backend.replay.objects.apiTypes
 
 import java.util.Locale
 

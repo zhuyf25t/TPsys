@@ -18,15 +18,16 @@ npm run backend:dev
 | --- | --- |
 | 真正在跑的是不是 `src/main` 代码 | 是。入口类在 `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala`，不是 `src/test`。 |
 | 真正在跑的是不是旧 `BackendApp` | 不是。旧入口 `slaydemo.backend.BackendApp` 仍存在，但当前 8080 进程没有使用它。 |
-| 真正在跑的是不是 Git 的 `main` 分支 | 不是。当前分支是 `multimodule`，当前 HEAD 是 `8d6fbe6 Cover proxy-stripped battle routes`。 |
+| 真正在跑的是不是 Git 的 `main` 分支 | 不是。当前工作分支是 `multimodule`；具体 HEAD 会随提交变化，用 `git log -1 --oneline` 查看。 |
 | 当前服务入口 | `slaydemo.backend.http4s.BackendHttp4sApp`。 |
 | 当前 HTTP 框架 | http4s + Ember server + cats-effect `IO`。 |
 | 当前存储模式 | `/api/health` 返回 `storageMode = postgres`，所以当前实际运行使用 Postgres 仓库实现。 |
 
-所以需要区分两个“main”：
+所以需要把三个概念分开：
 
-1. 源码层级的 main：当前运行的是 `backend/src/main` 下的正式代码。
-2. Git 分支的 main：当前工作区不是 `main` 分支，而是 `multimodule` 分支。
+1. 运行入口：当前 8080 入口是 `BackendHttp4sApp`，不是旧 `BackendApp`。
+2. 源码层级：当前运行的是 `backend/src/main` 下的正式后端源码，不是 `backend/src/test`。
+3. Git 分支差异：当前工作区在 `multimodule` 分支上，不在 Git 的 `main` 分支上；这只影响版本来源，不代表运行了测试代码。
 
 ## 2. 当前真正起作用的运行链
 
@@ -207,8 +208,8 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ForumRouteTargetParsers.scala` | `ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path。 |
 | `ForumRouteErrorMapper.scala` | `ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | `GovernanceHttp4sRoutes` 仍用它解析治理命令。 |
-| `ReplayCommandParsers.scala` | `ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
-| `ReplayJsonObjectParser.scala` | `ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
+| `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
+| `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
 | `BattleResultApiCodec.scala` | `BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
 
 结论：可以清理旧 route wrapper，但不能粗暴删除整个 `routes` 目录。正确方向是先把仍被 http4s 复用的 parser/codec 从 `routes` 下沉或迁移到 `objects/apiTypes`、`api`、`support` 等非 route 包，再删除真正的 `HttpExchange` route wrapper。
@@ -324,7 +325,8 @@ BackendHttp4sApp 不再间接构造旧 route object
 | 已完成 | `mail/routes/MailCommandParsers.scala` | `mail/objects/apiTypes/MailCommandParsers.scala` |
 | 已完成 | `social/routes/SocialCommandParsers.scala` | `social/objects/apiTypes/SocialCommandParsers.scala` |
 | 待迁移 | `forum/routes/ForumCommandParsers.scala` | `forum/objects/apiTypes` |
-| 待迁移 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes` |
+| 已完成 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes/ReplayCommandParsers.scala` |
+| 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | `replay/objects/apiTypes/ReplayJsonObjectParser.scala` |
 | 已完成 | `battle/routes/BattleResultApiCodec.scala` | `battle/objects/apiTypes/BattleResultApiCodec.scala` |
 | 已完成 | `battle/routes/BattleResultCommandParsers.scala` | `battle/objects/apiTypes/BattleResultCommandParsers.scala` |
 | 已完成 | `battle/routes/BattleResultJsonObjectParser.scala` | `battle/objects/apiTypes/BattleResultJsonObjectParser.scala` |

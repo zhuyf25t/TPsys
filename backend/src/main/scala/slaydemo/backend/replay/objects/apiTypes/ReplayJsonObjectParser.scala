@@ -1,4 +1,4 @@
-package slaydemo.backend.replay.routes
+package slaydemo.backend.replay.objects.apiTypes
 
 private[backend] enum ReplayJsonValue {
   case StringValue(value: String)

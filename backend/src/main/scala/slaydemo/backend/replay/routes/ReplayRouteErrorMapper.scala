@@ -1,5 +1,6 @@
 package slaydemo.backend.replay.routes
 
+import slaydemo.backend.replay.objects.apiTypes.{ReplayCommentCommandParseError, ReplayRecordCommandParseError}
 import slaydemo.backend.replay.services.{ReplayCommentError, ReplayRecordError}
 
 private[routes] final case class ReplayRouteError(

@@ -10,16 +10,14 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
+  ReplayCommandParsers,
   ReplayCatalogResponse,
+  ReplayCommentCommandParseError,
   ReplayCommentResponse,
   ReplayCommentWrapperResponse,
   ReplayCommentsResponse,
   ReplayDetailRecordResponse,
-  ReplayDetailResponse
-}
-import slaydemo.backend.replay.routes.{
-  ReplayCommandParsers,
-  ReplayCommentCommandParseError,
+  ReplayDetailResponse,
   ReplayJsonObjectParser,
   ReplayRecordCommandParseError
 }

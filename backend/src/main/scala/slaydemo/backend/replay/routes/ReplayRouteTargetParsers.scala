@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.replay.objects.ReplayId
+import slaydemo.backend.replay.objects.apiTypes.ReplayCommandParsers
 
 private[routes] object ReplayRouteTargetParsers {
   def parseTarget(path: String): ReplayTarget = {

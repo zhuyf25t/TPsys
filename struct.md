@@ -214,7 +214,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 
 | 原旧 routes 支撑文件 | 当前位置和作用 |
 | --- | --- |
-| `IdentityCommandParsers.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析注册/登录命令；register/session POST body 已由 typed DTO 承接。 |
+| `IdentityCommandParsers.scala` | 已迁到 `identity/api`，registration/session command 转换已由 `IdentityApi.scala` typed DTO 承接；`IdentityHttp4sRoutes` 不再直接依赖 command parser。 |
 | `IdentitySessionTokenParser.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析 session token。 |
 | `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，owner query/read command 转换已由 `MailApiTypes.scala` 承接；list query 使用 http4s `request.params`，read POST body 使用 `MailReadApiRequest` typed DTO。 |
 | `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，owner query/create/respond command 转换已由 `SocialApiTypes.scala` 承接；list query 使用 http4s `request.params`，create/respond POST body 使用 typed DTO。 |

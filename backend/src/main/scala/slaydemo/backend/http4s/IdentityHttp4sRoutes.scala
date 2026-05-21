@@ -11,7 +11,6 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 import slaydemo.backend.identity.api.{
   IdentityAccountsResponse,
   IdentityAuthResponse,
-  IdentityCommandParsers,
   IdentityRegistrationApiRequest,
   IdentityRegistrationCommandParseError,
   IdentitySessionApiRequest,
@@ -105,7 +104,7 @@ private[http4s] object IdentityHttp4sRoutes {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
       case Right(registrationRequest) =>
-        IdentityCommandParsers.parseRegistrationCommand(registrationRequest) match {
+        registrationRequest.toCommand match {
           case Left(IdentityRegistrationCommandParseError.InvalidHandle) =>
             IO.pure(apiError(InvalidHandleError))
           case Left(IdentityRegistrationCommandParseError.InvalidPassword) =>
@@ -127,7 +126,7 @@ private[http4s] object IdentityHttp4sRoutes {
       case Left(message) =>
         IO.pure(apiError(badRequest(message)))
       case Right(sessionRequest) =>
-        IdentityCommandParsers.parseSessionCommand(sessionRequest) match {
+        sessionRequest.toCommand match {
           case Left(IdentitySessionCommandParseError.InvalidCredentials) =>
             IO.pure(apiError(InvalidCredentialsError))
           case Right(command) =>

@@ -4,12 +4,16 @@ import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
 import io.circe.generic.semiauto.deriveEncoder
 
 import slaydemo.backend.identity.objects.{IdentityAccount, SkinId}
+import slaydemo.backend.identity.services.{IdentityRegistrationCommand, IdentitySessionCommand}
 
 final case class IdentityRegistrationApiRequest(
   handle: Option[String],
   password: Option[String],
   skinId: Option[String]
-)
+) {
+  def toCommand: Either[IdentityRegistrationCommandParseError, IdentityRegistrationCommand] =
+    IdentityCommandParsers.parseRegistrationCommand(this)
+}
 
 object IdentityRegistrationApiRequest {
   given Decoder[IdentityRegistrationApiRequest] = (cursor: HCursor) =>
@@ -25,7 +29,10 @@ object IdentityRegistrationApiRequest {
 final case class IdentitySessionApiRequest(
   handle: Option[String],
   password: Option[String]
-)
+) {
+  def toCommand: Either[IdentitySessionCommandParseError, IdentitySessionCommand] =
+    IdentityCommandParsers.parseSessionCommand(this)
+}
 
 object IdentitySessionApiRequest {
   given Decoder[IdentitySessionApiRequest] = (cursor: HCursor) =>

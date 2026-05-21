@@ -6,7 +6,7 @@ import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,
@@ -36,7 +36,7 @@ private[http4s] object SocialHttp4sRoutes {
           case Method.POST =>
             respond(request, service)
           case _ =>
-            IO.pure(apiError(socialApiError(SocialApiErrorCode.MethodNotAllowed)))
+            errorResponse(socialApiError(SocialApiErrorCode.MethodNotAllowed))
         }
       case request if SocialRequestTarget.isFriendRequestPath(requestPath(request)) =>
         request.method match {
@@ -47,14 +47,14 @@ private[http4s] object SocialHttp4sRoutes {
           case Method.POST =>
             create(request, service)
           case _ =>
-            IO.pure(apiError(socialApiError(SocialApiErrorCode.MethodNotAllowed)))
+            errorResponse(socialApiError(SocialApiErrorCode.MethodNotAllowed))
         }
     }
 
   private def list(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
     FriendRequestOwnerQuery.parseFromQuery(request.params) match {
       case Left(error) =>
-        IO.pure(apiError(ownerApiError(error)))
+        errorResponse(ownerApiError(error))
       case Right(ownerHandle) =>
         blocking(service.list(ownerHandle)).flatMap(records =>
           Ok(FriendRequestListResponse.fromRecords(records).asJson).map(withCors)
@@ -64,17 +64,17 @@ private[http4s] object SocialHttp4sRoutes {
   private def create(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
     readCreateRequest(request).flatMap {
       case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(socialApiError(SocialApiErrorCode.InvalidJsonObject)))
+        errorResponse(socialApiError(SocialApiErrorCode.InvalidJsonObject))
       case Right(createRequest) =>
         createRequest.toCreateHandles match {
           case Left(error) =>
-            IO.pure(apiError(createApiError(error)))
+            errorResponse(createApiError(error))
           case Right(command) =>
             blocking(service.create(command.sourceHandle, command.targetHandle)).flatMap {
               case Right(result) =>
                 Ok(FriendRequestCreateResponse.fromResult(result).asJson).map(withCors)
               case Left(error) =>
-                IO.pure(apiError(socialApiError(SocialApiErrorCode.fromCreateServiceError(error))))
+                errorResponse(socialApiError(SocialApiErrorCode.fromCreateServiceError(error)))
             }
         }
     }
@@ -82,17 +82,17 @@ private[http4s] object SocialHttp4sRoutes {
   private def respond(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
     readRespondRequest(request).flatMap {
       case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(socialApiError(SocialApiErrorCode.InvalidJsonObject)))
+        errorResponse(socialApiError(SocialApiErrorCode.InvalidJsonObject))
       case Right(respondRequest) =>
         respondRequest.toRespondCommand match {
           case Left(error) =>
-            IO.pure(apiError(respondParseApiError(error)))
+            errorResponse(respondParseApiError(error))
           case Right(command) =>
             blocking(service.respond(command.requestId, command.actorHandle, command.decision)).flatMap {
               case Right(result) =>
                 Ok(FriendRequestRespondResponse.fromResult(result).asJson).map(withCors)
               case Left(error) =>
-                IO.pure(apiError(socialApiError(SocialApiErrorCode.fromRespondServiceError(error))))
+                errorResponse(socialApiError(SocialApiErrorCode.fromRespondServiceError(error)))
             }
         }
     }

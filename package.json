@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite --config frontend/vite.config.ts",
     "backend:dev": "cd backend && sbt \"runMain slaydemo.backend.http4s.BackendHttp4sApp\"",
-    "backend:dev:legacy": "cd backend && sbt \"runMain slaydemo.backend.BackendApp\"",
     "backend:compile": "cd backend && sbt compile",
     "backend:test-contracts": "cd backend && sbt \"Test / runMain slaydemo.backend.BackendContractTestRunner\"",
     "audit:battle-content": "node scripts/audit-battle-content-contract.mjs",

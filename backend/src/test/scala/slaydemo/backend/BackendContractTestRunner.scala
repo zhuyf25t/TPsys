@@ -49,7 +49,6 @@ object BackendContractTestRunner {
     run("backend API boundaries", () => BackendApiBoundaryContractTest.main(Array.empty))
     run("postgres support", () => PostgresSupportContractTest.main(Array.empty))
     run("postgres repository boundaries", () => PostgresRepositoryBoundaryContractTest.main(Array.empty))
-    run("route contexts", () => BackendRouteContextContractTest.main(Array.empty))
     run("health route", () => HealthRouteContractTest.main(Array.empty))
     run("backend http4s route composition", () => BackendHttp4sRoutesCompositionContractTest.main(Array.empty))
     run("health http4s route", () => HealthHttp4sRouteContractTest.main(Array.empty))

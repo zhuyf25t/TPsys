@@ -165,13 +165,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `BackendRouteRegistry.scala` | 旧入口注册 `HttpExchange => Unit` handler 用；当前 http4s 入口不用。 |
 | `BackendRouteCatalog.scala` | 旧入口 route context 清单；当前 http4s 入口不用。 |
 
-当前 `package.json` 里仍保留：
-
-```json
-"backend:dev:legacy": "cd backend && sbt \"runMain slaydemo.backend.BackendApp\""
-```
-
-所以旧入口还不是“代码层面完全不可达”，但它不是当前实际服务入口。
+当前 `package.json` 已不再暴露 `backend:dev:legacy`，contract runner 也不再运行旧 `BackendRouteContextContractTest`。旧入口仍在源码中，但已经不再作为推荐或脚本化启动入口。
 
 ### 6.2 旧 `HttpExchange` route wrapper
 
@@ -213,7 +207,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
 
-结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；下一步可以开始评估删除旧 `HttpExchange` route wrapper。但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter，且删除前需要确认 `backend:dev:legacy`、`BackendRouteCatalog/Registry` 和旧 route tests 的取舍。
+结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦，并由 `BackendApiBoundaryContractTest` 防止回退；下一步可以开始评估删除旧 `HttpExchange` route wrapper。但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter，且删除前还需要处理 `BackendRouteCatalog/Registry` 和旧 route tests 的取舍。
 
 ## 7. 当前逻辑重复的位置
 
@@ -343,9 +337,9 @@ BackendHttp4sApp 不再间接构造旧 route object
 
 前提：
 
-1. `backend:dev:legacy` 已确认不再需要。
+1. `backend:dev:legacy` 已移除。
 2. contract tests 已迁到 http4s 路径。
-3. `BackendRouteCatalog/Registry` 的覆盖测试不再作为主路径测试。
+3. `BackendRouteCatalog/Registry` 的旧覆盖测试不再作为主路径测试。
 4. 所有当前前端请求路径都有 http4s composition test 覆盖。
 
 可删候选：

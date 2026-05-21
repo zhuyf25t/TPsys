@@ -13,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
@@ -78,22 +78,22 @@ private[http4s] object BattleRoomHttp4sRoutes {
     }
 
   private def isBattleRoomSnapshotPath(request: Request[IO]): Boolean =
-    RealtimeRoomRequestTarget.isSnapshotPath(request.uri.path.renderString)
+    RealtimeRoomRequestTarget.isSnapshotPath(requestPath(request))
 
   private def isBattleRoomHeartbeatPath(request: Request[IO]): Boolean =
-    RealtimeRoomRequestTarget.isHeartbeatPath(request.uri.path.renderString)
+    RealtimeRoomRequestTarget.isHeartbeatPath(requestPath(request))
 
   private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[RealtimeRoomHeartbeatAPIRequestError, RealtimeRoomHeartbeatCommand]] =
     decodeJsonObjectBody(request, RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject) { json =>
       RealtimeRoomHeartbeatAPIRequest.decodeCommand(
         json,
-        RealtimeRoomRequestTarget.roomIdFromHeartbeatPath(request.uri.path.renderString),
+        RealtimeRoomRequestTarget.roomIdFromHeartbeatPath(requestPath(request)),
         request.params
       )
     }
 
   private def roomIdFromSnapshotRequest(request: Request[IO]) =
-    RealtimeRoomRequestTarget.roomIdFromSnapshot(request.uri.path.renderString, request.params)
+    RealtimeRoomRequestTarget.roomIdFromSnapshot(requestPath(request), request.params)
 
   private def roomApiError(error: BattleRoomError): HttpApiError =
     error match {

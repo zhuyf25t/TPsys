@@ -14,7 +14,7 @@ import scala.concurrent.duration.*
 import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val InvalidBattleIdError =
@@ -73,13 +73,13 @@ private[http4s] object BattleStateHttp4sRoutes {
     }
 
   private def isBattleStateReadPath(request: Request[IO]): Boolean =
-    BattleStateRequestTarget.isReadPath(request.uri.path.renderString)
+    BattleStateRequestTarget.isReadPath(requestPath(request))
 
   private def isBattleStateStreamPath(request: Request[IO]): Boolean =
-    BattleStateRequestTarget.isStreamPath(request.uri.path.renderString)
+    BattleStateRequestTarget.isStreamPath(requestPath(request))
 
   private def battleIdFromStateRequest(request: Request[IO]): Option[BattleId] =
-    BattleStateRequestTarget.battleIdFromRead(request.uri.path.renderString, request.params)
+    BattleStateRequestTarget.battleIdFromRead(requestPath(request), request.params)
 
   private def battleIdFromStateStreamRequest(request: Request[IO]): Option[BattleId] =
     BattleStateRequestTarget.battleIdFromStream(request.params)

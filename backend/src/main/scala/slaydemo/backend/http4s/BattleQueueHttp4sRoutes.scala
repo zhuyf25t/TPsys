@@ -24,7 +24,7 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleQueueStatusError
 }
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -137,13 +137,13 @@ private[http4s] object BattleQueueHttp4sRoutes {
     }
 
   private def isBattleQueueStatusPath(request: Request[IO]): Boolean =
-    BattleQueueRequestTarget.isStatusPath(request.uri.path.renderString)
+    BattleQueueRequestTarget.isStatusPath(requestPath(request))
 
   private def isBattleQueueJoinPath(request: Request[IO]): Boolean =
-    BattleQueueRequestTarget.isJoinPath(request.uri.path.renderString)
+    BattleQueueRequestTarget.isJoinPath(requestPath(request))
 
   private def isBattleQueueLeavePath(request: Request[IO]): Boolean =
-    BattleQueueRequestTarget.isLeavePath(request.uri.path.renderString)
+    BattleQueueRequestTarget.isLeavePath(requestPath(request))
 
   private def decodeJoinRequest(request: Request[IO]): IO[Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand]] =
     decodeJsonObjectBody(request, BattleQueueJoinAPIRequestError.InvalidJsonObject)(BattleQueueJoinAPIRequest.decodeCommand)

@@ -6,7 +6,7 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, decodeTextBody, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, decodeTextBody, requestPath, typedApiError, withCors}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
@@ -156,7 +156,7 @@ private[http4s] object ReplayHttp4sRoutes {
     replayApiError(ReplayApiErrorMapper.commentServiceErrorCode(error))
 
   private def catalogTarget(request: Request[IO]): Option[ReplayCatalogTarget] =
-    ReplayApiCodec.catalogTarget(request.uri.path.renderString)
+    ReplayApiCodec.catalogTarget(requestPath(request))
 
   private def replayApiError(code: ReplayApiErrorCode): HttpApiError =
     typedApiError(

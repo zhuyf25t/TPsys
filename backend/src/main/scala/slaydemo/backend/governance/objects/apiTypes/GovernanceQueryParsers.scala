@@ -1,16 +1,12 @@
 package slaydemo.backend.governance.objects.apiTypes
 
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
-
 import slaydemo.backend.governance.objects.{GovernanceReviewKind, GovernanceReviewTargetType}
 
 object GovernanceQueryParsers {
-  def parseContributionAdjustmentLimit(rawQuery: String): Int =
-    queryParams(rawQuery).get("limit").flatMap(_.toIntOption).getOrElse(500)
+  def parseContributionAdjustmentLimit(query: Map[String, String]): Int =
+    query.get("limit").flatMap(_.toIntOption).getOrElse(500)
 
-  def parseNotificationListQuery(rawQuery: String): GovernanceNotificationListQueryParseResult = {
-    val query = queryParams(rawQuery)
+  def parseNotificationListQuery(query: Map[String, String]): GovernanceNotificationListQueryParseResult = {
     val limit = query.get("limit").flatMap(_.toIntOption).getOrElse(100)
     val rawKind = query.get("kind").map(_.trim).filter(_.nonEmpty)
     val rawTargetType = query.get("targetType").map(_.trim).filter(_.nonEmpty)
@@ -28,21 +24,6 @@ object GovernanceQueryParsers {
         )
       )
   }
-
-  private def queryParams(rawQuery: String): Map[String, String] =
-    Option(rawQuery).toVector
-      .flatMap(_.split("&").toVector)
-      .flatMap { pair =>
-        pair.split("=", 2).toList match {
-          case key :: value :: Nil if key.nonEmpty => Some(decode(key) -> decode(value))
-          case key :: Nil if key.nonEmpty          => Some(decode(key) -> "")
-          case _                                   => None
-        }
-      }
-      .toMap
-
-  private def decode(value: String): String =
-    URLDecoder.decode(value, StandardCharsets.UTF_8)
 }
 
 final case class GovernanceNotificationListQuery(

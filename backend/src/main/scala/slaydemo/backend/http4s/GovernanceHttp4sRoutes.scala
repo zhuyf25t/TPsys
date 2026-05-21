@@ -79,7 +79,7 @@ private[http4s] object GovernanceHttp4sRoutes {
     request: Request[IO],
     service: ContributionAdjustmentService
   ): IO[Response[IO]] = {
-    val limit = GovernanceQueryParsers.parseContributionAdjustmentLimit(request.uri.query.renderString)
+    val limit = GovernanceQueryParsers.parseContributionAdjustmentLimit(request.params)
     blocking(service.list(limit)).flatMap(records =>
       Ok(ContributionAdjustmentListResponse.fromRecords(records).asJson).map(withCors)
     )
@@ -107,7 +107,7 @@ private[http4s] object GovernanceHttp4sRoutes {
     request: Request[IO],
     service: GovernanceNotificationService
   ): IO[Response[IO]] =
-    GovernanceQueryParsers.parseNotificationListQuery(request.uri.query.renderString) match {
+    GovernanceQueryParsers.parseNotificationListQuery(request.params) match {
       case GovernanceNotificationListQueryParseResult.EmptyResults =>
         Ok(GovernanceReviewNotificationListResponse.fromRecords(Vector.empty).asJson).map(withCors)
       case GovernanceNotificationListQueryParseResult.Query(query) =>

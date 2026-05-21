@@ -222,7 +222,7 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 | `ForumRouteTargetParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path。 |
 | `ForumRouteErrorMapper.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理命令。 |
-| `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query。 |
+| `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query；query 来源已改为 http4s `request.params`。 |
 | `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
 | `ReplayJsonObjectParser.scala` | 已删除。当前 `ReplayHttp4sRoutes` 使用 Circe `JsonObject` 解析 replay JSON body，再交给 `ReplayCommandParsers` 做业务字段校验。 |
 | `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body；POST body 已改用 Circe `JsonObject`，旧手写 JSON object parser 已删除。 |

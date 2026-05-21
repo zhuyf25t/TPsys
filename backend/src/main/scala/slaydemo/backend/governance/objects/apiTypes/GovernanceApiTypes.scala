@@ -10,15 +10,30 @@ import slaydemo.backend.governance.objects.{
   GovernanceReviewNotificationRecord,
   GovernanceReviewTargetType
 }
-import slaydemo.backend.governance.routes.{
-  ContributionAdjustmentRequest,
-  GovernanceReviewNotificationRequest
-}
 import slaydemo.backend.governance.services.{
   ContributionAdjustmentSubmissionResult,
   GovernanceReviewNotificationSubmissionResult
 }
 import slaydemo.backend.mail.objects.MailKind
+
+final case class ContributionAdjustmentRequest(
+  actorHandle: String,
+  targetHandle: String,
+  delta: Int,
+  reason: String,
+  sourceLabel: String,
+  sourcePath: String
+)
+
+final case class GovernanceReviewNotificationRequest(
+  actorHandle: String,
+  kind: String,
+  targetType: String,
+  targetId: String,
+  targetTitle: String,
+  targetPath: String,
+  body: String
+)
 
 final case class ContributionAdjustmentApiRequest(
   actorHandle: String,
@@ -28,7 +43,7 @@ final case class ContributionAdjustmentApiRequest(
   sourceLabel: String,
   sourcePath: String
 ) {
-  def toRouteRequest: ContributionAdjustmentRequest =
+  def toCommandRequest: ContributionAdjustmentRequest =
     ContributionAdjustmentRequest(
       actorHandle = actorHandle,
       targetHandle = targetHandle,
@@ -62,7 +77,7 @@ final case class GovernanceReviewNotificationApiRequest(
   targetPath: String,
   body: String
 ) {
-  def toRouteRequest: GovernanceReviewNotificationRequest =
+  def toCommandRequest: GovernanceReviewNotificationRequest =
     GovernanceReviewNotificationRequest(
       actorHandle = actorHandle,
       kind = kind,

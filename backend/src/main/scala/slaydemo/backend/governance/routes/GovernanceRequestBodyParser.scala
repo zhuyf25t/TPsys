@@ -1,5 +1,7 @@
 package slaydemo.backend.governance.routes
 
+import slaydemo.backend.governance.objects.apiTypes.{ContributionAdjustmentRequest, GovernanceReviewNotificationRequest}
+
 object GovernanceRequestBodyParser {
   def parseContributionAdjustmentBody(rawBody: String): Either[String, ContributionAdjustmentRequest] = {
     val body = Option(rawBody).getOrElse("").trim
@@ -75,22 +77,3 @@ object GovernanceRequestBodyParser {
   private val stringFieldPattern =
     "\"([^\"]+)\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"".r
 }
-
-final case class ContributionAdjustmentRequest(
-  actorHandle: String,
-  targetHandle: String,
-  delta: Int,
-  reason: String,
-  sourceLabel: String,
-  sourcePath: String
-)
-
-final case class GovernanceReviewNotificationRequest(
-  actorHandle: String,
-  kind: String,
-  targetType: String,
-  targetId: String,
-  targetTitle: String,
-  targetPath: String,
-  body: String
-)

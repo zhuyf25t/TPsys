@@ -1,4 +1,4 @@
-package slaydemo.backend.governance.routes
+package slaydemo.backend.governance.objects.apiTypes
 
 import slaydemo.backend.governance.objects.*
 import slaydemo.backend.governance.services.{ContributionAdjustmentCommand, GovernanceReviewNotificationCommand}

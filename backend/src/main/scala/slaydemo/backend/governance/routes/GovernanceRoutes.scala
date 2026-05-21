@@ -5,8 +5,11 @@ import java.util.Locale
 import com.sun.net.httpserver.HttpExchange
 
 import slaydemo.backend.governance.objects.apiTypes.{
+  ContributionAdjustmentCommandParseError,
   ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListResponse,
+  GovernanceCommandParsers,
+  GovernanceReviewNotificationCommandParseError,
   GovernanceReviewNotificationCreateResponse,
   GovernanceReviewNotificationListResponse
 }

@@ -8,18 +8,18 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentApiRequest,
+  ContributionAdjustmentCommandParseError,
   ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListResponse,
+  GovernanceCommandParsers,
   GovernanceReviewNotificationApiRequest,
+  GovernanceReviewNotificationCommandParseError,
   GovernanceReviewNotificationCreateResponse,
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.routes.{
-  ContributionAdjustmentCommandParseError,
-  GovernanceCommandParsers,
   GovernanceNotificationListQueryParseResult,
-  GovernanceQueryParsers,
-  GovernanceReviewNotificationCommandParseError
+  GovernanceQueryParsers
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
@@ -95,7 +95,7 @@ private[http4s] object GovernanceHttp4sRoutes {
       case Left(_) =>
         IO.pure(apiError(RequestBodyJsonObjectError))
       case Right(parsedRequest) =>
-        GovernanceCommandParsers.parseContributionAdjustmentCommand(parsedRequest.toRouteRequest) match {
+        GovernanceCommandParsers.parseContributionAdjustmentCommand(parsedRequest.toCommandRequest) match {
           case Left(error) =>
             IO.pure(apiError(contributionAdjustmentApiError(error)))
           case Right(command) =>
@@ -130,7 +130,7 @@ private[http4s] object GovernanceHttp4sRoutes {
       case Left(_) =>
         IO.pure(apiError(RequestBodyJsonObjectError))
       case Right(parsedRequest) =>
-        GovernanceCommandParsers.parseReviewNotificationCommand(parsedRequest.toRouteRequest) match {
+        GovernanceCommandParsers.parseReviewNotificationCommand(parsedRequest.toCommandRequest) match {
           case Left(error) =>
             IO.pure(apiError(reviewNotificationApiError(error)))
           case Right(command) =>

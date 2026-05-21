@@ -2,7 +2,7 @@ package slaydemo.backend.forum.routes
 
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.forum.objects.apiTypes.{ForumCommandParsers, ForumTopicWrapperResponse}
+import slaydemo.backend.forum.objects.apiTypes.{ForumCommandParsers, ForumRouteErrorMapper, ForumRouteTargetParsers, ForumTopicWrapperResponse}
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.shared.routes.HttpRouteSupport
 

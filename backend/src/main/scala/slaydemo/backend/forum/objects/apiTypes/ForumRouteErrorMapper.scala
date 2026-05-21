@@ -1,6 +1,5 @@
-package slaydemo.backend.forum.routes
+package slaydemo.backend.forum.objects.apiTypes
 
-import slaydemo.backend.forum.objects.apiTypes.{ForumCreateTopicParseError, ForumTopicMutationParseError}
 import slaydemo.backend.forum.services.{ForumCreateTopicError, ForumTopicMutationError}
 
 object ForumRouteErrorMapper {

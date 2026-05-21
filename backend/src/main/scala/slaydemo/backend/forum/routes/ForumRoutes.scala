@@ -4,7 +4,12 @@ import java.util.Locale
 
 import com.sun.net.httpserver.HttpExchange
 
-import slaydemo.backend.forum.objects.apiTypes.{ForumCommandParsers, ForumTopicListResponse, ForumTopicWrapperResponse}
+import slaydemo.backend.forum.objects.apiTypes.{
+  ForumCommandParsers,
+  ForumRouteTargetParsers,
+  ForumTopicListResponse,
+  ForumTopicWrapperResponse
+}
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.shared.routes.HttpRouteSupport
 

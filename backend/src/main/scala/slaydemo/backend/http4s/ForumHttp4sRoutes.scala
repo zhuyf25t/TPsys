@@ -10,13 +10,11 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumApiRequestFields,
   ForumCommandParsers,
   ForumCreateTopicParseError,
+  ForumRouteErrorMapper,
+  ForumRouteTargetParsers,
   ForumTopicMutationParseError,
   ForumTopicListResponse,
   ForumTopicWrapperResponse
-}
-import slaydemo.backend.forum.routes.{
-  ForumRouteErrorMapper,
-  ForumRouteTargetParsers
 }
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}

@@ -196,24 +196,24 @@ Battle 下的这些 service 子域是真正参与当前游戏逻辑的：
 
 ### 6.3 不能直接整包删除的 `routes` 目录
 
-注意：`routes` 目录里不是所有文件都能删。当前 http4s route 仍复用了部分 parser、target parser、error mapper：
+注意：`routes` 目录里不是所有文件都能删。当前 http4s route 已不再直接复用 domain `routes` 包里的 parser、target parser、error mapper；下表记录这些支撑文件已经迁到哪里：
 
-| 仍被 http4s 使用的旧 routes 支撑文件 | 原因 |
+| 原旧 routes 支撑文件 | 当前位置和作用 |
 | --- | --- |
 | `IdentityCommandParsers.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析注册/登录命令。 |
 | `IdentitySessionTokenParser.scala` | 已迁到 `identity/api`，`IdentityHttp4sRoutes` 仍用它解析 session token。 |
 | `MailCommandParsers.scala` | 已迁到 `mail/objects/apiTypes`，`MailHttp4sRoutes` 仍用它解析 owner/read command。 |
 | `SocialCommandParsers.scala` | 已迁到 `social/objects/apiTypes`，`SocialHttp4sRoutes` 仍用它解析好友请求命令。 |
 | `ForumCommandParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它解析 topic/reply/vote 命令。 |
-| `ForumRouteTargetParsers.scala` | `ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path。 |
-| `ForumRouteErrorMapper.scala` | `ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
+| `ForumRouteTargetParsers.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它识别 topic/reply/vote path。 |
+| `ForumRouteErrorMapper.scala` | 已迁到 `forum/objects/apiTypes`，`ForumHttp4sRoutes` 仍用它映射 service/parse error。 |
 | `GovernanceCommandParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理命令。 |
 | `GovernanceQueryParsers.scala` | 已迁到 `governance/objects/apiTypes`，`GovernanceHttp4sRoutes` 仍用它解析治理 query。 |
 | `ReplayCommandParsers.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay id、record、comment。 |
 | `ReplayJsonObjectParser.scala` | 已迁到 `replay/objects/apiTypes`，`ReplayHttp4sRoutes` 仍用它解析 replay JSON body。 |
-| `BattleResultApiCodec.scala` | `BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
+| `BattleResultApiCodec.scala` | 已迁到 `battle/objects/apiTypes`，`BattleResultHttp4sRoutes` 仍用它解析 result query/body。 |
 
-结论：可以清理旧 route wrapper，但不能粗暴删除整个 `routes` 目录。正确方向是先把仍被 http4s 复用的 parser/codec 从 `routes` 下沉或迁移到 `objects/apiTypes`、`api`、`support` 等非 route 包，再删除真正的 `HttpExchange` route wrapper。
+结论：当前 http4s 主路径已经和 domain `routes` 支撑文件解耦；下一步可以开始评估删除旧 `HttpExchange` route wrapper。但不能粗暴删除整个 `routes` 目录，因为 legacy route contract tests 仍覆盖这些旧 adapter，且删除前需要确认 `backend:dev:legacy`、`BackendRouteCatalog/Registry` 和旧 route tests 的取舍。
 
 ## 7. 当前逻辑重复的位置
 
@@ -316,7 +316,7 @@ BackendHttp4sApp 不再间接构造旧 route object
 
 ### Phase B：把仍被 http4s 复用的 parser 从 `routes` 迁出去
 
-状态：进行中。已完成 battle result 这一组 API codec/parser 迁移。
+状态：已完成。当前 http4s 主运行路径不再直接 import domain `routes` 包。
 
 迁移方向：
 
@@ -329,13 +329,15 @@ BackendHttp4sApp 不再间接构造旧 route object
 | 已完成 | `governance/routes/GovernanceCommandParsers.scala` | `governance/objects/apiTypes/GovernanceCommandParsers.scala` |
 | 已完成 | `governance/routes/GovernanceQueryParsers.scala` | `governance/objects/apiTypes/GovernanceQueryParsers.scala` |
 | 已完成 | `forum/routes/ForumCommandParsers.scala` | `forum/objects/apiTypes/ForumCommandParsers.scala` |
+| 已完成 | `forum/routes/ForumRouteTargetParsers.scala` | `forum/objects/apiTypes/ForumRouteTargetParsers.scala` |
+| 已完成 | `forum/routes/ForumRouteErrorMapper.scala` | `forum/objects/apiTypes/ForumRouteErrorMapper.scala` |
 | 已完成 | `replay/routes/ReplayCommandParsers.scala` | `replay/objects/apiTypes/ReplayCommandParsers.scala` |
 | 已完成 | `replay/routes/ReplayJsonObjectParser.scala` | `replay/objects/apiTypes/ReplayJsonObjectParser.scala` |
 | 已完成 | `battle/routes/BattleResultApiCodec.scala` | `battle/objects/apiTypes/BattleResultApiCodec.scala` |
 | 已完成 | `battle/routes/BattleResultCommandParsers.scala` | `battle/objects/apiTypes/BattleResultCommandParsers.scala` |
 | 已完成 | `battle/routes/BattleResultJsonObjectParser.scala` | `battle/objects/apiTypes/BattleResultJsonObjectParser.scala` |
 
-迁完后，`routes` 包才可以更明确地表示“旧 HttpExchange adapter”。
+迁完后，`routes` 包已经可以更明确地表示“旧 HttpExchange adapter”。
 
 ### Phase C：删除旧 `HttpExchange` route wrapper
 

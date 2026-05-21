@@ -172,15 +172,15 @@ BackendHttp4sApp.run
 
 | 位置 | 当前内容 | 问题 |
 | --- | --- | --- |
-| `battle/api` | `BattleCommandRequest`、`BattleCommandAccepted`、`BattleCommandVector`。 | 被 service 和 tests 使用，不是废代码；但名字像全局 API 层。 |
+| `battle/objects/command` | `BattleCommandRequest`、`BattleCommandAccepted`、`BattleCommandVector`。 | 被 service 和 tests 使用；这是 battle command 的业务输入/输出模型，不再放在全局 `battle/api`。 |
 | `battle/objects/apiTypes` | request parser、response DTO、route target、error enum。 | 更符合当前“domain 内 apiTypes colocation”的方向。 |
 
-这两个位置不是完全重复，但边界不够清晰。后续应选择一种策略：
+这两个位置不是完全重复，但边界需要保持清晰：
 
-- 把 `battle/api` 明确改名为 battle command contract 层。
-- 或把其中稳定 DTO 下沉/合并到 `battle/objects/apiTypes`。
+- `battle/objects/command` 表达后端 authoritative command 输入/输出模型。
+- `battle/objects/apiTypes` 表达 HTTP/JSON 边界的 request/response、path target、error enum 和 decoder/encoder。
 
-这一步不能直接删除，因为 `BattleStateService`、battle runtime test、http4s command route 都在使用 `BattleCommandRequest`。
+`BattleStateService`、battle runtime test、http4s command route 都在使用 `BattleCommandRequest`，因此它不是废代码；但它已经从误导性的 `battle/api` 迁到对象域下的 `battle/objects/command`。
 
 已清理：`BattleQueueApi.scala` 和 `BattleStateApi.scala` 只包含无引用旧 request/view case class，当前分支已经删除。queue、room、state 的当前 HTTP contract 都由 `battle/objects/apiTypes` 承接。
 
@@ -267,14 +267,6 @@ multimodule
 
 验收：`npm run backend:compile` 和 `npm run backend:test-contracts` 通过。
 
-### BE-BATTLE-API-LAYER-60
-
-目标：整理 `battle/api` 与 `battle/objects/apiTypes` 的职责边界，避免同一个 API contract 概念散在两个位置。
-
-范围：只处理 battle command/queue/state API 类型的包位置和 imports，不改字段、不改 JSON。
-
-验收：battle http4s contract、battle runtime contract、全量 backend contract 通过。
-
 ### BE-LEGACY-PATH-ALIAS-AUDIT-61
 
 目标：审计前端是否仍调用 `/api/battlequeuejoinapi` 这类旧 alias。确认没有调用后，分批删除 alias。
@@ -282,3 +274,11 @@ multimodule
 范围：先审计，不直接删。
 
 验收：列出每个 alias 的前端调用证据和保留/删除建议。
+
+### BE-HTTP4S-TEST-FIXTURE-62
+
+目标：抽取 http4s contract tests 中重复的 stub service 和 response runner，降低测试重复代码，但不降低覆盖面。
+
+范围：只改 `backend/src/test/scala/slaydemo/backend/http4s` 下的 test fixture 和测试 imports。
+
+验收：`npm run backend:test-contracts` 通过。

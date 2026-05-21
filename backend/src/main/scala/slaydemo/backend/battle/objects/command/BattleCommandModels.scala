@@ -1,6 +1,15 @@
-package slaydemo.backend.battle.api
+package slaydemo.backend.battle.objects.command
 
-import slaydemo.backend.battle.objects.*
+import slaydemo.backend.battle.objects.{
+  BattleCommandReason,
+  BattleCommandStatus,
+  SkillKind,
+  SkillOutcomeReason,
+  SkillOutcomeStatus
+}
+import slaydemo.backend.battle.objects.core.{BattleId, BattleTick, ClientCommandSeq, EpochMillis, PlayerId, TicketId}
+import slaydemo.backend.battle.objects.skill.BattleCommandSkillIntents
+import slaydemo.backend.battle.objects.weapon.{BattleWeaponSwitchDirection, BattleWeaponSwitchIndex}
 
 final case class BattleCommandVector(
   x: Double,

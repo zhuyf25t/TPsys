@@ -2,7 +2,6 @@ package slaydemo.backend.battle.services.actors
 
 import slaydemo.backend.battle.services.*
 
-import slaydemo.backend.battle.api.BattleCommandRequest
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.world.BattleMotionRules.*
 import slaydemo.backend.battle.services.combat.BattleWeaponRules.*

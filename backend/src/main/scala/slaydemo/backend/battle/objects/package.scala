@@ -39,6 +39,10 @@ package object objects {
   export slaydemo.backend.battle.objects.core.SpawnPointIndex
   export slaydemo.backend.battle.objects.core.Stamina
   export slaydemo.backend.battle.objects.core.TicketId
+  export slaydemo.backend.battle.objects.command.BattleCommandAccepted
+  export slaydemo.backend.battle.objects.command.BattleCommandRequest
+  export slaydemo.backend.battle.objects.command.BattleCommandSkillOutcome
+  export slaydemo.backend.battle.objects.command.BattleCommandVector
   export slaydemo.backend.battle.objects.event.BattleEventParticipant
   export slaydemo.backend.battle.objects.event.BattleEventState
   export slaydemo.backend.battle.objects.pickup.BattlePickupAvailability

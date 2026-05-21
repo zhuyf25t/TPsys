@@ -6,7 +6,6 @@ import org.http4s.headers.`Content-Type`
 import org.http4s.{MediaType, Method, Request, Uri}
 import org.http4s.implicits.uri
 
-import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandRequest}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
 

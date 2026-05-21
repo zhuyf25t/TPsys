@@ -96,7 +96,7 @@ object BattleStateReadHttp4sContractTest {
       statesById.get(battleId).toRight(BattleStateReadError.BattleNotFound)
     }
 
-    override def acceptCommand(request: slaydemo.backend.battle.api.BattleCommandRequest) =
+    override def acceptCommand(request: BattleCommandRequest) =
       failUnused()
   }
 

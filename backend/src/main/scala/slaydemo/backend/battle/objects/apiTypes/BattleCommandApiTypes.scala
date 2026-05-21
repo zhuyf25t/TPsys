@@ -3,7 +3,6 @@ package slaydemo.backend.battle.objects.apiTypes
 import io.circe.{Encoder, Json, JsonObject}
 import io.circe.syntax.*
 
-import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandRequest, BattleCommandSkillOutcome, BattleCommandVector}
 import slaydemo.backend.battle.objects.*
 
 enum BattleCommandAPIRequestError {

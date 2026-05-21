@@ -6,7 +6,7 @@ import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.battle.api.BattleCommandRequest
+import slaydemo.backend.battle.objects.BattleCommandRequest
 import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandAcceptedResponse,
   BattleCommandAPIRequest,

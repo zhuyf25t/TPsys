@@ -1,6 +1,5 @@
 package slaydemo.backend
 
-import slaydemo.backend.battle.api.{BattleCommandRequest, BattleCommandVector}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.{
   BattleCommandOwnership,

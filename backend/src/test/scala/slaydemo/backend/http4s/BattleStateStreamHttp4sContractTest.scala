@@ -5,7 +5,6 @@ import cats.effect.unsafe.implicits.global
 import org.http4s.{Method, Request}
 import org.http4s.implicits.uri
 
-import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandRequest}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
 

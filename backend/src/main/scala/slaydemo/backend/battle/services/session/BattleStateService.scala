@@ -4,7 +4,6 @@ import slaydemo.backend.battle.services.*
 
 import scala.util.control.NonFatal
 
-import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandRequest}
 import slaydemo.backend.battle.objects.*
 
 final case class BattleCommandOwnership(

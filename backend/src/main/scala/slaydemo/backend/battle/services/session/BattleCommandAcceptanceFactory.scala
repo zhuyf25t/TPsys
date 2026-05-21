@@ -2,7 +2,6 @@ package slaydemo.backend.battle.services.session
 
 import slaydemo.backend.battle.services.*
 
-import slaydemo.backend.battle.api.{BattleCommandAccepted, BattleCommandSkillOutcome}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.actors.BattleInputRules.lastClientCommandSeq
 

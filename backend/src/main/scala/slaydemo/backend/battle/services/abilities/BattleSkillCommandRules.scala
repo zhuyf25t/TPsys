@@ -2,7 +2,6 @@ package slaydemo.backend.battle.services.abilities
 
 import slaydemo.backend.battle.services.*
 
-import slaydemo.backend.battle.api.{BattleCommandRequest, BattleCommandSkillOutcome}
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.runtime.BattleAggregateUpdateRules.*
 import slaydemo.backend.battle.services.world.BattleArenaCollision.*

@@ -8,8 +8,7 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.battle.objects.RoomId
-import slaydemo.backend.battle.objects.apiTypes.{RealtimeRoomHeartbeatAPIRequest, RealtimeRoomSnapshotResponse}
+import slaydemo.backend.battle.objects.apiTypes.{RealtimeRoomHeartbeatAPIRequest, RealtimeRoomRequestTarget, RealtimeRoomSnapshotResponse}
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 
@@ -76,11 +75,11 @@ private[http4s] object BattleRoomHttp4sRoutes {
 
   private def isBattleRoomSnapshotPath(request: Request[IO]): Boolean =
     AllowedSnapshotPaths.contains(request.uri.path.renderString) ||
-      roomIdFromRoomPath(request.uri.path.renderString, "snapshot").isDefined
+      RealtimeRoomRequestTarget.hasSnapshotPathRoomId(request.uri.path.renderString)
 
   private def isBattleRoomHeartbeatPath(request: Request[IO]): Boolean =
     AllowedHeartbeatPaths.contains(request.uri.path.renderString) ||
-      roomIdFromRoomPath(request.uri.path.renderString, "heartbeat").isDefined
+      RealtimeRoomRequestTarget.hasHeartbeatPathRoomId(request.uri.path.renderString)
 
   private def decodeHeartbeatRequest(request: Request[IO]): IO[Either[String, RealtimeRoomHeartbeatCommand]] =
     request.as[Json].attempt.map {
@@ -89,28 +88,15 @@ private[http4s] object BattleRoomHttp4sRoutes {
       case Right(json) if json.asObject.isEmpty =>
         Left("Request body must be a JSON object with supported primitive or object fields.")
       case Right(json) =>
-        RealtimeRoomHeartbeatAPIRequest.decodeCommand(json, roomIdFromRoomPath(request.uri.path.renderString, "heartbeat"), request.params)
+        RealtimeRoomHeartbeatAPIRequest.decodeCommand(
+          json,
+          RealtimeRoomRequestTarget.roomIdFromHeartbeatPath(request.uri.path.renderString),
+          request.params
+        )
     }
 
-  private def roomIdFromSnapshotRequest(request: Request[IO]): Option[RoomId] =
-    roomIdFromRoomPath(request.uri.path.renderString, "snapshot")
-      .orElse(request.params.get("roomId").flatMap(nonEmptyText).map(RoomId.apply))
-
-  private def roomIdFromRoomPath(path: String, terminal: String): Option[RoomId] = {
-    val normalized = path.stripPrefix("/api")
-    val prefix = "/battle/rooms/"
-    if !normalized.startsWith(prefix) then None
-    else
-      normalized.stripPrefix(prefix).split("/", -1).toList match {
-        case roomId :: action :: Nil if action == terminal && roomId.nonEmpty && roomId != "snapshot" && roomId != "heartbeat" =>
-          Some(RoomId(roomId))
-        case _ =>
-          None
-      }
-  }
-
-  private def nonEmptyText(value: String): Option[String] =
-    Option(value).map(_.trim).filter(_.nonEmpty)
+  private def roomIdFromSnapshotRequest(request: Request[IO]) =
+    RealtimeRoomRequestTarget.roomIdFromSnapshot(request.uri.path.renderString, request.params)
 
   private def roomApiError(error: BattleRoomError): HttpApiError =
     error match {

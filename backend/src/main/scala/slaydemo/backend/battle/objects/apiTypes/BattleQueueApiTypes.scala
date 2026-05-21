@@ -111,6 +111,40 @@ object RealtimeRoomHeartbeatAPIRequest {
       .map(_.toCommand(pathRoomId, query))
 }
 
+object RealtimeRoomRequestTarget {
+  def hasSnapshotPathRoomId(path: String): Boolean =
+    roomIdFromPath(path, "snapshot").isDefined
+
+  def hasHeartbeatPathRoomId(path: String): Boolean =
+    roomIdFromPath(path, "heartbeat").isDefined
+
+  def roomIdFromSnapshot(path: String, query: Map[String, String]): Option[RoomId] =
+    roomIdFromPath(path, "snapshot")
+      .orElse(roomIdFromQuery(query))
+
+  def roomIdFromHeartbeatPath(path: String): Option[RoomId] =
+    roomIdFromPath(path, "heartbeat")
+
+  private def roomIdFromPath(path: String, terminal: String): Option[RoomId] = {
+    val normalized = path.stripPrefix("/api")
+    val prefix = "/battle/rooms/"
+    if !normalized.startsWith(prefix) then None
+    else
+      normalized.stripPrefix(prefix).split("/", -1).toList match {
+        case roomId :: action :: Nil if action == terminal && roomId.nonEmpty && roomId != "snapshot" && roomId != "heartbeat" =>
+          Some(RoomId(roomId))
+        case _ =>
+          None
+      }
+  }
+
+  private def roomIdFromQuery(query: Map[String, String]): Option[RoomId] =
+    query.get("roomId").flatMap(nonEmptyText).map(RoomId.apply)
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
 final case class RealtimeRoomSnapshotResponse(
   roomId: String,
   serverTime: Long,

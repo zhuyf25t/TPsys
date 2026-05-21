@@ -2,7 +2,6 @@ package slaydemo.backend.social.objects.apiTypes
 
 import io.circe.Encoder
 import io.circe.generic.semiauto.deriveEncoder
-import io.circe.syntax.*
 
 import slaydemo.backend.mail.objects.apiTypes.MailItemResponse
 import slaydemo.backend.social.objects.{FriendRequestRecord, FriendRequestStatus}
@@ -38,9 +37,6 @@ object FriendRequestListResponse {
 
   def fromRecords(records: Vector[FriendRequestRecord]): FriendRequestListResponse =
     FriendRequestListResponse(records.map(FriendRequestResponse.fromRecord))
-
-  def renderRecords(records: Vector[FriendRequestRecord]): String =
-    fromRecords(records).asJson.noSpaces
 }
 
 final case class FriendRequestCreateResponse(
@@ -66,9 +62,6 @@ object FriendRequestCreateResponse {
       request = FriendRequestResponse.fromRecord(result.friendRequest),
       mail = result.notificationMail.map(MailItemResponse.fromRecord)
     )
-
-  def renderResult(result: FriendRequestSubmissionResult): String =
-    fromResult(result).asJson.noSpaces
 }
 
 final case class FriendRequestRespondResponse(
@@ -84,7 +77,4 @@ object FriendRequestRespondResponse {
       request = FriendRequestResponse.fromRecord(result.friendRequest),
       mail = result.notificationMail.map(MailItemResponse.fromRecord)
     )
-
-  def renderResult(result: FriendRequestResponseResult): String =
-    fromResult(result).asJson.noSpaces
 }

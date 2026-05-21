@@ -14,6 +14,7 @@ import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestOwnerQuery,
   FriendRequestRespondApiRequest,
   FriendRequestRespondResponse,
+  SocialApiRequestDecodeError,
   SocialRequestTarget,
   SocialRouteCreateError,
   SocialRouteHandleError,
@@ -42,6 +43,8 @@ private[http4s] object SocialHttp4sRoutes {
     HttpApiError(status = Status.BadRequest, code = "missing_fields", message = "missing_fields")
   private val InvalidActorError =
     HttpApiError(status = Status.BadRequest, code = "invalid_actor", message = "invalid_actor")
+  private val InvalidJsonObjectError =
+    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object with string fields.")
 
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
@@ -82,8 +85,8 @@ private[http4s] object SocialHttp4sRoutes {
 
   private def create(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
     readCreateRequest(request).flatMap {
-      case Left(message) =>
-        IO.pure(apiError(badRequest(message)))
+      case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
+        IO.pure(apiError(InvalidJsonObjectError))
       case Right(createRequest) =>
         createRequest.toCreateHandles match {
           case Left(error) =>
@@ -100,8 +103,8 @@ private[http4s] object SocialHttp4sRoutes {
 
   private def respond(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
     readRespondRequest(request).flatMap {
-      case Left(message) =>
-        IO.pure(apiError(badRequest(message)))
+      case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
+        IO.pure(apiError(InvalidJsonObjectError))
       case Right(respondRequest) =>
         respondRequest.toRespondCommand match {
           case Left(error) =>
@@ -118,17 +121,17 @@ private[http4s] object SocialHttp4sRoutes {
         }
     }
 
-  private def readCreateRequest(request: Request[IO]): IO[Either[String, FriendRequestCreateApiRequest]] =
+  private def readCreateRequest(request: Request[IO]): IO[Either[SocialApiRequestDecodeError, FriendRequestCreateApiRequest]] =
     request
       .as[FriendRequestCreateApiRequest]
       .attempt
-      .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
+      .map(_.left.map(_ => SocialApiRequestDecodeError.InvalidJsonObject))
 
-  private def readRespondRequest(request: Request[IO]): IO[Either[String, FriendRequestRespondApiRequest]] =
+  private def readRespondRequest(request: Request[IO]): IO[Either[SocialApiRequestDecodeError, FriendRequestRespondApiRequest]] =
     request
       .as[FriendRequestRespondApiRequest]
       .attempt
-      .map(_.left.map(_ => "Request body must be a JSON object with string fields."))
+      .map(_.left.map(_ => SocialApiRequestDecodeError.InvalidJsonObject))
 
   private def ownerApiError(error: SocialRouteHandleError): HttpApiError =
     error match {
@@ -163,6 +166,4 @@ private[http4s] object SocialHttp4sRoutes {
   private def path(request: Request[IO]): String =
     request.uri.path.renderString
 
-  private def badRequest(message: String): HttpApiError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = message)
 }

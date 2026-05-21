@@ -21,6 +21,10 @@ object SocialRequestTarget {
     FriendRequestRespondPaths.contains(path)
 }
 
+enum SocialApiRequestDecodeError {
+  case InvalidJsonObject
+}
+
 final case class FriendRequestCreateApiRequest(
   sourceHandle: Option[String],
   targetHandle: Option[String]

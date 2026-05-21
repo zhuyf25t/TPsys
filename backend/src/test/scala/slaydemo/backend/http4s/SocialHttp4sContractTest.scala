@@ -30,7 +30,9 @@ object SocialHttp4sContractTest {
   def main(args: Array[String]): Unit = {
     listParsesOwnerAndRejectsVisitor()
     createParsesHandlesAndValidationErrors()
+    createRejectsNonObjectBody()
     respondParsesDecisionAndMapsErrors()
+    respondRejectsNonObjectBody()
 
     println("Social http4s contract checks passed")
   }
@@ -92,6 +94,23 @@ object SocialHttp4sContractTest {
     assertEquals("service create error call count", service.createCalls.length, 2)
   }
 
+  private def createRejectsNonObjectBody(): Unit = {
+    val service = RecordingFriendRequestService()
+    val response = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/social/friend-requests")
+        .withEntity("[]")
+    )
+
+    assertEquals("create non-object status", response.status, 400)
+    assertEquals(
+      "create non-object body",
+      response.body,
+      """{"error":"Request body must be a JSON object with string fields.","code":"bad_request"}"""
+    )
+    assertEquals("create non-object does not call service", service.createCalls, Vector.empty)
+  }
+
   private def respondParsesDecisionAndMapsErrors(): Unit = {
     val service = RecordingFriendRequestService()
 
@@ -136,6 +155,23 @@ object SocialHttp4sContractTest {
     assertEquals("forbidden status", forbidden.status, 403)
     assertContains("forbidden code", forbidden.body, """"code":"forbidden"""")
     assertEquals("error respond calls", service.respondCalls.length, 3)
+  }
+
+  private def respondRejectsNonObjectBody(): Unit = {
+    val service = RecordingFriendRequestService()
+    val response = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/social/friend-requests/respond")
+        .withEntity("[]")
+    )
+
+    assertEquals("respond non-object status", response.status, 400)
+    assertEquals(
+      "respond non-object body",
+      response.body,
+      """{"error":"Request body must be a JSON object with string fields.","code":"bad_request"}"""
+    )
+    assertEquals("respond non-object does not call service", service.respondCalls, Vector.empty)
   }
 
   private def run(service: FriendRequestService, request: Request[IO]): RouteResponse = {

@@ -11,6 +11,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentCommandParseError,
   ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListResponse,
+  GovernanceApiErrorCode,
   GovernanceNotificationListQueryParseResult,
   GovernanceRequestTarget,
   GovernanceReviewNotificationApiRequest,
@@ -24,21 +25,6 @@ import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, withCors}
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
   import CirceEntityEncoder.*
-
-  private val MethodNotAllowedError =
-    HttpApiError(status = Status.MethodNotAllowed, code = "method_not_allowed", message = "Method is not allowed.")
-  private val RequestBodyJsonObjectError =
-    HttpApiError(status = Status.BadRequest, code = "bad_request", message = "Request body must be a JSON object.")
-  private val InvalidActorError =
-    HttpApiError(status = Status.Forbidden, code = "invalid_actor", message = "invalid_actor")
-  private val InvalidTargetError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_target", message = "invalid_target")
-  private val InvalidDeltaError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_delta", message = "invalid_delta")
-  private val InvalidKindError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_kind", message = "invalid_kind")
-  private val InvalidBodyError =
-    HttpApiError(status = Status.BadRequest, code = "invalid_body", message = "invalid_body")
 
   def routes(
     contributionAdjustmentService: ContributionAdjustmentService,
@@ -54,7 +40,7 @@ private[http4s] object GovernanceHttp4sRoutes {
           case Method.POST =>
             createContributionAdjustment(request, contributionAdjustmentService)
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed)))
         }
       case request if GovernanceRequestTarget.isAdminNotificationPath(path(request)) =>
         request.method match {
@@ -65,7 +51,7 @@ private[http4s] object GovernanceHttp4sRoutes {
           case Method.POST =>
             createAdminNotification(request, notificationService)
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed)))
         }
     }
 
@@ -85,7 +71,7 @@ private[http4s] object GovernanceHttp4sRoutes {
   ): IO[Response[IO]] =
     request.as[ContributionAdjustmentApiRequest].attempt.flatMap {
       case Left(_) =>
-        IO.pure(apiError(RequestBodyJsonObjectError))
+        IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.InvalidJsonObject)))
       case Right(parsedRequest) =>
         parsedRequest.toCommand match {
           case Left(error) =>
@@ -120,7 +106,7 @@ private[http4s] object GovernanceHttp4sRoutes {
   ): IO[Response[IO]] =
     request.as[GovernanceReviewNotificationApiRequest].attempt.flatMap {
       case Left(_) =>
-        IO.pure(apiError(RequestBodyJsonObjectError))
+        IO.pure(apiError(governanceApiError(GovernanceApiErrorCode.InvalidJsonObject)))
       case Right(parsedRequest) =>
         parsedRequest.toCommand match {
           case Left(error) =>
@@ -137,17 +123,24 @@ private[http4s] object GovernanceHttp4sRoutes {
     }
 
   private def contributionAdjustmentApiError(error: ContributionAdjustmentCommandParseError): HttpApiError =
-    error match {
-      case ContributionAdjustmentCommandParseError.InvalidActor  => InvalidActorError
-      case ContributionAdjustmentCommandParseError.InvalidTarget => InvalidTargetError
-      case ContributionAdjustmentCommandParseError.InvalidDelta  => InvalidDeltaError
-    }
+    governanceApiError(GovernanceApiErrorCode.fromContributionAdjustmentError(error))
 
   private def reviewNotificationApiError(error: GovernanceReviewNotificationCommandParseError): HttpApiError =
-    error match {
-      case GovernanceReviewNotificationCommandParseError.InvalidKind   => InvalidKindError
-      case GovernanceReviewNotificationCommandParseError.InvalidTarget => InvalidTargetError
-      case GovernanceReviewNotificationCommandParseError.InvalidBody   => InvalidBodyError
+    governanceApiError(GovernanceApiErrorCode.fromReviewNotificationError(error))
+
+  private def governanceApiError(code: GovernanceApiErrorCode): HttpApiError =
+    HttpApiError(
+      status = statusFrom(GovernanceApiErrorCode.statusCode(code)),
+      code = GovernanceApiErrorCode.wireValue(code),
+      message = GovernanceApiErrorCode.message(code)
+    )
+
+  private def statusFrom(value: Int): Status =
+    value match {
+      case 400 => Status.BadRequest
+      case 403 => Status.Forbidden
+      case 405 => Status.MethodNotAllowed
+      case _   => Status.InternalServerError
     }
 
   private def path(request: Request[IO]): String =

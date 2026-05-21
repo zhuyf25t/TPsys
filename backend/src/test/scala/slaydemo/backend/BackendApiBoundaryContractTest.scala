@@ -39,10 +39,18 @@ object BackendApiBoundaryContractTest {
       "apiError(Status."
     )
 
+  private val ForbiddenLegacyHttpServerFragments: Vector[String] =
+    Vector(
+      "com.sun.net.httpserver",
+      "HttpExchange"
+    )
+
   def main(args: Array[String]): Unit = {
     deletedApiMessageBoundaryFilesStayDeleted()
     oldApiMessageBoundaryNamesStayOutOfMainSources()
     legacyRouteJsonRenderersStayDeleted()
+    legacyHttpExchangeAdaptersStayDeleted()
+    legacyHttpServerTypesStayOutOfMainSources()
     http4sRoutesUseTypedApiErrors()
     http4sRoutesDoNotImportDomainRoutes()
 
@@ -83,6 +91,31 @@ object BackendApiBoundaryContractTest {
     assert(
       violations.isEmpty,
       s"legacy route-specific JSON renderers must stay replaced by shared apiTypes codecs:\n${violations.mkString("\n")}"
+    )
+  }
+
+  private def legacyHttpExchangeAdaptersStayDeleted(): Unit = {
+    val violations = scalaFiles(SourceRoot)
+      .filter(path => SourceRoot.relativize(path).iterator().asScala.exists(_.toString == "routes"))
+      .map(path => SourceRoot.relativize(path).toString)
+
+    assert(
+      violations.isEmpty,
+      s"legacy HttpExchange route adapter packages must stay deleted from main sources:\n${violations.mkString("\n")}"
+    )
+  }
+
+  private def legacyHttpServerTypesStayOutOfMainSources(): Unit = {
+    val violations = for {
+      file <- scalaFiles(SourceRoot)
+      source = Files.readString(file)
+      forbidden <- ForbiddenLegacyHttpServerFragments
+      if source.contains(forbidden)
+    } yield s"${SourceRoot.relativize(file)} contains forbidden legacy server fragment `$forbidden`"
+
+    assert(
+      violations.isEmpty,
+      s"legacy Java HttpServer boundary types must stay out of main sources:\n${violations.mkString("\n")}"
     )
   }
 

@@ -6,7 +6,7 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import services.{BackendConfig, BackendEnvironment, BackendRuntime}
-import services.battle.api.BattleAPIMessageServices
+import services.battle.routes.BattleAPIMessageServices
 import route.governance.GovernanceHttpServices
 import system.database.PostgresSupport
 

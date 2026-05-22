@@ -1,11 +1,11 @@
-package services.battle.api
+package services.battle.routes
 
 import cats.effect.IO
 import io.circe.{Encoder, Json}
 import io.circe.syntax.*
 import system.api.{APIMessage, APIMessageError, RegisteredAPIMessage}
 
-private[api] object BattleAPIMessageSupport {
+private[routes] object BattleAPIMessageSupport {
   def registered(className: String)(plan: Json => IO[Json]): RegisteredAPIMessage =
     RegisteredAPIMessage(
       apiName = APIMessage.apiNameFromClassName(className),

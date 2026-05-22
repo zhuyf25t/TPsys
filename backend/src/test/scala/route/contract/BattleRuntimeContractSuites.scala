@@ -12,7 +12,7 @@ import org.http4s.{Header, Headers, HttpRoutes, Method, Request}
 import org.typelevel.ci.CIString
 import scala.jdk.CollectionConverters.*
 
-import route.battle.BattleHttp4sRoutes
+import services.battle.routes.BattleHttp4sRoutes
 import route.bots.BotProfileHttp4sRoutes
 import route.governance.GovernanceHttp4sRoutes
 import route.health.{HealthHttp4sRoutes, HealthHttpModule}

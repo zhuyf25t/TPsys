@@ -3,7 +3,7 @@ package route
 import services.bots.services.BotProfileService
 import services.forum.services.ForumService
 import route.governance.GovernanceHttpServices
-import services.battle.api.BattleAPIMessageServices
+import services.battle.routes.BattleAPIMessageServices
 import services.identity.services.IdentityService
 import services.mail.services.MailService
 import services.replay.services.ReplayService

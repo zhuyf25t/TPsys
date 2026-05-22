@@ -1,4 +1,4 @@
-package services.battle.api
+package services.battle.routes
 
 import services.battle.services.{
   BattleQueueJoinAuthorizationService,

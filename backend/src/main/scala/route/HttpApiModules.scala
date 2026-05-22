@@ -4,7 +4,7 @@ import cats.effect.IO
 import cats.syntax.all.*
 import org.http4s.HttpRoutes
 
-import route.battle.BattleHttp4sRoutes
+import services.battle.routes.BattleHttp4sRoutes
 import route.bots.BotProfileHttpModule
 import route.forum.ForumHttpModule
 import route.governance.GovernanceHttpModule

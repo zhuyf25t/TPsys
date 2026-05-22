@@ -20,10 +20,11 @@ import slaydemo.backend.forum.objects.apiTypes.{
 }
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.http4s.HttpApiError
+import slaydemo.backend.http4s.HttpApiErrors.{codeMessageError, methodNotAllowedError, typedApiError}
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeEntityBody
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonCreated, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, methodNotAllowedError, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, requestPath}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =

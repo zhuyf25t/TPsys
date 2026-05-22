@@ -12,10 +12,11 @@ import slaydemo.backend.battle.objects.apiTypes.{
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
 import slaydemo.backend.http4s.HttpApiError
+import slaydemo.backend.http4s.HttpApiErrors.apiError
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeJsonObjectBody
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, requestPath}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, requestPath}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =

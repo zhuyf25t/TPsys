@@ -12,9 +12,10 @@ import scala.concurrent.duration.*
 import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
+import slaydemo.backend.http4s.HttpApiErrors.apiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk, withCors}
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, requestPath}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, requestPath}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val InvalidBattleIdError =

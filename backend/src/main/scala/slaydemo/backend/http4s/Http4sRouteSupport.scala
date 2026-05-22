@@ -7,12 +7,6 @@ import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.typelevel.ci.CIString
 
-private[http4s] final case class HttpApiError(
-  status: Status,
-  code: String,
-  message: String
-)
-
 private[http4s] object Http4sRouteSupport {
   def blocking[A](thunk: => A): IO[A] =
     IO.blocking(thunk)

@@ -5,6 +5,7 @@ import org.http4s.implicits.uri
 import org.http4s.{Method, Request}
 
 import slaydemo.backend.battle.objects.EpochMillis
+import slaydemo.backend.http4s.social.SocialHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.{

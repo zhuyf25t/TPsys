@@ -1,4 +1,4 @@
-package services.battle.database
+package services.battle.persistence
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}

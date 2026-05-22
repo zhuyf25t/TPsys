@@ -22,7 +22,7 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
-import services.battle.database.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
+import services.battle.persistence.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.routes.BattleAPIMessageServices
 import services.battle.objects.*
 import services.bots.objects.*

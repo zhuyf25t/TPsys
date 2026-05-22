@@ -2,7 +2,7 @@ package services.battle.services.results
 
 import services.battle.services.*
 
-import services.battle.database.{BattleResultRepository, InMemoryBattleResultRepository}
+import services.battle.persistence.{BattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.objects.*
 import services.identity.objects.{DisplayName, PlayerHandle}
 import system.policies.HandlePolicy
@@ -13,9 +13,8 @@ enum BattleResultRecordError {
 }
 
 trait BattleResultService {
-  /** 中文名：记录（record）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord]
-  /** 中文名：列表（list）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
+
   def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord]
 }
 
@@ -42,7 +41,6 @@ final case class BattleResultRecordCommand(
 )
 
 final class DefaultBattleResultService(repository: BattleResultRepository) extends BattleResultService {
-  /** 中文名：记录（record）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   override def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord] =
     validateRecordHandle(command.handle).map { handle =>
       val record = buildRecord(command, handle)
@@ -50,7 +48,7 @@ final class DefaultBattleResultService(repository: BattleResultRepository) exten
     }
 
   private def buildRecord(command: BattleResultRecordCommand, handle: PlayerHandle): BattleResultRecord =
-    val record = BattleResultRecord(
+    BattleResultRecord(
       battleId = command.battleId,
       handle = handle,
       displayName = command.displayName,
@@ -71,9 +69,7 @@ final class DefaultBattleResultService(repository: BattleResultRepository) exten
       timelineHint = BattleTimelineHint.fromWire(command.timelineHint),
       currentLoadout = command.currentLoadout.flatMap(nonEmpty)
     )
-    record
 
-  /** 中文名：列表（list）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   override def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord] = {
     val safeLimit = math.max(0, math.min(limit, 100))
     handle match {
@@ -102,13 +98,11 @@ final class DefaultBattleResultService(repository: BattleResultRepository) exten
 }
 
 object DefaultBattleResultService {
-  /** 中文名：应用（apply）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   def apply(repository: BattleResultRepository): DefaultBattleResultService =
     new DefaultBattleResultService(repository)
 }
 
 object InMemoryBattleResultService {
-  /** 中文名：应用（apply）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   def apply(): DefaultBattleResultService =
     DefaultBattleResultService(InMemoryBattleResultRepository())
 }

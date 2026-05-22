@@ -1,6 +1,6 @@
 package services
 
-import services.battle.database.{FileBattleResultRepository, InMemoryBattleResultRepository, PostgresBattleResultRepository}
+import services.battle.persistence.{FileBattleResultRepository, InMemoryBattleResultRepository, PostgresBattleResultRepository}
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository, PostgresBotProfileRepository}
 import services.bots.objects.DemoBotProfiles
 import services.forum.database.{FileForumRepository, InMemoryForumRepository, PostgresForumRepository}

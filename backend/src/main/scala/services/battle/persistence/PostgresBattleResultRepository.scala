@@ -1,4 +1,4 @@
-package services.battle.database
+package services.battle.persistence
 
 import java.sql.PreparedStatement
 

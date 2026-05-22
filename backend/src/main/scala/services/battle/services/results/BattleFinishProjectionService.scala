@@ -4,7 +4,7 @@ import services.battle.services.*
 
 import scala.util.control.NonFatal
 
-import services.battle.database.BattleResultRepository
+import services.battle.persistence.BattleResultRepository
 import services.battle.objects.*
 import services.identity.objects.PlayerHandle
 import services.mail.database.MailRepository

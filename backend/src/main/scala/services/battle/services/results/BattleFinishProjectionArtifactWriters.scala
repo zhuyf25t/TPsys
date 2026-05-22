@@ -2,7 +2,7 @@ package services.battle.services.results
 
 import services.battle.services.*
 
-import services.battle.database.BattleResultRepository
+import services.battle.persistence.BattleResultRepository
 import services.mail.database.MailRepository
 import services.replay.database.ReplayRepository
 

@@ -1,4 +1,4 @@
-package services.battle.database
+package services.battle.persistence
 
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
@@ -23,7 +23,7 @@ import services.battle.objects.{
 }
 import services.identity.objects.{DisplayName, PlayerHandle}
 
-private[database] object BattleResultFileJsonParser {
+private[persistence] object BattleResultFileJsonParser {
   def parseRecords(raw: String): Vector[BattleResultRecord] =
     parseJson(raw)
       .toOption
@@ -32,7 +32,7 @@ private[database] object BattleResultFileJsonParser {
       .getOrElse(Vector.empty)
 }
 
-private[database] final case class BattleResultFileJsonPayload(
+private[persistence] final case class BattleResultFileJsonPayload(
   schema: String,
   results: Vector[BattleResultFileRecordJson]
 ) {
@@ -40,7 +40,7 @@ private[database] final case class BattleResultFileJsonPayload(
     results.map(_.toDomain)
 }
 
-private[database] object BattleResultFileJsonPayload {
+private[persistence] object BattleResultFileJsonPayload {
   private val Schema = "slay-demo.battle-results.v1"
 
   given Encoder[BattleResultFileJsonPayload] = deriveEncoder
@@ -65,7 +65,7 @@ private[database] object BattleResultFileJsonPayload {
       .orElse(Right(Vector.empty))
 }
 
-private[database] final case class BattleResultFileRecordJson(
+private[persistence] final case class BattleResultFileRecordJson(
   battleId: String,
   resultId: Option[String],
   handle: String,
@@ -114,7 +114,7 @@ private[database] final case class BattleResultFileRecordJson(
     Option(value).map(_.trim).filter(_.nonEmpty)
 }
 
-private[database] object BattleResultFileRecordJson {
+private[persistence] object BattleResultFileRecordJson {
   given Encoder[BattleResultFileRecordJson] = deriveEncoder
   given Decoder[BattleResultFileRecordJson] = deriveDecoder
 

@@ -1,11 +1,11 @@
-package services.battle.database
+package services.battle.persistence
 
 import java.sql.Connection
 
 import system.database.PostgresSupport
 import system.storage.PostgresConnectionSettings
 
-private[database] object PostgresBattleResultSchema {
+private[persistence] object PostgresBattleResultSchema {
   def initialize(settings: PostgresConnectionSettings): Unit =
     PostgresSupport.withConnection(settings) { connection =>
       PostgresSupport.withStatement(

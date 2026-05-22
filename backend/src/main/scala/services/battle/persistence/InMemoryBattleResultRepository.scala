@@ -1,4 +1,4 @@
-package services.battle.database
+package services.battle.persistence
 
 import services.battle.objects.{BattleId, BattleResultId, BattleResultRecord}
 import services.identity.objects.PlayerHandle

@@ -1,4 +1,4 @@
-package services.battle.database
+package services.battle.persistence
 
 import java.sql.{PreparedStatement, ResultSet, Types}
 
@@ -21,7 +21,7 @@ import services.battle.objects.{
 }
 import services.identity.objects.{DisplayName, PlayerHandle}
 
-private[database] object PostgresBattleResultRecordMapper {
+private[persistence] object PostgresBattleResultRecordMapper {
   def bindRecord(statement: PreparedStatement, record: BattleResultRecord): Unit = {
     statement.setString(1, record.resultId.value)
     statement.setString(2, record.battleId.value)

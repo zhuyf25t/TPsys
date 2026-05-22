@@ -55,59 +55,103 @@ object BattleStateResponse {
     fromState(state).asJson.noSpaces
 
   private def stateJson(state: BattleAggregateState): Json =
-    Json.obj(
-      "battleId" -> Json.fromString(state.battleId.value),
-      "roomId" -> Json.fromString(state.roomId.value),
-      "phase" -> Json.fromString(BattlePhase.wireValue(state.phase)),
-      "serverTime" -> Json.fromLong(state.serverTime.value),
-      "startedAt" -> Json.fromLong(state.startedAt.value),
-      "durationMs" -> Json.fromLong(state.durationMs.value),
-      "elapsedMs" -> Json.fromLong(state.elapsedMs.value),
-      "endsAt" -> Json.fromLong(state.endsAt.value),
-      "worldSize" -> vectorJson(state.worldSize),
-      "tick" -> Json.fromLong(state.tick.value),
-      "resultReady" -> Json.fromBoolean(BattleArtifactStatus.isResultReady(state.artifactStatus)),
-      "replayReady" -> Json.fromBoolean(BattleArtifactStatus.isReplayReady(state.artifactStatus)),
-      "players" -> Json.fromValues(state.players.map(playerJson)),
-      "projectiles" -> Json.fromValues(state.projectiles.map(projectileJson)),
-      "projectileTerminals" -> Json.fromValues(state.projectileTerminals.map(projectileTerminalJson)),
-      "slowFields" -> Json.fromValues(state.slowFields.map(slowFieldJson)),
-      "pickups" -> Json.fromValues(state.pickups.map(pickupJson)),
-      "events" -> Json.fromValues(state.events.map(eventJson)),
-      "winnerPlayerId" -> optionalStringJson(state.winnerPlayerId.map(_.value)),
-      "winnerHeroId" -> optionalStringJson(state.winnerHeroId.map(_.value))
+    BattleStateRootResponse.fromState(state).asJson
+}
+
+private final case class BattleStateRootResponse(
+  battleId: String,
+  roomId: String,
+  phase: String,
+  serverTime: Long,
+  startedAt: Long,
+  durationMs: Long,
+  elapsedMs: Long,
+  endsAt: Long,
+  worldSize: BattleStateVectorResponse,
+  tick: Long,
+  resultReady: Boolean,
+  replayReady: Boolean,
+  players: Vector[BattleStatePlayerResponse],
+  projectiles: Vector[BattleStateProjectileResponse],
+  projectileTerminals: Vector[BattleStateProjectileTerminalResponse],
+  slowFields: Vector[BattleStateSlowFieldResponse],
+  pickups: Vector[BattleStatePickupResponse],
+  events: Vector[BattleStateEventResponse],
+  winnerPlayerId: Option[String],
+  winnerHeroId: Option[String]
+)
+
+private object BattleStateRootResponse {
+  given Encoder[BattleStateRootResponse] =
+    Encoder.forProduct20(
+      "battleId",
+      "roomId",
+      "phase",
+      "serverTime",
+      "startedAt",
+      "durationMs",
+      "elapsedMs",
+      "endsAt",
+      "worldSize",
+      "tick",
+      "resultReady",
+      "replayReady",
+      "players",
+      "projectiles",
+      "projectileTerminals",
+      "slowFields",
+      "pickups",
+      "events",
+      "winnerPlayerId",
+      "winnerHeroId"
+    )((response: BattleStateRootResponse) =>
+      (
+        response.battleId,
+        response.roomId,
+        response.phase,
+        response.serverTime,
+        response.startedAt,
+        response.durationMs,
+        response.elapsedMs,
+        response.endsAt,
+        response.worldSize,
+        response.tick,
+        response.resultReady,
+        response.replayReady,
+        response.players,
+        response.projectiles,
+        response.projectileTerminals,
+        response.slowFields,
+        response.pickups,
+        response.events,
+        response.winnerPlayerId,
+        response.winnerHeroId
+      )
     )
 
-  private def playerJson(player: BattlePlayerState): Json =
-    BattleStatePlayerResponse.fromPlayer(player).asJson
-
-  private def weaponJson(weapon: BattleWeaponState): Json =
-    BattleStateWeaponResponse.fromWeapon(weapon).asJson
-
-  private def skillJson(skill: BattlePlayerSkillState): Json =
-    BattleStateSkillResponse.fromSkill(skill).asJson
-
-  private def projectileJson(projectile: BattleProjectileState): Json =
-    BattleStateProjectileResponse.fromProjectile(projectile).asJson
-
-  private def projectileTerminalJson(terminal: BattleProjectileTerminalState): Json =
-    BattleStateProjectileTerminalResponse.fromTerminal(terminal).asJson
-
-  private def slowFieldJson(field: BattleSlowFieldState): Json =
-    BattleStateSlowFieldResponse.fromSlowField(field).asJson
-
-  private def pickupJson(pickup: BattlePickupState): Json =
-    BattleStatePickupResponse.fromPickup(pickup).asJson
-
-  private def eventJson(event: BattleEventState): Json =
-    BattleStateEventResponse.fromEvent(event).asJson
-
-  private def vectorJson(vector: BattleVector2): Json =
-    BattleStateVectorResponse.fromVector(vector).asJson
-
-  private def optionalStringJson(value: Option[String]): Json =
-    value.filter(_.trim.nonEmpty).map(Json.fromString).getOrElse(Json.Null)
-
+  def fromState(state: BattleAggregateState): BattleStateRootResponse =
+    BattleStateRootResponse(
+      battleId = state.battleId.value,
+      roomId = state.roomId.value,
+      phase = BattlePhase.wireValue(state.phase),
+      serverTime = state.serverTime.value,
+      startedAt = state.startedAt.value,
+      durationMs = state.durationMs.value,
+      elapsedMs = state.elapsedMs.value,
+      endsAt = state.endsAt.value,
+      worldSize = BattleStateVectorResponse.fromVector(state.worldSize),
+      tick = state.tick.value,
+      resultReady = BattleArtifactStatus.isResultReady(state.artifactStatus),
+      replayReady = BattleArtifactStatus.isReplayReady(state.artifactStatus),
+      players = state.players.map(BattleStatePlayerResponse.fromPlayer),
+      projectiles = state.projectiles.map(BattleStateProjectileResponse.fromProjectile),
+      projectileTerminals = state.projectileTerminals.map(BattleStateProjectileTerminalResponse.fromTerminal),
+      slowFields = state.slowFields.map(BattleStateSlowFieldResponse.fromSlowField),
+      pickups = state.pickups.map(BattleStatePickupResponse.fromPickup),
+      events = state.events.map(BattleStateEventResponse.fromEvent),
+      winnerPlayerId = state.winnerPlayerId.map(_.value).filter(_.trim.nonEmpty),
+      winnerHeroId = state.winnerHeroId.map(_.value).filter(_.trim.nonEmpty)
+    )
 }
 
 private final case class BattleStateVectorResponse(x: Double, y: Double)

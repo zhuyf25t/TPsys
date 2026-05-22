@@ -10,7 +10,7 @@ import services.battle.services.world.BattleMotionRules.*
 import services.battle.services.abilities.BattleSkillCatalog
 import services.battle.services.abilities.BattleSkillRules.*
 
-private[services] object BattleSkillCommandRules {
+private[battle] object BattleSkillCommandRules {
   final case class CommandApplication(
     state: BattleAggregateState,
     outcomes: Vector[BattleCommandSkillOutcome]

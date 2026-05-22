@@ -4,6 +4,7 @@ import services.battle.services.*
 
 import scala.util.control.NonFatal
 
+import services.battle.engine.BattleEngine
 import services.battle.objects.*
 
 final case class BattleCommandOwnership(
@@ -92,7 +93,7 @@ final class InMemoryBattleStateService(
               val ignored = BattleCommandAcceptanceFactory.ignored(advanced.state, player, now)
               storeCommandSubmission(request, advanced, Right(ignored), projectionCandidate)
             case Some(player) =>
-              val applied = BattleCommandApplicationRules.applyCommand(advanced.state, player, request)
+              val applied = BattleEngine.applyCommand(advanced.state, player, request)
               val nextState = applied.state
               val accepted = BattleCommandAcceptanceFactory.applied(
                 state = nextState,
@@ -112,14 +113,14 @@ final class InMemoryBattleStateService(
   private def findOrInitialize(battleId: BattleId, now: EpochMillis): Option[StoredBattle] =
     battles.get(battleId).orElse {
       sessionLookup.activeBattleSession(battleId).map { seed =>
-        val storedBattle = BattleStoredBattleInitializationRules.fromSeed(seed, battleDuration, now)
+        val storedBattle = BattleEngine.initialize(seed, battleDuration, now)
         battles = battles.updated(battleId, storedBattle)
         storedBattle
       }
     }
 
   private def advanceStoredBattle(storedBattle: StoredBattle, now: EpochMillis): StoredBattle = {
-    val advanced = BattleStoredBattleAdvanceRules.advance(storedBattle, now)
+    val advanced = BattleEngine.advance(storedBattle, now)
     advanced.roomFinished.foreach(notification =>
       roomLifecycleSink.markBattleFinished(notification.roomId, notification.finishedAt)
     )
@@ -167,7 +168,7 @@ final class InMemoryBattleStateService(
 
 }
 object InMemoryBattleStateService {
-  val DefaultBattleDuration: DurationMillis = BattleRuntimeCatalog.DefaultBattleDuration
+  val DefaultBattleDuration: DurationMillis = BattleEngine.DefaultBattleDuration
 
   /** 中文名：应用（apply）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态。 */
   def apply(sessionLookup: BattleSessionLookup): InMemoryBattleStateService =

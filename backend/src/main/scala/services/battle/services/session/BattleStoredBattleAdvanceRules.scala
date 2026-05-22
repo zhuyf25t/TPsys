@@ -6,17 +6,17 @@ import services.battle.objects.*
 import services.battle.services.runtime.BattleRuntimeFinishRules.finishedAtForRoom
 import services.battle.services.runtime.BattleRuntimeStepRules.advanceStateStep
 
-private[services] final case class BattleRoomFinishedNotification(
+private[battle] final case class BattleRoomFinishedNotification(
   roomId: RoomId,
   finishedAt: EpochMillis
 )
 
-private[services] final case class BattleStoredBattleAdvanceResult(
+private[battle] final case class BattleStoredBattleAdvanceResult(
   storedBattle: StoredBattle,
   roomFinished: Option[BattleRoomFinishedNotification]
 )
 
-private[services] object BattleStoredBattleAdvanceRules {
+private[battle] object BattleStoredBattleAdvanceRules {
   /** 中文名：推进（advance）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态。 */
   def advance(storedBattle: StoredBattle, now: EpochMillis): BattleStoredBattleAdvanceResult = {
     val safeNow =

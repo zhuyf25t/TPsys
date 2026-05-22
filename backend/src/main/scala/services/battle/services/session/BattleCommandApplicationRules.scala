@@ -12,7 +12,7 @@ import services.battle.services.abilities.BattleSkillCommandRules.{
   applyFreezeCommand
 }
 
-private[services] object BattleCommandApplicationRules {
+private[battle] object BattleCommandApplicationRules {
   /** 中文名：应用命令（applyCommand）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态。 */
   def applyCommand(
     state: BattleAggregateState,

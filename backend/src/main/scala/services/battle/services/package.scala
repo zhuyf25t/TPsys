@@ -1,6 +1,7 @@
 package services.battle
 
 package object services {
+  export _root_.services.battle.engine.BattleEngine
   export _root_.services.battle.services.abilities.BattlePickupCatalog
   export _root_.services.battle.services.abilities.BattlePickupDefinition
   export _root_.services.battle.services.abilities.BattlePickupRules

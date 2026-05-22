@@ -5,7 +5,7 @@ import services.battle.services.*
 import services.battle.objects.*
 import services.battle.services.results.BattleFinishProjectionStatus
 
-private[services] final case class StoredBattle(
+private[battle] final case class StoredBattle(
   state: BattleAggregateState,
   commandOwnershipByPlayerId: Map[PlayerId, TicketId],
   finishProjectionStatus: BattleFinishProjectionStatus,

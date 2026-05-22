@@ -6,7 +6,7 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, corsOk, decodeTextBody, errorResponse, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, corsOk, decodeTextBody, errorResponse, jsonOk, requestPath, typedApiError, withCors}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
@@ -59,7 +59,7 @@ private[http4s] object ReplayHttp4sRoutes {
             records = records,
             selectedHandle = query.selectedHandle
           )
-          Ok(response.asJson).map(withCors)
+          jsonOk(response.asJson)
         }
       case Method.POST =>
         decodeRecordRequest(request).flatMap {
@@ -87,7 +87,7 @@ private[http4s] object ReplayHttp4sRoutes {
         val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.load(replayId)).flatMap {
           case Some(record) =>
-            Ok(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, query.selectedHandle)).asJson).map(withCors)
+            jsonOk(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, query.selectedHandle)).asJson)
           case None =>
             errorResponse(replayApiError(ReplayApiErrorCode.ReplayNotFound))
         }
@@ -108,7 +108,7 @@ private[http4s] object ReplayHttp4sRoutes {
             errorResponse(replayApiError(ReplayApiErrorCode.ReplayNotFound))
           case Some(_) =>
             blocking(service.listComments(replayId, query.limit)).flatMap { records =>
-              Ok(ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson).map(withCors)
+              jsonOk(ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson)
             }
         }
       case Method.POST =>

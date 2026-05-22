@@ -2,9 +2,8 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
-import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.circe.CirceEntityDecoder
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
 import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentApiRequest,
@@ -20,11 +19,10 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath, typedApiError}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
-  import CirceEntityEncoder.*
 
   def routes(
     contributionAdjustmentService: ContributionAdjustmentService,
@@ -61,7 +59,7 @@ private[http4s] object GovernanceHttp4sRoutes {
   ): IO[Response[IO]] = {
     val limit = GovernanceRequestTarget.contributionAdjustmentLimitFromQuery(request.params)
     blocking(service.list(limit)).flatMap(records =>
-      Ok(ContributionAdjustmentListResponse.fromRecords(records).asJson).map(withCors)
+      jsonOk(ContributionAdjustmentListResponse.fromRecords(records).asJson)
     )
   }
 
@@ -80,8 +78,8 @@ private[http4s] object GovernanceHttp4sRoutes {
           case Left(error) =>
             errorResponse(contributionAdjustmentApiError(error))
           case Right(command) =>
-            blocking(service.create(command)).map(result =>
-              withCors(Response[IO](Status.Ok).withEntity(ContributionAdjustmentCreateResponse.fromResult(result).asJson))
+            blocking(service.create(command)).flatMap(result =>
+              jsonOk(ContributionAdjustmentCreateResponse.fromResult(result).asJson)
             )
         }
     }
@@ -92,7 +90,7 @@ private[http4s] object GovernanceHttp4sRoutes {
   ): IO[Response[IO]] =
     GovernanceRequestTarget.notificationListFromQuery(request.params) match {
       case GovernanceNotificationListQueryParseResult.EmptyResults =>
-        Ok(GovernanceReviewNotificationListResponse.fromRecords(Vector.empty).asJson).map(withCors)
+        jsonOk(GovernanceReviewNotificationListResponse.fromRecords(Vector.empty).asJson)
       case GovernanceNotificationListQueryParseResult.Query(query) =>
         blocking(
           service.listReviewNotifications(
@@ -100,7 +98,7 @@ private[http4s] object GovernanceHttp4sRoutes {
             targetType = query.targetType,
             limit = query.limit
           )
-        ).flatMap(records => Ok(GovernanceReviewNotificationListResponse.fromRecords(records).asJson).map(withCors))
+        ).flatMap(records => jsonOk(GovernanceReviewNotificationListResponse.fromRecords(records).asJson))
     }
 
   private def createAdminNotification(
@@ -118,12 +116,8 @@ private[http4s] object GovernanceHttp4sRoutes {
           case Left(error) =>
             errorResponse(reviewNotificationApiError(error))
           case Right(command) =>
-            blocking(service.createReviewNotification(command)).map(result =>
-              withCors(
-                Response[IO](Status.Ok).withEntity(
-                  GovernanceReviewNotificationCreateResponse.fromResult(result).asJson
-                )
-              )
+            blocking(service.createReviewNotification(command)).flatMap(result =>
+              jsonOk(GovernanceReviewNotificationCreateResponse.fromResult(result).asJson)
             )
         }
     }

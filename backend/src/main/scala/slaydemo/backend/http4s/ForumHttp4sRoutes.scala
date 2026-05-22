@@ -20,7 +20,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -45,7 +45,7 @@ private[http4s] object ForumHttp4sRoutes {
             corsOk
           case Method.GET if ForumApiTargetParsers.isTopicsCollection(requestPath(request)) =>
             blocking(service.listTopics(viewerHandle(request))).flatMap(topics =>
-              Ok(ForumTopicListResponse.fromViews(topics).asJson).map(withCors)
+              jsonOk(ForumTopicListResponse.fromViews(topics).asJson)
             )
           case Method.GET =>
             loadTopic(request, service)
@@ -69,7 +69,7 @@ private[http4s] object ForumHttp4sRoutes {
       case Some(topicId) =>
         blocking(service.loadTopic(topicId, viewerHandle(request))).flatMap {
           case Some(topic) =>
-            Ok(ForumTopicWrapperResponse.fromView(topic).asJson).map(withCors)
+            jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
           case None =>
             errorResponse(TopicNotFoundError)
         }
@@ -106,11 +106,11 @@ private[http4s] object ForumHttp4sRoutes {
               case Left(error) =>
                 errorResponse(mutationApiError(error))
               case Right(command) =>
-                blocking(service.addReply(command)).map {
+                blocking(service.addReply(command)).flatMap {
                   case Right(topic) =>
-                    withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
+                    jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
-                    renderError(mutationApiError(error))
+                    IO.pure(renderError(mutationApiError(error)))
                 }
             }
         }
@@ -129,11 +129,11 @@ private[http4s] object ForumHttp4sRoutes {
               case Left(error) =>
                 errorResponse(voteCommandApiError(error))
               case Right(command) =>
-                blocking(service.setTopicVote(command)).map {
+                blocking(service.setTopicVote(command)).flatMap {
                   case Right(topic) =>
-                    withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
+                    jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
-                    renderError(mutationApiError(error))
+                    IO.pure(renderError(mutationApiError(error)))
                 }
             }
         }
@@ -153,11 +153,11 @@ private[http4s] object ForumHttp4sRoutes {
               case Left(error) =>
                 errorResponse(voteCommandApiError(error))
               case Right(command) =>
-                blocking(service.setReplyVote(command)).map {
+                blocking(service.setReplyVote(command)).flatMap {
                   case Right(topic) =>
-                    withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
+                    jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
-                    renderError(mutationApiError(error))
+                    IO.pure(renderError(mutationApiError(error)))
                 }
             }
         }

@@ -1,12 +1,12 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.implicits.uri
 import org.http4s.{Method, Request}
 
 import slaydemo.backend.bots.objects.*
 import slaydemo.backend.bots.services.BotProfileService
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 
 object BotProfileHttp4sContractTest {
@@ -52,15 +52,8 @@ object BotProfileHttp4sContractTest {
   }
 
   private def run(service: BotProfileService, request: Request[IO]): RouteResponse = {
-    val response = BotProfileHttp4sRoutes
-      .routes(service)
-      .orNotFound
-      .run(request)
-      .unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(BotProfileHttp4sRoutes.routes(service), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingBotProfileService extends BotProfileService {
     var profiles: Vector[BotProfileRecord] = Vector.empty

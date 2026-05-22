@@ -1,13 +1,13 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.headers.`Content-Type`
 import org.http4s.{MediaType, Method, Request, Uri}
 import org.http4s.implicits.uri
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.PlayerHandle
 
 object BattleQueueHttp4sLeaveContractTest {
@@ -83,11 +83,8 @@ object BattleQueueHttp4sLeaveContractTest {
   }
 
   private def run(service: RecordingBattleQueueService, request: Request[IO]): RouteResponse = {
-    val response = BattleQueueHttp4sRoutes.leaveRoutes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(BattleQueueHttp4sRoutes.leaveRoutes(service), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingBattleQueueService(outcome: BattleQueueLeaveOutcome) extends BattleQueueService {
     var leaveCalls: Vector[TicketId] = Vector.empty

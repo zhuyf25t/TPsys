@@ -1,11 +1,11 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.implicits.uri
 import org.http4s.{Method, Request}
 
 import slaydemo.backend.battle.objects.EpochMillis
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.{
   FriendRequestMailMetadata,
@@ -175,11 +175,8 @@ object SocialHttp4sContractTest {
   }
 
   private def run(service: FriendRequestService, request: Request[IO]): RouteResponse = {
-    val response = SocialHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(SocialHttp4sRoutes.routes(service), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingFriendRequestService extends FriendRequestService {
     var requests: Vector[FriendRequestRecord] = Vector.empty

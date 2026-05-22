@@ -1,11 +1,11 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.implicits.uri
 import org.http4s.{Method, Request}
 
 import slaydemo.backend.battle.objects.EpochMillis
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.{
   FriendRequestMailMetadata,
@@ -140,11 +140,8 @@ object MailHttp4sContractTest {
   }
 
   private def run(service: MailService, request: Request[IO]): RouteResponse = {
-    val response = MailHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(MailHttp4sRoutes.routes(service), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingMailService extends MailService {
     var mails: Vector[MailRecord] = Vector.empty

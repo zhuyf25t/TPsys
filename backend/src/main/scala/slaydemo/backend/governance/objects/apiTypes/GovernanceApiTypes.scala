@@ -1,6 +1,6 @@
 package slaydemo.backend.governance.objects.apiTypes
 
-import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
+import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
 
 import slaydemo.backend.governance.objects.{
   ContributionAdjustmentRecord,
@@ -314,25 +314,35 @@ final case class GovernanceMailSnapshotResponse(
 
 object GovernanceMailSnapshotResponse {
   given Encoder[GovernanceMailSnapshotResponse] =
-    Encoder.instance { mail =>
-      Json.obj(
-        (
-          Vector(
-            "id" -> Json.fromString(mail.id),
-            "ownerHandle" -> Json.fromString(mail.ownerHandle),
-            "kind" -> Json.fromString(mail.kind),
-            "subject" -> Json.fromString(mail.subject),
-            "excerpt" -> Json.fromString(mail.excerpt),
-            "senderLabel" -> Json.fromString(mail.senderLabel),
-            "unread" -> Json.fromBoolean(mail.unread),
-            "important" -> Json.fromBoolean(mail.important),
-            "createdAt" -> Json.fromLong(mail.createdAt)
-          ) ++ optionalStringField("governanceActorHandle", mail.governanceActorHandle) ++
-            optionalStringField("governanceTargetPath", mail.governanceTargetPath) ++
-            optionalStringField("governanceTargetLabel", mail.governanceTargetLabel)
-        )*
+    Encoder.forProduct12(
+      "id",
+      "ownerHandle",
+      "kind",
+      "subject",
+      "excerpt",
+      "senderLabel",
+      "unread",
+      "important",
+      "createdAt",
+      "governanceActorHandle",
+      "governanceTargetPath",
+      "governanceTargetLabel"
+    )((mail: GovernanceMailSnapshotResponse) =>
+      (
+        mail.id,
+        mail.ownerHandle,
+        mail.kind,
+        mail.subject,
+        mail.excerpt,
+        mail.senderLabel,
+        mail.unread,
+        mail.important,
+        mail.createdAt,
+        optionalString(mail.governanceActorHandle),
+        optionalString(mail.governanceTargetPath),
+        optionalString(mail.governanceTargetLabel)
       )
-    }
+    ).mapJson(_.dropNullValues)
 
   def fromSnapshot(snapshot: GovernanceMailSnapshot): GovernanceMailSnapshotResponse =
     GovernanceMailSnapshotResponse(
@@ -350,8 +360,8 @@ object GovernanceMailSnapshotResponse {
       governanceTargetLabel = snapshot.governanceMetadata.map(_.targetLabel.value)
     )
 
-  private def optionalStringField(key: String, value: Option[String]): Vector[(String, Json)] =
-    value.filter(_.trim.nonEmpty).map(text => Vector(key -> Json.fromString(text))).getOrElse(Vector.empty)
+  private def optionalString(value: Option[String]): Option[String] =
+    value.filter(_.trim.nonEmpty)
 }
 
 final case class ContributionAdjustmentListResponse(adjustments: Vector[ContributionAdjustmentItemResponse])

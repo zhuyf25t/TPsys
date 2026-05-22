@@ -1,4 +1,4 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.forum
 
 import cats.effect.IO
 import io.circe.syntax.*
@@ -19,6 +19,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, requestPath, typedApiError}
 
 private[http4s] object ForumHttp4sRoutes {

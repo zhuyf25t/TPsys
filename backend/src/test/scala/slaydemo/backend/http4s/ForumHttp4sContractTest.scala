@@ -26,6 +26,7 @@ import slaydemo.backend.forum.services.{
   SetForumReplyVoteCommand,
   SetForumTopicVoteCommand
 }
+import slaydemo.backend.http4s.forum.ForumHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.PlayerHandle
 

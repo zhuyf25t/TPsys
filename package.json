@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config frontend/vite.config.ts",
-    "backend:dev": "cd backend && sbt \"runMain slaydemo.backend.http4s.BackendHttp4sApp\"",
+    "backend:dev": "cd backend && sbt \"runMain route.BackendHttp4sApp\"",
     "backend:compile": "cd backend && sbt compile",
-    "backend:test-contracts": "cd backend && sbt \"Test / runMain slaydemo.backend.BackendContractTestRunner\"",
+    "backend:test-contracts": "cd backend && sbt \"Test / runMain route.contract.BackendContractTestRunner\"",
     "audit:battle-content": "node scripts/audit-battle-content-contract.mjs",
     "audit:battle-contracts": "npm run audit:battle-content",
     "audit:domain-alignment": "node scripts/audit-frontend-backend-domain-alignment.mjs",

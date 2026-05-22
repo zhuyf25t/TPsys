@@ -1,4 +1,8 @@
-import { buildApiUrl, normalizeApiBase } from "../../../../shared/api/apiUrl";
+import {
+  postBattleRoomHeartbeatAPIMessage,
+  postBattleRoomSnapshotAPIMessage,
+  type BattleRoomHeartbeatAPIMessageRequest
+} from "../../api/battleApiMessageClient";
 
 export type RealtimeRoomPhase = "waiting" | "active" | "finished" | "unknown";
 
@@ -65,64 +69,40 @@ export interface RealtimeRoomHeartbeatRequest {
   handle?: string;
 }
 
-const BATTLE_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 const REALTIME_ROOM_TIMEOUT_MS = 1_250;
 
 export async function loadRealtimeRoomSnapshot(roomId: string): Promise<RealtimeRoomSnapshot | null> {
   const normalizedRoomId = roomId.trim();
-  if (!BATTLE_API_BASE || !normalizedRoomId || typeof window === "undefined") {
+  if (!normalizedRoomId || typeof window === "undefined") {
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, "/battle/rooms/snapshot", { roomId: normalizedRoomId });
-
-  return fetchRealtimeRoomSnapshot(url, {
-    method: "GET",
-    cache: "no-store"
+  const response = await postBattleRoomSnapshotAPIMessage({ roomId: normalizedRoomId }, normalizeRealtimeRoomSnapshot, {
+    timeoutMs: REALTIME_ROOM_TIMEOUT_MS
   });
+
+  return response?.ok ? response.payload : null;
 }
 
 export async function sendRealtimeRoomHeartbeat(
   request: RealtimeRoomHeartbeatRequest
 ): Promise<RealtimeRoomSnapshot | null> {
   const normalizedRoomId = request.roomId.trim();
-  if (!BATTLE_API_BASE || !normalizedRoomId || typeof window === "undefined") {
+  if (!normalizedRoomId || typeof window === "undefined") {
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, "/battle/rooms/heartbeat", { roomId: normalizedRoomId });
-  const body = {
+  const messageRequest: BattleRoomHeartbeatAPIMessageRequest = {
+    roomId: normalizedRoomId,
     ...(request.ticketId?.trim() ? { ticketId: request.ticketId.trim() } : {}),
     ...(request.handle?.trim() ? { handle: request.handle.trim() } : {})
   };
 
-  return fetchRealtimeRoomSnapshot(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+  const response = await postBattleRoomHeartbeatAPIMessage(messageRequest, normalizeRealtimeRoomSnapshot, {
+    timeoutMs: REALTIME_ROOM_TIMEOUT_MS
   });
-}
 
-async function fetchRealtimeRoomSnapshot(url: string, init: RequestInit): Promise<RealtimeRoomSnapshot | null> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REALTIME_ROOM_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return normalizeRealtimeRoomSnapshot(await response.json().catch(() => null));
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timeout);
-  }
+  return response?.ok ? response.payload : null;
 }
 
 function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot | null {

@@ -94,7 +94,7 @@ function Get-ProcessRole {
 
   $haystack = "$Name $CommandLine"
 
-  if ($haystack -match "runMain\s+slaydemo\.backend\.http4s\.BackendHttp4sApp") {
+  if ($haystack -match "runMain\s+(slaydemo\.backend\.http4s|services\.http4s|route)\.BackendHttp4sApp") {
     return "BackendHttp4sApp via sbt runMain"
   }
   if ($haystack -match "BackendHttp4sApp") {

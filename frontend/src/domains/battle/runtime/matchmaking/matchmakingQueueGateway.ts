@@ -1,4 +1,9 @@
-import { buildApiUrl, normalizeApiBase } from "../../../../shared/api/apiUrl";
+import {
+  postBattleQueueJoinAPIMessage,
+  postBattleQueueLeaveAPIMessage,
+  postBattleQueueStatusAPIMessage,
+  type BattleQueueJoinAPIMessageRequest
+} from "../../api/battleApiMessageClient";
 import {
   sendRealtimeRoomHeartbeat,
   type RealtimeBattleSessionBootstrap,
@@ -18,7 +23,6 @@ import type {
 } from "./matchmakingQueueTypes";
 import { isBattleVisitorHandle } from "../../objects/battleRules";
 
-const BATTLE_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 const QUEUE_REQUEST_TIMEOUT_MS = 1_250;
 
 export async function joinMatchmakingQueue(input: {
@@ -31,52 +35,47 @@ export async function joinMatchmakingQueue(input: {
   const normalizedHandle = input.handle.trim();
   const normalizedSessionToken = input.sessionToken?.trim() ?? "";
   const normalizedQueueRequestId = input.queueRequestId?.trim() ?? "";
-  if (!BATTLE_API_BASE || !normalizedHandle || !normalizedSessionToken || isBattleVisitorHandle(normalizedHandle)) {
+  if (!normalizedHandle || !normalizedSessionToken || isBattleVisitorHandle(normalizedHandle)) {
     return null;
   }
 
-  return fetchQueueState(buildApiUrl(BATTLE_API_BASE, "/battle/queue/join"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      handle: normalizedHandle,
-      sessionToken: normalizedSessionToken,
-      ...(normalizedQueueRequestId ? { queueRequestId: normalizedQueueRequestId } : {}),
-      ...(typeof input.rating === "number" && Number.isFinite(input.rating)
-        ? { rating: String(Math.trunc(input.rating)) }
-        : {}),
-      ...(typeof input.skin === "string" && input.skin.trim() ? { skin: input.skin.trim() } : {})
-    })
+  const request: BattleQueueJoinAPIMessageRequest = {
+    handle: normalizedHandle,
+    sessionToken: normalizedSessionToken,
+    ...(normalizedQueueRequestId ? { queueRequestId: normalizedQueueRequestId } : {}),
+    ...(typeof input.rating === "number" && Number.isFinite(input.rating)
+      ? { rating: String(Math.trunc(input.rating)) }
+      : {}),
+    ...(typeof input.skin === "string" && input.skin.trim() ? { skin: input.skin.trim() } : {})
+  };
+  const response = await postBattleQueueJoinAPIMessage(request, normalizeQueueState, {
+    timeoutMs: QUEUE_REQUEST_TIMEOUT_MS
   });
+
+  return response?.ok ? response.payload : null;
 }
 
 export async function loadMatchmakingQueueStatus(ticketId: string): Promise<MatchmakingQueueState | null> {
   const normalizedTicket = ticketId.trim();
-  if (!BATTLE_API_BASE || !normalizedTicket) {
+  if (!normalizedTicket) {
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, "/battle/queue/status", { ticketId: normalizedTicket });
-
-  return fetchQueueState(url, {
-    method: "GET",
-    cache: "no-store"
+  const response = await postBattleQueueStatusAPIMessage({ ticketId: normalizedTicket }, normalizeQueueState, {
+    timeoutMs: QUEUE_REQUEST_TIMEOUT_MS
   });
+
+  return response?.ok ? response.payload : null;
 }
 
 /** 中文名：离开matchmaking队列（leaveMatchmakingQueue）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function leaveMatchmakingQueue(ticketId: string): void {
   const normalizedTicket = ticketId.trim();
-  if (!BATTLE_API_BASE || !normalizedTicket) {
+  if (!normalizedTicket) {
     return;
   }
 
-  void fetch(buildApiUrl(BATTLE_API_BASE, "/battle/queue/leave"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ticketId: normalizedTicket }),
-    keepalive: true
-  }).catch(() => {
+  void postBattleQueueLeaveAPIMessage({ ticketId: normalizedTicket }, () => true, { keepalive: true }).catch(() => {
     // Queue leave is best effort; stale in-memory tickets expire on the backend.
   });
 }
@@ -92,32 +91,6 @@ export async function refreshMatchmakingRoomPresence(
   });
 
   return snapshot ? mergeRealtimeRoomSnapshot(currentState, snapshot) : null;
-}
-
-async function fetchQueueState(url: string, init: RequestInit): Promise<MatchmakingQueueState | null> {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), QUEUE_REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return normalizeQueueState(await response.json());
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timeout);
-  }
 }
 
 function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {

@@ -5,7 +5,7 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 lazy val root = (project in file("."))
   .settings(
     name := "slay-demo-backend",
-    Compile / mainClass := Some("slaydemo.backend.http4s.BackendHttp4sApp"),
+    Compile / mainClass := Some("route.BackendHttp4sApp"),
     libraryDependencies ++= Seq(
       "org.postgresql" % "postgresql" % "42.7.4",
       "com.zaxxer" % "HikariCP" % "5.1.0",

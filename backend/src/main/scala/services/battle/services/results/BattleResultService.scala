@@ -1,0 +1,114 @@
+package services.battle.services.results
+
+import services.battle.services.*
+
+import services.battle.database.{BattleResultRepository, InMemoryBattleResultRepository}
+import services.battle.objects.*
+import services.identity.objects.{DisplayName, PlayerHandle}
+import system.policies.HandlePolicy
+
+enum BattleResultRecordError {
+  case InvalidHandle
+  case VisitorNotAllowed
+}
+
+trait BattleResultService {
+  /** 中文名：记录（record）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
+  def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord]
+  /** 中文名：列表（list）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
+  def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord]
+}
+
+final case class BattleResultRecordCommand(
+  battleId: BattleId,
+  handle: PlayerHandle,
+  displayName: DisplayName,
+  finishedAt: EpochMillis,
+  finishedAtLabel: String,
+  durationMs: DurationMillis,
+  score: Score,
+  placement: Option[BattlePlacement],
+  survivalOutcome: BattleSurvivalOutcome,
+  ratingBefore: Rating,
+  ratingDelta: RatingDelta,
+  ratingAfter: Rating,
+  resultLabel: String,
+  modeLabel: String,
+  mapLabel: String,
+  highlightLine: String,
+  playersLine: String,
+  timelineHint: String,
+  currentLoadout: Option[String]
+)
+
+final class DefaultBattleResultService(repository: BattleResultRepository) extends BattleResultService {
+  /** 中文名：记录（record）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
+  override def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord] =
+    validateRecordHandle(command.handle).map { handle =>
+      val record = buildRecord(command, handle)
+      repository.save(record)
+    }
+
+  private def buildRecord(command: BattleResultRecordCommand, handle: PlayerHandle): BattleResultRecord =
+    val record = BattleResultRecord(
+      battleId = command.battleId,
+      handle = handle,
+      displayName = command.displayName,
+      finishedAt = command.finishedAt,
+      finishedAtLabel = command.finishedAtLabel,
+      durationMs = command.durationMs,
+      score = command.score,
+      placement = command.placement,
+      survivalOutcome = command.survivalOutcome,
+      ratingBefore = command.ratingBefore,
+      ratingDelta = command.ratingDelta,
+      ratingAfter = command.ratingAfter,
+      resultLabel = BattleResultLabel.fromWire(command.resultLabel),
+      modeLabel = BattleModeLabel.fromWire(command.modeLabel),
+      mapLabel = BattleMapLabel.fromWire(command.mapLabel),
+      highlightLine = BattleHighlightLine.fromWire(command.highlightLine),
+      playersLine = BattlePlayersLine.fromWire(command.playersLine),
+      timelineHint = BattleTimelineHint.fromWire(command.timelineHint),
+      currentLoadout = command.currentLoadout.flatMap(nonEmpty)
+    )
+    record
+
+  /** 中文名：列表（list）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
+  override def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord] = {
+    val safeLimit = math.max(0, math.min(limit, 100))
+    handle match {
+      case Some(owner) if !isPlayable(owner) =>
+        Vector.empty
+      case _ =>
+        repository
+          .list(handle, battleId, safeLimit * 3)
+          .filter(record => isPlayable(record.handle))
+          .take(safeLimit)
+    }
+  }
+
+  private def nonEmpty(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+
+  private def validateRecordHandle(handle: PlayerHandle): Either[BattleResultRecordError, PlayerHandle] = {
+    val trimmed = HandlePolicy.trim(handle.value)
+    if trimmed.isEmpty then Left(BattleResultRecordError.InvalidHandle)
+    else if HandlePolicy.isVisitorLikeHandle(trimmed) then Left(BattleResultRecordError.VisitorNotAllowed)
+    else PlayerHandle.forLookup(trimmed).toRight(BattleResultRecordError.InvalidHandle)
+  }
+
+  private def isPlayable(handle: PlayerHandle): Boolean =
+    HandlePolicy.isPlayableIdentityHandle(handle.value)
+}
+
+object DefaultBattleResultService {
+  /** 中文名：应用（apply）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
+  def apply(repository: BattleResultRepository): DefaultBattleResultService =
+    new DefaultBattleResultService(repository)
+}
+
+object InMemoryBattleResultService {
+  /** 中文名：应用（apply）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
+  def apply(): DefaultBattleResultService =
+    DefaultBattleResultService(InMemoryBattleResultRepository())
+}

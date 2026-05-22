@@ -840,81 +840,33 @@ TPsys 现在最大的问题不是 battle 业务不够拆，而是边界层不够
 
 本节记录基于上述路线已经落地的当前状态。前文第 3 到第 9 节保留为迁移前诊断，因此其中“当前缺少 http4s/circe/Hikari/APIMessage 清理”等表述不再全部代表最新代码状态。
 
-### 10.1 已完成的边界迁移
+### 10.1 当前结构事实
 
-- HTTP 默认入口已经切换为 `slaydemo.backend.http4s.BackendHttp4sApp`，`package.json` 的 `backend:dev` 默认启动 http4s，legacy `com.sun.net.httpserver.HttpServer` 入口保留在 `backend:dev:legacy`。
-- `backend/build.sbt` 已引入 `cats-effect`、`http4s-dsl`、`http4s-ember-server`、`http4s-circe`、`circe-core/generic/parser`、`HikariCP`、`log4cats-slf4j` 和 `slf4j-simple`。
-- `BackendRuntime` 集中组装 service/repository/runtime，http4s 与 legacy 入口复用同一套运行时 wiring，避免启动入口重复创建业务依赖。
-- `PostgresSupport` 已从直接 `DriverManager` 连接改为 Hikari datasource pool，并提供 `closeAll()` 给 http4s/legacy shutdown 边界释放资源。
-- `PostgresSupport` 已新增 `connectionResource`、`withConnectionIO` 和 `withTransactionIO`，具备 `Resource` 关闭连接、`IO.blocking` 包裹 JDBC、commit/rollback 和恢复 autoCommit 的基础能力。
-- `PostgresSupport` 已新增同步 `withTransactionConnection` 作为 repository 过渡入口，`PostgresForumRepository` 的写事务和 `PostgresReplayRepository.saveReplay` 已迁移到该共享边界，不再私有维护 connect/commit/rollback/close。
-- `PostgresBattleResultRepository.save` 已迁移到 `withTransactionConnection`，battle result upsert 写入使用共享事务边界；读取查询继续使用普通 pooled connection。
-- `PostgresBotProfileRepository.save` 已迁移到 `withTransactionConnection`，bot profile upsert 和初始化 seed 写入使用共享事务边界；列表查询继续使用普通 pooled connection。
-- `PostgresMailRepository.save` 和 `markRead` 已迁移到 `withTransactionConnection`，邮件 upsert 与已读状态更新使用共享事务边界；按 owner 查询继续使用普通 pooled connection。
-- `PostgresFriendRequestRepository.createIfAbsent` 的 INSERT 和 `save` upsert 已迁移到 `withTransactionConnection`，好友申请写入使用共享事务边界；查询和幂等预读继续使用普通 pooled connection。
-- `PostgresGovernanceRepository.saveAdjustment` 和 `saveReviewNotification` 已迁移到 `withTransactionConnection`，治理贡献调整与审核通知 upsert 使用共享事务边界；列表查询继续使用普通 pooled connection。
-- `PostgresReplayRepository.saveComment` 已迁移到 `withTransactionConnection`，replay comment 写入使用共享事务边界；replay/comment 查询继续使用普通 pooled connection。
-- `PostgresIdentityAccountRepository.create`、`replacePasswordHash` 和 `updateSession` 已迁移到 `withTransactionConnection`，账号创建、密码 hash 升级和 session 更新使用共享事务边界；认证与列表查询继续使用普通 pooled connection。
-- `PasswordHasher` 已新增 PBKDF2 + salt + iterations 实现，并保留 legacy SHA-256 校验兼容；登录成功后可升级旧 hash。
-- 旧 `BackendAPIMessage`、`BackendIO`、`BackendAPIMessagePlanner`、battle/replay/health 的 APIMessage planner 层已经删除，`/api/...` 兼容路径直接由 route alias 和 parser 处理。
-- 主要后端业务域已经有 http4s route 和 focused contract：health、identity、mail、replay、social、forum、governance、bot profile、battle queue、battle room、battle state、battle command、battle result。
-- request/response 边界类型已按 domain 放入 `objects/apiTypes`，例如 battle、bots、forum、governance、mail、replay、social。
-- http4s route 的错误响应已收敛到 typed `HttpApiError`；health 的旧 405 契约保持 `{"error":"method_not_allowed"}`，并由 `HealthErrorResponse` DTO 表达，避免裸 JSON 字符串散落。
-- health 的 legacy route 与 http4s route 已共用 `HealthJsonCodec`，`HealthResponse` 和 `HealthErrorResponse` 的 JSON 字段由同一组 Circe encoder 约束。
-- bot profile 的 legacy route 已删除手写 `BotProfileRouteJsonRenderer`，改为复用 `BotProfilesResponse` shared API DTO/Circe encoder。
-- mail 的 legacy route 已删除手写 `MailRouteJsonRenderer`，列表和已读成功响应改为复用 `MailListResponse`、`MailReadResponse` shared API DTO/Circe encoder。
-- replay 的 legacy HTTP 响应已改为复用 shared API DTO/Circe encoder：catalog 使用 `ReplayCatalogResponse`，detail/comment 使用 `ReplayDetailResponse`、`ReplayCommentsResponse`、`ReplayCommentWrapperResponse`；文件持久化 JSON renderer 保留在 database 边界。
-- social 的 legacy route 已删除手写 `SocialRouteJsonRenderer`，好友申请列表、创建和响应成功响应改为复用 `FriendRequestListResponse`、`FriendRequestCreateResponse`、`FriendRequestRespondResponse` shared API DTO/Circe encoder。
-- forum 的 legacy route 已删除手写 `ForumRouteJsonRenderer`，主题列表、详情、创建、回复和投票成功响应改为复用 `ForumTopicListResponse`、`ForumTopicWrapperResponse` shared API DTO/Circe encoder。
-- governance 的 legacy route 已删除手写 `GovernanceRouteJsonRenderer`，贡献调整和审核通知的列表/创建成功响应改为复用 shared API DTO/Circe encoder；文件持久化 JSON renderer 保留在 database 边界。
-- identity 的 legacy route 已删除手写 `IdentityRouteJsonRenderer`，认证、账户列表和错误响应改为复用 `IdentityApi` 中的 DTO/Circe encoder。
-- battle result 的 legacy route 已删除手写 `BattleResultRouteJsonRenderer`，列表和记录创建成功响应改为复用 `BattleResultListResponse`、`BattleResultRecordResponse` shared API DTO/Circe encoder。
+- HTTP 默认入口是 `route.BackendHttp4sApp`，`package.json` 的 `backend:dev` 和 `backend/build.sbt` 的 `Compile / mainClass` 都指向该入口。
+- 当前 `backend/src/main/scala` 顶层为 `route/`、`services/`、`system/`。其中 `route` 是 http4s adapter，`services` 是业务域，`system` 是跨业务基础设施。
+- 主链路是 `route.BackendHttp4sApp -> services.BackendRuntime -> route.HttpApiModules -> 各 domain HttpModule`。
+- request/response 边界类型仍主要按 domain 放入 `objects/apiTypes`，例如 battle、bots、forum、governance、mail、replay、social。
+- `system/api/APIMessage*` 当前能编译，但没有被 `route.HttpApiModules` 接入，不能算主链路已经采用的新 API message 架构。
+- 当前 `backend/src/test/scala` 已恢复最小 health/identity/battle queue/battle room/battle state/battle command/battle result contract runner；旧 focused contract 和 repository contract 覆盖仍不能作为当前证据。
 
 ### 10.2 当前验证证据
 
 - `npm run backend:compile` 通过。
-- `npm run backend:test-contracts` 通过，覆盖 legacy route contracts、http4s route contracts、repository wiring、storage config、password hasher、battle runtime、battle queue、finish projection 等。
-- focused contract 已分别验证 social、forum、governance、replay catalog、bot profile、legacy health 和 http4s health。
-- legacy health 与 http4s health focused contracts 已验证共享 codec 后的成功响应和 405 错误响应 shape 保持不变。
-- legacy bot profile 与 http4s bot profile focused contracts 已验证共享 DTO/Circe 输出后列表响应和 method-not-allowed 错误仍保持兼容。
-- legacy mail 与 http4s mail focused contracts 已验证共享 DTO/Circe 输出后邮件列表、metadata 字段、已读响应和错误响应仍保持兼容。
-- legacy replay route 与 http4s replay catalog focused contracts 已验证共享 DTO/Circe 输出后 catalog 列表、detail frames JSON、comments、selected settlement 和 alias path 仍保持兼容。
-- legacy social 与 http4s social focused contracts 已验证共享 DTO/Circe 输出后好友申请列表、创建、响应和错误映射仍保持兼容。
-- legacy forum 与 http4s forum focused contracts 已验证共享 DTO/Circe 输出后主题列表、详情、创建、回复、投票和错误映射仍保持兼容。
-- legacy governance 与 http4s governance focused contracts 已验证共享 DTO/Circe 输出后贡献调整、审核通知、空列表和错误映射仍保持兼容。
-- legacy identity 与 http4s identity focused contracts 已验证共享 DTO/Circe 输出后注册、登录、当前会话、账户列表和错误映射仍保持兼容。
-- legacy battle result 与 http4s battle result focused contracts 已验证共享 DTO/Circe 输出后列表过滤、空列表、记录创建和错误映射仍保持兼容。
-- `PostgresSupportContractTest` 已验证 Resource 会关闭连接、事务成功会 commit、事务失败会 rollback，并在两种情况下恢复 autoCommit。
-- `PostgresRepositoryBoundaryContractTest` 与 battle result legacy/http4s focused contracts 已验证 battle result Postgres 写入切换共享事务边界后 repository 边界和 API contract 不变。
-- `PostgresRepositoryBoundaryContractTest` 与 bot profile legacy/http4s/service focused contracts 已验证 bot profile Postgres 写入切换共享事务边界后 repository 边界和 API contract 不变。
-- `PostgresRepositoryBoundaryContractTest` 与 mail legacy/http4s/service focused contracts 已验证 mail Postgres 写入和已读更新切换共享事务边界后 repository 边界和 API contract 不变。
-- `PostgresRepositoryBoundaryContractTest` 与 social legacy/http4s/friend request service focused contracts 已验证 social Postgres 写入切换共享事务边界后 repository 边界和 API contract 不变。
-- `PostgresRepositoryBoundaryContractTest` 与 governance legacy/http4s/service focused contracts 已验证 governance Postgres 写入切换共享事务边界后 repository 边界和 API contract 不变。
-- `PostgresRepositoryBoundaryContractTest` 与 replay legacy/http4s/service focused contracts 已验证 replay comment Postgres 写入切换共享事务边界后 repository 边界和 API contract 不变。
-- `PostgresRepositoryBoundaryContractTest` 与 identity legacy/http4s/service/password focused contracts 已验证 identity Postgres 写入切换共享事务边界后 repository 边界、认证 API contract 和 hash 升级行为不变。
-- `PostgresRepositoryBoundaryContractTest` 已新增写事务守护：repository 文件中的 `INSERT`、`UPDATE` 和 `executeUpdate` 最近连接边界必须是 `withTransactionConnection`，防止后续写入退回普通 connection。
-- 残留扫描显示 `BackendAPIExchangeRouter`、`apiEndpoints`、`ApiMessageRouteContexts`、`BackendAPIEndpoint`、`BackendAPIMessagePlanner`、`BackendIO`、`jsonTextResponse`、`DriverManager` 和裸 `getConnection(` 在 `backend/src/main/scala`、`backend/src/test/scala` 中无命中。
-- `BackendApiBoundaryContractTest` 已新增守护，禁止 main source 中重新出现通用 `*RouteJsonRenderer.scala`，要求普通 HTTP API 响应继续复用 shared `objects/apiTypes` codec。
-- http4s route 中直接 `apiError(status = ...)` 或 `apiError(Status...)` 的业务调用无残留，只保留 `Http4sRouteSupport` 的兼容 overload。
+- `npm run backend:test-contracts` 当前执行 `route.contract.BackendContractTestRunner`，已恢复 health、identity、battle queue、battle room、battle state、battle command、battle result 的最小 http4s contract 反馈。
+- 当前更强的运行证据是 memory 模式启动 `route.BackendHttp4sApp` 后，`scripts/demo-smoke.ps1 -BaseUrl http://127.0.0.1:8099/api` 通过。
+- API smoke 已覆盖 health、identity accounts/register、battle results、replay catalog、forum topics、friend request accept/reject 的基本可达性。
+- 由于旧 focused contract 测试集尚未完整恢复，不能再声称已由测试守护各 domain 的完整 request/response shape。
+- `git diff --check` 通过，仅有 CRLF 提示。
 
 ### 10.3 仍未完成或需要后续小票处理的事项
 
-- JSON contract 仍不是全项目 single source of truth。http4s 新 route 已使用 Circe DTO，但 legacy route、文件持久化 JSON、battle state snapshot、replay frames 仍有手写 parser/renderer。
-- Postgres repository 写入边界已从分散 `withConnection` 收敛到共享 `withTransactionConnection`，并由 contract guard 防止 `INSERT`、`UPDATE`、`executeUpdate` 重新落回普通 connection。尚未完成的是更进一步的 use-case 级 `withTransactionIO` 编排；这需要重新设计跨 repository 事务范围，不能和当前 repository 级收口混做。
-- http4s 已成为默认入口，但 legacy route 仍保留用于兼容和 contract 对照；后续是否删除 legacy 入口需要单独决策。
-- 前后端 contract 仍主要依赖后端 contract tests 与手写 TypeScript 类型，没有 OpenAPI/schema/codegen 级别的统一生成机制。
-- `compare.md` 的前半部分是迁移前分析，不应再单独作为当前架构事实；后续 review 应同时参考本附录和实际代码。
+- `system/api/APIMessage*` 能编译，但当前没有被 `route.HttpApiModules` 接入；它是未融入主链路的过渡抽象。
+- 当前测试目录已恢复最小 health/identity/battle queue/battle room/battle state/battle command/battle result contract 覆盖，仍需要继续恢复 mail、social、forum、replay 等关键链路。
+- JSON contract 仍不是全项目 single source of truth，前后端仍主要依赖手写 DTO/TypeScript 类型和运行时 smoke。
+- `compare.md` 的前半部分是迁移前分析，不应单独作为当前架构事实；后续 review 应同时参考 `struct.md` 和实际代码。
 
 ### 10.4 Phase 7 完成审计
 
-本轮按“至少达成 phase7”的要求，把前文迁移路线拆成以下可审计清单：
+当前不能再把“达到 phase7 稳定验证状态”作为结论。更准确的结论是：后端新结构已经能编译并通过一轮 API smoke，contract test 覆盖已恢复最小 health/identity/battle queue/battle room/battle state/battle command/battle result 子集，但 phase7 级别的验收还没有恢复。
 
-- Phase 1 边界治理：已落地统一 http4s 错误模型、shared API DTO/Circe encoder、focused route contract；证据是 `backend/src/main/scala/slaydemo/backend/http4s/Http4sRouteSupport.scala`、各 domain `objects/apiTypes` 目录和 `BackendApiBoundaryContractTest`。
-- Phase 2 APIMessage 简化：旧 `BackendAPIMessage`、`BackendIO`、`BackendAPIMessagePlanner` 层已删除，`/api/...` 兼容路径由真实 route alias 处理；证据是 `BackendApiBoundaryContractTest` 对删除文件、删除目录和旧名称残留的扫描守护。
-- Phase 3 JSON codec 收敛：普通 HTTP API 响应已从 route-specific renderer 收敛到 shared DTO/Circe encoder；证据是 main source 中无 `*RouteJsonRenderer.scala`，并由 `BackendApiBoundaryContractTest.legacyRouteJsonRenderersStayDeleted` 持续守护。
-- Phase 4 HTTP 迁移：默认后端入口已切到 `slaydemo.backend.http4s.BackendHttp4sApp`，主要业务域都有 http4s route 和 focused contract；证据是 `backend/build.sbt` 的 `Compile / mainClass`、`package.json` 的 `backend:dev` 和 `backend/src/test/scala/slaydemo/backend/http4s`。
-- Phase 5 DB 生命周期和事务边界：`PostgresSupport` 已使用 Hikari pool、`Resource`、`IO.blocking`、事务 commit/rollback 和 `closeAll`；repository 写入已迁移到共享事务边界，并由 `PostgresRepositoryBoundaryContractTest` 守护。
-- Phase 6 密码哈希升级：`Pbkdf2PasswordHasher` 已支持 PBKDF2 + salt + iterations，兼容 legacy SHA-256，并由 `PasswordHasherContractTest` 与 identity contract 覆盖。
-- Phase 7 验证和风险收口：已运行 `npm run backend:compile`、`npm run backend:test-contracts`、`git diff --check`。三者均通过；Java 25/sbt launcher 的 `sun.misc.Unsafe` 是外部 launcher warning，不是项目 unsafe 代码。并行 sbt 曾打印 Windows 文件占用提示，单独重跑 `backend:test-contracts` 已通过。
-
-审计结论：后端迁移路线已达到 phase7 的稳定验证状态。剩余项不是 phase7 阻塞，而是后续独立 ticket：battle state snapshot/replay frames/file persistence JSON 的进一步 codec 收敛、是否移除 legacy route、以及是否把 repository 级事务边界提升到 use-case 级 `withTransactionIO`。
+下一步最小可审计目标应是继续恢复 mail、social、forum、replay 等 contract tests，再评估 APIMessage 是否应该接入或删除。

@@ -1,28 +1,9 @@
-import { buildApiUrl, normalizeApiBase } from "../../../../../shared/api/apiUrl";
+import {
+  postBattleResultRecordAPIMessage,
+  type BattleResultRecordAPIMessageRequest
+} from "../../../api/battleApiMessageClient";
 
-export interface BattleResultSyncPayload {
-  battleId: string;
-  handle: string;
-  displayName: string;
-  finishedAt: number;
-  finishedAtLabel: string;
-  durationMs: number;
-  score: number;
-  placement: number | null;
-  aliveAtEnd: boolean;
-  ratingBefore: number;
-  ratingDelta: number;
-  ratingAfter: number;
-  resultLabel: string;
-  modeLabel: string;
-  mapLabel: string;
-  highlightLine: string;
-  playersLine: string;
-  timelineHint: string;
-  currentLoadout: string | null;
-}
-
-const BATTLE_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
+export type BattleResultSyncPayload = BattleResultRecordAPIMessageRequest;
 
 export async function syncBattleResultToBackend(payload: BattleResultSyncPayload): Promise<boolean> {
   if (typeof window === "undefined") {
@@ -30,14 +11,11 @@ export async function syncBattleResultToBackend(payload: BattleResultSyncPayload
   }
 
   try {
-    const response = await fetch(buildApiUrl(BATTLE_API_BASE, "/battle/results"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const response = await postBattleResultRecordAPIMessage(payload, () => true, {
       keepalive: true
     });
 
-    return response.ok;
+    return response?.ok === true;
   } catch {
     return false;
   }

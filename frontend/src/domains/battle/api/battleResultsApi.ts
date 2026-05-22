@@ -1,4 +1,7 @@
-import { buildApiUrl, normalizeApiBase } from "../../../shared/api/apiUrl";
+import {
+  postBattleResultListAPIMessage,
+  type BattleResultListAPIMessageRequest
+} from "./battleApiMessageClient";
 import { backfillLocalBattleTruthToBackend } from "../runtime/local/state/battleResultSync";
 
 export interface BackendBattleResultRecord {
@@ -57,7 +60,6 @@ type LocalLegacyBattleResultRecordDto = {
   currentLoadout?: unknown;
 };
 
-const BATTLE_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 const BATTLE_RESULTS_TIMEOUT_MS = 5_000;
 const LOCAL_BATTLE_TRUTH_STORAGE_KEY = "slay-demo.truthful-battle-data.v2";
 
@@ -72,10 +74,6 @@ export async function loadBattleResults(options?: {
   }
 
   const localRecords = options?.includeLocalFallback === false ? [] : loadLocalBattleResults(options);
-  if (!BATTLE_API_BASE) {
-    return filterBattleResultsByBattleId(localRecords, options?.battleId);
-  }
-
   await backfillLocalBattleTruthToBackend();
   const remoteRecords = await loadRemoteBattleResults(options);
   if (!remoteRecords) {
@@ -115,41 +113,37 @@ async function loadRemoteBattleResults(options?: {
   battleId?: string;
   limit?: number;
 }): Promise<BackendBattleResultRecord[] | null> {
-  if (typeof window === "undefined" || !BATTLE_API_BASE) {
+  if (typeof window === "undefined") {
     return null;
   }
-
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), BATTLE_RESULTS_TIMEOUT_MS);
 
   try {
-    const url = buildApiUrl(BATTLE_API_BASE, "/battle/results", {
-      handle: options?.handle,
-      battleId: options?.battleId,
-      limit: options?.limit
+    const request: BattleResultListAPIMessageRequest = {
+      ...(options?.handle ? { handle: options.handle } : {}),
+      ...(options?.battleId ? { battleId: options.battleId } : {}),
+      ...(typeof options?.limit === "number" && Number.isFinite(options.limit) ? { limit: options.limit } : {})
+    };
+
+    const response = await postBattleResultListAPIMessage(request, normalizeBattleResultsResponse, {
+      timeoutMs: BATTLE_RESULTS_TIMEOUT_MS,
+      cache: "no-store"
     });
-
-    const response = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const payload = (await response.json().catch(() => null)) as BackendBattleResultsResponse | null;
-    const rawRecords = Array.isArray(payload?.results) ? payload.results : [];
-
-    return rawRecords
-      .map((record) => normalizeRemoteBattleResultRecord(record))
-      .filter((record): record is BackendBattleResultRecord => record !== null);
+    return response?.ok ? response.payload : null;
   } catch {
     return null;
-  } finally {
-    window.clearTimeout(timeout);
   }
+}
+
+function normalizeBattleResultsResponse(payload: unknown): BackendBattleResultRecord[] | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const value = payload as BackendBattleResultsResponse;
+  const rawRecords = Array.isArray(value.results) ? value.results : [];
+  return rawRecords
+    .map((record) => normalizeRemoteBattleResultRecord(record))
+    .filter((record): record is BackendBattleResultRecord => record !== null);
 }
 
 /** 中文名：加载本地战斗results（loadLocalBattleResults）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */

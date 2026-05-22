@@ -1,4 +1,8 @@
-import { buildApiUrl, normalizeApiBase } from "../../../../shared/api/apiUrl";
+import {
+  postBattleCommandAPIMessage,
+  postBattleStateReadAPIMessage,
+  type BattleCommandAPIMessageRequest
+} from "../../api/battleApiMessageClient";
 
 export interface AuthoritativeBattleVector {
   x: number;
@@ -207,6 +211,10 @@ export type AuthoritativeBattleCommandSubmitOutcome =
   | { ok: false; kind: "network" }
   | { ok: false; kind: "parse" };
 
+type BattleCommandAPIMessagePayload =
+  | { kind: "accepted"; accepted: AuthoritativeBattleCommandAccepted }
+  | { kind: "error"; errorCode?: string };
+
 export interface AuthoritativeBattleStateStreamHandle {
   close: () => void;
 }
@@ -216,17 +224,20 @@ export interface AuthoritativeBattleStateStreamOptions {
   onFallback: () => void;
 }
 
-const BATTLE_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 const BATTLE_REQUEST_TIMEOUT_MS = 1_250;
 
 export async function loadAuthoritativeBattleState(battleId: string): Promise<AuthoritativeBattleState | null> {
   const normalizedBattleId = battleId.trim();
-  if (!BATTLE_API_BASE || !normalizedBattleId || typeof window === "undefined") {
+  if (!normalizedBattleId || typeof window === "undefined") {
     return null;
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, "/battle/state", { battleId: normalizedBattleId });
-  return fetchJson(url, { method: "GET", cache: "no-store" }).then((payload) => normalizeAuthoritativeBattleState(payload));
+  const response = await postBattleStateReadAPIMessage(
+    { battleId: normalizedBattleId },
+    normalizeAuthoritativeBattleState,
+    { timeoutMs: BATTLE_REQUEST_TIMEOUT_MS, cache: "no-store" }
+  );
+  return response?.ok ? response.payload : null;
 }
 
 /** 中文名：openauthoritative战斗状态stream（openAuthoritativeBattleStateStream）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
@@ -234,44 +245,9 @@ export function openAuthoritativeBattleStateStream(
   battleId: string,
   options: AuthoritativeBattleStateStreamOptions
 ): AuthoritativeBattleStateStreamHandle | null {
-  const normalizedBattleId = battleId.trim();
-  if (!BATTLE_API_BASE || !normalizedBattleId || typeof window === "undefined" || !("EventSource" in window)) {
-    return null;
-  }
-
-  let closedByClient = false;
-  const url = buildApiUrl(
-    BATTLE_API_BASE,
-    "/battle/state/stream",
-    { battleId: normalizedBattleId }
-  );
-  const source = new EventSource(url);
-
-  source.onmessage = (event) => {
-    const state = parseAuthoritativeBattleStateEvent(event.data);
-    if (state) {
-      options.onState(state);
-    }
-  };
-  source.addEventListener("state", (event) => {
-    const state = parseAuthoritativeBattleStateEvent(event.data);
-    if (state) {
-      options.onState(state);
-    }
-  });
-  source.onerror = () => {
-    source.close();
-    if (!closedByClient) {
-      options.onFallback();
-    }
-  };
-
-  return {
-    close: () => {
-      closedByClient = true;
-      source.close();
-    }
-  };
+  void battleId;
+  void options;
+  return null;
 }
 
 export async function sendAuthoritativeBattleCommand(
@@ -281,7 +257,6 @@ export async function sendAuthoritativeBattleCommand(
   const normalizedPlayerId = command.playerId.trim();
   const normalizedTicketId = command.ticketId.trim();
   if (
-    !BATTLE_API_BASE ||
     !normalizedBattleId ||
     !normalizedPlayerId ||
     !normalizedTicketId ||
@@ -290,80 +265,46 @@ export async function sendAuthoritativeBattleCommand(
     return { ok: false, kind: "network" };
   }
 
-  const url = buildApiUrl(BATTLE_API_BASE, "/battle/commands");
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), BATTLE_REQUEST_TIMEOUT_MS);
-
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        battleId: normalizedBattleId,
-        playerId: normalizedPlayerId,
-        ticketId: normalizedTicketId,
-        clientTick: Math.max(0, Math.trunc(command.clientTick)),
-        clientCommandSeq: Math.max(0, Math.trunc(command.clientCommandSeq)),
-        movement: normalizeVector(command.movement),
-        aim: normalizeAim(command.aim),
-        primaryHeld: command.primaryHeld,
-        sprint: command.sprint,
-        reloadPressed: command.reloadPressed,
-        castDash: command.castDash,
-        castBlink: command.castBlink,
-        castFreeze: command.castFreeze,
-        pointerWorld: command.pointerWorld ? normalizeWorldPoint(command.pointerWorld) : null,
-        switchWeaponDirection: normalizeSwitchDirection(command.switchWeaponDirection),
-        switchWeaponIndex: normalizeSwitchWeaponIndex(command.switchWeaponIndex)
-      }),
-      signal: controller.signal
-    });
+    const request: BattleCommandAPIMessageRequest = {
+      battleId: normalizedBattleId,
+      playerId: normalizedPlayerId,
+      ticketId: normalizedTicketId,
+      clientTick: Math.max(0, Math.trunc(command.clientTick)),
+      clientCommandSeq: Math.max(0, Math.trunc(command.clientCommandSeq)),
+      movement: normalizeVector(command.movement),
+      aim: normalizeAim(command.aim),
+      primaryHeld: command.primaryHeld,
+      sprint: command.sprint,
+      reloadPressed: command.reloadPressed,
+      castDash: command.castDash,
+      castBlink: command.castBlink,
+      castFreeze: command.castFreeze,
+      pointerWorld: command.pointerWorld ? normalizeWorldPoint(command.pointerWorld) : null,
+      switchWeaponDirection: normalizeSwitchDirection(command.switchWeaponDirection),
+      switchWeaponIndex: normalizeSwitchWeaponIndex(command.switchWeaponIndex)
+    };
+    const response = await postBattleCommandAPIMessage(
+      request,
+      normalizeBattleCommandAPIMessagePayload,
+      { timeoutMs: BATTLE_REQUEST_TIMEOUT_MS }
+    );
+
+    if (!response) {
+      return { ok: false, kind: "network" };
+    }
 
     if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null);
-      const errorCode = readCommandSubmitErrorCode(errorPayload);
-      return errorCode
-        ? { ok: false, kind: "http", status: response.status, errorCode }
+      return response.payload?.kind === "error" && response.payload.errorCode
+        ? { ok: false, kind: "http", status: response.status, errorCode: response.payload.errorCode }
         : { ok: false, kind: "http", status: response.status };
     }
 
-    const payload = await response.json().catch(() => null);
-    const accepted = normalizeBattleCommandAccepted(payload);
-    return accepted ? { ok: true, accepted } : { ok: false, kind: "parse" };
+    return response.payload?.kind === "accepted"
+      ? { ok: true, accepted: response.payload.accepted }
+      : { ok: false, kind: "parse" };
   } catch {
     return { ok: false, kind: "network" };
-  } finally {
-    window.clearTimeout(timeout);
-  }
-}
-
-async function fetchJson(url: string, init: RequestInit): Promise<unknown> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), BATTLE_REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return response.json().catch(() => null);
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timeout);
-  }
-}
-
-function parseAuthoritativeBattleStateEvent(data: string): AuthoritativeBattleState | null {
-  try {
-    return normalizeAuthoritativeBattleState(JSON.parse(data));
-  } catch {
-    return null;
   }
 }
 
@@ -917,6 +858,16 @@ function normalizeBattleCommandAccepted(payload: unknown): AuthoritativeBattleCo
     ...(commandReason ? { commandReason } : {}),
     outcomes
   };
+}
+
+function normalizeBattleCommandAPIMessagePayload(payload: unknown): BattleCommandAPIMessagePayload | null {
+  const accepted = normalizeBattleCommandAccepted(payload);
+  if (accepted) {
+    return { kind: "accepted", accepted };
+  }
+
+  const errorCode = readCommandSubmitErrorCode(payload);
+  return errorCode ? { kind: "error", errorCode } : { kind: "error" };
 }
 
 function normalizeBattleCommandStatus(payload: unknown): AuthoritativeBattleCommandStatus | null {

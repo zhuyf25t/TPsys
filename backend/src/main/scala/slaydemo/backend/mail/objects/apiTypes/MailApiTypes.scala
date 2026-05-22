@@ -215,9 +215,23 @@ object MailListResponse {
     MailListResponse(records.map(MailItemResponse.fromRecord))
 }
 
-final case class MailReadResponse(ok: Boolean)
+enum MailReadApiOutcome {
+  case Read
+}
+
+object MailReadApiOutcome {
+  def okFlag(outcome: MailReadApiOutcome): Boolean =
+    outcome match {
+      case MailReadApiOutcome.Read => true
+    }
+}
+
+final case class MailReadResponse(outcome: MailReadApiOutcome)
 
 object MailReadResponse {
+  val Read: MailReadResponse =
+    MailReadResponse(MailReadApiOutcome.Read)
+
   given Encoder[MailReadResponse] =
-    Encoder.forProduct1("ok")(_.ok)
+    Encoder.forProduct1("ok")(response => MailReadApiOutcome.okFlag(response.outcome))
 }

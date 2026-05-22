@@ -71,7 +71,7 @@ private[http4s] object MailHttp4sRoutes {
           case Right(command) =>
             blocking(service.markRead(command.ownerHandle, command.mailId)).flatMap {
               case Right(_) =>
-                jsonOk(MailReadResponse(ok = true).asJson)
+                jsonOk(MailReadResponse.Read.asJson)
               case Left(MailReadError.MailNotFound) =>
                 errorResponse(mailApiError(MailApiErrorCode.MailNotFound))
             }

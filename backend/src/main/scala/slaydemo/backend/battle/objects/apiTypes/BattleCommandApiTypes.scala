@@ -1,7 +1,6 @@
 package slaydemo.backend.battle.objects.apiTypes
 
 import io.circe.{Encoder, Json, JsonObject}
-import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.*
 
@@ -127,16 +126,11 @@ final case class BattleCommandSkillOutcomeResponse(
 
 object BattleCommandSkillOutcomeResponse {
   given Encoder[BattleCommandSkillOutcomeResponse] =
-    Encoder.instance { outcome =>
-      Json.obj(
-        (
-          Vector(
-            "action" -> Json.fromString(outcome.action),
-            "status" -> Json.fromString(outcome.status)
-          ) ++ optionalStringField("reason", outcome.reason)
-        )*
+    Encoder
+      .forProduct3("action", "status", "reason")((response: BattleCommandSkillOutcomeResponse) =>
+        (response.action, response.status, response.reason)
       )
-    }
+      .mapJson(_.dropNullValues)
 
   def fromOutcome(outcome: BattleCommandSkillOutcome): BattleCommandSkillOutcomeResponse =
     BattleCommandSkillOutcomeResponse(
@@ -158,20 +152,20 @@ final case class BattleCommandAcceptedResponse(
 
 object BattleCommandAcceptedResponse {
   given Encoder[BattleCommandAcceptedResponse] =
-    Encoder.instance { accepted =>
-      Json.obj(
-        (
-          Vector(
-            "battleId" -> Json.fromString(accepted.battleId),
-            "acceptedTick" -> Json.fromLong(accepted.acceptedTick),
-            "acceptedCommandSeq" -> Json.fromLong(accepted.acceptedCommandSeq),
-            "serverTime" -> Json.fromLong(accepted.serverTime),
-            "commandStatus" -> Json.fromString(accepted.commandStatus),
-            "outcomes" -> Json.fromValues(accepted.outcomes.map(_.asJson))
-          ) ++ optionalStringField("commandReason", accepted.commandReason)
-        )*
+    Encoder
+      .forProduct7("battleId", "acceptedTick", "acceptedCommandSeq", "serverTime", "commandStatus", "commandReason", "outcomes")(
+        (response: BattleCommandAcceptedResponse) =>
+          (
+            response.battleId,
+            response.acceptedTick,
+            response.acceptedCommandSeq,
+            response.serverTime,
+            response.commandStatus,
+            response.commandReason,
+            response.outcomes
+          )
       )
-    }
+      .mapJson(_.dropNullValues)
 
   def fromAccepted(accepted: BattleCommandAccepted): BattleCommandAcceptedResponse =
     BattleCommandAcceptedResponse(
@@ -184,9 +178,6 @@ object BattleCommandAcceptedResponse {
       outcomes = accepted.outcomes.map(BattleCommandSkillOutcomeResponse.fromOutcome)
     )
 }
-
-private def optionalStringField(key: String, value: Option[String]): Vector[(String, Json)] =
-  value.filter(_.trim.nonEmpty).map(text => Vector(key -> Json.fromString(text))).getOrElse(Vector.empty)
 
 object BattleCommandAPIRequest {
   def decode(json: Json): Either[BattleCommandAPIRequestError, BattleCommandAPIRequest] =

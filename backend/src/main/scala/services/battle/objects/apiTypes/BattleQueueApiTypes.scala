@@ -26,6 +26,11 @@ enum BattleQueueLeaveAPIRequestError {
   case MissingTicketId
 }
 
+enum BattleQueueStatusAPIRequestError {
+  case InvalidJsonObject
+  case MissingTicketId
+}
+
 enum BattleQueueApiErrorCode {
   case InvalidJsonObject
   case MissingStatusTicketId
@@ -180,9 +185,30 @@ final case class BattleQueueLeaveAPIRequest(ticketId: Option[String]) {
     Option(value).map(_.trim).filter(_.nonEmpty)
 }
 
+final case class BattleQueueStatusAPIRequest(ticketId: Option[String]) {
+  def toTicketId: Either[BattleQueueStatusAPIRequestError, TicketId] =
+    ticketId
+      .flatMap(nonEmptyText)
+      .map(TicketId.apply)
+      .toRight(BattleQueueStatusAPIRequestError.MissingTicketId)
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
+object BattleQueueStatusAPIRequest {
+  given Decoder[BattleQueueStatusAPIRequest] = (cursor: HCursor) =>
+    BattleQueueAPIRequestCodec.optionalText(cursor, "ticketId").map(BattleQueueStatusAPIRequest.apply)
+
+  def decodeTicketId(json: Json): Either[BattleQueueStatusAPIRequestError, TicketId] =
+    json.as[BattleQueueStatusAPIRequest]
+      .left.map(_ => BattleQueueStatusAPIRequestError.InvalidJsonObject)
+      .flatMap(_.toTicketId)
+}
+
 object BattleQueueLeaveAPIRequest {
   given Decoder[BattleQueueLeaveAPIRequest] = (cursor: HCursor) =>
-    BattleQueueJoinAPIRequest.optionalText(cursor, "ticketId").map(BattleQueueLeaveAPIRequest.apply)
+    BattleQueueAPIRequestCodec.optionalText(cursor, "ticketId").map(BattleQueueLeaveAPIRequest.apply)
 
   def decodeTicketId(json: Json): Either[BattleQueueLeaveAPIRequestError, TicketId] =
     json.as[BattleQueueLeaveAPIRequest]
@@ -256,6 +282,11 @@ enum RealtimeRoomHeartbeatAPIRequestError {
   case InvalidJsonObject
 }
 
+enum RealtimeRoomSnapshotAPIRequestError {
+  case InvalidJsonObject
+  case MissingRoomId
+}
+
 enum BattleRoomApiErrorCode {
   case InvalidRoomId
   case InvalidJsonObject
@@ -321,9 +352,9 @@ object BattleRoomApiErrorCode {
 object RealtimeRoomHeartbeatAPIRequest {
   given Decoder[RealtimeRoomHeartbeatAPIRequest] = (cursor: HCursor) =>
     for
-      roomId <- BattleQueueJoinAPIRequest.optionalText(cursor, "roomId")
-      ticketId <- BattleQueueJoinAPIRequest.optionalText(cursor, "ticketId")
-      handle <- BattleQueueJoinAPIRequest.optionalText(cursor, "handle")
+      roomId <- BattleQueueAPIRequestCodec.optionalText(cursor, "roomId")
+      ticketId <- BattleQueueAPIRequestCodec.optionalText(cursor, "ticketId")
+      handle <- BattleQueueAPIRequestCodec.optionalText(cursor, "handle")
     yield RealtimeRoomHeartbeatAPIRequest(roomId = roomId, ticketId = ticketId, handle = handle)
 
   def decodeCommand(
@@ -334,6 +365,27 @@ object RealtimeRoomHeartbeatAPIRequest {
     json.as[RealtimeRoomHeartbeatAPIRequest]
       .left.map(_ => RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject)
       .map(_.toCommand(pathRoomId, query))
+}
+
+final case class RealtimeRoomSnapshotAPIRequest(roomId: Option[String]) {
+  def toRoomId: Either[RealtimeRoomSnapshotAPIRequestError, RoomId] =
+    roomId
+      .flatMap(nonEmptyText)
+      .map(RoomId.apply)
+      .toRight(RealtimeRoomSnapshotAPIRequestError.MissingRoomId)
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
+object RealtimeRoomSnapshotAPIRequest {
+  given Decoder[RealtimeRoomSnapshotAPIRequest] = (cursor: HCursor) =>
+    BattleQueueAPIRequestCodec.optionalText(cursor, "roomId").map(RealtimeRoomSnapshotAPIRequest.apply)
+
+  def decodeRoomId(json: Json): Either[RealtimeRoomSnapshotAPIRequestError, RoomId] =
+    json.as[RealtimeRoomSnapshotAPIRequest]
+      .left.map(_ => RealtimeRoomSnapshotAPIRequestError.InvalidJsonObject)
+      .flatMap(_.toRoomId)
 }
 
 final case class RealtimeRoomSnapshotResponse(
@@ -364,12 +416,12 @@ object RealtimeRoomSnapshotResponse {
 object BattleQueueJoinAPIRequest {
   given Decoder[BattleQueueJoinAPIRequest] = (cursor: HCursor) =>
     for
-      handle <- optionalText(cursor, "handle")
-      sessionToken <- optionalText(cursor, "sessionToken")
-      queueRequestId <- optionalText(cursor, "queueRequestId")
-      rating <- optionalInt(cursor, "rating")
-      avatar <- optionalText(cursor, "avatar")
-      skin <- optionalText(cursor, "skin")
+      handle <- BattleQueueAPIRequestCodec.optionalText(cursor, "handle")
+      sessionToken <- BattleQueueAPIRequestCodec.optionalText(cursor, "sessionToken")
+      queueRequestId <- BattleQueueAPIRequestCodec.optionalText(cursor, "queueRequestId")
+      rating <- BattleQueueAPIRequestCodec.optionalInt(cursor, "rating")
+      avatar <- BattleQueueAPIRequestCodec.optionalText(cursor, "avatar")
+      skin <- BattleQueueAPIRequestCodec.optionalText(cursor, "skin")
     yield BattleQueueJoinAPIRequest(
       handle = handle,
       sessionToken = sessionToken,
@@ -379,43 +431,38 @@ object BattleQueueJoinAPIRequest {
       skin = skin
     )
 
-  def optionalText(cursor: HCursor, field: String): Decoder.Result[Option[String]] =
-    cursor.downField(field).focus match {
-      case None =>
-        Right(None)
-      case Some(value) if value.isNull =>
-        Right(None)
-      case Some(value) if value.isString =>
-        Right(value.asString)
-      case Some(value) if value.isNumber =>
-        value.asNumber.flatMap(_.toLong).map(number => Right(Some(number.toString))).getOrElse(Right(Some(value.noSpaces)))
-      case _ =>
-        Right(None)
-    }
-
-  private def optionalInt(cursor: HCursor, field: String): Decoder.Result[Option[Int]] =
-    cursor.downField(field).focus match {
-      case None =>
-        Right(None)
-      case Some(value) if value.isNull =>
-        Right(None)
-      case Some(value) if value.isString =>
-        value.asString.map(_.trim).filter(_.nonEmpty) match {
-          case None =>
-            Right(None)
-          case Some(trimmed) =>
-            trimmed.toIntOption.map(value => Right(Some(value))).getOrElse(Left(DecodingFailure(s"$field must be an integer.", cursor.history)))
-        }
-      case Some(value) if value.isNumber =>
-        value.asNumber.flatMap(_.toInt).map(value => Right(Some(value))).getOrElse(Left(DecodingFailure(s"$field must fit in a 32-bit integer.", cursor.history)))
-      case _ =>
-        Left(DecodingFailure(s"$field must be an integer.", cursor.history))
-    }
-
   def decodeCommand(json: Json): Either[BattleQueueJoinAPIRequestError, BattleQueueJoinCommand] =
     json.as[BattleQueueJoinAPIRequest]
       .left.map(_ => BattleQueueJoinAPIRequestError.InvalidRating)
       .flatMap(_.toCommand)
+}
+
+private object BattleQueueAPIRequestCodec {
+  def optionalText(cursor: HCursor, field: String): Decoder.Result[Option[String]] =
+    cursor.get[Option[String]](field).orElse(Right(None))
+
+  def optionalInt(cursor: HCursor, field: String): Decoder.Result[Option[Int]] =
+    cursor.get[Option[Int]](field) match {
+      case Right(value) =>
+        Right(value)
+      case Left(_) =>
+        cursor.get[Option[String]](field).flatMap {
+          case None =>
+            Right(None)
+          case Some(value) =>
+            decodeIntText(cursor, field, value)
+        }
+    }
+
+  private def decodeIntText(cursor: HCursor, field: String, value: String): Decoder.Result[Option[Int]] =
+    value.trim match {
+      case "" =>
+        Right(None)
+      case trimmed =>
+        trimmed.toIntOption
+          .map(parsed => Right(Some(parsed)))
+          .getOrElse(Left(DecodingFailure(s"$field must be an integer.", cursor.history)))
+    }
 }
 
 final case class BattleQueueParticipantResponse(

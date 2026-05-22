@@ -7,6 +7,8 @@ object BackendContractTestRunner:
     run("password hasher", PasswordHasherContractTest.run)
     run("postgres support", PostgresSupportContractTest.run)
     run("postgres repository boundary", PostgresRepositoryBoundaryContractTest.run)
+    run("battle result file repository", BattleResultFileRepositoryContractTest.run)
+    run("replay file repository", ReplayFileRepositoryContractTest.run)
     run("health http4s route", HealthHttp4sRouteContractTest.run)
     run("identity http4s route", IdentityHttp4sRouteContractTest.run)
     run("battle queue http4s route", BattleQueueHttp4sRouteContractTest.run)

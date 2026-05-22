@@ -1,6 +1,6 @@
 package services.battle.objects.apiTypes
 
-import io.circe.{Encoder, Json, JsonObject}
+import io.circe.{Decoder, Encoder, HCursor, Json, JsonObject}
 import io.circe.syntax.*
 
 import services.battle.objects.*
@@ -10,6 +10,11 @@ enum BattleStateApiErrorCode {
   case InvalidBattleId
   case BattleNotFound
   case MethodNotAllowed
+}
+
+enum BattleStateReadAPIRequestError {
+  case InvalidJsonObject
+  case MissingBattleId
 }
 
 object BattleStateApiErrorCode {
@@ -52,15 +57,33 @@ object BattleStateApiErrorCode {
 
 final case class BattleStateResponse private (state: BattleAggregateState)
 
+final case class BattleStateReadAPIRequest(battleId: Option[String]) {
+  def toBattleId: Either[BattleStateReadAPIRequestError, BattleId] =
+    battleId
+      .flatMap(nonEmptyText)
+      .map(BattleId.apply)
+      .toRight(BattleStateReadAPIRequestError.MissingBattleId)
+
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
+object BattleStateReadAPIRequest {
+  given Decoder[BattleStateReadAPIRequest] = (cursor: HCursor) =>
+    cursor.get[Option[String]]("battleId").orElse(Right(None)).map(BattleStateReadAPIRequest.apply)
+
+  def decodeBattleId(json: Json): Either[BattleStateReadAPIRequestError, BattleId] =
+    json.as[BattleStateReadAPIRequest]
+      .left.map(_ => BattleStateReadAPIRequestError.InvalidJsonObject)
+      .flatMap(_.toBattleId)
+}
+
 object BattleStateResponse {
   def fromState(state: BattleAggregateState): BattleStateResponse =
     BattleStateResponse(state)
 
   given Encoder[BattleStateResponse] =
     Encoder.instance(response => stateJson(response.state))
-
-  def jsonString(state: BattleAggregateState): String =
-    fromState(state).asJson.noSpaces
 
   private def stateJson(state: BattleAggregateState): Json =
     BattleStateRootResponse.fromState(state).asJson

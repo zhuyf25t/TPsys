@@ -11,6 +11,8 @@ import services.battle.objects.apiTypes.{
   BattleQueueLeaveAPIRequest,
   BattleQueueLeaveAPIRequestError,
   BattleQueueLeaveAPIResponse,
+  BattleQueueStatusAPIRequest,
+  BattleQueueStatusAPIRequestError,
   BattleQueueSnapshotResponse
 }
 import services.battle.services.{
@@ -68,11 +70,13 @@ object BattleQueueStatusAPIMessage {
     }
 
   private def ticketId(payload: Json): IO[TicketId] =
-    payload.hcursor.get[Option[String]]("ticketId") match {
-      case Right(Some(value)) if value.trim.nonEmpty =>
-        IO.pure(TicketId(value.trim))
-      case _ =>
+    BattleQueueStatusAPIRequest.decodeTicketId(payload) match {
+      case Right(ticketId) =>
+        IO.pure(ticketId)
+      case Left(BattleQueueStatusAPIRequestError.MissingTicketId) =>
         BattleAPIMessageSupport.badRequest("ticketId is required.")
+      case Left(BattleQueueStatusAPIRequestError.InvalidJsonObject) =>
+        BattleAPIMessageSupport.badRequest("Invalid battle queue status request.")
     }
 }
 

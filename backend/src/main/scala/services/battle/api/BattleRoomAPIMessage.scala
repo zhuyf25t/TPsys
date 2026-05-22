@@ -8,6 +8,8 @@ import services.battle.objects.RoomId
 import services.battle.objects.apiTypes.{
   RealtimeRoomHeartbeatAPIRequest,
   RealtimeRoomHeartbeatAPIRequestError,
+  RealtimeRoomSnapshotAPIRequest,
+  RealtimeRoomSnapshotAPIRequestError,
   RealtimeRoomSnapshotResponse
 }
 import services.battle.services.BattleRoomError
@@ -27,11 +29,13 @@ object BattleRoomSnapshotAPIMessage {
     }
 
   private def roomId(payload: Json): IO[RoomId] =
-    payload.hcursor.get[Option[String]]("roomId") match {
-      case Right(Some(value)) if value.trim.nonEmpty =>
-        IO.pure(RoomId(value.trim))
-      case _ =>
+    RealtimeRoomSnapshotAPIRequest.decodeRoomId(payload) match {
+      case Right(roomId) =>
+        IO.pure(roomId)
+      case Left(RealtimeRoomSnapshotAPIRequestError.MissingRoomId) =>
         BattleAPIMessageSupport.badRequest("roomId is required.")
+      case Left(RealtimeRoomSnapshotAPIRequestError.InvalidJsonObject) =>
+        BattleAPIMessageSupport.badRequest("Invalid battle room snapshot request.")
     }
 
   private def roomError(error: BattleRoomError): IO[Nothing] =

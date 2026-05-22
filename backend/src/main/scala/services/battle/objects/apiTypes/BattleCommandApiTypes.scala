@@ -365,14 +365,7 @@ private object BattleCommandAPIRequestPayload {
     cursor.get[Option[A]](key).left.map(_ => invalidField(field))
 
   private def optionalTicketId(cursor: HCursor): Decoder.Result[Option[String]] =
-    cursor.downField("ticketId").focus match {
-      case None =>
-        Right(None)
-      case Some(value) if value.isNull =>
-        Right(None)
-      case Some(value) =>
-        Right(value.asString)
-    }
+    cursor.get[Option[String]]("ticketId").orElse(Right(None))
 
   private def nonEmptyString(field: BattleCommandRequestField)(value: String): Decoder.Result[String] =
     Option(value).map(_.trim).filter(_.nonEmpty).toRight(invalidField(field))

@@ -1,16 +1,20 @@
 package services.battle.database
 
+import io.circe.{Decoder, Encoder, HCursor, Json}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.parser.parse as parseJson
+
 import services.battle.objects.{
-  BattleId,
   BattleHighlightLine,
+  BattleId,
   BattleMapLabel,
   BattleModeLabel,
-  BattleResultRecord,
-  BattleResultLabel,
-  BattlePlayersLine,
   BattlePlacement,
-  BattleTimelineHint,
+  BattlePlayersLine,
+  BattleResultLabel,
+  BattleResultRecord,
   BattleSurvivalOutcome,
+  BattleTimelineHint,
   DurationMillis,
   EpochMillis,
   Rating,
@@ -21,39 +25,70 @@ import services.identity.objects.{DisplayName, PlayerHandle}
 
 private[database] object BattleResultFileJsonParser {
   def parseRecords(raw: String): Vector[BattleResultRecord] =
-    extractResultObjects(raw).flatMap(parseRecord)
+    parseJson(raw)
+      .toOption
+      .flatMap(_.as[BattleResultFileJsonPayload].toOption)
+      .map(_.toDomain)
+      .getOrElse(Vector.empty)
+}
 
-  private def extractResultObjects(raw: String): Vector[String] = {
-    val marker = raw.indexOf("\"results\"")
-    if marker < 0 then Vector.empty
-    else {
-      val start = raw.indexOf('[', marker)
-      val end = raw.lastIndexOf(']')
-      if start < 0 || end < 0 || end <= start then Vector.empty
-      else "\\{([^{}]*)\\}".r.findAllMatchIn(raw.substring(start + 1, end)).map(_.group(1)).toVector
-    }
+private[database] final case class BattleResultFileJsonPayload(
+  schema: String,
+  results: Vector[BattleResultFileRecordJson]
+) {
+  def toDomain: Vector[BattleResultRecord] =
+    results.map(_.toDomain)
+}
+
+private[database] object BattleResultFileJsonPayload {
+  private val Schema = "slay-demo.battle-results.v1"
+
+  given Encoder[BattleResultFileJsonPayload] = deriveEncoder
+
+  given Decoder[BattleResultFileJsonPayload] = Decoder.instance { cursor =>
+    for
+      schema <- cursor.get[Option[String]]("schema").orElse(Right(Some(Schema)))
+      results <- decodeResults(cursor)
+    yield BattleResultFileJsonPayload(schema = schema.getOrElse(Schema), results = results)
   }
 
-  private def parseRecord(chunk: String): Option[BattleResultRecord] =
-    for {
-      battleId <- extractString(chunk, "battleId")
-      handle <- extractString(chunk, "handle")
-      displayName <- extractString(chunk, "displayName")
-      finishedAt <- extractLong(chunk, "finishedAt")
-      finishedAtLabel <- extractString(chunk, "finishedAtLabel")
-      durationMs <- extractLong(chunk, "durationMs")
-      score <- extractInt(chunk, "score")
-      aliveAtEnd <- extractBoolean(chunk, "aliveAtEnd")
-      ratingBefore <- extractInt(chunk, "ratingBefore")
-      ratingDelta <- extractInt(chunk, "ratingDelta")
-      ratingAfter <- extractInt(chunk, "ratingAfter")
-      resultLabel <- extractString(chunk, "resultLabel")
-      modeLabel <- extractString(chunk, "modeLabel")
-      mapLabel <- extractString(chunk, "mapLabel")
-      highlightLine <- extractString(chunk, "highlightLine")
-      playersLine <- extractString(chunk, "playersLine")
-      timelineHint <- extractString(chunk, "timelineHint")
-    } yield BattleResultRecord(
+  def fromDomain(records: Vector[BattleResultRecord]): BattleResultFileJsonPayload =
+    BattleResultFileJsonPayload(
+      schema = Schema,
+      results = records.map(BattleResultFileRecordJson.fromDomain)
+    )
+
+  private def decodeResults(cursor: HCursor): Decoder.Result[Vector[BattleResultFileRecordJson]] =
+    cursor
+      .get[Option[Vector[Json]]]("results")
+      .map(_.getOrElse(Vector.empty).flatMap(_.as[BattleResultFileRecordJson].toOption))
+      .orElse(Right(Vector.empty))
+}
+
+private[database] final case class BattleResultFileRecordJson(
+  battleId: String,
+  resultId: Option[String],
+  handle: String,
+  displayName: String,
+  finishedAt: Long,
+  finishedAtLabel: String,
+  durationMs: Long,
+  score: Int,
+  placement: Option[Int],
+  aliveAtEnd: Boolean,
+  ratingBefore: Int,
+  ratingDelta: Int,
+  ratingAfter: Int,
+  resultLabel: String,
+  modeLabel: String,
+  mapLabel: String,
+  highlightLine: String,
+  playersLine: String,
+  timelineHint: String,
+  currentLoadout: Option[String]
+) {
+  def toDomain: BattleResultRecord =
+    BattleResultRecord(
       battleId = BattleId(battleId),
       handle = PlayerHandle(handle),
       displayName = DisplayName(displayName),
@@ -61,7 +96,7 @@ private[database] object BattleResultFileJsonParser {
       finishedAtLabel = finishedAtLabel,
       durationMs = DurationMillis(durationMs),
       score = Score(score),
-      placement = extractNullableInt(chunk, "placement").flatMap(BattlePlacement.fromWire),
+      placement = placement.flatMap(BattlePlacement.fromWire),
       survivalOutcome = BattleSurvivalOutcome.fromAliveAtEnd(aliveAtEnd),
       ratingBefore = Rating(ratingBefore),
       ratingDelta = RatingDelta(ratingDelta),
@@ -72,46 +107,38 @@ private[database] object BattleResultFileJsonParser {
       highlightLine = BattleHighlightLine.fromWire(highlightLine),
       playersLine = BattlePlayersLine.fromWire(playersLine),
       timelineHint = BattleTimelineHint.fromWire(timelineHint),
-      currentLoadout = extractNullableString(chunk, "currentLoadout")
+      currentLoadout = currentLoadout.flatMap(nonEmptyText)
     )
 
-  private def extractString(raw: String, field: String): Option[String] = {
-    val pattern = s""""$field"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"""".r
-    pattern.findFirstMatchIn(raw).map(matchResult => unescape(matchResult.group(1)))
-  }
+  private def nonEmptyText(value: String): Option[String] =
+    Option(value).map(_.trim).filter(_.nonEmpty)
+}
 
-  private def extractNullableString(raw: String, field: String): Option[String] = {
-    val nullPattern = s""""$field"\\s*:\\s*null""".r
-    if nullPattern.findFirstIn(raw).nonEmpty then None
-    else extractString(raw, field).map(_.trim).filter(_.nonEmpty)
-  }
+private[database] object BattleResultFileRecordJson {
+  given Encoder[BattleResultFileRecordJson] = deriveEncoder
+  given Decoder[BattleResultFileRecordJson] = deriveDecoder
 
-  private def extractInt(raw: String, field: String): Option[Int] = {
-    val pattern = s""""$field"\\s*:\\s*(-?\\d+)""".r
-    pattern.findFirstMatchIn(raw).map(_.group(1).toInt)
-  }
-
-  private def extractNullableInt(raw: String, field: String): Option[Int] = {
-    val nullPattern = s""""$field"\\s*:\\s*null""".r
-    if nullPattern.findFirstIn(raw).nonEmpty then None else extractInt(raw, field)
-  }
-
-  private def extractLong(raw: String, field: String): Option[Long] = {
-    val pattern = s""""$field"\\s*:\\s*(-?\\d+)""".r
-    pattern.findFirstMatchIn(raw).map(_.group(1).toLong)
-  }
-
-  private def extractBoolean(raw: String, field: String): Option[Boolean] = {
-    val pattern = s""""$field"\\s*:\\s*(true|false)""".r
-    pattern.findFirstMatchIn(raw).map(_.group(1).toBoolean)
-  }
-
-  private def unescape(value: String): String =
-    value
-      .replace("\\\\", "\u0000")
-      .replace("\\n", "\n")
-      .replace("\\r", "\r")
-      .replace("\\t", "\t")
-      .replace("\\\"", "\"")
-      .replace("\u0000", "\\")
+  def fromDomain(record: BattleResultRecord): BattleResultFileRecordJson =
+    BattleResultFileRecordJson(
+      battleId = record.battleId.value,
+      resultId = Some(record.resultId.value),
+      handle = record.handle.value,
+      displayName = record.displayName.value,
+      finishedAt = record.finishedAt.value,
+      finishedAtLabel = record.finishedAtLabel,
+      durationMs = record.durationMs.value,
+      score = record.score.value,
+      placement = record.placement.map(_.value),
+      aliveAtEnd = record.aliveAtEnd,
+      ratingBefore = record.ratingBefore.value,
+      ratingDelta = record.ratingDelta.value,
+      ratingAfter = record.ratingAfter.value,
+      resultLabel = record.resultLabel.value,
+      modeLabel = record.modeLabel.value,
+      mapLabel = record.mapLabel.value,
+      highlightLine = record.highlightLine.value,
+      playersLine = record.playersLine.value,
+      timelineHint = record.timelineHint.value,
+      currentLoadout = record.currentLoadout
+    )
 }

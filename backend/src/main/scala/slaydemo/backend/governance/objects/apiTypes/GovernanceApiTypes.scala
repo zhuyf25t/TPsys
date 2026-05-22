@@ -374,19 +374,32 @@ object ContributionAdjustmentListResponse {
     ContributionAdjustmentListResponse(records.map(ContributionAdjustmentItemResponse.fromRecord))
 }
 
+enum GovernanceSubmissionApiOutcome {
+  case Submitted
+}
+
+object GovernanceSubmissionApiOutcome {
+  def okFlag(outcome: GovernanceSubmissionApiOutcome): Boolean =
+    outcome match {
+      case GovernanceSubmissionApiOutcome.Submitted => true
+    }
+}
+
 final case class ContributionAdjustmentCreateResponse(
-  ok: Boolean,
+  outcome: GovernanceSubmissionApiOutcome,
   adjustment: ContributionAdjustmentItemResponse,
   mail: GovernanceMailSnapshotResponse
 )
 
 object ContributionAdjustmentCreateResponse {
   given Encoder[ContributionAdjustmentCreateResponse] =
-    Encoder.forProduct3("ok", "adjustment", "mail")(value => (value.ok, value.adjustment, value.mail))
+    Encoder.forProduct3("ok", "adjustment", "mail")(value =>
+      (GovernanceSubmissionApiOutcome.okFlag(value.outcome), value.adjustment, value.mail)
+    )
 
   def fromResult(result: ContributionAdjustmentSubmissionResult): ContributionAdjustmentCreateResponse =
     ContributionAdjustmentCreateResponse(
-      ok = true,
+      outcome = GovernanceSubmissionApiOutcome.Submitted,
       adjustment = ContributionAdjustmentItemResponse.fromRecord(result.adjustment),
       mail = GovernanceMailSnapshotResponse.fromSnapshot(result.mail)
     )
@@ -405,18 +418,20 @@ object GovernanceReviewNotificationListResponse {
 }
 
 final case class GovernanceReviewNotificationCreateResponse(
-  ok: Boolean,
+  outcome: GovernanceSubmissionApiOutcome,
   notification: GovernanceReviewNotificationItemResponse,
   mail: GovernanceMailSnapshotResponse
 )
 
 object GovernanceReviewNotificationCreateResponse {
   given Encoder[GovernanceReviewNotificationCreateResponse] =
-    Encoder.forProduct3("ok", "notification", "mail")(value => (value.ok, value.notification, value.mail))
+    Encoder.forProduct3("ok", "notification", "mail")(value =>
+      (GovernanceSubmissionApiOutcome.okFlag(value.outcome), value.notification, value.mail)
+    )
 
   def fromResult(result: GovernanceReviewNotificationSubmissionResult): GovernanceReviewNotificationCreateResponse =
     GovernanceReviewNotificationCreateResponse(
-      ok = true,
+      outcome = GovernanceSubmissionApiOutcome.Submitted,
       notification = GovernanceReviewNotificationItemResponse.fromRecord(result.notification),
       mail = GovernanceMailSnapshotResponse.fromSnapshot(result.mail)
     )

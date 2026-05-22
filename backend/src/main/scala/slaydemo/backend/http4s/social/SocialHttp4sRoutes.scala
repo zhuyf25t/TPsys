@@ -8,9 +8,10 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.HttpApiErrors.apiError
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
+import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeEntityBody
+import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, requestPath}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,

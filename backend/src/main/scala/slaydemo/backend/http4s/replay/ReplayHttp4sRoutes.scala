@@ -7,9 +7,10 @@ import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.HttpApiErrors.apiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
+import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeTextBody
+import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonCreated, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, requestPath}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,

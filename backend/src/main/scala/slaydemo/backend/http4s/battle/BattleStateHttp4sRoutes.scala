@@ -14,8 +14,9 @@ import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePh
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
 import slaydemo.backend.http4s.HttpApiErrors.apiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk, withCors}
+import slaydemo.backend.http4s.Http4sEffects.blocking
+import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, requestPath}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val InvalidBattleIdError =

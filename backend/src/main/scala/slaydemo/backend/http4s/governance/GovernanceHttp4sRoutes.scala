@@ -22,9 +22,10 @@ import slaydemo.backend.governance.services.{ContributionAdjustmentService, Gove
 import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.HttpApiErrors.apiError
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
+import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeEntityBody
+import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, requestPath}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*

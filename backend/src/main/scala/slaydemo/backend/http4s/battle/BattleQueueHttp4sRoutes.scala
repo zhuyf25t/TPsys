@@ -6,6 +6,7 @@ import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.TicketId
 import slaydemo.backend.battle.objects.apiTypes.{
+  BattleQueueApiErrorCode,
   BattleQueueJoinAPIRequest,
   BattleQueueJoinAPIRequestError,
   BattleQueueLeaveAPIRequest,
@@ -22,7 +23,8 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleQueueStatusError
 }
-import slaydemo.backend.http4s.HttpApiErrors.{methodNotAllowedError, typedApiError}
+import slaydemo.backend.http4s.HttpApiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeJsonObjectBody
@@ -30,33 +32,6 @@ import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
 
 private[http4s] object BattleQueueHttp4sRoutes {
-  private val InvalidJsonObjectError =
-    typedApiError(
-      statusCode = 400,
-      code = "bad_request",
-      message = "Request body must be a JSON object with supported primitive or object fields."
-    )
-  private val MissingTicketIdError =
-    typedApiError(statusCode = 400, code = "missing_ticket_id", message = "ticketId query parameter is required.")
-  private val MissingLeaveTicketIdError =
-    typedApiError(statusCode = 400, code = "bad_request", message = "ticketId is required.")
-  private val TicketNotFoundError =
-    typedApiError(statusCode = 404, code = "ticket_not_found", message = "Queue ticket was not found.")
-  private val InvalidHandleError =
-    typedApiError(statusCode = 400, code = "invalid_handle", message = "Handle must be a playable non-visitor handle.")
-  private val InvalidRatingError =
-    typedApiError(statusCode = 400, code = "bad_request", message = "rating must be an integer.")
-  private val MissingSessionError =
-    typedApiError(statusCode = 401, code = "missing_session", message = "Session token is required.")
-  private val InvalidSessionError =
-    typedApiError(statusCode = 401, code = "invalid_session", message = "Session token is not valid.")
-  private val IdentityMismatchError =
-    typedApiError(statusCode = 403, code = "identity_mismatch", message = "Session does not belong to the requested handle.")
-  private val StatusMethodNotAllowedError =
-    methodNotAllowedError("Only GET and OPTIONS are supported.")
-  private val PostMethodNotAllowedError =
-    methodNotAllowedError("Only POST and OPTIONS are supported.")
-
   def statusRoutes(service: BattleQueueService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if isBattleQueueStatusPath(request) =>
@@ -66,17 +41,17 @@ private[http4s] object BattleQueueHttp4sRoutes {
           case Method.GET =>
             BattleQueueRequestTarget.statusTicketIdFrom(request.params) match {
               case None =>
-                errorResponse(MissingTicketIdError)
+                errorResponse(battleQueueApiError(BattleQueueApiErrorCode.MissingStatusTicketId))
               case Some(ticketId) =>
                 blocking(service.status(ticketId)).flatMap {
                   case Right(snapshot) =>
                     jsonOk(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson)
-                  case Left(BattleQueueStatusError.TicketNotFound) =>
-                    errorResponse(TicketNotFoundError)
+                  case Left(error) =>
+                    errorResponse(statusApiError(error))
                 }
             }
           case _ =>
-            errorResponse(StatusMethodNotAllowedError)
+            errorResponse(battleQueueApiError(BattleQueueApiErrorCode.StatusMethodNotAllowed))
         }
     }
 
@@ -91,20 +66,12 @@ private[http4s] object BattleQueueHttp4sRoutes {
             corsNoContent
           case Method.POST =>
             decodeJoinRequest(request).flatMap {
-              case Left(BattleQueueJoinAPIRequestError.InvalidJsonObject) =>
-                errorResponse(InvalidJsonObjectError)
-              case Left(BattleQueueJoinAPIRequestError.InvalidRating) =>
-                errorResponse(InvalidRatingError)
-              case Left(BattleQueueJoinAPIRequestError.InvalidHandle) =>
-                errorResponse(InvalidHandleError)
-              case Left(BattleQueueJoinAPIRequestError.MissingSession) =>
-                errorResponse(MissingSessionError)
+              case Left(error) =>
+                errorResponse(joinRequestApiError(error))
               case Right(command) =>
                 blocking(joinAuthorizationService.authorize(command)).flatMap {
-                  case Left(BattleQueueJoinAuthorizationError.InvalidSession) =>
-                    errorResponse(InvalidSessionError)
-                  case Left(BattleQueueJoinAuthorizationError.HandleMismatch) =>
-                    errorResponse(IdentityMismatchError)
+                  case Left(error) =>
+                    errorResponse(joinAuthorizationApiError(error))
                   case Right(()) =>
                     blocking(queueService.join(command)).flatMap(snapshot =>
                       jsonOk(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson)
@@ -112,7 +79,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
                 }
             }
           case _ =>
-            errorResponse(PostMethodNotAllowedError)
+            errorResponse(battleQueueApiError(BattleQueueApiErrorCode.PostMethodNotAllowed))
         }
     }
 
@@ -124,10 +91,8 @@ private[http4s] object BattleQueueHttp4sRoutes {
             corsNoContent
           case Method.POST =>
             decodeLeaveRequest(request).flatMap {
-              case Left(BattleQueueLeaveAPIRequestError.InvalidJsonObject) =>
-                errorResponse(InvalidJsonObjectError)
-              case Left(BattleQueueLeaveAPIRequestError.MissingTicketId) =>
-                errorResponse(MissingLeaveTicketIdError)
+              case Left(error) =>
+                errorResponse(leaveRequestApiError(error))
               case Right(ticketId) =>
                 blocking(queueService.leave(ticketId)).flatMap { outcome =>
                   val left = outcome == BattleQueueLeaveOutcome.LeftQueue
@@ -135,7 +100,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
                 }
             }
           case _ =>
-            errorResponse(PostMethodNotAllowedError)
+            errorResponse(battleQueueApiError(BattleQueueApiErrorCode.PostMethodNotAllowed))
         }
     }
 
@@ -153,4 +118,23 @@ private[http4s] object BattleQueueHttp4sRoutes {
 
   private def decodeLeaveRequest(request: Request[IO]): IO[Either[BattleQueueLeaveAPIRequestError, TicketId]] =
     decodeJsonObjectBody(request, BattleQueueLeaveAPIRequestError.InvalidJsonObject)(BattleQueueLeaveAPIRequest.decodeTicketId)
+
+  private def statusApiError(error: BattleQueueStatusError): HttpApiError =
+    battleQueueApiError(BattleQueueApiErrorCode.fromStatusError(error))
+
+  private def joinRequestApiError(error: BattleQueueJoinAPIRequestError): HttpApiError =
+    battleQueueApiError(BattleQueueApiErrorCode.fromJoinRequestError(error))
+
+  private def joinAuthorizationApiError(error: BattleQueueJoinAuthorizationError): HttpApiError =
+    battleQueueApiError(BattleQueueApiErrorCode.fromJoinAuthorizationError(error))
+
+  private def leaveRequestApiError(error: BattleQueueLeaveAPIRequestError): HttpApiError =
+    battleQueueApiError(BattleQueueApiErrorCode.fromLeaveRequestError(error))
+
+  private def battleQueueApiError(code: BattleQueueApiErrorCode): HttpApiError =
+    typedApiError(
+      statusCode = BattleQueueApiErrorCode.statusCode(code),
+      code = BattleQueueApiErrorCode.wireValue(code),
+      message = BattleQueueApiErrorCode.message(code)
+    )
 }

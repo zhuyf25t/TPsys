@@ -4,7 +4,13 @@ import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 import io.circe.generic.semiauto.deriveEncoder
 
 import slaydemo.backend.battle.objects.*
-import slaydemo.backend.battle.services.{BattleQueueJoinCommand, BattleRoomError, RealtimeRoomHeartbeatCommand}
+import slaydemo.backend.battle.services.{
+  BattleQueueJoinAuthorizationError,
+  BattleQueueJoinCommand,
+  BattleQueueStatusError,
+  BattleRoomError,
+  RealtimeRoomHeartbeatCommand
+}
 import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
 
 enum BattleQueueJoinAPIRequestError {
@@ -17,6 +23,122 @@ enum BattleQueueJoinAPIRequestError {
 enum BattleQueueLeaveAPIRequestError {
   case InvalidJsonObject
   case MissingTicketId
+}
+
+enum BattleQueueApiErrorCode {
+  case InvalidJsonObject
+  case MissingStatusTicketId
+  case MissingLeaveTicketId
+  case TicketNotFound
+  case InvalidHandle
+  case InvalidRating
+  case MissingSession
+  case InvalidSession
+  case IdentityMismatch
+  case StatusMethodNotAllowed
+  case PostMethodNotAllowed
+}
+
+object BattleQueueApiErrorCode {
+  def fromStatusError(error: BattleQueueStatusError): BattleQueueApiErrorCode =
+    error match {
+      case BattleQueueStatusError.TicketNotFound =>
+        BattleQueueApiErrorCode.TicketNotFound
+    }
+
+  def fromJoinRequestError(error: BattleQueueJoinAPIRequestError): BattleQueueApiErrorCode =
+    error match {
+      case BattleQueueJoinAPIRequestError.InvalidJsonObject =>
+        BattleQueueApiErrorCode.InvalidJsonObject
+      case BattleQueueJoinAPIRequestError.InvalidRating =>
+        BattleQueueApiErrorCode.InvalidRating
+      case BattleQueueJoinAPIRequestError.InvalidHandle =>
+        BattleQueueApiErrorCode.InvalidHandle
+      case BattleQueueJoinAPIRequestError.MissingSession =>
+        BattleQueueApiErrorCode.MissingSession
+    }
+
+  def fromJoinAuthorizationError(error: BattleQueueJoinAuthorizationError): BattleQueueApiErrorCode =
+    error match {
+      case BattleQueueJoinAuthorizationError.InvalidSession =>
+        BattleQueueApiErrorCode.InvalidSession
+      case BattleQueueJoinAuthorizationError.HandleMismatch =>
+        BattleQueueApiErrorCode.IdentityMismatch
+    }
+
+  def fromLeaveRequestError(error: BattleQueueLeaveAPIRequestError): BattleQueueApiErrorCode =
+    error match {
+      case BattleQueueLeaveAPIRequestError.InvalidJsonObject =>
+        BattleQueueApiErrorCode.InvalidJsonObject
+      case BattleQueueLeaveAPIRequestError.MissingTicketId =>
+        BattleQueueApiErrorCode.MissingLeaveTicketId
+    }
+
+  def wireValue(code: BattleQueueApiErrorCode): String =
+    code match {
+      case BattleQueueApiErrorCode.InvalidJsonObject =>
+        "bad_request"
+      case BattleQueueApiErrorCode.MissingStatusTicketId =>
+        "missing_ticket_id"
+      case BattleQueueApiErrorCode.MissingLeaveTicketId =>
+        "bad_request"
+      case BattleQueueApiErrorCode.TicketNotFound =>
+        "ticket_not_found"
+      case BattleQueueApiErrorCode.InvalidHandle =>
+        "invalid_handle"
+      case BattleQueueApiErrorCode.InvalidRating =>
+        "bad_request"
+      case BattleQueueApiErrorCode.MissingSession =>
+        "missing_session"
+      case BattleQueueApiErrorCode.InvalidSession =>
+        "invalid_session"
+      case BattleQueueApiErrorCode.IdentityMismatch =>
+        "identity_mismatch"
+      case BattleQueueApiErrorCode.StatusMethodNotAllowed =>
+        "method_not_allowed"
+      case BattleQueueApiErrorCode.PostMethodNotAllowed =>
+        "method_not_allowed"
+    }
+
+  def message(code: BattleQueueApiErrorCode): String =
+    code match {
+      case BattleQueueApiErrorCode.InvalidJsonObject =>
+        "Request body must be a JSON object with supported primitive or object fields."
+      case BattleQueueApiErrorCode.MissingStatusTicketId =>
+        "ticketId query parameter is required."
+      case BattleQueueApiErrorCode.MissingLeaveTicketId =>
+        "ticketId is required."
+      case BattleQueueApiErrorCode.TicketNotFound =>
+        "Queue ticket was not found."
+      case BattleQueueApiErrorCode.InvalidHandle =>
+        "Handle must be a playable non-visitor handle."
+      case BattleQueueApiErrorCode.InvalidRating =>
+        "rating must be an integer."
+      case BattleQueueApiErrorCode.MissingSession =>
+        "Session token is required."
+      case BattleQueueApiErrorCode.InvalidSession =>
+        "Session token is not valid."
+      case BattleQueueApiErrorCode.IdentityMismatch =>
+        "Session does not belong to the requested handle."
+      case BattleQueueApiErrorCode.StatusMethodNotAllowed =>
+        "Only GET and OPTIONS are supported."
+      case BattleQueueApiErrorCode.PostMethodNotAllowed =>
+        "Only POST and OPTIONS are supported."
+    }
+
+  def statusCode(code: BattleQueueApiErrorCode): Int =
+    code match {
+      case BattleQueueApiErrorCode.TicketNotFound =>
+        404
+      case BattleQueueApiErrorCode.MissingSession | BattleQueueApiErrorCode.InvalidSession =>
+        401
+      case BattleQueueApiErrorCode.IdentityMismatch =>
+        403
+      case BattleQueueApiErrorCode.StatusMethodNotAllowed | BattleQueueApiErrorCode.PostMethodNotAllowed =>
+        405
+      case _ =>
+        400
+    }
 }
 
 object BattleQueueRequestTarget {

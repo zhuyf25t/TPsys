@@ -19,7 +19,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, requestPath, typedApiError}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -84,7 +84,7 @@ private[http4s] object ForumHttp4sRoutes {
               case Right(topic) =>
                 jsonCreated(ForumTopicWrapperResponse.fromView(topic).asJson)
               case Left(error) =>
-                IO.pure(renderError(createApiError(error)))
+                errorResponse(createApiError(error))
             }
           case Left(error) =>
             errorResponse(createApiError(error))
@@ -108,7 +108,7 @@ private[http4s] object ForumHttp4sRoutes {
                   case Right(topic) =>
                     jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
-                    IO.pure(renderError(mutationApiError(error)))
+                    errorResponse(mutationApiError(error))
                 }
             }
         }
@@ -131,7 +131,7 @@ private[http4s] object ForumHttp4sRoutes {
                   case Right(topic) =>
                     jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
-                    IO.pure(renderError(mutationApiError(error)))
+                    errorResponse(mutationApiError(error))
                 }
             }
         }
@@ -155,7 +155,7 @@ private[http4s] object ForumHttp4sRoutes {
                   case Right(topic) =>
                     jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
-                    IO.pure(renderError(mutationApiError(error)))
+                    errorResponse(mutationApiError(error))
                 }
             }
         }

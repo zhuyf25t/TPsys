@@ -21,10 +21,7 @@ object HttpApiModules {
       MailHttpModule.routes(services.mailService) <+>
       SocialHttpModule.routes(services.friendRequestService) <+>
       ForumHttpModule.routes(services.forumService) <+>
-      GovernanceHttpModule.routes(
-        services.contributionAdjustmentService,
-        services.governanceNotificationService
-      ) <+>
+      GovernanceHttpModule.routes(services.governanceServices) <+>
       ReplayHttpModule.routes(services.replayService) <+>
       BotProfileHttpModule.routes(services.botProfileService) <+>
       BattleHttpModule.routes(services.battleServices)

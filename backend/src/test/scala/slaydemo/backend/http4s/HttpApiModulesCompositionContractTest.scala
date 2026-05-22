@@ -32,6 +32,7 @@ import slaydemo.backend.governance.services.{
   GovernanceReviewNotificationSubmissionResult
 }
 import slaydemo.backend.http4s.battle.BattleHttpServices
+import slaydemo.backend.http4s.governance.GovernanceHttpServices
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.api.IdentityAccountSummary
 import slaydemo.backend.identity.objects.{IdentityAccount, SessionToken}
@@ -146,8 +147,10 @@ object HttpApiModulesCompositionContractTest {
       mailService = UnusedMailService,
       friendRequestService = UnusedFriendRequestService,
       forumService = UnusedForumService,
-      contributionAdjustmentService = UnusedContributionAdjustmentService,
-      governanceNotificationService = UnusedGovernanceNotificationService
+      governanceServices = GovernanceHttpServices(
+        contributionAdjustmentService = UnusedContributionAdjustmentService,
+        notificationService = UnusedGovernanceNotificationService
+      )
     )
 
   private object UnusedHealthService extends HealthService {

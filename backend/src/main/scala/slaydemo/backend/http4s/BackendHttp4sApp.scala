@@ -7,6 +7,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import slaydemo.backend.{BackendConfig, BackendEnvironment, BackendRuntime}
 import slaydemo.backend.http4s.battle.BattleHttpServices
+import slaydemo.backend.http4s.governance.GovernanceHttpServices
 import slaydemo.backend.shared.database.PostgresSupport
 
 object BackendHttp4sApp extends IOApp.Simple {
@@ -51,8 +52,10 @@ object BackendHttp4sApp extends IOApp.Simple {
       mailService = runtime.mailService,
       friendRequestService = runtime.friendRequestService,
       forumService = runtime.forumService,
-      contributionAdjustmentService = runtime.contributionAdjustmentService,
-      governanceNotificationService = runtime.governanceNotificationService
+      governanceServices = GovernanceHttpServices(
+        contributionAdjustmentService = runtime.contributionAdjustmentService,
+        notificationService = runtime.governanceNotificationService
+      )
     )
 
   private def httpPort(config: BackendConfig): IO[Port] =

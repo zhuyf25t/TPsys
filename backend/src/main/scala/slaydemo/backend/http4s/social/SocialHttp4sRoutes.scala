@@ -6,7 +6,8 @@ import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
+import slaydemo.backend.http4s.Http4sCors.corsNoContent
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, decodeEntityBody, errorResponse, jsonOk, requestPath}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,

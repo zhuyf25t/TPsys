@@ -20,7 +20,8 @@ import slaydemo.backend.governance.objects.apiTypes.{
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
+import slaydemo.backend.http4s.Http4sCors.corsNoContent
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, decodeEntityBody, errorResponse, jsonOk, requestPath}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*

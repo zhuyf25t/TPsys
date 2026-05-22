@@ -2,10 +2,11 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.Json
-import org.http4s.{EntityDecoder, Header, Request, Response, Status}
+import org.http4s.{EntityDecoder, Request, Response, Status}
 import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
-import org.typelevel.ci.CIString
+
+import slaydemo.backend.http4s.Http4sCors.withCors
 
 private[http4s] object Http4sRouteSupport {
   def blocking[A](thunk: => A): IO[A] =
@@ -13,12 +14,6 @@ private[http4s] object Http4sRouteSupport {
 
   def requestPath(request: Request[IO]): String =
     request.uri.path.renderString
-
-  def corsNoContent: IO[Response[IO]] =
-    IO.pure(withCors(Response[IO](Status.NoContent)))
-
-  def corsOk: IO[Response[IO]] =
-    IO.pure(withCors(Response[IO](Status.Ok)))
 
   def jsonOk(json: Json): IO[Response[IO]] =
     IO.pure(withCors(Response[IO](Status.Ok).withEntity(json)))
@@ -91,11 +86,4 @@ private[http4s] object Http4sRouteSupport {
       case 409 => Status.Conflict
       case _   => Status.InternalServerError
     }
-
-  def withCors(response: Response[IO]): Response[IO] =
-    response.putHeaders(
-      Header.Raw(CIString("Access-Control-Allow-Origin"), "*"),
-      Header.Raw(CIString("Access-Control-Allow-Headers"), "Content-Type, Authorization, X-Session-Token"),
-      Header.Raw(CIString("Access-Control-Allow-Methods"), "GET, POST, OPTIONS, HEAD")
-    )
 }

@@ -1,5 +1,7 @@
 package slaydemo.backend.bots.objects
 
+import java.util.Locale
+
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 
 final case class BotId(value: String) extends AnyVal
@@ -26,6 +28,16 @@ object BotProfileTone {
       case BotProfileTone.Aggressive  => "aggressive"
       case BotProfileTone.Patient     => "patient"
       case BotProfileTone.Opportunist => "opportunist"
+    }
+
+  def fromWireValue(value: String): Option[BotProfileTone] =
+    Option(value).map(_.trim.toLowerCase(Locale.ROOT)).getOrElse("") match {
+      case "steady"      => Some(BotProfileTone.Steady)
+      case "scrappy"     => Some(BotProfileTone.Scrappy)
+      case "aggressive"  => Some(BotProfileTone.Aggressive)
+      case "patient"     => Some(BotProfileTone.Patient)
+      case "opportunist" => Some(BotProfileTone.Opportunist)
+      case _             => None
     }
 }
 

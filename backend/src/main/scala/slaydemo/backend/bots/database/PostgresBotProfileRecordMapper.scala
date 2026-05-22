@@ -1,7 +1,6 @@
 package slaydemo.backend.bots.database
 
 import java.sql.{PreparedStatement, ResultSet}
-import java.util.Locale
 
 import slaydemo.backend.bots.objects.{
   BotAvatarKey,
@@ -56,11 +55,5 @@ private[database] object PostgresBotProfileRecordMapper {
     )
 
   private def readTone(value: String): BotProfileTone =
-    Option(value).map(_.trim.toLowerCase(Locale.ROOT)).getOrElse("") match {
-      case "scrappy"     => BotProfileTone.Scrappy
-      case "aggressive"  => BotProfileTone.Aggressive
-      case "patient"     => BotProfileTone.Patient
-      case "opportunist" => BotProfileTone.Opportunist
-      case _             => BotProfileTone.Steady
-    }
+    BotProfileTone.fromWireValue(value).getOrElse(BotProfileTone.Steady)
 }

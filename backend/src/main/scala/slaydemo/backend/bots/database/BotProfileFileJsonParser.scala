@@ -1,7 +1,5 @@
 package slaydemo.backend.bots.database
 
-import java.util.Locale
-
 import slaydemo.backend.bots.objects.{
   BotAvatarKey,
   BotId,
@@ -49,13 +47,7 @@ private[database] object BotProfileFileJsonParser {
     )
 
   private def parseTone(value: String): BotProfileTone =
-    Option(value).map(_.trim.toLowerCase(Locale.ROOT)).getOrElse("") match {
-      case "scrappy"     => BotProfileTone.Scrappy
-      case "aggressive"  => BotProfileTone.Aggressive
-      case "patient"     => BotProfileTone.Patient
-      case "opportunist" => BotProfileTone.Opportunist
-      case _             => BotProfileTone.Steady
-    }
+    BotProfileTone.fromWireValue(value).getOrElse(BotProfileTone.Steady)
 
   private def extractString(raw: String, field: String): Option[String] = {
     val pattern = s""""$field"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"""".r

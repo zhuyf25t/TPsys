@@ -56,13 +56,25 @@ final case class BotProfileResponse(
   handle: String,
   displayName: String,
   initialRating: Int,
-  profileTone: String,
+  profileTone: BotProfileTone,
   strategyLabel: String,
   skin: BotSkinProfileResponse
 )
 
 object BotProfileResponse {
-  given Encoder[BotProfileResponse] = deriveEncoder
+  given Encoder[BotProfileResponse] =
+    Encoder.forProduct7("botId", "handle", "displayName", "initialRating", "profileTone", "strategyLabel", "skin")(
+      response =>
+        (
+          response.botId,
+          response.handle,
+          response.displayName,
+          response.initialRating,
+          BotProfileTone.wireValue(response.profileTone),
+          response.strategyLabel,
+          response.skin
+        )
+    )
 
   def fromRecord(record: BotProfileRecord): BotProfileResponse =
     BotProfileResponse(
@@ -70,7 +82,7 @@ object BotProfileResponse {
       handle = record.handle.value,
       displayName = record.displayName.value,
       initialRating = record.initialRating.value,
-      profileTone = BotProfileTone.wireValue(record.profileTone),
+      profileTone = record.profileTone,
       strategyLabel = record.strategyLabel.value,
       skin = BotSkinProfileResponse.fromRecord(record)
     )

@@ -9,12 +9,6 @@ private[http4s] object HttpApiErrors {
   def typedApiError(statusCode: Int, code: String, message: String): HttpApiError =
     apiError(statusFrom(statusCode), code, message)
 
-  def methodNotAllowedError(message: String): HttpApiError =
-    typedApiError(statusCode = 405, code = "method_not_allowed", message = message)
-
-  def codeMessageError(statusCode: Int, code: String): HttpApiError =
-    typedApiError(statusCode = statusCode, code = code, message = code)
-
   private def statusFrom(statusCode: Int): Status =
     statusCode match {
       case 400 => Status.BadRequest

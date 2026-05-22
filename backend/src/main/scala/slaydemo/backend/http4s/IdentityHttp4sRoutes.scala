@@ -2,12 +2,11 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
-import org.http4s.dsl.io.*
+import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{Headers, HttpRoutes, Method, Request, Response}
 import org.typelevel.ci.CIString
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath, typedApiError}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
@@ -23,7 +22,6 @@ import slaydemo.backend.identity.services.IdentityService
 
 private[http4s] object IdentityHttp4sRoutes {
   import CirceEntityDecoder.*
-  import CirceEntityEncoder.*
 
   def routes(service: IdentityService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
@@ -60,7 +58,7 @@ private[http4s] object IdentityHttp4sRoutes {
             corsNoContent
           case Method.GET =>
             blocking(service.listActiveAccounts()).flatMap(accounts =>
-              Ok(IdentityAccountsResponse(accounts).asJson).map(withCors)
+              jsonOk(IdentityAccountsResponse(accounts).asJson)
             )
           case _ =>
             errorResponse(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed))
@@ -78,7 +76,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Right(command) =>
             blocking(service.register(command)).flatMap {
               case Right(account) =>
-                Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
+                jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
               case Left(error) =>
                 errorResponse(identityApiError(IdentityApiErrorCode.fromRegistrationServiceError(error)))
             }
@@ -96,7 +94,7 @@ private[http4s] object IdentityHttp4sRoutes {
           case Right(command) =>
             blocking(service.issueSession(command)).flatMap {
               case Right(account) =>
-                Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
+                jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
               case Left(error) =>
                 errorResponse(identityApiError(IdentityApiErrorCode.fromSessionServiceError(error)))
             }
@@ -106,7 +104,7 @@ private[http4s] object IdentityHttp4sRoutes {
   private def current(request: Request[IO], service: IdentityService): IO[Response[IO]] =
     blocking(service.current(parseSessionToken(request))).flatMap {
       case Right(account) =>
-        Ok(IdentityAuthResponse.fromAccount(account).asJson).map(withCors)
+        jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
       case Left(error) =>
         errorResponse(identityApiError(IdentityApiErrorCode.fromCurrentSessionError(error)))
     }

@@ -2,11 +2,10 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
-import org.http4s.dsl.io.*
+import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath, typedApiError}
 import slaydemo.backend.social.objects.apiTypes.{
   FriendRequestCreateApiRequest,
   FriendRequestCreateResponse,
@@ -25,7 +24,6 @@ import slaydemo.backend.social.services.FriendRequestService
 
 private[http4s] object SocialHttp4sRoutes {
   import CirceEntityDecoder.*
-  import CirceEntityEncoder.*
 
   def routes(service: FriendRequestService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
@@ -57,7 +55,7 @@ private[http4s] object SocialHttp4sRoutes {
         errorResponse(ownerApiError(error))
       case Right(ownerHandle) =>
         blocking(service.list(ownerHandle)).flatMap(records =>
-          Ok(FriendRequestListResponse.fromRecords(records).asJson).map(withCors)
+          jsonOk(FriendRequestListResponse.fromRecords(records).asJson)
         )
     }
 
@@ -72,7 +70,7 @@ private[http4s] object SocialHttp4sRoutes {
           case Right(command) =>
             blocking(service.create(command.sourceHandle, command.targetHandle)).flatMap {
               case Right(result) =>
-                Ok(FriendRequestCreateResponse.fromResult(result).asJson).map(withCors)
+                jsonOk(FriendRequestCreateResponse.fromResult(result).asJson)
               case Left(error) =>
                 errorResponse(socialApiError(SocialApiErrorCode.fromCreateServiceError(error)))
             }
@@ -90,7 +88,7 @@ private[http4s] object SocialHttp4sRoutes {
           case Right(command) =>
             blocking(service.respond(command.requestId, command.actorHandle, command.decision)).flatMap {
               case Right(result) =>
-                Ok(FriendRequestRespondResponse.fromResult(result).asJson).map(withCors)
+                jsonOk(FriendRequestRespondResponse.fromResult(result).asJson)
               case Left(error) =>
                 errorResponse(socialApiError(SocialApiErrorCode.fromRespondServiceError(error)))
             }

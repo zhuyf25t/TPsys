@@ -2,11 +2,10 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
-import org.http4s.dsl.io.*
+import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath, typedApiError}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,
   MailListResponse,
@@ -22,7 +21,6 @@ import slaydemo.backend.mail.services.{MailReadError, MailService}
 
 private[http4s] object MailHttp4sRoutes {
   import CirceEntityDecoder.*
-  import CirceEntityEncoder.*
 
   def routes(service: MailService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
@@ -52,7 +50,7 @@ private[http4s] object MailHttp4sRoutes {
         errorResponse(ownerApiError(error))
       case Right(ownerHandle) =>
         blocking(service.list(ownerHandle)).flatMap(records =>
-          Ok(MailListResponse.fromRecords(records).asJson).map(withCors)
+          jsonOk(MailListResponse.fromRecords(records).asJson)
         )
     }
 
@@ -67,7 +65,7 @@ private[http4s] object MailHttp4sRoutes {
           case Right(command) =>
             blocking(service.markRead(command.ownerHandle, command.mailId)).flatMap {
               case Right(_) =>
-                Ok(MailReadResponse(ok = true).asJson).map(withCors)
+                jsonOk(MailReadResponse(ok = true).asJson)
               case Left(MailReadError.MailNotFound) =>
                 errorResponse(mailApiError(MailApiErrorCode.MailNotFound))
             }

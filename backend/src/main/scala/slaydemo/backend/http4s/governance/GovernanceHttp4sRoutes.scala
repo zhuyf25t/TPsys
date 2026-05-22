@@ -3,7 +3,7 @@ package slaydemo.backend.http4s.governance
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
 import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentApiRequest,
@@ -20,7 +20,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.HttpApiErrors.apiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeEntityBody
@@ -135,21 +135,10 @@ private[http4s] object GovernanceHttp4sRoutes {
     governanceApiError(GovernanceApiErrorCode.fromReviewNotificationError(error))
 
   private def governanceApiError(code: GovernanceApiErrorCode): HttpApiError =
-    apiError(
-      status = governanceApiStatus(code),
+    typedApiError(
+      statusCode = GovernanceApiErrorCode.statusCode(code),
       code = GovernanceApiErrorCode.wireValue(code),
       message = GovernanceApiErrorCode.message(code)
     )
-
-  private def governanceApiStatus(code: GovernanceApiErrorCode): Status =
-    code match {
-      case GovernanceApiErrorCode.MethodNotAllowed => Status.MethodNotAllowed
-      case GovernanceApiErrorCode.InvalidActor     => Status.Forbidden
-      case GovernanceApiErrorCode.InvalidJsonObject => Status.BadRequest
-      case GovernanceApiErrorCode.InvalidTarget    => Status.BadRequest
-      case GovernanceApiErrorCode.InvalidDelta     => Status.BadRequest
-      case GovernanceApiErrorCode.InvalidKind      => Status.BadRequest
-      case GovernanceApiErrorCode.InvalidBody      => Status.BadRequest
-    }
 
 }

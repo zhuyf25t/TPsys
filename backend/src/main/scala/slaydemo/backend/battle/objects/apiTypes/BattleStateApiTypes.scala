@@ -141,24 +141,7 @@ object BattleStateResponse {
     BattleStateProjectileResponse.fromProjectile(projectile).asJson
 
   private def projectileTerminalJson(terminal: BattleProjectileTerminalState): Json =
-    Json.obj(
-      "projectileId" -> Json.fromString(terminal.projectileId.value),
-      "kind" -> Json.fromString(ProjectileKind.wireValue(terminal.projectileKind)),
-      "ownerPlayerId" -> Json.fromString(terminal.ownerPlayerId.value),
-      "ownerHeroId" -> Json.fromString(terminal.ownerHeroId.value),
-      "reason" -> Json.fromString(ProjectileTerminalReason.wireValue(terminal.reason)),
-      "start" -> vectorJson(terminal.start),
-      "end" -> vectorJson(terminal.end),
-      "terminalPosition" -> vectorJson(terminal.terminalPosition),
-      "ttlBefore" -> Json.fromLong(terminal.ttlBefore.value),
-      "ttlAfter" -> Json.fromLong(terminal.ttlAfter.value),
-      "elapsedMs" -> Json.fromLong(terminal.elapsedMs.value),
-      "targetPlayerId" -> optionalStringJson(terminal.targetPlayerId.map(_.value)),
-      "targetHeroId" -> optionalStringJson(terminal.targetHeroId.map(_.value)),
-      "hpBefore" -> optionalIntJson(terminal.hpBefore.map(_.value)),
-      "hpAfter" -> optionalIntJson(terminal.hpAfter.map(_.value)),
-      "damage" -> optionalIntJson(terminal.damage.map(_.value))
-    )
+    BattleStateProjectileTerminalResponse.fromTerminal(terminal).asJson
 
   private def slowFieldJson(field: BattleSlowFieldState): Json =
     BattleStateSlowFieldResponse.fromSlowField(field).asJson
@@ -321,6 +304,86 @@ private object BattleStateProjectileResponse {
       ttlMs = projectile.ttlMs.value,
       maxLifetimeMs = projectile.maxLifetimeMs.value,
       splashRadius = projectile.splashRadius.value
+    )
+}
+
+private final case class BattleStateProjectileTerminalResponse(
+  projectileId: String,
+  kind: String,
+  ownerPlayerId: String,
+  ownerHeroId: String,
+  reason: String,
+  start: BattleStateVectorResponse,
+  end: BattleStateVectorResponse,
+  terminalPosition: BattleStateVectorResponse,
+  ttlBefore: Long,
+  ttlAfter: Long,
+  elapsedMs: Long,
+  targetPlayerId: Option[String],
+  targetHeroId: Option[String],
+  hpBefore: Option[Int],
+  hpAfter: Option[Int],
+  damage: Option[Int]
+)
+
+private object BattleStateProjectileTerminalResponse {
+  given Encoder[BattleStateProjectileTerminalResponse] =
+    Encoder.forProduct16(
+      "projectileId",
+      "kind",
+      "ownerPlayerId",
+      "ownerHeroId",
+      "reason",
+      "start",
+      "end",
+      "terminalPosition",
+      "ttlBefore",
+      "ttlAfter",
+      "elapsedMs",
+      "targetPlayerId",
+      "targetHeroId",
+      "hpBefore",
+      "hpAfter",
+      "damage"
+    )((response: BattleStateProjectileTerminalResponse) =>
+      (
+        response.projectileId,
+        response.kind,
+        response.ownerPlayerId,
+        response.ownerHeroId,
+        response.reason,
+        response.start,
+        response.end,
+        response.terminalPosition,
+        response.ttlBefore,
+        response.ttlAfter,
+        response.elapsedMs,
+        response.targetPlayerId,
+        response.targetHeroId,
+        response.hpBefore,
+        response.hpAfter,
+        response.damage
+      )
+    )
+
+  def fromTerminal(terminal: BattleProjectileTerminalState): BattleStateProjectileTerminalResponse =
+    BattleStateProjectileTerminalResponse(
+      projectileId = terminal.projectileId.value,
+      kind = ProjectileKind.wireValue(terminal.projectileKind),
+      ownerPlayerId = terminal.ownerPlayerId.value,
+      ownerHeroId = terminal.ownerHeroId.value,
+      reason = ProjectileTerminalReason.wireValue(terminal.reason),
+      start = BattleStateVectorResponse.fromVector(terminal.start),
+      end = BattleStateVectorResponse.fromVector(terminal.end),
+      terminalPosition = BattleStateVectorResponse.fromVector(terminal.terminalPosition),
+      ttlBefore = terminal.ttlBefore.value,
+      ttlAfter = terminal.ttlAfter.value,
+      elapsedMs = terminal.elapsedMs.value,
+      targetPlayerId = terminal.targetPlayerId.map(_.value),
+      targetHeroId = terminal.targetHeroId.map(_.value),
+      hpBefore = terminal.hpBefore.map(_.value),
+      hpAfter = terminal.hpAfter.map(_.value),
+      damage = terminal.damage.map(_.value)
     )
 }
 

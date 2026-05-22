@@ -2,8 +2,6 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.CirceEntityEncoder.*
-import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.apiTypes.{
@@ -13,7 +11,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeJsonObjectBody, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, methodNotAllowedError, requestPath, typedApiError}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
@@ -44,7 +42,7 @@ private[http4s] object BattleRoomHttp4sRoutes {
               case Some(roomId) =>
                 blocking(queueService.roomSnapshot(roomId)).flatMap {
                   case Right(snapshot) =>
-                    Ok(RealtimeRoomSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
+                    jsonOk(RealtimeRoomSnapshotResponse.fromSnapshot(snapshot).asJson)
                   case Left(error) =>
                     errorResponse(roomApiError(error))
                 }
@@ -67,7 +65,7 @@ private[http4s] object BattleRoomHttp4sRoutes {
               case Right(command) =>
                 blocking(queueService.heartbeat(command)).flatMap {
                   case Right(snapshot) =>
-                    Ok(RealtimeRoomSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
+                    jsonOk(RealtimeRoomSnapshotResponse.fromSnapshot(snapshot).asJson)
                   case Left(error) =>
                     errorResponse(roomApiError(error))
                 }

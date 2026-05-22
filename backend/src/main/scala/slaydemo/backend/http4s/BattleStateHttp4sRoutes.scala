@@ -3,8 +3,6 @@ package slaydemo.backend.http4s
 import cats.effect.IO
 import fs2.Stream
 import io.circe.syntax.*
-import org.http4s.circe.CirceEntityEncoder.*
-import org.http4s.dsl.io.*
 import org.http4s.{Header, HttpRoutes, Method, Request, Response, Status}
 import org.typelevel.ci.CIString
 
@@ -14,7 +12,7 @@ import scala.concurrent.duration.*
 import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val InvalidBattleIdError =
@@ -39,7 +37,7 @@ private[http4s] object BattleStateHttp4sRoutes {
               case Some(battleId) =>
                 blocking(battleStateService.currentState(battleId)).flatMap {
                   case Right(state) =>
-                    Ok(BattleStateResponse.fromState(state).asJson).map(withCors)
+                    jsonOk(BattleStateResponse.fromState(state).asJson)
                   case Left(BattleStateReadError.BattleNotFound) =>
                     errorResponse(BattleNotFoundError)
                 }

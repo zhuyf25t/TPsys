@@ -3,7 +3,6 @@ package slaydemo.backend.http4s
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityEncoder.*
-import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.battle.objects.apiTypes.{
@@ -15,7 +14,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
 
 private[http4s] object BattleResultHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -40,7 +39,7 @@ private[http4s] object BattleResultHttp4sRoutes {
           case Method.GET =>
             BattleResultApiCodec.parseListRequest(request.params) match {
               case BattleResultListQueryDecodeResult.EmptyResults =>
-                Ok(BattleResultListResponse.Empty.asJson).map(withCors)
+                jsonOk(BattleResultListResponse.Empty.asJson)
               case BattleResultListQueryDecodeResult.Query(listRequest) =>
                 blocking(
                   service.list(
@@ -48,7 +47,7 @@ private[http4s] object BattleResultHttp4sRoutes {
                     battleId = listRequest.battleId,
                     limit = listRequest.limit
                   )
-                ).flatMap(records => Ok(BattleResultListResponse.fromRecords(records).asJson).map(withCors))
+                ).flatMap(records => jsonOk(BattleResultListResponse.fromRecords(records).asJson))
             }
           case Method.POST =>
             request.bodyText.compile.string.map(BattleResultApiCodec.parseRecordCommand).flatMap {

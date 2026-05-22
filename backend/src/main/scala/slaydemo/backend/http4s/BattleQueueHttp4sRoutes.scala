@@ -2,8 +2,6 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.CirceEntityEncoder.*
-import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.TicketId
@@ -24,7 +22,7 @@ import slaydemo.backend.battle.services.{
   BattleQueueService,
   BattleQueueStatusError
 }
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeJsonObjectBody, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, methodNotAllowedError, requestPath, typedApiError}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -67,7 +65,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
               case Some(ticketId) =>
                 blocking(service.status(ticketId)).flatMap {
                   case Right(snapshot) =>
-                    Ok(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
+                    jsonOk(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson)
                   case Left(BattleQueueStatusError.TicketNotFound) =>
                     errorResponse(TicketNotFoundError)
                 }
@@ -104,7 +102,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
                     errorResponse(IdentityMismatchError)
                   case Right(()) =>
                     blocking(queueService.join(command)).flatMap(snapshot =>
-                      Ok(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson).map(withCors)
+                      jsonOk(BattleQueueSnapshotResponse.fromSnapshot(snapshot).asJson)
                     )
                 }
             }
@@ -128,7 +126,7 @@ private[http4s] object BattleQueueHttp4sRoutes {
               case Right(ticketId) =>
                 blocking(queueService.leave(ticketId)).flatMap { outcome =>
                   val left = outcome == BattleQueueLeaveOutcome.LeftQueue
-                  Ok(BattleQueueLeaveAPIResponse(left).asJson).map(withCors)
+                  jsonOk(BattleQueueLeaveAPIResponse(left).asJson)
                 }
             }
           case _ =>

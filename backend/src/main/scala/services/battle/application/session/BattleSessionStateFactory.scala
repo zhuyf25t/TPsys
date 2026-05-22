@@ -3,10 +3,7 @@ package services.battle.application
 import services.battle.application.*
 
 import services.battle.objects.*
-import services.battle.engine.BattleArenaCatalog
-import services.battle.engine.BattleInitialLayout.*
-import services.battle.engine.BattleReplayFrameRecorder.captureFrame
-import services.battle.engine.BattleWeaponRules.createWeaponState
+import services.battle.engine.BattleEngine
 import services.identity.objects.DisplayName
 
 private[services] object BattleSessionStateFactory {
@@ -18,7 +15,7 @@ private[services] object BattleSessionStateFactory {
   ): BattleAggregateState = {
     val startedAt = if seed.descriptor.startedAt.value > 0L then seed.descriptor.startedAt else now
     val players = bootstrapSeats(seed.descriptor).map(toPlayerState)
-    val pickups = initialPickups
+    val pickups = BattleEngine.initialPickups
     BattleAggregateState(
       battleId = seed.descriptor.battleId,
       roomId = seed.roomId,
@@ -28,7 +25,7 @@ private[services] object BattleSessionStateFactory {
       durationMs = battleDuration,
       elapsedMs = ElapsedMillis(0L),
       endsAt = EpochMillis(startedAt.value + battleDuration.value),
-      worldSize = BattleArenaCatalog.WorldSize,
+      worldSize = BattleEngine.WorldSize,
       tick = BattleTick(0L),
       artifactStatus = BattleArtifactStatus.Pending,
       players = players,
@@ -36,7 +33,7 @@ private[services] object BattleSessionStateFactory {
       projectileTerminals = Vector.empty,
       slowFields = Vector.empty,
       pickups = pickups,
-      replayFrames = Vector(captureFrame(ElapsedMillis(0L), players, Vector.empty, pickups)),
+      replayFrames = Vector(BattleEngine.captureReplayFrame(ElapsedMillis(0L), players, Vector.empty, pickups)),
       events = Vector.empty,
       winnerPlayerId = None,
       winnerHeroId = None
@@ -63,7 +60,7 @@ private[services] object BattleSessionStateFactory {
     }.sortBy(_.seat.value)
 
   private def toPlayerState(seat: BattleSessionBootstrapSeat): BattlePlayerState = {
-    val weapon = createWeaponState(WeaponKind.Pistol)
+    val weapon = BattleEngine.createWeaponState(WeaponKind.Pistol)
 
     BattlePlayerState(
       playerId = seat.playerId,
@@ -72,10 +69,10 @@ private[services] object BattleSessionStateFactory {
       displayName = seat.displayName,
       seat = seat.seat,
       participantKind = seat.participantKind,
-      position = spawnPointFor(seat.spawnPointIndex),
+      position = BattleEngine.spawnPointFor(seat.spawnPointIndex),
       aim = BattleVector2(1.0, 0.0),
       facing = FacingRadians(0.0),
-      movement = BattleArenaCatalog.ZeroVector,
+      movement = BattleEngine.ZeroVector,
       sprint = false,
       primaryHeld = false,
       reloadPressed = false,

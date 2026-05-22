@@ -46,12 +46,9 @@ import services.battle.application.{
   BattleCommandSubmitError,
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
-  BattleQueueJoinCommand,
-  BattleQueueLeaveOutcome,
   BattleQueueService,
   BattleQueueStatusError,
   BattleRoomError,
-  BattleResultRecordCommand,
   BattleResultRecordError,
   BattleResultService,
   BattleFinishProjector,
@@ -63,8 +60,7 @@ import services.battle.application.{
   BattleFinishProjectionFailureReporter,
   BattleFinishProjectionOutcome,
   DefaultBattleFinishProjector,
-  InMemoryBattleStateService,
-  RealtimeRoomHeartbeatCommand
+  InMemoryBattleStateService
 }
 import services.identity.services.{
   IdentityCurrentSessionError,

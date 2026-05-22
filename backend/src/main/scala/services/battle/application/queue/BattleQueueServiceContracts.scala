@@ -4,7 +4,6 @@ import services.battle.application.*
 
 import services.battle.objects.*
 import services.battle.application.BattleSessionLookup
-import services.identity.objects.{PlayerHandle, SessionToken}
 
 enum BattleQueueStatusError {
   case TicketNotFound
@@ -13,12 +12,6 @@ enum BattleQueueStatusError {
 enum BattleRoomError {
   case MissingRoomId
   case RoomNotFound
-}
-
-enum BattleQueueLeaveOutcome {
-  case LeftQueue
-  case NotWaiting
-  case TicketNotFound
 }
 
 trait BattleRoomLifecycleSink {
@@ -43,18 +36,3 @@ trait BattleQueueService extends BattleSessionLookup with BattleRoomLifecycleSin
   /** 中文名：心跳（heartbeat）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
   def heartbeat(request: RealtimeRoomHeartbeatCommand): Either[BattleRoomError, RealtimeRoomSnapshot]
 }
-
-final case class BattleQueueJoinCommand(
-  handle: PlayerHandle,
-  sessionToken: SessionToken,
-  queueRequestId: Option[QueueRequestId],
-  rating: Option[Rating],
-  avatar: Option[String],
-  skin: Option[String]
-)
-
-final case class RealtimeRoomHeartbeatCommand(
-  roomId: Option[RoomId],
-  ticketId: Option[TicketId],
-  handle: Option[PlayerHandle]
-)

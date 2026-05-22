@@ -113,14 +113,14 @@ final class InMemoryBattleStateService(
   private def findOrInitialize(battleId: BattleId, now: EpochMillis): Option[StoredBattle] =
     battles.get(battleId).orElse {
       sessionLookup.activeBattleSession(battleId).map { seed =>
-        val storedBattle = BattleEngine.initialize(seed, battleDuration, now)
+        val storedBattle = BattleStoredBattleInitializationRules.fromSeed(seed, battleDuration, now)
         battles = battles.updated(battleId, storedBattle)
         storedBattle
       }
     }
 
   private def advanceStoredBattle(storedBattle: StoredBattle, now: EpochMillis): StoredBattle = {
-    val advanced = BattleEngine.advance(storedBattle, now)
+    val advanced = BattleStoredBattleAdvanceRules.advance(storedBattle, now)
     advanced.roomFinished.foreach(notification =>
       roomLifecycleSink.markBattleFinished(notification.roomId, notification.finishedAt)
     )

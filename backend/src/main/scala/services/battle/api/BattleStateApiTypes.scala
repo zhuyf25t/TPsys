@@ -4,7 +4,6 @@ import io.circe.{Decoder, Encoder, HCursor, Json, JsonObject}
 import io.circe.syntax.*
 
 import services.battle.objects.*
-import services.battle.application.BattleStateReadError
 
 enum BattleStateApiErrorCode {
   case InvalidBattleId
@@ -18,12 +17,6 @@ enum BattleStateReadAPIRequestError {
 }
 
 object BattleStateApiErrorCode {
-  def fromReadError(error: BattleStateReadError): BattleStateApiErrorCode =
-    error match {
-      case BattleStateReadError.BattleNotFound =>
-        BattleStateApiErrorCode.BattleNotFound
-    }
-
   def wireValue(code: BattleStateApiErrorCode): String =
     code match {
       case BattleStateApiErrorCode.InvalidBattleId =>

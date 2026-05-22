@@ -3,7 +3,7 @@ package services.battle.application
 import services.battle.application.*
 
 import services.battle.objects.*
-import services.battle.engine.BattleInputRules.lastClientCommandSeq
+import services.battle.engine.BattleEngine
 
 private[services] object BattleCommandAcceptanceFactory {
   /** 中文名：ignored（ignored）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态。 */
@@ -32,7 +32,7 @@ private[services] object BattleCommandAcceptanceFactory {
     BattleCommandAccepted(
       battleId = state.battleId,
       acceptedTick = state.tick,
-      acceptedCommandSeq = lastClientCommandSeq(state, playerId),
+      acceptedCommandSeq = BattleEngine.lastClientCommandSeq(state, playerId),
       serverTime = serverTime,
       commandStatus = BattleCommandStatus.Applied,
       commandReason = None,

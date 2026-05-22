@@ -2,7 +2,7 @@ package services.battle.application
 
 import services.battle.application.*
 
-import services.battle.objects.EpochMillis
+import services.battle.objects.{EpochMillis, RealtimeRoomHeartbeatCommand}
 import services.identity.objects.PlayerHandle
 import system.policies.HandlePolicy
 

@@ -2,6 +2,7 @@ package services.battle.application
 
 import services.battle.application.*
 
+import services.battle.objects.BattleQueueJoinCommand
 import services.identity.services.IdentityService
 import system.policies.HandlePolicy
 

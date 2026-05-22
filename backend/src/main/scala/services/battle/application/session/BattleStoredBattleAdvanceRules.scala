@@ -3,9 +3,7 @@ package services.battle.application
 import services.battle.application.*
 
 import services.battle.objects.*
-import services.battle.engine.BattleRuntimeFinishRules.finishedAtForRoom
-import services.battle.engine.BattleRuntimeCatalog
-import services.battle.engine.BattleRuntimeStepRules.advanceStateStep
+import services.battle.engine.BattleEngine
 
 private[battle] final case class BattleRoomFinishedNotification(
   roomId: RoomId,
@@ -36,18 +34,18 @@ private[battle] object BattleStoredBattleAdvanceRules {
     else {
       val elapsedSinceLastUpdate = math.max(0L, safeNow.value - storedBattle.lastUpdatedAt.value)
       val accumulatedMs = storedBattle.pendingStepMs + elapsedSinceLastUpdate
-      val steps = accumulatedMs / BattleRuntimeCatalog.TickStep.value
-      val remainderMs = accumulatedMs % BattleRuntimeCatalog.TickStep.value
+      val steps = accumulatedMs / BattleEngine.TickStep.value
+      val remainderMs = accumulatedMs % BattleEngine.TickStep.value
 
       val advancedState =
-        if steps <= 0L then advanceStateStep(storedBattle.state, 0L, safeNow)
+        if steps <= 0L then BattleEngine.advanceStateStep(storedBattle.state, 0L, safeNow)
         else {
           val steppedThroughAt = safeNow.value - remainderMs
           val steppedState = (0L until steps).foldLeft(storedBattle.state) { case (currentState, stepIndex) =>
-            val stepNow = EpochMillis(steppedThroughAt - ((steps - stepIndex - 1L) * BattleRuntimeCatalog.TickStep.value))
-            advanceStateStep(currentState, BattleRuntimeCatalog.TickStep.value, stepNow)
+            val stepNow = EpochMillis(steppedThroughAt - ((steps - stepIndex - 1L) * BattleEngine.TickStep.value))
+            BattleEngine.advanceStateStep(currentState, BattleEngine.TickStep.value, stepNow)
           }
-          advanceStateStep(steppedState, 0L, safeNow)
+          BattleEngine.advanceStateStep(steppedState, 0L, safeNow)
         }
 
       BattleStoredBattleAdvanceResult(
@@ -66,6 +64,6 @@ private[battle] object BattleStoredBattleAdvanceRules {
     nextState: BattleAggregateState
   ): Option[BattleRoomFinishedNotification] =
     Option.when(previousState.phase != BattlePhase.Finished && nextState.phase == BattlePhase.Finished) {
-      BattleRoomFinishedNotification(nextState.roomId, finishedAtForRoom(nextState))
+      BattleRoomFinishedNotification(nextState.roomId, BattleEngine.finishedAtForRoom(nextState))
     }
 }

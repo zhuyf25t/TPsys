@@ -11,9 +11,9 @@ import services.battle.objects.{
   EpochMillis,
   Rating,
   RatingDelta,
-  Score
+  Score,
+  BattleResultRecordCommand
 }
-import services.battle.application.BattleResultRecordCommand
 import services.identity.objects.{DisplayName, PlayerHandle}
 import system.policies.HandlePolicy
 

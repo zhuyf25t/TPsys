@@ -4,7 +4,7 @@ import services.battle.application.*
 
 import services.battle.persistence.{BattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.objects.*
-import services.identity.objects.{DisplayName, PlayerHandle}
+import services.identity.objects.PlayerHandle
 import system.policies.HandlePolicy
 
 enum BattleResultRecordError {
@@ -17,28 +17,6 @@ trait BattleResultService {
 
   def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord]
 }
-
-final case class BattleResultRecordCommand(
-  battleId: BattleId,
-  handle: PlayerHandle,
-  displayName: DisplayName,
-  finishedAt: EpochMillis,
-  finishedAtLabel: String,
-  durationMs: DurationMillis,
-  score: Score,
-  placement: Option[BattlePlacement],
-  survivalOutcome: BattleSurvivalOutcome,
-  ratingBefore: Rating,
-  ratingDelta: RatingDelta,
-  ratingAfter: Rating,
-  resultLabel: String,
-  modeLabel: String,
-  mapLabel: String,
-  highlightLine: String,
-  playersLine: String,
-  timelineHint: String,
-  currentLoadout: Option[String]
-)
 
 final class DefaultBattleResultService(repository: BattleResultRepository) extends BattleResultService {
   override def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord] =

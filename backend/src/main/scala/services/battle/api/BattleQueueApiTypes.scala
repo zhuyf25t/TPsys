@@ -4,14 +4,6 @@ import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 import io.circe.generic.semiauto.deriveEncoder
 
 import services.battle.objects.*
-import services.battle.application.{
-  BattleQueueJoinAuthorizationError,
-  BattleQueueJoinCommand,
-  BattleQueueLeaveOutcome,
-  BattleQueueStatusError,
-  BattleRoomError,
-  RealtimeRoomHeartbeatCommand
-}
 import services.identity.objects.{PlayerHandle, SessionToken}
 
 enum BattleQueueJoinAPIRequestError {
@@ -46,12 +38,6 @@ enum BattleQueueApiErrorCode {
 }
 
 object BattleQueueApiErrorCode {
-  def fromStatusError(error: BattleQueueStatusError): BattleQueueApiErrorCode =
-    error match {
-      case BattleQueueStatusError.TicketNotFound =>
-        BattleQueueApiErrorCode.TicketNotFound
-    }
-
   def fromJoinRequestError(error: BattleQueueJoinAPIRequestError): BattleQueueApiErrorCode =
     error match {
       case BattleQueueJoinAPIRequestError.InvalidJsonObject =>
@@ -62,14 +48,6 @@ object BattleQueueApiErrorCode {
         BattleQueueApiErrorCode.InvalidHandle
       case BattleQueueJoinAPIRequestError.MissingSession =>
         BattleQueueApiErrorCode.MissingSession
-    }
-
-  def fromJoinAuthorizationError(error: BattleQueueJoinAuthorizationError): BattleQueueApiErrorCode =
-    error match {
-      case BattleQueueJoinAuthorizationError.InvalidSession =>
-        BattleQueueApiErrorCode.InvalidSession
-      case BattleQueueJoinAuthorizationError.HandleMismatch =>
-        BattleQueueApiErrorCode.IdentityMismatch
     }
 
   def fromLeaveRequestError(error: BattleQueueLeaveAPIRequestError): BattleQueueApiErrorCode =
@@ -300,14 +278,6 @@ object BattleRoomApiErrorCode {
     error match {
       case RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject =>
         BattleRoomApiErrorCode.InvalidJsonObject
-    }
-
-  def fromRoomError(error: BattleRoomError): BattleRoomApiErrorCode =
-    error match {
-      case BattleRoomError.MissingRoomId =>
-        BattleRoomApiErrorCode.InvalidRoomId
-      case BattleRoomError.RoomNotFound =>
-        BattleRoomApiErrorCode.RoomNotFound
     }
 
   def wireValue(code: BattleRoomApiErrorCode): String =

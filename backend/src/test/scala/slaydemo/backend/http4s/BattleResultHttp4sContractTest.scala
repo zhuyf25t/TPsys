@@ -1,13 +1,13 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.headers.`Content-Type`
 import org.http4s.{MediaType, Method, Request, Uri}
 import org.http4s.implicits.uri
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.{BattleResultRecordCommand, BattleResultRecordError, BattleResultService}
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 
 object BattleResultHttp4sContractTest {
@@ -92,19 +92,15 @@ object BattleResultHttp4sContractTest {
 
   private def get(service: RecordingBattleResultService, targetUri: Uri): RouteResponse = {
     val request = Request[IO](method = Method.GET, uri = targetUri)
-    val response = BattleResultHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(BattleResultHttp4sRoutes.routes(service), request)
   }
 
   private def postJson(service: RecordingBattleResultService, targetUri: Uri, body: String): RouteResponse = {
     val request = Request[IO](method = Method.POST, uri = targetUri)
       .withEntity(body)
       .putHeaders(`Content-Type`(MediaType.application.json))
-    val response = BattleResultHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(BattleResultHttp4sRoutes.routes(service), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingBattleResultService extends BattleResultService {
     var records: Vector[BattleResultRecord] = Vector.empty

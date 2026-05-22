@@ -1,13 +1,13 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.headers.`Content-Type`
 import org.http4s.{MediaType, Method, Request, Uri}
 import org.http4s.implicits.uri
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
 
 object BattleQueueHttp4sJoinContractTest {
@@ -137,15 +137,8 @@ object BattleQueueHttp4sJoinContractTest {
     val request = Request[IO](method = Method.POST, uri = targetUri)
       .withEntity(body)
       .putHeaders(`Content-Type`(MediaType.application.json))
-    val response = BattleQueueHttp4sRoutes
-      .joinRoutes(queueService, authService)
-      .orNotFound
-      .run(request)
-      .unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(BattleQueueHttp4sRoutes.joinRoutes(queueService, authService), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingBattleQueueService extends BattleQueueService {
     private var recordedCommands: Vector[BattleQueueJoinCommand] = Vector.empty

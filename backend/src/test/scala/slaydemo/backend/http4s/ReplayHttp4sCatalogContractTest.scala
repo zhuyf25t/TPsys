@@ -1,7 +1,6 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.{Method, Request}
 import org.http4s.implicits.uri
 
@@ -15,6 +14,7 @@ import slaydemo.backend.battle.objects.{
   RatingDelta,
   Score
 }
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.replay.objects.{
   ReplayCommentId,
@@ -182,8 +182,7 @@ object ReplayHttp4sCatalogContractTest {
   }
 
   private def run(service: RecordingReplayService, request: Request[IO]): RouteResponse = {
-    val response = ReplayHttp4sRoutes.catalogRoutes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(ReplayHttp4sRoutes.catalogRoutes(service), request)
   }
 
   private def replayRecord(): ReplayRecord =
@@ -246,8 +245,6 @@ object ReplayHttp4sCatalogContractTest {
 
   private val ValidRecordJson: String =
     """{"replayId":"route-post-replay","battleId":"battle-route","handle":"Alice","displayName":"Alice","finishedAt":1000,"finishedAtLabel":"Finished","title":"Route Replay","modeLabel":"Arena","resultLabel":"Victory","mapLabel":"Map","highlightLine":"Great","coverLabel":"Cover","playersLine":"Alice | Bob","timelineHint":"Done","score":12,"placement":1,"durationMs":1800,"aliveAtEnd":true,"thumbnailDataUrl":null,"currentLoadout":"Pistol","frameCount":2,"playbackAvailable":true,"frames":[{"elapsedMs":0},{"elapsedMs":16}]}"""
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingReplayService(records: Vector[ReplayRecord]) extends ReplayService {
     private var recordedRecordCommands: Vector[ReplayRecordCommand] =

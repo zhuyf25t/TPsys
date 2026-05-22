@@ -1,7 +1,6 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.implicits.uri
 import org.http4s.{Method, Request}
 
@@ -27,6 +26,7 @@ import slaydemo.backend.forum.services.{
   SetForumReplyVoteCommand,
   SetForumTopicVoteCommand
 }
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.PlayerHandle
 
 object ForumHttp4sContractTest {
@@ -197,11 +197,8 @@ object ForumHttp4sContractTest {
   }
 
   private def run(service: ForumService, request: Request[IO]): RouteResponse = {
-    val response = ForumHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(ForumHttp4sRoutes.routes(service), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingForumService extends ForumService {
     var topics: Vector[ForumTopicView] = Vector(topicView())

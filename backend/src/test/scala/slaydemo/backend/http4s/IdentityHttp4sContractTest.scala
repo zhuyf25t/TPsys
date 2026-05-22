@@ -1,11 +1,11 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.implicits.uri
 import org.http4s.{Header, Headers, Method, Request}
 import org.typelevel.ci.CIString
 
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.api.IdentityAccountSummary
 import slaydemo.backend.identity.objects.{IdentityAccount, PlayerHandle, SessionToken, SkinId}
 import slaydemo.backend.identity.services.{
@@ -201,14 +201,11 @@ object IdentityHttp4sContractTest {
   }
 
   private def run(service: IdentityService, request: Request[IO]): RouteResponse = {
-    val response = IdentityHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(IdentityHttp4sRoutes.routes(service), request)
   }
 
   private def headers(name: String, value: String): Headers =
     Headers(Header.Raw(CIString(name), value))
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingIdentityService extends IdentityService {
     var registerResults: Vector[Either[IdentityRegistrationError, IdentityAccount]] = Vector.empty

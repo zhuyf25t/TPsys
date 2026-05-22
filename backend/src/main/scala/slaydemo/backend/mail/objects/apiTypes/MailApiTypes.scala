@@ -1,6 +1,6 @@
 package slaydemo.backend.mail.objects.apiTypes
 
-import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
+import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
 
 import slaydemo.backend.identity.objects.PlayerHandle
 import slaydemo.backend.mail.objects.{MailFriendRequestStatus, MailKind, MailRecord}
@@ -137,31 +137,47 @@ final case class MailItemResponse(
 
 object MailItemResponse {
   given Encoder[MailItemResponse] =
-    Encoder.instance { item =>
-      Json.obj(
-        (
-          Vector(
-            "id" -> Json.fromString(item.id),
-            "ownerHandle" -> Json.fromString(item.ownerHandle),
-            "kind" -> Json.fromString(item.kind),
-            "subject" -> Json.fromString(item.subject),
-            "excerpt" -> Json.fromString(item.excerpt),
-            "senderLabel" -> Json.fromString(item.senderLabel),
-            "unread" -> Json.fromBoolean(item.unread),
-            "important" -> Json.fromBoolean(item.important),
-            "createdAt" -> Json.fromLong(item.createdAt)
-          ) ++ optionalStringField("sourceBattleId", item.sourceBattleId) ++
-            optionalStringField("sourcePath", item.sourcePath) ++
-            optionalStringField("sourceLabel", item.sourceLabel) ++
-            optionalStringField("friendRequestId", item.friendRequestId) ++
-            optionalStringField("friendRequestStatus", item.friendRequestStatus) ++
-            optionalStringField("friendRequestSourceHandle", item.friendRequestSourceHandle) ++
-            optionalStringField("governanceActorHandle", item.governanceActorHandle) ++
-            optionalStringField("governanceTargetPath", item.governanceTargetPath) ++
-            optionalStringField("governanceTargetLabel", item.governanceTargetLabel)
-        )*
+    Encoder.forProduct18(
+      "id",
+      "ownerHandle",
+      "kind",
+      "subject",
+      "excerpt",
+      "senderLabel",
+      "unread",
+      "important",
+      "createdAt",
+      "sourceBattleId",
+      "sourcePath",
+      "sourceLabel",
+      "friendRequestId",
+      "friendRequestStatus",
+      "friendRequestSourceHandle",
+      "governanceActorHandle",
+      "governanceTargetPath",
+      "governanceTargetLabel"
+    )((item: MailItemResponse) =>
+      (
+        item.id,
+        item.ownerHandle,
+        item.kind,
+        item.subject,
+        item.excerpt,
+        item.senderLabel,
+        item.unread,
+        item.important,
+        item.createdAt,
+        optionalString(item.sourceBattleId),
+        optionalString(item.sourcePath),
+        optionalString(item.sourceLabel),
+        optionalString(item.friendRequestId),
+        optionalString(item.friendRequestStatus),
+        optionalString(item.friendRequestSourceHandle),
+        optionalString(item.governanceActorHandle),
+        optionalString(item.governanceTargetPath),
+        optionalString(item.governanceTargetLabel)
       )
-    }
+    ).mapJson(_.dropNullValues)
 
   def fromRecord(record: MailRecord): MailItemResponse =
     MailItemResponse(
@@ -185,8 +201,8 @@ object MailItemResponse {
       governanceTargetLabel = record.governanceMetadata.map(_.targetLabel.value)
     )
 
-  private def optionalStringField(key: String, value: Option[String]): Vector[(String, Json)] =
-    value.filter(_.trim.nonEmpty).map(text => Vector(key -> Json.fromString(text))).getOrElse(Vector.empty)
+  private def optionalString(value: Option[String]): Option[String] =
+    value.filter(_.trim.nonEmpty)
 }
 
 final case class MailListResponse(mails: Vector[MailItemResponse])

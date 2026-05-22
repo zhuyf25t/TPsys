@@ -2,7 +2,7 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request}
+import org.http4s.{HttpRoutes, Method, Request, Status}
 
 import slaydemo.backend.battle.objects.BattleCommandRequest
 import slaydemo.backend.battle.objects.apiTypes.{
@@ -13,25 +13,45 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, methodNotAllowedError, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, requestPath}
 
 private[http4s] object BattleCommandHttp4sRoutes {
   private val InvalidJsonObjectError =
-    typedApiError(
-      statusCode = 400,
-      code = "bad_request",
-      message = "Request body must be a JSON object with supported primitive or object fields."
+    apiError(
+      Status.BadRequest,
+      "bad_request",
+      "Request body must be a JSON object with supported primitive or object fields."
     )
   private val MethodNotAllowedError =
-    methodNotAllowedError("Only POST and OPTIONS are supported.")
+    apiError(
+      Status.MethodNotAllowed,
+      "method_not_allowed",
+      "Only POST and OPTIONS are supported."
+    )
   private val CommandNotAuthorizedError =
-    codeMessageError(statusCode = 403, code = "command_not_authorized")
+    apiError(
+      Status.Forbidden,
+      "command_not_authorized",
+      "command_not_authorized"
+    )
   private val BattleNotFoundError =
-    codeMessageError(statusCode = 404, code = "battle_not_found")
+    apiError(
+      Status.NotFound,
+      "battle_not_found",
+      "battle_not_found"
+    )
   private val PlayerNotFoundError =
-    codeMessageError(statusCode = 400, code = "player_not_found")
+    apiError(
+      Status.BadRequest,
+      "player_not_found",
+      "player_not_found"
+    )
   private val BotCommandsNotSupportedError =
-    codeMessageError(statusCode = 400, code = "bot_commands_not_supported")
+    apiError(
+      Status.BadRequest,
+      "bot_commands_not_supported",
+      "bot_commands_not_supported"
+    )
 
   def routes(battleStateService: BattleStateService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
@@ -76,6 +96,10 @@ private[http4s] object BattleCommandHttp4sRoutes {
 
   private def invalidFieldError(field: BattleCommandRequestField): HttpApiError = {
     val code = BattleCommandRequestField.errorCode(field)
-    codeMessageError(statusCode = 400, code = code)
+    apiError(
+      Status.BadRequest,
+      code,
+      code
+    )
   }
 }

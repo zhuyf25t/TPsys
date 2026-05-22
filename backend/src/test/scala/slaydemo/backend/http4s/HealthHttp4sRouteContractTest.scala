@@ -4,6 +4,7 @@ import cats.effect.IO
 import org.http4s.{Method, Request}
 import org.http4s.implicits.uri
 
+import slaydemo.backend.http4s.health.HealthHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.shared.api.{HealthResponse, HealthStatus}
 import slaydemo.backend.shared.objects.{ServiceName, ServicePort}

@@ -41,7 +41,11 @@ object BackendApiBoundaryContractTest {
   private val ForbiddenHttp4sRouteFragments: Vector[String] =
     Vector(
       "apiError(status =",
-      "apiError(Status."
+      "apiError(Status.",
+      "import slaydemo.backend.http4s.HttpApiErrors.apiError",
+      "HttpApiErrors.{apiError",
+      "apiError,",
+      "apiError}"
     )
 
   private val ForbiddenLegacyHttpServerFragments: Vector[String] =

@@ -3,7 +3,7 @@ package slaydemo.backend.http4s
 import org.http4s.Status
 
 private[http4s] object HttpApiErrors {
-  def apiError(status: Status, code: String, message: String): HttpApiError =
+  private def apiError(status: Status, code: String, message: String): HttpApiError =
     HttpApiError(status, code, message)
 
   def typedApiError(statusCode: Int, code: String, message: String): HttpApiError =

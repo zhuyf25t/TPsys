@@ -20,7 +20,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -58,27 +58,27 @@ private[http4s] object ForumHttp4sRoutes {
           case Method.POST if ForumApiTargetParsers.isTopicVotesPath(requestPath(request)) =>
             setTopicVote(request, service)
           case _ =>
-            IO.pure(apiError(MethodNotAllowedError))
+            errorResponse(MethodNotAllowedError)
         }
     }
 
   private def loadTopic(request: Request[IO], service: ForumService): IO[Response[IO]] =
     ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
       case None =>
-        IO.pure(apiError(TopicNotFoundError))
+        errorResponse(TopicNotFoundError)
       case Some(topicId) =>
         blocking(service.loadTopic(topicId, viewerHandle(request))).flatMap {
           case Some(topic) =>
             Ok(ForumTopicWrapperResponse.fromView(topic).asJson).map(withCors)
           case None =>
-            IO.pure(apiError(TopicNotFoundError))
+            errorResponse(TopicNotFoundError)
         }
     }
 
   private def createTopic(request: Request[IO], service: ForumService): IO[Response[IO]] =
     parseBody(request).flatMap {
       case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-        IO.pure(apiError(InvalidJsonObjectError))
+        errorResponse(InvalidJsonObjectError)
       case Right(fields) =>
         fields.toCreateTopicCommand match {
           case Right(command) =>
@@ -89,22 +89,22 @@ private[http4s] object ForumHttp4sRoutes {
                 apiError(createApiError(error))
             }
           case Left(error) =>
-            IO.pure(apiError(createApiError(error)))
+            errorResponse(createApiError(error))
         }
     }
 
   private def addReply(request: Request[IO], service: ForumService): IO[Response[IO]] =
     ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
       case None =>
-        IO.pure(apiError(TopicNotFoundError))
+        errorResponse(TopicNotFoundError)
       case Some(topicId) =>
         parseBody(request).flatMap {
           case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-            IO.pure(apiError(InvalidJsonObjectError))
+            errorResponse(InvalidJsonObjectError)
           case Right(fields) =>
             fields.toAddReplyCommand(topicId) match {
               case Left(error) =>
-                IO.pure(apiError(mutationApiError(error)))
+                errorResponse(mutationApiError(error))
               case Right(command) =>
                 blocking(service.addReply(command)).map {
                   case Right(topic) =>
@@ -119,15 +119,15 @@ private[http4s] object ForumHttp4sRoutes {
   private def setTopicVote(request: Request[IO], service: ForumService): IO[Response[IO]] =
     ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
       case None =>
-        IO.pure(apiError(TopicNotFoundError))
+        errorResponse(TopicNotFoundError)
       case Some(topicId) =>
         parseBody(request).flatMap {
           case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-            IO.pure(apiError(InvalidJsonObjectError))
+            errorResponse(InvalidJsonObjectError)
           case Right(fields) =>
             fields.toSetTopicVoteCommand(topicId) match {
               case Left(error) =>
-                IO.pure(apiError(voteCommandApiError(error)))
+                errorResponse(voteCommandApiError(error))
               case Right(command) =>
                 blocking(service.setTopicVote(command)).map {
                   case Right(topic) =>
@@ -147,11 +147,11 @@ private[http4s] object ForumHttp4sRoutes {
       case (Some(topicId), Some(replyId)) =>
         parseBody(request).flatMap {
           case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-            IO.pure(apiError(InvalidJsonObjectError))
+            errorResponse(InvalidJsonObjectError)
           case Right(fields) =>
             fields.toSetReplyVoteCommand(topicId, replyId) match {
               case Left(error) =>
-                IO.pure(apiError(voteCommandApiError(error)))
+                errorResponse(voteCommandApiError(error))
               case Right(command) =>
                 blocking(service.setReplyVote(command)).map {
                   case Right(topic) =>
@@ -162,7 +162,7 @@ private[http4s] object ForumHttp4sRoutes {
             }
         }
       case _ =>
-        IO.pure(apiError(ReplyNotFoundError))
+        errorResponse(ReplyNotFoundError)
     }
 
   private def parseBody(request: Request[IO]): IO[Either[ForumApiRequestDecodeError, ForumRequestFields]] =

@@ -40,11 +40,13 @@ Do not sacrifice these principles merely to make the quickest implementation.
 
 ### P3: Keep work small and reviewable
 
-- Work in small tickets.
-- Limit file scope.
-- Avoid broad cross-layer changes in one step.
+- Work in small, coherent tickets.
+- Reviewable means architecture-coherent, not file-minimal.
+- Define scope by architectural boundary first: a business vertical slice, one contract/codec surface, one package migration wave, one storage adapter family, or one compile-stabilization wave.
+- Limit blast radius within that boundary.
+- Avoid broad unrelated cross-layer changes in one step.
 - Avoid unrelated cleanup.
-- Avoid touching files outside the current ticket scope unless necessary.
+- Avoid touching files outside the current ticket boundary unless necessary.
 
 ### P4: Style and cleanup
 
@@ -64,7 +66,7 @@ Your default loop is:
 2. Identify useful work that improves correctness, architecture, domain modeling, tests, or maintainability.
 3. Create or update a small internal backlog.
 4. Select exactly one highest-priority ticket.
-5. Define the ticket scope before editing.
+5. Define the ticket's architectural boundary before editing.
 6. Implement only that ticket.
 7. Run the relevant checks.
 8. Review your own diff against this `AGENTS.md`.
@@ -87,7 +89,7 @@ The main agent is responsible for:
 
 - Planning the backlog.
 - Choosing the next ticket.
-- Defining scope.
+- Defining architectural boundaries.
 - Preserving architecture.
 - Deciding whether subagents are useful.
 - Reviewing and integrating subagent work.
@@ -109,7 +111,7 @@ Do not use subagents for everything. Use them when they reduce context pollution
 
 When spawning subagents:
 
-- Give each subagent a narrow scope.
+- Give each subagent a narrow architectural boundary.
 - Give each subagent a clear output format.
 - Do not allow subagents to broaden the task.
 - Do not allow recursive delegation unless explicitly requested.
@@ -138,8 +140,9 @@ Each ticket must include:
 - ID
 - Goal
 - Why this matters
-- Allowed files or directories
-- Forbidden files or directories
+- Allowed architectural boundary
+- Allowed files or directories only when they prevent ambiguity
+- Forbidden files, directories, or boundaries
 - Expected change
 - Architecture/domain-modeling impact
 - Side-effect boundary impact
@@ -148,6 +151,8 @@ Each ticket must include:
 - Risks
 
 A good ticket is small enough to be completed and verified in one coherent step.
+
+Do not make tickets file-minimal when the real unit of correctness is a contract, codec, package migration, storage adapter, or business vertical slice.
 
 Bad ticket shape:
 
@@ -165,20 +170,30 @@ Good ticket shape:
 - “Add tests for account deposit state transition”
 - “Create value types for `StudentId` and `CourseId` in enrollment domain”
 
+Additional good ticket shapes for this backend rewrite:
+
+- "Stabilize the health route package migration across route, system objects, and contract tests"
+- "Replace hand-written file JSON rendering for one storage adapter family with Circe codecs"
+- "Align one API contract surface across request DTOs, route decoding, service commands, and focused contract tests"
+
 ---
 
 ## 5. Scope Discipline
 
-Before implementing a ticket, define the allowed scope.
+Before implementing a ticket, define the allowed architectural boundary.
 
-Do not edit files outside the allowed scope unless all are true:
+Do not edit files outside the allowed boundary unless all are true:
 
 1. The change is necessary for the ticket.
 2. The change is minimal.
 3. You explain why it was needed.
 4. You include it in the final report.
 
-If the work requires a broader change than expected, stop and re-plan into smaller tickets.
+If the compiler, type checker, or tests reveal additional required edits inside the same architectural boundary, you may include them in the current ticket and explain the expansion.
+
+If the work crosses into a different business capability, persistence format, frontend behavior, dependency policy, or data migration, stop and re-plan.
+
+If the work requires a broader architectural change than expected, stop and re-plan into a coherent boundary-level ticket rather than splitting the same boundary into arbitrary file-level tickets.
 
 Do not silently expand the ticket.
 
@@ -437,8 +452,11 @@ Contains:
 - response formatting
 - mapping API DTOs to domain commands
 - mapping domain results to HTTP/API responses
+- contract and codec types for the wire/API boundary
 
 Should not contain core domain rules.
+
+`apiTypes` or equivalent contract packages are boundary code. They may contain DTOs, Circe codecs, route-target parsers, and conversion into domain commands/results. They should not own core business decisions.
 
 ### Repository/database layer
 
@@ -465,7 +483,61 @@ External effects belong here or in clearly named boundary services.
 
 ---
 
-## 14. Naming Rules
+## 14. Module Dependency Rules
+
+Business modules should depend on contracts, ports, or application services rather than each other's storage or implementation details.
+
+Do not split business logic into separate packages if the split makes those packages call each other's internal code frequently. A package boundary is useful only when it creates a clearer dependency direction, smaller public surface, or replaceable port. If two business logic blocks need dense mutual calls, keep them in the same cohesive boundary or introduce a higher-level orchestrator instead of making them import each other.
+
+Inside a business module, subpackages should follow the same rule: pure objects may be shared, but rules, runtime, projections, application services, and adapters should not freely reach into each other's internals. Cross-subpackage collaboration should go through a narrow public interface, command/result type, event, projection plan, or port.
+
+Prefer:
+
+- routes -> service interfaces -> repositories/adapters
+- application orchestration -> multiple service interfaces
+- domain events, projection plans, or command/result DTOs for cross-module handoff
+- ports for calls from one business capability into another capability
+- cohesive package boundaries over artificial folder splits that increase imports
+
+Avoid:
+
+- one business service directly calling another business module's repository
+- a domain model importing another module's routes, repositories, or adapters
+- circular imports between business modules
+- package objects that re-export so broadly that dependency direction becomes invisible
+- separating rules/runtime/projections/application code into different packages when the result is a web of internal imports rather than a directed dependency graph
+
+Battle may produce result, replay, rating, and mail plans, but persistence of those artifacts should happen through clearly named application orchestration or adapter boundaries. Do not let battle simulation rules directly own mail, replay browsing, governance, or profile storage semantics.
+
+---
+
+## 15. Modern Scala 3 and Library Use
+
+Use modern Scala 3 and the libraries already integrated in the backend before writing low-level plumbing by hand.
+
+Prefer:
+
+- `enum`, `case class`, opaque/value classes where appropriate, pattern matching, extension methods, and `given` instances
+- `cats-effect` for effect boundaries and blocking isolation
+- `http4s` and `http4s-circe` for HTTP request/response decoding and encoding
+- Circe `Encoder`, `Decoder`, `deriveEncoder`, `deriveDecoder`, parser APIs, and shared codec helpers for JSON
+- small reusable codec/parser helpers at the boundary when custom validation is truly needed
+
+Avoid:
+
+- hand-written JSON string rendering
+- hand-written JSON escaping/unescaping
+- regex-based JSON parsing
+- duplicating optional field, number, enum, or string parsing in every endpoint
+- manual `Encoder.forProductN` boilerplate when derivation or a shared codec is sufficient
+
+Manual JSON handling is allowed only in a documented compatibility boundary, such as a legacy file format or migration reader that cannot be represented safely with the available libraries. Even there, prefer Circe cursors/parsers first and keep the compatibility code isolated.
+
+Adding a new dependency is allowed only as its own small ticket with a clear reason, alternatives considered, blast radius, and verification plan. Do not add dependencies incidentally while fixing unrelated code.
+
+---
+
+## 16. Naming Rules
 
 Names should reveal whether code is pure or effectful.
 
@@ -483,6 +555,8 @@ Be suspicious if these perform I/O or mutation:
 - `canShip`
 - `isAllowed`
 
+Pure parsing/decoding functions are acceptable when they live in an API, codec, migration, or adapter boundary and are deterministic. Name effectful parsing that reads files, calls services, or touches global state as `load`, `read`, `fetch`, or another effect-revealing name.
+
 Effectful functions should have names or locations that make effects obvious, such as:
 
 - `save`
@@ -499,7 +573,7 @@ Do not hide database/network/file effects in domain functions.
 
 ---
 
-## 15. Verification Rules
+## 17. Verification Rules
 
 After code changes, run the most relevant checks available.
 
@@ -536,7 +610,7 @@ If checks are unavailable, too expensive, or blocked, say so explicitly.
 
 ---
 
-## 16. Self-Review After Every Ticket
+## 18. Self-Review After Every Ticket
 
 After every ticket, review your own diff.
 
@@ -561,18 +635,21 @@ Check these items:
 - Did I put database/network/file/logging/time/random/global-state effects inside domain code?
 - Are effects confined to application, repository, route, or infrastructure boundaries?
 - Does the function name honestly reveal whether it is pure or effectful?
+- Did I introduce hand-written JSON rendering/parsing where existing Circe/http4s-circe support would be safer?
 
 ### Architecture
 
 - Did I respect layer boundaries?
+- Did I respect business module dependency direction?
+- Did cross-module collaboration go through a service interface, port, event, or projection plan instead of another module's repository?
 - Did I create or worsen a god service?
 - Did I introduce circular dependencies?
 - Did I keep the change small?
 
 ### Scope
 
-- Did I edit only allowed files?
-- If I edited extra files, did I explain why?
+- Did I stay inside the allowed architectural boundary?
+- If I edited extra files inside that boundary, did I explain why?
 
 ### Verification
 
@@ -589,17 +666,20 @@ If self-review finds a problem, fix it before moving to the next ticket.
 
 ---
 
-## 17. Red Flags
+## 19. Red Flags
 
 Stop and re-plan if any red flag appears.
 
 Red flags:
 
 - The ticket requires editing many unrelated modules.
+- The ticket treats one architecture boundary as many file-level tickets without a correctness reason.
 - A domain model appears to need database/network/UI access.
 - A Boolean result hides multiple business failure reasons.
 - A string status or string role is introduced.
 - A service is becoming a god service.
+- A business service starts calling another business module's repository or adapter directly.
+- New hand-written JSON rendering/parsing appears where Circe or existing codecs can express the boundary safely.
 - A change unexpectedly crosses frontend, backend, database, and infrastructure boundaries.
 - Tests require large unrelated rewrites.
 - You are unsure whether code belongs in domain, service, repository, route, or adapter.
@@ -611,11 +691,11 @@ When a red flag appears:
 
 1. Stop broad implementation.
 2. Record the issue.
-3. Create a smaller ticket or ask for a human decision if required.
+3. Create a smaller or clearer boundary-level ticket, or ask for a human decision if required.
 
 ---
 
-## 18. Backlog and Worklog
+## 20. Backlog and Worklog
 
 Maintain enough state for review and continuation.
 
@@ -627,10 +707,11 @@ Otherwise, if appropriate, create or update:
 
 This file may contain:
 
-- current backlog
-- completed tickets
-- blocked tickets
-- verification history
+- current phase summary
+- current ticket
+- the last five completed tickets
+- blocked tickets only while they remain actionable
+- recent verification history
 - architectural notes
 - next suggested ticket
 
@@ -638,13 +719,15 @@ Keep it concise.
 
 Do not let the worklog become a replacement for real tests or documentation.
 
+Do not append unbounded full execution history. Compress old entries into a short phase summary when the file stops being useful for quick continuation.
+
 Do not store secrets in it.
 
 ---
 
-## 19. Final Report Format
+## 21. Final Report Format
 
-After each completed ticket, report in this structure:
+After each completed ticket, report in this structure for architecture, domain, behavior, dependency, data, or cross-boundary changes:
 
 ### Ticket completed
 
@@ -692,33 +775,37 @@ Keep reports factual and concise.
 
 Do not exaggerate.
 
+For low-risk compile fixes or documentation-only changes, a shorter report is acceptable if it still states changed files, verification performed, and remaining risk.
+
 ---
 
-## 20. Continuous Progress Rule
+## 22. Continuous Progress Rule
 
 After a stable ticket is completed, choose the next ticket using this priority order:
 
 1. Fix build/typecheck/test failures.
-2. Fix architectural boundary violations.
-3. Improve unsafe domain modeling.
-4. Replace primitive business states with enums/ADTs.
-5. Replace Boolean business results with explicit result types.
-6. Add tests for important domain transitions.
-7. Split god services or oversized modules.
-8. Update docs to reflect actual architecture.
-9. Perform local cleanup only if it helps the above.
+2. Stabilize package/source-set/codec consistency caused by architecture migration.
+3. Fix architectural boundary violations.
+4. Replace hand-written boundary plumbing with existing typed framework/library support.
+5. Improve unsafe domain modeling.
+6. Replace primitive business states with enums/ADTs.
+7. Replace Boolean business results with explicit result types.
+8. Add tests for important domain transitions.
+9. Split god services or oversized modules along clear boundaries.
+10. Update docs to reflect actual architecture.
+11. Perform local cleanup only if it helps the above.
 
 Do not start the next ticket if:
 
 - current verification is failing due to your changes
-- scope became unclear
+- architectural boundary became unclear
 - a human decision is required
 - the task would require destructive action
 - credentials or unavailable external systems are required
 
 ---
 
-## 21. Human Review Optimization
+## 23. Human Review Optimization
 
 Make human review easy.
 
@@ -726,7 +813,7 @@ The human reviewer should be able to quickly answer:
 
 - What ticket did you do?
 - What files changed?
-- Did you keep the change scoped?
+- Did you keep the change within a coherent architectural boundary?
 - Did you preserve the domain model?
 - Did you avoid hidden mutation and hidden side effects?
 - Did you verify the change?
@@ -736,7 +823,7 @@ Optimize your final report and diff for these questions.
 
 ---
 
-## 22. Core Reminder
+## 24. Core Reminder
 
 The goal is not merely to make code run.
 
@@ -748,4 +835,4 @@ The goal is to build a system where:
 - domain objects are passive immutable data
 - state transitions are explicit old -> new transformations
 - side effects live at clear boundaries
-- each ticket is small, scoped, verified, and reviewable
+- each ticket is small, architecture-coherent, verified, and reviewable

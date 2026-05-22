@@ -2,11 +2,8 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.Json
-import org.http4s.{EntityDecoder, Request, Response, Status}
+import org.http4s.{EntityDecoder, Request, Status}
 import org.http4s.circe.CirceEntityDecoder.*
-import org.http4s.circe.CirceEntityEncoder.*
-
-import slaydemo.backend.http4s.Http4sCors.withCors
 
 private[http4s] object Http4sRouteSupport {
   def blocking[A](thunk: => A): IO[A] =
@@ -14,12 +11,6 @@ private[http4s] object Http4sRouteSupport {
 
   def requestPath(request: Request[IO]): String =
     request.uri.path.renderString
-
-  def jsonOk(json: Json): IO[Response[IO]] =
-    IO.pure(withCors(Response[IO](Status.Ok).withEntity(json)))
-
-  def jsonCreated(json: Json): IO[Response[IO]] =
-    IO.pure(withCors(Response[IO](Status.Created).withEntity(json)))
 
   def decodeJsonObjectBody[E, A](
     request: Request[IO],
@@ -50,19 +41,6 @@ private[http4s] object Http4sRouteSupport {
       case Right(body) =>
         decode(body)
     }
-
-  def renderError(error: HttpApiError): Response[IO] =
-    withCors(
-      Response[IO](error.status).withEntity(
-        Json.obj(
-          "error" -> Json.fromString(error.message),
-          "code" -> Json.fromString(error.code)
-        )
-      )
-    )
-
-  def errorResponse(error: HttpApiError): IO[Response[IO]] =
-    IO.pure(renderError(error))
 
   def apiError(status: Status, code: String, message: String): HttpApiError =
     HttpApiError(status = status, code = code, message = message)

@@ -6,7 +6,8 @@ import org.http4s.{HttpRoutes, Method, Request, Status}
 
 import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, errorResponse, jsonOk, requestPath}
+import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, requestPath}
 import slaydemo.backend.shared.api.{HealthApiErrorCode, HealthRequestTarget}
 import slaydemo.backend.shared.api.HealthJsonCodec.given
 import slaydemo.backend.shared.services.HealthService

@@ -23,7 +23,8 @@ import slaydemo.backend.battle.services.{
   BattleQueueStatusError
 }
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, decodeJsonObjectBody, errorResponse, jsonOk, methodNotAllowedError, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, decodeJsonObjectBody, methodNotAllowedError, requestPath, typedApiError}
 
 private[http4s] object BattleQueueHttp4sRoutes {
   private val InvalidJsonObjectError =

@@ -8,7 +8,8 @@ import slaydemo.backend.bots.objects.apiTypes.{BotProfileApiErrorCode, BotProfil
 import slaydemo.backend.bots.services.BotProfileService
 import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, errorResponse, jsonOk, requestPath}
+import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, requestPath}
 
 private[http4s] object BotProfileHttp4sRoutes {
   def routes(service: BotProfileService): HttpRoutes[IO] =

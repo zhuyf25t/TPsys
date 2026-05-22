@@ -15,6 +15,7 @@ object BattleQueueHttp4sLeaveContractTest {
   def main(args: Array[String]): Unit = {
     leaveReturnsTrueWhenQueueReportsLeft()
     leaveReturnsFalseWhenQueueReportsNotWaiting()
+    leaveReturnsFalseWhenQueueReportsTicketNotFound()
     missingTicketIdIsBadRequest()
     nonObjectBodyIsBadRequest()
     unsupportedMethodIsRejected()
@@ -38,6 +39,15 @@ object BattleQueueHttp4sLeaveContractTest {
     assertEquals("not waiting status", response.status, 200)
     assertEquals("not waiting body", response.body, """{"left":false}""")
     assertEquals("not waiting calls", service.leaveCalls, Vector(TicketId("ticket-route")))
+  }
+
+  private def leaveReturnsFalseWhenQueueReportsTicketNotFound(): Unit = {
+    val service = RecordingBattleQueueService(BattleQueueLeaveOutcome.TicketNotFound)
+    val response = postJson(service, uri"/battle/queue/leave", """{"ticketId":"ticket-route"}""")
+
+    assertEquals("ticket not found status", response.status, 200)
+    assertEquals("ticket not found body", response.body, """{"left":false}""")
+    assertEquals("ticket not found calls", service.leaveCalls, Vector(TicketId("ticket-route")))
   }
 
   private def missingTicketIdIsBadRequest(): Unit = {

@@ -19,7 +19,6 @@ import slaydemo.backend.battle.services.{
   BattleQueueJoinCommand,
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
-  BattleQueueLeaveOutcome,
   BattleQueueService,
   BattleQueueStatusError
 }
@@ -94,10 +93,9 @@ private[http4s] object BattleQueueHttp4sRoutes {
               case Left(error) =>
                 errorResponse(leaveRequestApiError(error))
               case Right(ticketId) =>
-                blocking(queueService.leave(ticketId)).flatMap { outcome =>
-                  val left = outcome == BattleQueueLeaveOutcome.LeftQueue
-                  jsonOk(BattleQueueLeaveAPIResponse(left).asJson)
-                }
+                blocking(queueService.leave(ticketId)).flatMap(outcome =>
+                  jsonOk(BattleQueueLeaveAPIResponse.fromOutcome(outcome).asJson)
+                )
             }
           case _ =>
             errorResponse(battleQueueApiError(BattleQueueApiErrorCode.PostMethodNotAllowed))

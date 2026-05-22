@@ -7,6 +7,7 @@ import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinCommand,
+  BattleQueueLeaveOutcome,
   BattleQueueStatusError,
   BattleRoomError,
   RealtimeRoomHeartbeatCommand
@@ -213,10 +214,39 @@ object BattleQueueLeaveAPIRequest {
       .flatMap(_.toTicketId)
 }
 
-final case class BattleQueueLeaveAPIResponse(left: Boolean)
+enum BattleQueueLeaveAPIOutcome {
+  case LeftQueue
+  case NotWaiting
+  case TicketNotFound
+}
+
+object BattleQueueLeaveAPIOutcome {
+  def fromLeaveOutcome(outcome: BattleQueueLeaveOutcome): BattleQueueLeaveAPIOutcome =
+    outcome match {
+      case BattleQueueLeaveOutcome.LeftQueue =>
+        BattleQueueLeaveAPIOutcome.LeftQueue
+      case BattleQueueLeaveOutcome.NotWaiting =>
+        BattleQueueLeaveAPIOutcome.NotWaiting
+      case BattleQueueLeaveOutcome.TicketNotFound =>
+        BattleQueueLeaveAPIOutcome.TicketNotFound
+    }
+
+  def leftFlag(outcome: BattleQueueLeaveAPIOutcome): Boolean =
+    outcome match {
+      case BattleQueueLeaveAPIOutcome.LeftQueue      => true
+      case BattleQueueLeaveAPIOutcome.NotWaiting     => false
+      case BattleQueueLeaveAPIOutcome.TicketNotFound => false
+    }
+}
+
+final case class BattleQueueLeaveAPIResponse(outcome: BattleQueueLeaveAPIOutcome)
 
 object BattleQueueLeaveAPIResponse {
-  given Encoder[BattleQueueLeaveAPIResponse] = deriveEncoder
+  given Encoder[BattleQueueLeaveAPIResponse] =
+    Encoder.forProduct1("left")(response => BattleQueueLeaveAPIOutcome.leftFlag(response.outcome))
+
+  def fromOutcome(outcome: BattleQueueLeaveOutcome): BattleQueueLeaveAPIResponse =
+    BattleQueueLeaveAPIResponse(BattleQueueLeaveAPIOutcome.fromLeaveOutcome(outcome))
 }
 
 final case class RealtimeRoomHeartbeatAPIRequest(

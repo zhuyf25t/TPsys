@@ -1,9 +1,10 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.replay
 
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, decodeTextBody, errorResponse, jsonCreated, jsonOk, requestPath}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{

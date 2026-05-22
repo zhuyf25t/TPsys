@@ -14,6 +14,7 @@ import slaydemo.backend.battle.objects.{
   RatingDelta,
   Score
 }
+import slaydemo.backend.http4s.replay.ReplayHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 import slaydemo.backend.replay.objects.{

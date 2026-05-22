@@ -8,8 +8,9 @@ import org.typelevel.ci.CIString
 
 import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
+import slaydemo.backend.http4s.Http4sRequestDecoders.decodeEntityBody
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, decodeEntityBody, requestPath}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, requestPath}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,

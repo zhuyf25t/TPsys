@@ -1,9 +1,7 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import io.circe.Json
-import org.http4s.{EntityDecoder, Request, Status}
-import org.http4s.circe.CirceEntityDecoder.*
+import org.http4s.{Request, Status}
 
 private[http4s] object Http4sRouteSupport {
   def blocking[A](thunk: => A): IO[A] =
@@ -11,36 +9,6 @@ private[http4s] object Http4sRouteSupport {
 
   def requestPath(request: Request[IO]): String =
     request.uri.path.renderString
-
-  def decodeJsonObjectBody[E, A](
-    request: Request[IO],
-    invalidJson: E
-  )(decode: Json => Either[E, A]): IO[Either[E, A]] =
-    request.as[Json].attempt.map {
-      case Left(_) =>
-        Left(invalidJson)
-      case Right(json) if json.asObject.isEmpty =>
-        Left(invalidJson)
-      case Right(json) =>
-        decode(json)
-    }
-
-  def decodeEntityBody[E, A](
-    request: Request[IO],
-    invalidBody: E
-  )(using EntityDecoder[IO, A]): IO[Either[E, A]] =
-    request.as[A].attempt.map(_.left.map(_ => invalidBody))
-
-  def decodeTextBody[E, A](
-    request: Request[IO],
-    invalidBody: E
-  )(decode: String => Either[E, A]): IO[Either[E, A]] =
-    request.bodyText.compile.string.attempt.map {
-      case Left(_) =>
-        Left(invalidBody)
-      case Right(body) =>
-        decode(body)
-    }
 
   def apiError(status: Status, code: String, message: String): HttpApiError =
     HttpApiError(status = status, code = code, message = message)

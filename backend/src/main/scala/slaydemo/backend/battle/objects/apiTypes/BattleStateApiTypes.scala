@@ -1,6 +1,6 @@
 package slaydemo.backend.battle.objects.apiTypes
 
-import io.circe.{Encoder, Json}
+import io.circe.{Encoder, Json, JsonObject}
 import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.*
@@ -78,58 +78,8 @@ object BattleStateResponse {
       "winnerHeroId" -> optionalStringJson(state.winnerHeroId.map(_.value))
     )
 
-  private def playerJson(player: BattlePlayerState): Json = {
-    val currentWeapon = player.weapons.lift(player.currentWeaponIndex).getOrElse(
-      BattleWeaponState(
-        weaponKind = player.currentWeaponKind,
-        ammoInMagazine = AmmoCount(0),
-        magazineSize = AmmoCount(0),
-        reserveAmmo = None,
-        fireCooldownMs = CooldownMillis(0),
-        reloadRemainingMs = CooldownMillis(0),
-        heat = 0,
-        thermalState = BattleWeaponThermalState.Ready
-      )
-    )
-
-    Json.obj(
-      "playerId" -> Json.fromString(player.playerId.value),
-      "heroId" -> Json.fromString(player.heroId.value),
-      "handle" -> Json.fromString(player.handle.value),
-      "displayName" -> Json.fromString(player.displayName.value),
-      "seat" -> Json.fromInt(player.seat.value),
-      "isBot" -> Json.fromBoolean(player.isBot),
-      "position" -> vectorJson(player.position),
-      "aim" -> vectorJson(player.aim),
-      "facing" -> Json.fromDoubleOrNull(player.facing.value),
-      "movement" -> vectorJson(player.movement),
-      "sprint" -> Json.fromBoolean(player.sprint),
-      "primaryHeld" -> Json.fromBoolean(player.primaryHeld),
-      "reloadPressed" -> Json.fromBoolean(player.reloadPressed),
-      "lastClientCommandSeq" -> Json.fromLong(player.lastClientCommandSeq.value),
-      "currentWeaponIndex" -> Json.fromInt(player.currentWeaponIndex),
-      "weapons" -> Json.fromValues(player.weapons.map(weaponJson)),
-      "currentWeaponKind" -> Json.fromString(WeaponKind.wireValue(player.currentWeaponKind)),
-      "ammoInMagazine" -> Json.fromInt(currentWeapon.ammoInMagazine.value),
-      "magazineSize" -> Json.fromInt(currentWeapon.magazineSize.value),
-      "reserveAmmo" -> optionalIntJson(currentWeapon.reserveAmmo.map(_.value)),
-      "fireCooldownMs" -> Json.fromLong(currentWeapon.fireCooldownMs.value),
-      "reloadRemainingMs" -> Json.fromLong(currentWeapon.reloadRemainingMs.value),
-      "heat" -> Json.fromInt(currentWeapon.heat),
-      "overheated" -> Json.fromBoolean(currentWeapon.overheated),
-      "overheatRemainingMs" -> Json.fromLong(currentWeapon.overheatRemainingMs.value),
-      "hp" -> Json.fromInt(player.hp.value),
-      "maxHp" -> Json.fromInt(player.maxHp.value),
-      "stamina" -> Json.fromDoubleOrNull(player.stamina.value),
-      "maxStamina" -> Json.fromDoubleOrNull(player.maxStamina.value),
-      "score" -> Json.fromInt(player.score.value),
-      "kills" -> Json.fromInt(player.kills),
-      "skills" -> Json.fromValues(player.skills.map(skillJson)),
-      "alive" -> Json.fromBoolean(player.alive),
-      "eliminatedAtMs" -> optionalLongJson(player.eliminatedAtMs.map(_.value)),
-      "respawnMs" -> Json.fromLong(player.respawnMs.value)
-    )
-  }
+  private def playerJson(player: BattlePlayerState): Json =
+    BattleStatePlayerResponse.fromPlayer(player).asJson
 
   private def weaponJson(weapon: BattleWeaponState): Json =
     BattleStateWeaponResponse.fromWeapon(weapon).asJson
@@ -158,11 +108,6 @@ object BattleStateResponse {
   private def optionalStringJson(value: Option[String]): Json =
     value.filter(_.trim.nonEmpty).map(Json.fromString).getOrElse(Json.Null)
 
-  private def optionalIntJson(value: Option[Int]): Json =
-    value.map(Json.fromInt).getOrElse(Json.Null)
-
-  private def optionalLongJson(value: Option[Long]): Json =
-    value.map(Json.fromLong).getOrElse(Json.Null)
 }
 
 private final case class BattleStateVectorResponse(x: Double, y: Double)
@@ -245,6 +190,206 @@ private object BattleStateSkillResponse {
       cooldownMs = skill.cooldownMs.value,
       activeMs = skill.activeMs.value
     )
+}
+
+private final case class BattleStatePlayerIdentityResponse(
+  playerId: String,
+  heroId: String,
+  handle: String,
+  displayName: String,
+  seat: Int,
+  isBot: Boolean
+)
+
+private object BattleStatePlayerIdentityResponse {
+  given Encoder[BattleStatePlayerIdentityResponse] =
+    Encoder.forProduct6("playerId", "heroId", "handle", "displayName", "seat", "isBot")(
+      (response: BattleStatePlayerIdentityResponse) =>
+        (response.playerId, response.heroId, response.handle, response.displayName, response.seat, response.isBot)
+    )
+}
+
+private final case class BattleStatePlayerControlResponse(
+  position: BattleStateVectorResponse,
+  aim: BattleStateVectorResponse,
+  facing: Double,
+  movement: BattleStateVectorResponse,
+  sprint: Boolean,
+  primaryHeld: Boolean,
+  reloadPressed: Boolean,
+  lastClientCommandSeq: Long
+)
+
+private object BattleStatePlayerControlResponse {
+  given Encoder[BattleStatePlayerControlResponse] =
+    Encoder.forProduct8("position", "aim", "facing", "movement", "sprint", "primaryHeld", "reloadPressed", "lastClientCommandSeq")(
+      (response: BattleStatePlayerControlResponse) =>
+        (
+          response.position,
+          response.aim,
+          response.facing,
+          response.movement,
+          response.sprint,
+          response.primaryHeld,
+          response.reloadPressed,
+          response.lastClientCommandSeq
+        )
+    )
+}
+
+private final case class BattleStatePlayerWeaponSummaryResponse(
+  currentWeaponIndex: Int,
+  weapons: Vector[BattleStateWeaponResponse],
+  currentWeaponKind: String,
+  ammoInMagazine: Int,
+  magazineSize: Int,
+  reserveAmmo: Option[Int],
+  fireCooldownMs: Long,
+  reloadRemainingMs: Long,
+  heat: Int,
+  overheated: Boolean,
+  overheatRemainingMs: Long
+)
+
+private object BattleStatePlayerWeaponSummaryResponse {
+  given Encoder[BattleStatePlayerWeaponSummaryResponse] =
+    Encoder.forProduct11(
+      "currentWeaponIndex",
+      "weapons",
+      "currentWeaponKind",
+      "ammoInMagazine",
+      "magazineSize",
+      "reserveAmmo",
+      "fireCooldownMs",
+      "reloadRemainingMs",
+      "heat",
+      "overheated",
+      "overheatRemainingMs"
+    )((response: BattleStatePlayerWeaponSummaryResponse) =>
+      (
+        response.currentWeaponIndex,
+        response.weapons,
+        response.currentWeaponKind,
+        response.ammoInMagazine,
+        response.magazineSize,
+        response.reserveAmmo,
+        response.fireCooldownMs,
+        response.reloadRemainingMs,
+        response.heat,
+        response.overheated,
+        response.overheatRemainingMs
+      )
+    )
+}
+
+private final case class BattleStatePlayerVitalsResponse(
+  hp: Int,
+  maxHp: Int,
+  stamina: Double,
+  maxStamina: Double,
+  score: Int,
+  kills: Int,
+  skills: Vector[BattleStateSkillResponse],
+  alive: Boolean,
+  eliminatedAtMs: Option[Long],
+  respawnMs: Long
+)
+
+private object BattleStatePlayerVitalsResponse {
+  given Encoder[BattleStatePlayerVitalsResponse] =
+    Encoder.forProduct10("hp", "maxHp", "stamina", "maxStamina", "score", "kills", "skills", "alive", "eliminatedAtMs", "respawnMs")(
+      (response: BattleStatePlayerVitalsResponse) =>
+        (
+          response.hp,
+          response.maxHp,
+          response.stamina,
+          response.maxStamina,
+          response.score,
+          response.kills,
+          response.skills,
+          response.alive,
+          response.eliminatedAtMs,
+          response.respawnMs
+        )
+    )
+}
+
+private final case class BattleStatePlayerResponse(
+  identity: BattleStatePlayerIdentityResponse,
+  control: BattleStatePlayerControlResponse,
+  weapon: BattleStatePlayerWeaponSummaryResponse,
+  vitals: BattleStatePlayerVitalsResponse
+)
+
+private object BattleStatePlayerResponse {
+  given Encoder[BattleStatePlayerResponse] =
+    Encoder.instance(response =>
+      mergeEncodedObjects(response.identity.asJson, response.control.asJson, response.weapon.asJson, response.vitals.asJson)
+    )
+
+  def fromPlayer(player: BattlePlayerState): BattleStatePlayerResponse = {
+    val currentWeapon = player.weapons.lift(player.currentWeaponIndex).getOrElse(fallbackCurrentWeapon(player))
+    BattleStatePlayerResponse(
+      identity = BattleStatePlayerIdentityResponse(
+        playerId = player.playerId.value,
+        heroId = player.heroId.value,
+        handle = player.handle.value,
+        displayName = player.displayName.value,
+        seat = player.seat.value,
+        isBot = player.isBot
+      ),
+      control = BattleStatePlayerControlResponse(
+        position = BattleStateVectorResponse.fromVector(player.position),
+        aim = BattleStateVectorResponse.fromVector(player.aim),
+        facing = player.facing.value,
+        movement = BattleStateVectorResponse.fromVector(player.movement),
+        sprint = player.sprint,
+        primaryHeld = player.primaryHeld,
+        reloadPressed = player.reloadPressed,
+        lastClientCommandSeq = player.lastClientCommandSeq.value
+      ),
+      weapon = BattleStatePlayerWeaponSummaryResponse(
+        currentWeaponIndex = player.currentWeaponIndex,
+        weapons = player.weapons.map(BattleStateWeaponResponse.fromWeapon),
+        currentWeaponKind = WeaponKind.wireValue(player.currentWeaponKind),
+        ammoInMagazine = currentWeapon.ammoInMagazine.value,
+        magazineSize = currentWeapon.magazineSize.value,
+        reserveAmmo = currentWeapon.reserveAmmo.map(_.value),
+        fireCooldownMs = currentWeapon.fireCooldownMs.value,
+        reloadRemainingMs = currentWeapon.reloadRemainingMs.value,
+        heat = currentWeapon.heat,
+        overheated = currentWeapon.overheated,
+        overheatRemainingMs = currentWeapon.overheatRemainingMs.value
+      ),
+      vitals = BattleStatePlayerVitalsResponse(
+        hp = player.hp.value,
+        maxHp = player.maxHp.value,
+        stamina = player.stamina.value,
+        maxStamina = player.maxStamina.value,
+        score = player.score.value,
+        kills = player.kills,
+        skills = player.skills.map(BattleStateSkillResponse.fromSkill),
+        alive = player.alive,
+        eliminatedAtMs = player.eliminatedAtMs.map(_.value),
+        respawnMs = player.respawnMs.value
+      )
+    )
+  }
+
+  private def fallbackCurrentWeapon(player: BattlePlayerState): BattleWeaponState =
+    BattleWeaponState(
+      weaponKind = player.currentWeaponKind,
+      ammoInMagazine = AmmoCount(0),
+      magazineSize = AmmoCount(0),
+      reserveAmmo = None,
+      fireCooldownMs = CooldownMillis(0),
+      reloadRemainingMs = CooldownMillis(0),
+      heat = 0,
+      thermalState = BattleWeaponThermalState.Ready
+    )
+
+  private def mergeEncodedObjects(values: Json*): Json =
+    values.foldLeft(Json.fromJsonObject(JsonObject.empty))((merged, value) => merged.deepMerge(value))
 }
 
 private final case class BattleStateProjectileResponse(

@@ -11,7 +11,7 @@ This is the new backend rewrite root.
 
 Default startup is memory-only. Database-backed persistence is selected only with `SLAY_DEMO_STORAGE_MODE=postgres`.
 
-For local development, `BackendHttp4sApp` is the default backend entrypoint and loads ignored `.env` / `.env.local` files through the shared backend environment loader. This lets both `cd backend; sbt run` and the root npm scripts share the repository-root `.env.local`. Process environment values still take precedence over local files. The legacy JDK `HttpServer` entrypoint remains available through `npm run backend:dev:legacy` for rollback and contract comparison.
+For local development, `BackendHttp4sApp` is the default backend entrypoint and loads ignored `.env` / `.env.local` files through the shared backend environment loader. This lets both `cd backend; sbt run` and the root `npm run backend:dev` script share the repository-root `.env.local`. Process environment values still take precedence over local files. The old JDK `HttpServer` entrypoint is no longer part of the active `backend/src/main` runtime.
 
 ## Storage Configuration
 

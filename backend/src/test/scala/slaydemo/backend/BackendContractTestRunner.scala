@@ -6,7 +6,7 @@ import slaydemo.backend.battle.services.{
   BattleSkillRulesContractTest
 }
 import slaydemo.backend.http4s.{
-  BackendHttp4sRoutesCompositionContractTest,
+  HttpApiModulesCompositionContractTest,
   BotProfileHttp4sContractTest,
   BattleCommandHttp4sContractTest,
   BattleQueueHttp4sJoinContractTest,
@@ -35,7 +35,7 @@ object BackendContractTestRunner {
     run("backend API boundaries", () => BackendApiBoundaryContractTest.main(Array.empty))
     run("postgres support", () => PostgresSupportContractTest.main(Array.empty))
     run("postgres repository boundaries", () => PostgresRepositoryBoundaryContractTest.main(Array.empty))
-    run("backend http4s route composition", () => BackendHttp4sRoutesCompositionContractTest.main(Array.empty))
+    run("backend http4s API module composition", () => HttpApiModulesCompositionContractTest.main(Array.empty))
     run("health http4s route", () => HealthHttp4sRouteContractTest.main(Array.empty))
     run("identity http4s route", () => IdentityHttp4sContractTest.main(Array.empty))
     run("mail http4s route", () => MailHttp4sContractTest.main(Array.empty))

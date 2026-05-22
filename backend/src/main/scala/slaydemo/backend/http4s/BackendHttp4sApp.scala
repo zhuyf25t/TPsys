@@ -17,8 +17,8 @@ object BackendHttp4sApp extends IOApp.Simple {
       _ <- runtimeResource(env).use { runtime =>
         for
           port <- httpPort(runtime.config)
-          httpApp = BackendHttp4sRoutes
-            .backendRoutes(
+          httpApp = HttpApiModules
+            .routes(
               runtime.healthService,
               runtime.replayService,
               runtime.battleQueueService,

@@ -64,7 +64,7 @@ import slaydemo.backend.social.services.{
   FriendRequestSubmissionResult
 }
 
-object BackendHttp4sRoutesCompositionContractTest {
+object HttpApiModulesCompositionContractTest {
   private val RepresentativePaths: Vector[String] =
     Vector(
       "/api/healthapi",
@@ -101,13 +101,13 @@ object BackendHttp4sRoutesCompositionContractTest {
     )
 
   def main(args: Array[String]): Unit = {
-    backendRoutesComposesEverySplitRouteFamily()
-    backendRoutesComposesFrontendProxyStrippedBattlePaths()
+    httpApiModulesComposeEverySplitRouteFamily()
+    httpApiModulesComposeFrontendProxyStrippedBattlePaths()
 
-    println("Backend http4s route composition contract checks passed")
+    println("Backend http4s API module composition contract checks passed")
   }
 
-  private def backendRoutesComposesEverySplitRouteFamily(): Unit =
+  private def httpApiModulesComposeEverySplitRouteFamily(): Unit =
     RepresentativePaths.foreach { path =>
       val response = run(Request[IO](method = Method.OPTIONS, uri = Uri.unsafeFromString(path)))
 
@@ -115,7 +115,7 @@ object BackendHttp4sRoutesCompositionContractTest {
       assertEquals(s"$path options body", response.body, "")
     }
 
-  private def backendRoutesComposesFrontendProxyStrippedBattlePaths(): Unit =
+  private def httpApiModulesComposeFrontendProxyStrippedBattlePaths(): Unit =
     FrontendProxyStrippedPaths.foreach { path =>
       val response = run(Request[IO](method = Method.OPTIONS, uri = Uri.unsafeFromString(path)))
 
@@ -125,7 +125,7 @@ object BackendHttp4sRoutesCompositionContractTest {
 
   private def run(request: Request[IO]): RouteResponse = {
     runRoute(
-      BackendHttp4sRoutes.backendRoutes(
+      HttpApiModules.routes(
         healthService = UnusedHealthService,
         replayService = UnusedReplayService,
         battleQueueService = UnusedBattleQueueService,

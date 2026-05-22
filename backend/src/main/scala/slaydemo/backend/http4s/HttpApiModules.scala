@@ -28,8 +28,8 @@ import slaydemo.backend.replay.services.ReplayService
 import slaydemo.backend.social.services.FriendRequestService
 import slaydemo.backend.shared.services.HealthService
 
-object BackendHttp4sRoutes {
-  def backendRoutes(
+object HttpApiModules {
+  def routes(
     healthService: HealthService,
     replayService: ReplayService,
     battleQueueService: BattleQueueService,

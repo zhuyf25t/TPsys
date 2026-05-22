@@ -9,7 +9,7 @@
 - `git branch --show-current`
 - `git log --left-right main...HEAD`
 - `git diff --name-status main...HEAD -- backend/src/main/scala backend/src/test/scala backend/build.sbt`
-- `rg` 对 `BackendHttp4sApp`、`BackendHttp4sRoutes`、`routes`、`HttpExchange` 的搜索结果
+- `rg` 对 `BackendHttp4sApp`、`HttpApiModules`、`routes`、`HttpExchange` 的搜索结果
 
 ## 1. 当前结论
 
@@ -33,7 +33,7 @@ Compile / mainClass := Some("slaydemo.backend.http4s.BackendHttp4sApp")
 BackendHttp4sApp.run
   -> BackendEnvironment.load()
   -> BackendRuntime.fromEnvironment(env)
-  -> BackendHttp4sRoutes.backendRoutes(...)
+  -> HttpApiModules.routes(...)
   -> .orNotFound
   -> EmberServerBuilder.withHttpApp(httpApp)
 ```
@@ -52,7 +52,7 @@ BackendHttp4sApp.run
 | 文件 | 当前作用 |
 | --- | --- |
 | `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala` | 进程入口：加载环境、创建 runtime、启动 Ember HTTP server。 |
-| `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sRoutes.scala` | 当前 HTTP route 总组合入口。 |
+| `backend/src/main/scala/slaydemo/backend/http4s/HttpApiModules.scala` | 当前 HTTP API module 总组合入口。 |
 | `backend/src/main/scala/slaydemo/backend/BackendRuntime.scala` | 组装当前运行所需 service。 |
 | `backend/src/main/scala/slaydemo/backend/BackendRepositories.scala` | 按配置选择 repository 实现。 |
 | `backend/src/main/scala/slaydemo/backend/BackendLiveRepositoryFactories.scala` | 创建 live repository。 |
@@ -63,34 +63,30 @@ BackendHttp4sApp.run
 
 - `BackendHttp4sApp` 通过 `Resource.make(IO.blocking(BackendRuntime.fromEnvironment(env)))` 创建 runtime。
 - `BackendRuntime` 创建当前真实 service，包括 `InMemoryBattleQueueService`、`InMemoryBattleStateService`、`DefaultIdentityService`、`DefaultReplayService`、`DefaultMailService` 等。
-- `BackendHttp4sRoutes.backendRoutes(...)` 把这些 service 注入 http4s routes。
+- `HttpApiModules.routes(...)` 把这些 service 注入各 domain HTTP module。
 - `EmberServerBuilder` 才是真正监听端口并处理请求的 HTTP server。
 
 ## 3. 当前 http4s 层问题
 
 当前 `http4s/` 不是旧代码，但结构确实已经中期失控。
 
-### 3.1 `BackendHttp4sRoutes` 变成全后端总线
+### 3.1 `HttpApiModules` 是当前 HTTP API 组合入口
 
-`BackendHttp4sRoutes.scala` 一次性接收十几个 service，然后用 `<+>` 平铺组合所有 route：
+`HttpApiModules.scala` 仍然一次性接收运行时 service，但它不再直接平铺组合每个 route 文件，而是只组合各 domain module：
 
 ```text
-HealthHttp4sRoutes
-IdentityHttp4sRoutes
-MailHttp4sRoutes
-SocialHttp4sRoutes
-ForumHttp4sRoutes
-GovernanceHttp4sRoutes
-ReplayHttp4sRoutes
-BotProfileHttp4sRoutes
-BattleQueueHttp4sRoutes
-BattleRoomHttp4sRoutes
-BattleStateHttp4sRoutes
-BattleCommandHttp4sRoutes
-BattleResultHttp4sRoutes
+HealthHttpModule
+IdentityHttpModule
+MailHttpModule
+SocialHttpModule
+ForumHttpModule
+GovernanceHttpModule
+ReplayHttpModule
+BotProfileHttpModule
+BattleHttpModule
 ```
 
-问题不是功能错误，而是它已经承担了“全后端功能总线”的职责。battle、identity、mail、social、forum、governance 被平铺在同一层，读代码时很难一眼看出某个业务域的完整 HTTP 边界。
+这个结构比旧的平铺式 `*Http4sRoutes.scala` 更清楚：顶层只负责 module composition，每个业务域内部再决定自己的 route、codec 和 error mapping。
 
 ### 3.2 每个 route 文件都像手写 HTTP 状态机
 
@@ -157,7 +153,7 @@ BattleResultHttp4sRoutes
 | `battle/services/results` | result、settlement、finish projection、replay、history。 |
 | `battle/database` | 战斗结果持久化，包含 file/in-memory/postgres 实现。 |
 
-这说明 battle service 已经按业务域拆开了，但 HTTP adapter 仍然没有按 battle 模块聚合。
+这说明 battle service 已经按业务域拆开，battle HTTP adapter 也已经通过 `http4s/battle/BattleHttpModule.scala` 聚合。
 
 ## 5. 已清理的旧 route/test
 
@@ -198,7 +194,7 @@ rg -n "com.sun.net.httpserver|HttpExchange" backend/src/main/scala backend/src/t
 | test 类型 | 当前作用 | 是否保留 |
 | --- | --- | --- |
 | `http4s/*ContractTest.scala` | 验证当前 http4s adapter 的 method/path/body/status/error shape。 | 保留。 |
-| `BackendHttp4sRoutesCompositionContractTest` | 验证总 route composition 能接住各业务域路径。 | 保留，但 fixture 可瘦身。 |
+| `HttpApiModulesCompositionContractTest` | 验证总 API module composition 能接住各业务域路径。 | 保留，但 fixture 可瘦身。 |
 | service contract test | 验证业务状态转换和 service 规则，不依赖 HTTP adapter。 | 保留。 |
 | repository/storage/boundary contract test | 验证 repository、storage、旧结构禁入规则。 | 保留。 |
 | 旧 `routes/*RouteContractTest.scala` | 当前不存在。 | 不需要恢复。 |
@@ -217,11 +213,7 @@ rg -n "com.sun.net.httpserver|HttpExchange" backend/src/main/scala backend/src/t
 multimodule
 ```
 
-当前 HEAD：
-
-```text
-d5fb942a566840343d981be3758013bff0ee29dd
-```
+当前 HEAD 以 `git rev-parse HEAD` 为准；本文记录的是 `multimodule` 分支上的后端结构事实。
 
 当前 `main`：
 
@@ -313,24 +305,9 @@ BackendHttp4sApp
 
 ## 9. 后续小票建议
 
-### BE-HTTP4S-MODULE-94
+### BE-HTTP4S-MODULES-DONE
 
-目标：先迁移 battle HTTP adapter 到 `http4s/battle` 子目录，并新增 `BattleHttpModule.routes(...)`。
-
-允许范围：
-
-- `backend/src/main/scala/slaydemo/backend/http4s/Battle*Http4sRoutes.scala`
-- `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sRoutes.scala`
-- 新增 `backend/src/main/scala/slaydemo/backend/http4s/battle/*`
-- 必要的 package/import 更新
-- 对应 `backend/src/test/scala/slaydemo/backend/http4s` 中 battle route test 的 import 更新
-
-验收：
-
-- `npm run backend:compile` 通过。
-- `npm run backend:test-contracts` 通过。
-- `git diff --check` 通过。
-- `BackendHttp4sRoutes.scala` 不再直接拼每个 battle 子 route，只拼 `BattleHttpModule.routes(...)`。
+当前已完成：battle、identity、mail、social、forum、governance、replay、bots、health 的 HTTP adapter 都已经下沉到 `http4s/<domain>` 子目录，并由各自 `*HttpModule.routes(...)` 对外暴露。
 
 ### BE-HTTP4S-SHARED-95
 

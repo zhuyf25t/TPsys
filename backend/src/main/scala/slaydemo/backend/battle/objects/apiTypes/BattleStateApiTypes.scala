@@ -4,6 +4,7 @@ import io.circe.{Encoder, Json, JsonObject}
 import io.circe.syntax.*
 
 import slaydemo.backend.battle.objects.*
+import slaydemo.backend.battle.services.BattleStateReadError
 
 object BattleStateRequestTarget {
   private val AllowedReadPaths: Set[String] =
@@ -40,6 +41,50 @@ object BattleStateRequestTarget {
 
   private def nonEmptyText(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
+}
+
+enum BattleStateApiErrorCode {
+  case InvalidBattleId
+  case BattleNotFound
+  case MethodNotAllowed
+}
+
+object BattleStateApiErrorCode {
+  def fromReadError(error: BattleStateReadError): BattleStateApiErrorCode =
+    error match {
+      case BattleStateReadError.BattleNotFound =>
+        BattleStateApiErrorCode.BattleNotFound
+    }
+
+  def wireValue(code: BattleStateApiErrorCode): String =
+    code match {
+      case BattleStateApiErrorCode.InvalidBattleId =>
+        "invalid_battle_id"
+      case BattleStateApiErrorCode.BattleNotFound =>
+        "battle_not_found"
+      case BattleStateApiErrorCode.MethodNotAllowed =>
+        "method_not_allowed"
+    }
+
+  def message(code: BattleStateApiErrorCode): String =
+    code match {
+      case BattleStateApiErrorCode.InvalidBattleId =>
+        "battleId is required."
+      case BattleStateApiErrorCode.BattleNotFound =>
+        "battle_not_found"
+      case BattleStateApiErrorCode.MethodNotAllowed =>
+        "Only GET, HEAD, and OPTIONS are supported."
+    }
+
+  def statusCode(code: BattleStateApiErrorCode): Int =
+    code match {
+      case BattleStateApiErrorCode.BattleNotFound =>
+        404
+      case BattleStateApiErrorCode.MethodNotAllowed =>
+        405
+      case BattleStateApiErrorCode.InvalidBattleId =>
+        400
+    }
 }
 
 final case class BattleStateResponse private (state: BattleAggregateState)

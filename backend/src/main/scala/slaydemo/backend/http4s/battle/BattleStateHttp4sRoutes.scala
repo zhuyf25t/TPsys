@@ -9,35 +9,17 @@ import org.typelevel.ci.CIString
 import java.nio.charset.StandardCharsets
 import scala.concurrent.duration.*
 
-import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
+import slaydemo.backend.battle.objects.apiTypes.{BattleStateApiErrorCode, BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
-import slaydemo.backend.http4s.HttpApiErrors.apiError
+import slaydemo.backend.http4s.HttpApiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk, withCors}
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonOk}
 
 private[http4s] object BattleStateHttp4sRoutes {
-  private val InvalidBattleIdError =
-    apiError(
-      Status.BadRequest,
-      "invalid_battle_id",
-      "battleId is required."
-    )
-  private val BattleNotFoundError =
-    apiError(
-      Status.NotFound,
-      "battle_not_found",
-      "battle_not_found"
-    )
-  private val MethodNotAllowedError =
-    apiError(
-      Status.MethodNotAllowed,
-      "method_not_allowed",
-      "Only GET, HEAD, and OPTIONS are supported."
-    )
-
   def readRoutes(battleStateService: BattleStateService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if isBattleStateReadPath(request) =>
@@ -49,17 +31,17 @@ private[http4s] object BattleStateHttp4sRoutes {
           case Method.GET =>
             battleIdFromStateRequest(request) match {
               case None =>
-                errorResponse(InvalidBattleIdError)
+                errorResponse(battleStateApiError(BattleStateApiErrorCode.InvalidBattleId))
               case Some(battleId) =>
                 blocking(battleStateService.currentState(battleId)).flatMap {
                   case Right(state) =>
                     jsonOk(BattleStateResponse.fromState(state).asJson)
                   case Left(BattleStateReadError.BattleNotFound) =>
-                    errorResponse(BattleNotFoundError)
+                    errorResponse(battleStateReadApiError(BattleStateReadError.BattleNotFound))
                 }
             }
           case _ =>
-            errorResponse(MethodNotAllowedError)
+            errorResponse(battleStateApiError(BattleStateApiErrorCode.MethodNotAllowed))
         }
     }
 
@@ -72,17 +54,17 @@ private[http4s] object BattleStateHttp4sRoutes {
           case Method.GET =>
             battleIdFromStateStreamRequest(request) match {
               case None =>
-                errorResponse(InvalidBattleIdError)
+                errorResponse(battleStateApiError(BattleStateApiErrorCode.InvalidBattleId))
               case Some(battleId) =>
                 blocking(battleStateService.currentState(battleId)).flatMap {
                   case Left(BattleStateReadError.BattleNotFound) =>
-                    errorResponse(BattleNotFoundError)
+                    errorResponse(battleStateReadApiError(BattleStateReadError.BattleNotFound))
                   case Right(state) =>
                     IO.pure(stateStreamResponse(battleId, state, battleStateService))
                 }
             }
           case _ =>
-            errorResponse(MethodNotAllowedError)
+            errorResponse(battleStateApiError(BattleStateApiErrorCode.MethodNotAllowed))
         }
     }
 
@@ -97,6 +79,16 @@ private[http4s] object BattleStateHttp4sRoutes {
 
   private def battleIdFromStateStreamRequest(request: Request[IO]): Option[BattleId] =
     BattleStateRequestTarget.battleIdFromStream(request.params)
+
+  private def battleStateReadApiError(error: BattleStateReadError): HttpApiError =
+    battleStateApiError(BattleStateApiErrorCode.fromReadError(error))
+
+  private def battleStateApiError(code: BattleStateApiErrorCode): HttpApiError =
+    typedApiError(
+      statusCode = BattleStateApiErrorCode.statusCode(code),
+      code = BattleStateApiErrorCode.wireValue(code),
+      message = BattleStateApiErrorCode.message(code)
+    )
 
   private def stateStreamResponse(
     battleId: BattleId,

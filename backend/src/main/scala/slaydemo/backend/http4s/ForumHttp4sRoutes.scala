@@ -20,7 +20,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -86,7 +86,7 @@ private[http4s] object ForumHttp4sRoutes {
               case Right(topic) =>
                 withCors(Response[IO](Status.Created).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
               case Left(error) =>
-                apiError(createApiError(error))
+                renderError(createApiError(error))
             }
           case Left(error) =>
             errorResponse(createApiError(error))
@@ -110,7 +110,7 @@ private[http4s] object ForumHttp4sRoutes {
                   case Right(topic) =>
                     withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
                   case Left(error) =>
-                    apiError(mutationApiError(error))
+                    renderError(mutationApiError(error))
                 }
             }
         }
@@ -133,7 +133,7 @@ private[http4s] object ForumHttp4sRoutes {
                   case Right(topic) =>
                     withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
                   case Left(error) =>
-                    apiError(mutationApiError(error))
+                    renderError(mutationApiError(error))
                 }
             }
         }
@@ -157,7 +157,7 @@ private[http4s] object ForumHttp4sRoutes {
                   case Right(topic) =>
                     withCors(Response[IO](Status.Ok).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
                   case Left(error) =>
-                    apiError(mutationApiError(error))
+                    renderError(mutationApiError(error))
                 }
             }
         }

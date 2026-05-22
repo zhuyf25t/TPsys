@@ -12,15 +12,27 @@ import scala.concurrent.duration.*
 import slaydemo.backend.battle.objects.apiTypes.{BattleStateRequestTarget, BattleStateResponse}
 import slaydemo.backend.battle.objects.{BattleAggregateState, BattleId, BattlePhase}
 import slaydemo.backend.battle.services.{BattleStateReadError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonOk, methodNotAllowedError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, errorResponse, jsonOk, requestPath, withCors}
 
 private[http4s] object BattleStateHttp4sRoutes {
   private val InvalidBattleIdError =
-    typedApiError(statusCode = 400, code = "invalid_battle_id", message = "battleId is required.")
+    apiError(
+      Status.BadRequest,
+      "invalid_battle_id",
+      "battleId is required."
+    )
   private val BattleNotFoundError =
-    codeMessageError(statusCode = 404, code = "battle_not_found")
+    apiError(
+      Status.NotFound,
+      "battle_not_found",
+      "battle_not_found"
+    )
   private val MethodNotAllowedError =
-    methodNotAllowedError("Only GET, HEAD, and OPTIONS are supported.")
+    apiError(
+      Status.MethodNotAllowed,
+      "method_not_allowed",
+      "Only GET, HEAD, and OPTIONS are supported."
+    )
 
   def readRoutes(battleStateService: BattleStateService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {

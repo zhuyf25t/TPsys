@@ -1,4 +1,4 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.governance
 
 import cats.effect.IO
 import io.circe.syntax.*
@@ -19,6 +19,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
 
 private[http4s] object GovernanceHttp4sRoutes {

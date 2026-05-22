@@ -7,6 +7,7 @@ import org.http4s.{Method, Request}
 import slaydemo.backend.battle.objects.EpochMillis
 import slaydemo.backend.governance.objects.*
 import slaydemo.backend.governance.services.*
+import slaydemo.backend.http4s.governance.GovernanceHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.mail.objects.{
   GovernanceMailActorHandle,

@@ -1,8 +1,8 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import org.http4s.circe.CirceEntityEncoder.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import io.circe.syntax.*
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.BattleCommandRequest
 import slaydemo.backend.battle.objects.apiTypes.{
@@ -13,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleCommandRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleCommandSubmitError, BattleStateService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, decodeJsonObjectBody, errorResponse, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, methodNotAllowedError, requestPath, typedApiError}
 
 private[http4s] object BattleCommandHttp4sRoutes {
   private val InvalidJsonObjectError =
@@ -48,11 +48,11 @@ private[http4s] object BattleCommandHttp4sRoutes {
               case Left(BattleCommandAPIRequestError.InvalidField(field)) =>
                 errorResponse(invalidFieldError(field))
               case Right(command) =>
-                blocking(battleStateService.acceptCommand(command)).map {
+                blocking(battleStateService.acceptCommand(command)).flatMap {
                   case Right(accepted) =>
-                    withCors(Response[IO](Status.Ok).withEntity(BattleCommandAcceptedResponse.fromAccepted(accepted)))
+                    jsonOk(BattleCommandAcceptedResponse.fromAccepted(accepted).asJson)
                   case Left(error) =>
-                    commandSubmitError(error)
+                    errorResponse(commandSubmitApiError(error))
                 }
             }
           case _ =>
@@ -65,9 +65,6 @@ private[http4s] object BattleCommandHttp4sRoutes {
 
   private def decodeCommandRequest(request: Request[IO]): IO[Either[BattleCommandAPIRequestError, BattleCommandRequest]] =
     decodeJsonObjectBody(request, BattleCommandAPIRequestError.InvalidJsonObject)(BattleCommandAPIRequest.decodeCommand)
-
-  private def commandSubmitError(error: BattleCommandSubmitError): Response[IO] =
-    renderError(commandSubmitApiError(error))
 
   private def commandSubmitApiError(error: BattleCommandSubmitError): HttpApiError =
     error match {

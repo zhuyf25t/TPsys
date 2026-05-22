@@ -3,10 +3,10 @@ package slaydemo.backend.http4s
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{Headers, HttpRoutes, Method, Request, Response}
+import org.http4s.{Headers, HttpRoutes, Method, Request, Response, Status}
 import org.typelevel.ci.CIString
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
@@ -128,10 +128,24 @@ private[http4s] object IdentityHttp4sRoutes {
     headers.get(CIString(name)).flatMap(_.toList.headOption.map(_.value))
 
   private def identityApiError(code: IdentityApiErrorCode): HttpApiError =
-    typedApiError(
-      statusCode = IdentityApiErrorCode.statusCode(code),
+    apiError(
+      status = identityApiStatus(code),
       code = IdentityApiErrorCode.wireValue(code),
       message = IdentityApiErrorCode.message(code)
     )
+
+  private def identityApiStatus(code: IdentityApiErrorCode): Status =
+    code match {
+      case IdentityApiErrorCode.PostMethodNotAllowed => Status.MethodNotAllowed
+      case IdentityApiErrorCode.GetMethodNotAllowed  => Status.MethodNotAllowed
+      case IdentityApiErrorCode.HandleTaken          => Status.Conflict
+      case IdentityApiErrorCode.InvalidCredentials   => Status.Unauthorized
+      case IdentityApiErrorCode.MissingSession       => Status.Unauthorized
+      case IdentityApiErrorCode.InvalidSession       => Status.Unauthorized
+      case IdentityApiErrorCode.InvalidJsonObject    => Status.BadRequest
+      case IdentityApiErrorCode.InvalidHandle        => Status.BadRequest
+      case IdentityApiErrorCode.InvalidPassword      => Status.BadRequest
+      case IdentityApiErrorCode.InvalidSkin          => Status.BadRequest
+    }
 
 }

@@ -6,6 +6,7 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import slaydemo.backend.{BackendConfig, BackendEnvironment, BackendRuntime}
+import slaydemo.backend.http4s.battle.BattleHttpServices
 import slaydemo.backend.shared.database.PostgresSupport
 
 object BackendHttp4sApp extends IOApp.Simple {
@@ -18,7 +19,7 @@ object BackendHttp4sApp extends IOApp.Simple {
         for
           port <- httpPort(runtime.config)
           httpApp = HttpApiModules
-            .routes(HttpApiServices.fromRuntime(runtime))
+            .routes(httpApiServices(runtime))
             .orNotFound
           _ <- logger.info(s"Starting Slay http4s backend shell on http://0.0.0.0:${port.value}")
           _ <- EmberServerBuilder
@@ -34,6 +35,25 @@ object BackendHttp4sApp extends IOApp.Simple {
 
   private def runtimeResource(env: Map[String, String]): Resource[IO, BackendRuntime] =
     Resource.make(IO.blocking(BackendRuntime.fromEnvironment(env)))(_ => IO.blocking(PostgresSupport.closeAll()))
+
+  private def httpApiServices(runtime: BackendRuntime): HttpApiServices =
+    HttpApiServices(
+      healthService = runtime.healthService,
+      replayService = runtime.replayService,
+      battleServices = BattleHttpServices(
+        queueService = runtime.battleQueueService,
+        joinAuthorizationService = runtime.battleJoinAuthorizationService,
+        resultService = runtime.battleResultService,
+        stateService = runtime.battleStateService
+      ),
+      botProfileService = runtime.botProfileService,
+      identityService = runtime.identityService,
+      mailService = runtime.mailService,
+      friendRequestService = runtime.friendRequestService,
+      forumService = runtime.forumService,
+      contributionAdjustmentService = runtime.contributionAdjustmentService,
+      governanceNotificationService = runtime.governanceNotificationService
+    )
 
   private def httpPort(config: BackendConfig): IO[Port] =
     IO.fromOption(Port.fromInt(config.port.value))(

@@ -2,10 +2,10 @@ package slaydemo.backend.http4s.replay
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.HttpApiErrors.apiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeTextBody
@@ -163,25 +163,11 @@ private[http4s] object ReplayHttp4sRoutes {
     ReplayApiCodec.catalogTarget(requestPath(request))
 
   private def replayApiError(code: ReplayApiErrorCode): HttpApiError =
-    apiError(
-      status = replayApiStatus(code),
+    typedApiError(
+      statusCode = ReplayApiErrorCode.statusCode(code),
       code = ReplayApiErrorCode.wireValue(code),
       message = ReplayApiErrorCode.message(code)
     )
-
-  private def replayApiStatus(code: ReplayApiErrorCode): Status =
-    code match {
-      case ReplayApiErrorCode.MethodNotAllowed    => Status.MethodNotAllowed
-      case ReplayApiErrorCode.VisitorNotAllowed   => Status.Forbidden
-      case ReplayApiErrorCode.ReplayNotFound      => Status.NotFound
-      case ReplayApiErrorCode.BadJsonObject       => Status.BadRequest
-      case ReplayApiErrorCode.InvalidReplayId     => Status.BadRequest
-      case ReplayApiErrorCode.InvalidBattleId     => Status.BadRequest
-      case ReplayApiErrorCode.InvalidHandle       => Status.BadRequest
-      case ReplayApiErrorCode.InvalidFramesJson   => Status.BadRequest
-      case ReplayApiErrorCode.InvalidAuthorHandle => Status.BadRequest
-      case ReplayApiErrorCode.InvalidBody         => Status.BadRequest
-    }
 
   private object CatalogRequest {
     def unapply(request: Request[IO]): Option[ReplayCatalogTarget] =

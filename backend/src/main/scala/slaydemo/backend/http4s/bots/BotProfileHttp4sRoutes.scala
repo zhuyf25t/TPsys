@@ -2,12 +2,12 @@ package slaydemo.backend.http4s.bots
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request, Status}
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.bots.objects.apiTypes.{BotProfileApiErrorCode, BotProfileRequestTarget, BotProfilesResponse}
 import slaydemo.backend.bots.services.BotProfileService
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.HttpApiErrors.apiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
@@ -33,14 +33,9 @@ private[http4s] object BotProfileHttp4sRoutes {
     BotProfileRequestTarget.isProfilePath(requestPath(request))
 
   private def botProfileApiError(code: BotProfileApiErrorCode): HttpApiError =
-    apiError(
-      status = botProfileApiStatus(code),
+    typedApiError(
+      statusCode = BotProfileApiErrorCode.statusCode(code),
       code = BotProfileApiErrorCode.wireValue(code),
       message = BotProfileApiErrorCode.message(code)
     )
-
-  private def botProfileApiStatus(code: BotProfileApiErrorCode): Status =
-    code match {
-      case BotProfileApiErrorCode.MethodNotAllowed => Status.MethodNotAllowed
-    }
 }

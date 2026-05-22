@@ -2,10 +2,10 @@ package slaydemo.backend.http4s.health
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request, Status}
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.HttpApiErrors.apiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
@@ -34,14 +34,9 @@ private[http4s] object HealthHttp4sRoutes {
     HealthRequestTarget.isHealthPath(requestPath(request))
 
   private def healthApiError(code: HealthApiErrorCode): HttpApiError =
-    apiError(
-      status = healthApiStatus(code),
+    typedApiError(
+      statusCode = HealthApiErrorCode.statusCode(code),
       code = HealthApiErrorCode.wireValue(code),
       message = HealthApiErrorCode.message(code)
     )
-
-  private def healthApiStatus(code: HealthApiErrorCode): Status =
-    code match {
-      case HealthApiErrorCode.MethodNotAllowed => Status.MethodNotAllowed
-    }
 }

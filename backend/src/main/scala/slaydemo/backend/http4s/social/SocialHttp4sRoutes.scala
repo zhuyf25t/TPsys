@@ -3,10 +3,10 @@ package slaydemo.backend.http4s.social
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.HttpApiErrors.apiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.corsNoContent
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestDecoders.decodeEntityBody
@@ -123,25 +123,10 @@ private[http4s] object SocialHttp4sRoutes {
     socialApiError(SocialApiErrorCode.fromRespondRouteError(error))
 
   private def socialApiError(code: SocialApiErrorCode): HttpApiError =
-    apiError(
-      status = socialApiStatus(code),
+    typedApiError(
+      statusCode = SocialApiErrorCode.statusCode(code),
       code = SocialApiErrorCode.wireValue(code),
       message = SocialApiErrorCode.message(code)
     )
-
-  private def socialApiStatus(code: SocialApiErrorCode): Status =
-    code match {
-      case SocialApiErrorCode.MethodNotAllowed  => Status.MethodNotAllowed
-      case SocialApiErrorCode.VisitorNotAllowed => Status.Forbidden
-      case SocialApiErrorCode.Forbidden         => Status.Forbidden
-      case SocialApiErrorCode.RequestNotFound   => Status.NotFound
-      case SocialApiErrorCode.InvalidJsonObject => Status.BadRequest
-      case SocialApiErrorCode.MissingOwner      => Status.BadRequest
-      case SocialApiErrorCode.InvalidOwner      => Status.BadRequest
-      case SocialApiErrorCode.InvalidHandles    => Status.BadRequest
-      case SocialApiErrorCode.InvalidDecision   => Status.BadRequest
-      case SocialApiErrorCode.MissingFields     => Status.BadRequest
-      case SocialApiErrorCode.InvalidActor      => Status.BadRequest
-    }
 
 }

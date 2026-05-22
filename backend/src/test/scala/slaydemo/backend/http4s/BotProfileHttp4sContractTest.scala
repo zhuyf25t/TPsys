@@ -6,6 +6,7 @@ import org.http4s.{Method, Request}
 
 import slaydemo.backend.bots.objects.*
 import slaydemo.backend.bots.services.BotProfileService
+import slaydemo.backend.http4s.bots.BotProfileHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 

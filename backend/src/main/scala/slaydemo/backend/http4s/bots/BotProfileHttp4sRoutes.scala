@@ -1,4 +1,4 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.bots
 
 import cats.effect.IO
 import io.circe.syntax.*
@@ -6,6 +6,7 @@ import org.http4s.{HttpRoutes, Method, Request, Status}
 
 import slaydemo.backend.bots.objects.apiTypes.{BotProfileApiErrorCode, BotProfileRequestTarget, BotProfilesResponse}
 import slaydemo.backend.bots.services.BotProfileService
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, errorResponse, jsonOk, requestPath}
 
 private[http4s] object BotProfileHttp4sRoutes {

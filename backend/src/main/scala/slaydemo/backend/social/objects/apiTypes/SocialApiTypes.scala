@@ -187,26 +187,53 @@ object FriendRequestListResponse {
     FriendRequestListResponse(records.map(FriendRequestResponse.fromRecord))
 }
 
+enum FriendRequestCreateApiOutcome {
+  case Created
+  case AlreadySent
+}
+
+object FriendRequestCreateApiOutcome {
+  def fromResult(result: FriendRequestSubmissionResult): FriendRequestCreateApiOutcome =
+    result match {
+      case FriendRequestSubmissionResult.Created(_, _) =>
+        FriendRequestCreateApiOutcome.Created
+      case FriendRequestSubmissionResult.AlreadySent(_) =>
+        FriendRequestCreateApiOutcome.AlreadySent
+    }
+
+  def createdFlag(outcome: FriendRequestCreateApiOutcome): Boolean =
+    outcome match {
+      case FriendRequestCreateApiOutcome.Created     => true
+      case FriendRequestCreateApiOutcome.AlreadySent => false
+    }
+
+  def alreadySentFlag(outcome: FriendRequestCreateApiOutcome): Boolean =
+    outcome match {
+      case FriendRequestCreateApiOutcome.Created     => false
+      case FriendRequestCreateApiOutcome.AlreadySent => true
+    }
+}
+
 final case class FriendRequestCreateResponse(
-  created: Boolean,
-  alreadySent: Boolean,
+  outcome: FriendRequestCreateApiOutcome,
   request: FriendRequestResponse,
   mail: Option[MailItemResponse]
 )
 
 object FriendRequestCreateResponse {
-  given Encoder[FriendRequestCreateResponse] = deriveEncoder
+  given Encoder[FriendRequestCreateResponse] =
+    Encoder.forProduct4("created", "alreadySent", "request", "mail")(response =>
+      (
+        FriendRequestCreateApiOutcome.createdFlag(response.outcome),
+        FriendRequestCreateApiOutcome.alreadySentFlag(response.outcome),
+        response.request,
+        response.mail
+      )
+    )
 
   def fromResult(result: FriendRequestSubmissionResult): FriendRequestCreateResponse =
     FriendRequestCreateResponse(
-      created = result match {
-        case FriendRequestSubmissionResult.Created(_, _) => true
-        case FriendRequestSubmissionResult.AlreadySent(_) => false
-      },
-      alreadySent = result match {
-        case FriendRequestSubmissionResult.Created(_, _) => false
-        case FriendRequestSubmissionResult.AlreadySent(_) => true
-      },
+      outcome = FriendRequestCreateApiOutcome.fromResult(result),
       request = FriendRequestResponse.fromRecord(result.friendRequest),
       mail = result.notificationMail.map(MailItemResponse.fromRecord)
     )

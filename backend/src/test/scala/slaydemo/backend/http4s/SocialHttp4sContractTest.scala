@@ -76,12 +76,24 @@ object SocialHttp4sContractTest {
 
     assertEquals("create status", created.status, 200)
     assertContains("create created", created.body, """"created":true""")
+    assertContains("create not already sent", created.body, """"alreadySent":false""")
     assertContains("create mail metadata", created.body, """"friendRequestStatus":"pending"""")
     assertEquals("create call", service.createCalls.head, PlayerHandle("Alice") -> PlayerHandle("Bob"))
 
     assertEquals("visitor create status", visitor.status, 403)
     assertContains("visitor create code", visitor.body, """"code":"visitor_not_allowed"""")
     assertEquals("visitor create does not call service", service.createCalls.length, 1)
+
+    service.createResults = Vector(Right(FriendRequestSubmissionResult.AlreadySent(friendRequest(sourceHandle = PlayerHandle("Alice"), targetHandle = PlayerHandle("Bob")))))
+    val alreadySent = run(
+      service,
+      Request[IO](method = Method.POST, uri = uri"/social/friend-requests")
+        .withEntity("""{"sourceHandle":"Alice","targetHandle":"Bob"}""")
+    )
+
+    assertEquals("already sent status", alreadySent.status, 200)
+    assertContains("already sent created", alreadySent.body, """"created":false""")
+    assertContains("already sent flag", alreadySent.body, """"alreadySent":true""")
 
     service.createResults = Vector(Left(FriendRequestCreateError.InvalidHandles))
     val serviceError = run(
@@ -92,7 +104,7 @@ object SocialHttp4sContractTest {
 
     assertEquals("service create error status", serviceError.status, 400)
     assertContains("service create error code", serviceError.body, """"code":"invalid_handles"""")
-    assertEquals("service create error call count", service.createCalls.length, 2)
+    assertEquals("service create error call count", service.createCalls.length, 3)
   }
 
   private def createRejectsNonObjectBody(): Unit = {

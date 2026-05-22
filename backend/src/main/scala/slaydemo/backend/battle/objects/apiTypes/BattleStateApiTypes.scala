@@ -231,10 +231,7 @@ object BattleStateResponse {
     )
 
   private def vectorJson(vector: BattleVector2): Json =
-    Json.obj(
-      "x" -> Json.fromDoubleOrNull(vector.x),
-      "y" -> Json.fromDoubleOrNull(vector.y)
-    )
+    BattleStateVectorResponse.fromVector(vector).asJson
 
   private def optionalStringJson(value: Option[String]): Json =
     value.filter(_.trim.nonEmpty).map(Json.fromString).getOrElse(Json.Null)
@@ -247,4 +244,14 @@ object BattleStateResponse {
 
   private def optionalStringField(key: String, value: Option[String]): Vector[(String, Json)] =
     value.filter(_.trim.nonEmpty).map(text => Vector(key -> Json.fromString(text))).getOrElse(Vector.empty)
+}
+
+private final case class BattleStateVectorResponse(x: Double, y: Double)
+
+private object BattleStateVectorResponse {
+  given Encoder[BattleStateVectorResponse] =
+    Encoder.forProduct2("x", "y")((response: BattleStateVectorResponse) => (response.x, response.y))
+
+  def fromVector(vector: BattleVector2): BattleStateVectorResponse =
+    BattleStateVectorResponse(x = vector.x, y = vector.y)
 }

@@ -1,4 +1,4 @@
-package services.battle.objects.apiTypes
+package services.battle.api
 
 import io.circe.{Decoder, Json}
 import io.circe.generic.semiauto.deriveDecoder
@@ -37,18 +37,18 @@ object BattleResultApiCodec {
   def decodeRecordCommand(payload: Json): Either[BattleResultRecordDecodeError, BattleResultRecordCommand] =
     payload.as[BattleResultRecordAPIRequest].left.map(_ => BattleResultRecordDecodeError.BadJson).flatMap(_.toCommand)
 
-  private[apiTypes] def parseSubmissionHandle(value: String): Either[BattleResultRecordDecodeError, PlayerHandle] = {
+  private[api] def parseSubmissionHandle(value: String): Either[BattleResultRecordDecodeError, PlayerHandle] = {
     val trimmed = HandlePolicy.trim(value)
     if trimmed.isEmpty then Left(BattleResultRecordDecodeError.InvalidHandle)
     else if !HandlePolicy.isPlayableIdentityHandle(trimmed) then Left(BattleResultRecordDecodeError.VisitorNotAllowed)
     else PlayerHandle.forLookup(trimmed).toRight(BattleResultRecordDecodeError.InvalidHandle)
   }
 
-  private[apiTypes] def nonEmptyText(value: String): Option[String] =
+  private[api] def nonEmptyText(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
 }
 
-private[apiTypes] final case class BattleResultListAPIRequest(
+private[api] final case class BattleResultListAPIRequest(
   handle: Option[String] = None,
   battleId: Option[String] = None,
   limit: Option[Int] = None
@@ -61,11 +61,11 @@ private[apiTypes] final case class BattleResultListAPIRequest(
     )
 }
 
-private[apiTypes] object BattleResultListAPIRequest {
+private[api] object BattleResultListAPIRequest {
   given Decoder[BattleResultListAPIRequest] = deriveDecoder
 }
 
-private[apiTypes] final case class BattleResultRecordAPIRequest(
+private[api] final case class BattleResultRecordAPIRequest(
   battleId: Option[String] = None,
   handle: Option[String] = None,
   displayName: Option[String] = None,
@@ -116,6 +116,6 @@ private[apiTypes] final case class BattleResultRecordAPIRequest(
     )
 }
 
-private[apiTypes] object BattleResultRecordAPIRequest {
+private[api] object BattleResultRecordAPIRequest {
   given Decoder[BattleResultRecordAPIRequest] = deriveDecoder
 }

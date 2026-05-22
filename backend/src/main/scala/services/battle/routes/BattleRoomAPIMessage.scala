@@ -5,7 +5,7 @@ import io.circe.Json
 import io.circe.syntax.*
 
 import services.battle.objects.RoomId
-import services.battle.objects.apiTypes.{
+import services.battle.api.{
   RealtimeRoomHeartbeatAPIRequest,
   RealtimeRoomHeartbeatAPIRequestError,
   RealtimeRoomSnapshotAPIRequest,

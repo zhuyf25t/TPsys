@@ -1,4 +1,4 @@
-package services.battle.objects.apiTypes
+package services.battle.api
 
 import io.circe.{Decoder, Encoder, HCursor, Json, JsonObject}
 import io.circe.syntax.*

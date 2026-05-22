@@ -4,7 +4,7 @@ import cats.effect.IO
 import io.circe.Json
 
 import services.battle.objects.BattleId
-import services.battle.objects.apiTypes.{BattleStateReadAPIRequest, BattleStateReadAPIRequestError, BattleStateResponse}
+import services.battle.api.{BattleStateReadAPIRequest, BattleStateReadAPIRequestError, BattleStateResponse}
 import services.battle.services.BattleStateReadError
 import system.api.RegisteredAPIMessage
 

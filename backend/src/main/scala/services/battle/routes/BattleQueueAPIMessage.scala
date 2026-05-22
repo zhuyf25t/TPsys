@@ -5,7 +5,7 @@ import io.circe.Json
 import io.circe.syntax.*
 
 import services.battle.objects.TicketId
-import services.battle.objects.apiTypes.{
+import services.battle.api.{
   BattleQueueJoinAPIRequest,
   BattleQueueJoinAPIRequestError,
   BattleQueueLeaveAPIRequest,

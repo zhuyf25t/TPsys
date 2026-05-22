@@ -2,7 +2,7 @@ package services.battle.routes
 
 import cats.effect.IO
 
-import services.battle.objects.apiTypes.{
+import services.battle.api.{
   BattleResultApiCodec,
   BattleResultListResponse,
   BattleResultRecordDecodeError,

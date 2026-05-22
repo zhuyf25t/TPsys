@@ -48,7 +48,7 @@ object BackendApiBoundaryContractTest {
     legacyRouteJsonRenderersStayDeleted()
     legacyHttpExchangeAdaptersStayDeleted()
     legacyHttpServerTypesStayOutOfMainSources()
-    http4sRoutesUseTypedApiErrors()
+    http4sBoundaryFilesUseTypedApiErrors()
     http4sRoutesDoNotImportDomainRoutes()
 
     println("Backend API boundary contract checks passed")
@@ -113,10 +113,10 @@ object BackendApiBoundaryContractTest {
     )
   }
 
-  private def http4sRoutesUseTypedApiErrors(): Unit = {
-    val routeFiles = scalaFiles(Http4sRoot).filterNot(_.getFileName.toString == "Http4sRouteSupport.scala")
+  private def http4sBoundaryFilesUseTypedApiErrors(): Unit = {
+    val http4sFiles = scalaFiles(Http4sRoot)
     val violations = for {
-      file <- routeFiles
+      file <- http4sFiles
       source = Files.readString(file)
       forbidden <- ForbiddenHttp4sRouteFragments
       if source.contains(forbidden)
@@ -124,7 +124,7 @@ object BackendApiBoundaryContractTest {
 
     assert(
       violations.isEmpty,
-      s"http4s routes must build typed HttpApiError values before rendering errors:\n${violations.mkString("\n")}"
+      s"http4s boundary files must build typed HttpApiError values before rendering errors:\n${violations.mkString("\n")}"
     )
   }
 

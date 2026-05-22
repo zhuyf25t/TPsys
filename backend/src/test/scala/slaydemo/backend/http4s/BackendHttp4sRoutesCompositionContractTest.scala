@@ -1,7 +1,6 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.{Method, Request, Uri}
 
 import slaydemo.backend.battle.objects.*
@@ -32,6 +31,7 @@ import slaydemo.backend.governance.services.{
   GovernanceReviewNotificationCommand,
   GovernanceReviewNotificationSubmissionResult
 }
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.api.IdentityAccountSummary
 import slaydemo.backend.identity.objects.{IdentityAccount, SessionToken}
 import slaydemo.backend.identity.services.{
@@ -124,8 +124,8 @@ object BackendHttp4sRoutesCompositionContractTest {
     }
 
   private def run(request: Request[IO]): RouteResponse = {
-    val response = BackendHttp4sRoutes
-      .backendRoutes(
+    runRoute(
+      BackendHttp4sRoutes.backendRoutes(
         healthService = UnusedHealthService,
         replayService = UnusedReplayService,
         battleQueueService = UnusedBattleQueueService,
@@ -139,14 +139,10 @@ object BackendHttp4sRoutesCompositionContractTest {
         forumService = UnusedForumService,
         contributionAdjustmentService = UnusedContributionAdjustmentService,
         governanceNotificationService = UnusedGovernanceNotificationService
-      )
-      .orNotFound
-      .run(request)
-      .unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+      ),
+      request
+    )
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private object UnusedHealthService extends HealthService {
     override def current: HealthResponse =

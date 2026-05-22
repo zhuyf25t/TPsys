@@ -10,10 +10,18 @@ object BackendApiBoundaryContractTest {
   private val Http4sRoot: Path =
     SourceRoot.resolve("http4s")
 
+  private val Http4sAppFile: Path =
+    Http4sRoot.resolve("BackendHttp4sApp.scala")
+
   private val DeletedApiMessageBoundaryFiles: Vector[Path] =
     Vector(
       SourceRoot.resolve(Paths.get("shared", "api", "BackendAPIMessage.scala")),
       SourceRoot.resolve(Paths.get("shared", "api", "BackendIO.scala"))
+    )
+
+  private val DeletedHttp4sSupportFiles: Vector[Path] =
+    Vector(
+      Http4sRoot.resolve("Http4sRouteSupport.scala")
     )
 
   private val ForbiddenSourceFragments: Vector[String] =
@@ -44,11 +52,13 @@ object BackendApiBoundaryContractTest {
 
   def main(args: Array[String]): Unit = {
     deletedApiMessageBoundaryFilesStayDeleted()
+    deletedHttp4sSupportFilesStayDeleted()
     oldApiMessageBoundaryNamesStayOutOfMainSources()
     legacyRouteJsonRenderersStayDeleted()
     legacyHttpExchangeAdaptersStayDeleted()
     legacyHttpServerTypesStayOutOfMainSources()
     http4sBoundaryFilesUseTypedApiErrors()
+    http4sOnlyAppDependsOnBackendRuntime()
     http4sRoutesDoNotImportDomainRoutes()
 
     println("Backend API boundary contract checks passed")
@@ -60,6 +70,15 @@ object BackendApiBoundaryContractTest {
     assert(
       existingFiles.isEmpty,
       s"deleted APIMessage boundary artifacts must not be recreated: ${existingFiles.mkString(", ")}"
+    )
+  }
+
+  private def deletedHttp4sSupportFilesStayDeleted(): Unit = {
+    val existingFiles = DeletedHttp4sSupportFiles.filter(Files.exists(_))
+
+    assert(
+      existingFiles.isEmpty,
+      s"deleted http4s catch-all support files must not be recreated: ${existingFiles.mkString(", ")}"
     )
   }
 
@@ -125,6 +144,20 @@ object BackendApiBoundaryContractTest {
     assert(
       violations.isEmpty,
       s"http4s boundary files must build typed HttpApiError values before rendering errors:\n${violations.mkString("\n")}"
+    )
+  }
+
+  private def http4sOnlyAppDependsOnBackendRuntime(): Unit = {
+    val violations = for {
+      file <- scalaFiles(Http4sRoot)
+      if file != Http4sAppFile
+      source = Files.readString(file)
+      if source.contains("BackendRuntime")
+    } yield s"${Http4sRoot.relativize(file)} depends on BackendRuntime"
+
+    assert(
+      violations.isEmpty,
+      s"http4s runtime adaptation must stay in BackendHttp4sApp:\n${violations.mkString("\n")}"
     )
   }
 

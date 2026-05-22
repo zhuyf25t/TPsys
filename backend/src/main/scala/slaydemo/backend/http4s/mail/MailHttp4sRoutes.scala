@@ -1,10 +1,11 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.mail
 
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,

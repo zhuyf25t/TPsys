@@ -12,6 +12,7 @@ import slaydemo.backend.battle.services.{
 }
 import slaydemo.backend.http4s.battle.BattleHttpModule
 import slaydemo.backend.http4s.identity.IdentityHttpModule
+import slaydemo.backend.http4s.mail.MailHttpModule
 import slaydemo.backend.bots.services.BotProfileService
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
@@ -39,7 +40,7 @@ object BackendHttp4sRoutes {
   ): HttpRoutes[IO] =
     HealthHttp4sRoutes.routes(healthService) <+>
       IdentityHttpModule.routes(identityService) <+>
-      MailHttp4sRoutes.routes(mailService) <+>
+      MailHttpModule.routes(mailService) <+>
       SocialHttp4sRoutes.routes(friendRequestService) <+>
       ForumHttp4sRoutes.routes(forumService) <+>
       GovernanceHttp4sRoutes.routes(contributionAdjustmentService, governanceNotificationService) <+>

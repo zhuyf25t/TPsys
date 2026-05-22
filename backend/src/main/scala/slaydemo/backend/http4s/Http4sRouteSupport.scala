@@ -75,8 +75,11 @@ private[http4s] object Http4sRouteSupport {
   def errorResponse(error: HttpApiError): IO[Response[IO]] =
     IO.pure(renderError(error))
 
+  def apiError(status: Status, code: String, message: String): HttpApiError =
+    HttpApiError(status = status, code = code, message = message)
+
   def typedApiError(statusCode: Int, code: String, message: String): HttpApiError =
-    HttpApiError(status = statusFrom(statusCode), code = code, message = message)
+    apiError(status = statusFrom(statusCode), code = code, message = message)
 
   def methodNotAllowedError(message: String): HttpApiError =
     typedApiError(statusCode = 405, code = "method_not_allowed", message = message)

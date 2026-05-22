@@ -1,12 +1,12 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.{Method, Request}
 import org.http4s.implicits.uri
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.PlayerHandle
 
 object BattleQueueHttp4sStatusContractTest {
@@ -85,8 +85,7 @@ object BattleQueueHttp4sStatusContractTest {
   }
 
   private def run(service: RecordingBattleQueueService, request: Request[IO]): RouteResponse = {
-    val response = BattleQueueHttp4sRoutes.statusRoutes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(BattleQueueHttp4sRoutes.statusRoutes(service), request)
   }
 
   private def snapshot(
@@ -119,8 +118,6 @@ object BattleQueueHttp4sStatusContractTest {
       finishedAt = None,
       battleSession = None
     )
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingBattleQueueService(result: Either[BattleQueueStatusError, BattleQueueSnapshot])
       extends BattleQueueService {

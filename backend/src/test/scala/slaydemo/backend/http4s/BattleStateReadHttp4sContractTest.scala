@@ -1,12 +1,12 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.{Method, Request}
 import org.http4s.implicits.uri
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 
 object BattleStateReadHttp4sContractTest {
   def main(args: Array[String]): Unit = {
@@ -66,11 +66,8 @@ object BattleStateReadHttp4sContractTest {
   }
 
   private def run(service: RecordingBattleStateService, request: Request[IO]): RouteResponse = {
-    val response = BattleStateHttp4sRoutes.readRoutes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(BattleStateHttp4sRoutes.readRoutes(service), request)
   }
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingBattleStateService(
     var statesById: Map[BattleId, BattleAggregateState] = Map(BattleId("battle-route") -> battleState())

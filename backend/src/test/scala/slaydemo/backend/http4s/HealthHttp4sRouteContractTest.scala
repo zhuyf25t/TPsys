@@ -1,10 +1,10 @@
 package slaydemo.backend.http4s
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import org.http4s.{Method, Request}
 import org.http4s.implicits.uri
 
+import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.shared.api.{HealthResponse, HealthStatus}
 import slaydemo.backend.shared.objects.{ServiceName, ServicePort}
 import slaydemo.backend.shared.services.HealthService
@@ -60,14 +60,11 @@ object HealthHttp4sRouteContractTest {
   }
 
   private def run(service: RecordingHealthService, request: Request[IO]): RouteResponse = {
-    val response = HealthHttp4sRoutes.routes(service).orNotFound.run(request).unsafeRunSync()
-    RouteResponse(response.status.code, response.as[String].unsafeRunSync())
+    runRoute(HealthHttp4sRoutes.routes(service), request)
   }
 
   private def uriFrom(path: String): org.http4s.Uri =
     org.http4s.Uri.unsafeFromString(path)
-
-  private final case class RouteResponse(status: Int, body: String)
 
   private final class RecordingHealthService extends HealthService {
     var currentCalls: Int = 0

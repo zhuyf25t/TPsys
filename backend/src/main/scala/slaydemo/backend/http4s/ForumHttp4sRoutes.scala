@@ -2,9 +2,8 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.{CirceEntityDecoder, CirceEntityEncoder}
-import org.http4s.dsl.io.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.circe.CirceEntityDecoder
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
 import slaydemo.backend.forum.objects.apiTypes.{
   ForumApiRequestDecodeError,
@@ -20,7 +19,7 @@ import slaydemo.backend.forum.objects.apiTypes.{
   ForumVoteCommandParseError
 }
 import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, decodeEntityBody, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError}
 
 private[http4s] object ForumHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -33,7 +32,6 @@ private[http4s] object ForumHttp4sRoutes {
     typedApiError(statusCode = 400, code = "bad_request", message = "Request body must be a JSON object with string fields.")
 
   import CirceEntityDecoder.*
-  import CirceEntityEncoder.*
 
   def routes(service: ForumService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
@@ -82,11 +80,11 @@ private[http4s] object ForumHttp4sRoutes {
       case Right(fields) =>
         fields.toCreateTopicCommand match {
           case Right(command) =>
-            blocking(service.createTopic(command)).map {
+            blocking(service.createTopic(command)).flatMap {
               case Right(topic) =>
-                withCors(Response[IO](Status.Created).withEntity(ForumTopicWrapperResponse.fromView(topic).asJson))
+                jsonCreated(ForumTopicWrapperResponse.fromView(topic).asJson)
               case Left(error) =>
-                renderError(createApiError(error))
+                IO.pure(renderError(createApiError(error)))
             }
           case Left(error) =>
             errorResponse(createApiError(error))

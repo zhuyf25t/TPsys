@@ -2,11 +2,9 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.CirceEntityEncoder.*
-import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, corsOk, decodeTextBody, errorResponse, jsonOk, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, corsOk, decodeTextBody, errorResponse, jsonCreated, jsonOk, requestPath, typedApiError}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
@@ -68,7 +66,7 @@ private[http4s] object ReplayHttp4sRoutes {
           case Right(command) =>
             blocking(service.record(command)).flatMap {
               case Right(record) =>
-                Created(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, None)).asJson).map(withCors)
+                jsonCreated(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, None)).asJson)
               case Left(error) =>
                 errorResponse(recordServiceError(error))
             }
@@ -122,7 +120,7 @@ private[http4s] object ReplayHttp4sRoutes {
               case Right(command) =>
                 blocking(service.addComment(command)).flatMap {
                   case Right(comment) =>
-                    Created(ReplayCommentWrapperResponse(ReplayCommentResponse.fromRecord(comment)).asJson).map(withCors)
+                    jsonCreated(ReplayCommentWrapperResponse(ReplayCommentResponse.fromRecord(comment)).asJson)
                   case Left(error) =>
                     errorResponse(commentServiceError(error))
                 }

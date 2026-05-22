@@ -164,17 +164,7 @@ object BattleStateResponse {
     BattleStateSlowFieldResponse.fromSlowField(field).asJson
 
   private def pickupJson(pickup: BattlePickupState): Json =
-    Json.obj(
-      (
-        Vector(
-          "pickupId" -> Json.fromString(pickup.pickupId.value),
-          "kind" -> Json.fromString(PickupKind.wireValue(pickup.pickupKind)),
-          "position" -> vectorJson(pickup.position),
-          "available" -> Json.fromBoolean(pickup.available),
-          "respawnMs" -> Json.fromLong(pickup.respawnMs.value)
-        ) ++ optionalStringField("weaponKind", pickup.weaponKind.map(WeaponKind.wireValue))
-      )*
-    )
+    BattleStatePickupResponse.fromPickup(pickup).asJson
 
   private def eventJson(event: BattleEventState): Json =
     BattleStateEventResponse.fromEvent(event).asJson
@@ -190,9 +180,6 @@ object BattleStateResponse {
 
   private def optionalLongJson(value: Option[Long]): Json =
     value.map(Json.fromLong).getOrElse(Json.Null)
-
-  private def optionalStringField(key: String, value: Option[String]): Vector[(String, Json)] =
-    value.filter(_.trim.nonEmpty).map(text => Vector(key -> Json.fromString(text))).getOrElse(Vector.empty)
 }
 
 private final case class BattleStateVectorResponse(x: Double, y: Double)
@@ -431,4 +418,40 @@ private object BattleStateEventResponse {
       target = BattleStateEventParticipantResponse.fromParticipant(event.target)
     )
   }
+}
+
+private final case class BattleStatePickupResponse(
+  pickupId: String,
+  kind: String,
+  position: BattleStateVectorResponse,
+  available: Boolean,
+  respawnMs: Long,
+  weaponKind: Option[String]
+)
+
+private object BattleStatePickupResponse {
+  given Encoder[BattleStatePickupResponse] =
+    Encoder
+      .forProduct6("pickupId", "kind", "position", "available", "respawnMs", "weaponKind")(
+        (response: BattleStatePickupResponse) =>
+          (
+            response.pickupId,
+            response.kind,
+            response.position,
+            response.available,
+            response.respawnMs,
+            response.weaponKind
+          )
+      )
+      .mapJson(_.dropNullValues)
+
+  def fromPickup(pickup: BattlePickupState): BattleStatePickupResponse =
+    BattleStatePickupResponse(
+      pickupId = pickup.pickupId.value,
+      kind = PickupKind.wireValue(pickup.pickupKind),
+      position = BattleStateVectorResponse.fromVector(pickup.position),
+      available = pickup.available,
+      respawnMs = pickup.respawnMs.value,
+      weaponKind = pickup.weaponKind.map(WeaponKind.wireValue).filter(_.trim.nonEmpty)
+    )
 }

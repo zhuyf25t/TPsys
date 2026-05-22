@@ -3,9 +3,9 @@ package slaydemo.backend.http4s
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response}
+import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
 import slaydemo.backend.mail.objects.apiTypes.{
   MailApiErrorCode,
   MailListResponse,
@@ -85,10 +85,21 @@ private[http4s] object MailHttp4sRoutes {
     mailApiError(MailApiErrorCode.fromReadError(error))
 
   private def mailApiError(code: MailApiErrorCode): HttpApiError =
-    typedApiError(
-      statusCode = MailApiErrorCode.statusCode(code),
+    apiError(
+      status = mailApiStatus(code),
       code = MailApiErrorCode.wireValue(code),
       message = MailApiErrorCode.message(code)
     )
+
+  private def mailApiStatus(code: MailApiErrorCode): Status =
+    code match {
+      case MailApiErrorCode.MethodNotAllowed  => Status.MethodNotAllowed
+      case MailApiErrorCode.VisitorNotAllowed => Status.Forbidden
+      case MailApiErrorCode.MailNotFound      => Status.NotFound
+      case MailApiErrorCode.InvalidJsonObject => Status.BadRequest
+      case MailApiErrorCode.MissingOwner      => Status.BadRequest
+      case MailApiErrorCode.InvalidOwner      => Status.BadRequest
+      case MailApiErrorCode.MissingMailId     => Status.BadRequest
+    }
 
 }

@@ -10,6 +10,68 @@ enum BattleCommandAPIRequestError {
   case InvalidField(field: BattleCommandRequestField)
 }
 
+enum BattleCommandApiErrorCode {
+  case MethodNotAllowed
+  case InvalidJsonObject
+  case CommandNotAuthorized
+  case BattleNotFound
+  case PlayerNotFound
+  case BotCommandsNotSupported
+  case InvalidField(field: BattleCommandRequestField)
+}
+
+object BattleCommandApiErrorCode {
+  def fromRequestError(error: BattleCommandAPIRequestError): BattleCommandApiErrorCode =
+    error match {
+      case BattleCommandAPIRequestError.InvalidJsonObject =>
+        BattleCommandApiErrorCode.InvalidJsonObject
+      case BattleCommandAPIRequestError.MissingTicket =>
+        BattleCommandApiErrorCode.CommandNotAuthorized
+      case BattleCommandAPIRequestError.InvalidField(field) =>
+        BattleCommandApiErrorCode.InvalidField(field)
+    }
+
+  def wireValue(code: BattleCommandApiErrorCode): String =
+    code match {
+      case BattleCommandApiErrorCode.MethodNotAllowed =>
+        "method_not_allowed"
+      case BattleCommandApiErrorCode.InvalidJsonObject =>
+        "bad_request"
+      case BattleCommandApiErrorCode.CommandNotAuthorized =>
+        "command_not_authorized"
+      case BattleCommandApiErrorCode.BattleNotFound =>
+        "battle_not_found"
+      case BattleCommandApiErrorCode.PlayerNotFound =>
+        "player_not_found"
+      case BattleCommandApiErrorCode.BotCommandsNotSupported =>
+        "bot_commands_not_supported"
+      case BattleCommandApiErrorCode.InvalidField(field) =>
+        BattleCommandRequestField.errorCode(field)
+    }
+
+  def message(code: BattleCommandApiErrorCode): String =
+    code match {
+      case BattleCommandApiErrorCode.MethodNotAllowed =>
+        "Only POST and OPTIONS are supported."
+      case BattleCommandApiErrorCode.InvalidJsonObject =>
+        "Request body must be a JSON object with supported primitive or object fields."
+      case _ =>
+        wireValue(code)
+    }
+
+  def statusCode(code: BattleCommandApiErrorCode): Int =
+    code match {
+      case BattleCommandApiErrorCode.MethodNotAllowed =>
+        405
+      case BattleCommandApiErrorCode.CommandNotAuthorized =>
+        403
+      case BattleCommandApiErrorCode.BattleNotFound =>
+        404
+      case _ =>
+        400
+    }
+}
+
 enum BattleCommandRequestField {
   case BattleId
   case PlayerId

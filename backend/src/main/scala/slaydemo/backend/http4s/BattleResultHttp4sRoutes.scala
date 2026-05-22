@@ -2,8 +2,7 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.circe.CirceEntityEncoder.*
-import org.http4s.{HttpRoutes, Method, Request, Response, Status}
+import org.http4s.{HttpRoutes, Method, Request, Response}
 
 import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultApiCodec,
@@ -14,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError}
 
 private[http4s] object BattleResultHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -54,11 +53,11 @@ private[http4s] object BattleResultHttp4sRoutes {
               case Left(error) =>
                 errorResponse(resultRecordDecodeApiError(error))
               case Right(command) =>
-                blocking(service.record(command)).map {
+                blocking(service.record(command)).flatMap {
                   case Right(record) =>
-                    withCors(Response[IO](Status.Created).withEntity(BattleResultRecordResponse.fromRecord(record).asJson))
+                    jsonCreated(BattleResultRecordResponse.fromRecord(record).asJson)
                   case Left(error) =>
-                    resultRecordError(error)
+                    IO.pure(resultRecordError(error))
                 }
             }
           case _ =>

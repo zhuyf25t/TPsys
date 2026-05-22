@@ -138,19 +138,7 @@ object BattleStateResponse {
     BattleStateSkillResponse.fromSkill(skill).asJson
 
   private def projectileJson(projectile: BattleProjectileState): Json =
-    Json.obj(
-      "projectileId" -> Json.fromString(projectile.projectileId.value),
-      "ownerHeroId" -> Json.fromString(projectile.ownerHeroId.value),
-      "kind" -> Json.fromString(ProjectileKind.wireValue(projectile.projectileKind)),
-      "position" -> vectorJson(projectile.position),
-      "velocity" -> vectorJson(projectile.velocity),
-      "facing" -> Json.fromDoubleOrNull(projectile.facing.value),
-      "radius" -> Json.fromDoubleOrNull(projectile.radius.value),
-      "damage" -> Json.fromInt(projectile.damage.value),
-      "ttlMs" -> Json.fromLong(projectile.ttlMs.value),
-      "maxLifetimeMs" -> Json.fromLong(projectile.maxLifetimeMs.value),
-      "splashRadius" -> Json.fromDoubleOrNull(projectile.splashRadius.value)
-    )
+    BattleStateProjectileResponse.fromProjectile(projectile).asJson
 
   private def projectileTerminalJson(terminal: BattleProjectileTerminalState): Json =
     Json.obj(
@@ -173,15 +161,7 @@ object BattleStateResponse {
     )
 
   private def slowFieldJson(field: BattleSlowFieldState): Json =
-    Json.obj(
-      "fieldId" -> Json.fromString(field.fieldId.value),
-      "ownerPlayerId" -> Json.fromString(field.ownerPlayerId.value),
-      "ownerHeroId" -> Json.fromString(field.ownerHeroId.value),
-      "position" -> vectorJson(field.position),
-      "radius" -> Json.fromDoubleOrNull(field.radius.value),
-      "ttlMs" -> Json.fromLong(field.ttlMs.value),
-      "durationMs" -> Json.fromLong(field.durationMs.value)
-    )
+    BattleStateSlowFieldResponse.fromSlowField(field).asJson
 
   private def pickupJson(pickup: BattlePickupState): Json =
     Json.obj(
@@ -311,5 +291,102 @@ private object BattleStateSkillResponse {
       kind = SkillKind.wireValue(skill.skillKind),
       cooldownMs = skill.cooldownMs.value,
       activeMs = skill.activeMs.value
+    )
+}
+
+private final case class BattleStateProjectileResponse(
+  projectileId: String,
+  ownerHeroId: String,
+  kind: String,
+  position: BattleStateVectorResponse,
+  velocity: BattleStateVectorResponse,
+  facing: Double,
+  radius: Double,
+  damage: Int,
+  ttlMs: Long,
+  maxLifetimeMs: Long,
+  splashRadius: Double
+)
+
+private object BattleStateProjectileResponse {
+  given Encoder[BattleStateProjectileResponse] =
+    Encoder.forProduct11(
+      "projectileId",
+      "ownerHeroId",
+      "kind",
+      "position",
+      "velocity",
+      "facing",
+      "radius",
+      "damage",
+      "ttlMs",
+      "maxLifetimeMs",
+      "splashRadius"
+    )((response: BattleStateProjectileResponse) =>
+      (
+        response.projectileId,
+        response.ownerHeroId,
+        response.kind,
+        response.position,
+        response.velocity,
+        response.facing,
+        response.radius,
+        response.damage,
+        response.ttlMs,
+        response.maxLifetimeMs,
+        response.splashRadius
+      )
+    )
+
+  def fromProjectile(projectile: BattleProjectileState): BattleStateProjectileResponse =
+    BattleStateProjectileResponse(
+      projectileId = projectile.projectileId.value,
+      ownerHeroId = projectile.ownerHeroId.value,
+      kind = ProjectileKind.wireValue(projectile.projectileKind),
+      position = BattleStateVectorResponse.fromVector(projectile.position),
+      velocity = BattleStateVectorResponse.fromVector(projectile.velocity),
+      facing = projectile.facing.value,
+      radius = projectile.radius.value,
+      damage = projectile.damage.value,
+      ttlMs = projectile.ttlMs.value,
+      maxLifetimeMs = projectile.maxLifetimeMs.value,
+      splashRadius = projectile.splashRadius.value
+    )
+}
+
+private final case class BattleStateSlowFieldResponse(
+  fieldId: String,
+  ownerPlayerId: String,
+  ownerHeroId: String,
+  position: BattleStateVectorResponse,
+  radius: Double,
+  ttlMs: Long,
+  durationMs: Long
+)
+
+private object BattleStateSlowFieldResponse {
+  given Encoder[BattleStateSlowFieldResponse] =
+    Encoder.forProduct7("fieldId", "ownerPlayerId", "ownerHeroId", "position", "radius", "ttlMs", "durationMs")(
+      (response: BattleStateSlowFieldResponse) =>
+        (
+          response.fieldId,
+          response.ownerPlayerId,
+          response.ownerHeroId,
+          response.position,
+          response.radius,
+          response.ttlMs,
+          response.durationMs
+        )
+    )
+
+  def fromSlowField(field: BattleSlowFieldState): BattleStateSlowFieldResponse =
+    BattleStateSlowFieldResponse(
+      fieldId = field.fieldId.value,
+      ownerPlayerId = field.ownerPlayerId.value,
+      ownerHeroId = field.ownerHeroId.value,
+      position = BattleStateVectorResponse.fromVector(field.position),
+      radius = field.radius.value,
+      ttlMs = field.ttlMs.value,
+      durationMs = field.durationMs.value
     )
 }

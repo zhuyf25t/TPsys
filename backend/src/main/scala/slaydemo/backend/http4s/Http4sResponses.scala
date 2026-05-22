@@ -17,10 +17,7 @@ private[http4s] object Http4sResponses {
   def renderError(error: HttpApiError): Response[IO] =
     withCors(
       Response[IO](error.status).withEntity(
-        Json.obj(
-          "error" -> Json.fromString(error.message),
-          "code" -> Json.fromString(error.code)
-        )
+        HttpApiErrorResponse.fromError(error)
       )
     )
 

@@ -6,7 +6,7 @@ import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, decodeTextBody, requestPath, typedApiError, withCors}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, corsOk, decodeTextBody, errorResponse, requestPath, typedApiError, withCors}
 import slaydemo.backend.replay.objects.ReplayId
 import slaydemo.backend.replay.objects.apiTypes.{
   ReplayApiCodec,
@@ -42,7 +42,7 @@ private[http4s] object ReplayHttp4sRoutes {
           case ReplayCatalogTarget.Comments(replayId) =>
             handleComments(service, request, replayId)
           case ReplayCatalogTarget.InvalidReplayId =>
-            IO.pure(apiError(replayApiError(ReplayApiErrorCode.InvalidReplayId)))
+            errorResponse(replayApiError(ReplayApiErrorCode.InvalidReplayId))
         }
     }
 
@@ -64,17 +64,17 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.POST =>
         decodeRecordRequest(request).flatMap {
           case Left(error) =>
-            IO.pure(apiError(recordDecodeError(error)))
+            errorResponse(recordDecodeError(error))
           case Right(command) =>
             blocking(service.record(command)).flatMap {
               case Right(record) =>
                 Created(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, None)).asJson).map(withCors)
               case Left(error) =>
-                IO.pure(apiError(recordServiceError(error)))
+                errorResponse(recordServiceError(error))
             }
         }
       case _ =>
-        IO.pure(apiError(replayApiError(ReplayApiErrorCode.MethodNotAllowed)))
+        errorResponse(replayApiError(ReplayApiErrorCode.MethodNotAllowed))
     }
 
   private def handleDetail(service: ReplayService, request: Request[IO], replayId: ReplayId): IO[Response[IO]] =
@@ -89,10 +89,10 @@ private[http4s] object ReplayHttp4sRoutes {
           case Some(record) =>
             Ok(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, query.selectedHandle)).asJson).map(withCors)
           case None =>
-            IO.pure(apiError(replayApiError(ReplayApiErrorCode.ReplayNotFound)))
+            errorResponse(replayApiError(ReplayApiErrorCode.ReplayNotFound))
         }
       case _ =>
-        IO.pure(apiError(replayApiError(ReplayApiErrorCode.MethodNotAllowed)))
+        errorResponse(replayApiError(ReplayApiErrorCode.MethodNotAllowed))
     }
 
   private def handleComments(service: ReplayService, request: Request[IO], replayId: ReplayId): IO[Response[IO]] =
@@ -105,7 +105,7 @@ private[http4s] object ReplayHttp4sRoutes {
         val query = ReplayApiCodec.catalogQuery(request.params)
         blocking(service.load(replayId)).flatMap {
           case None =>
-            IO.pure(apiError(replayApiError(ReplayApiErrorCode.ReplayNotFound)))
+            errorResponse(replayApiError(ReplayApiErrorCode.ReplayNotFound))
           case Some(_) =>
             blocking(service.listComments(replayId, query.limit)).flatMap { records =>
               Ok(ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson).map(withCors)
@@ -114,22 +114,22 @@ private[http4s] object ReplayHttp4sRoutes {
       case Method.POST =>
         blocking(service.load(replayId)).flatMap {
           case None =>
-            IO.pure(apiError(replayApiError(ReplayApiErrorCode.ReplayNotFound)))
+            errorResponse(replayApiError(ReplayApiErrorCode.ReplayNotFound))
           case Some(_) =>
             decodeCommentRequest(request, replayId).flatMap {
               case Left(error) =>
-                IO.pure(apiError(commentDecodeError(error)))
+                errorResponse(commentDecodeError(error))
               case Right(command) =>
                 blocking(service.addComment(command)).flatMap {
                   case Right(comment) =>
                     Created(ReplayCommentWrapperResponse(ReplayCommentResponse.fromRecord(comment)).asJson).map(withCors)
                   case Left(error) =>
-                    IO.pure(apiError(commentServiceError(error)))
+                    errorResponse(commentServiceError(error))
                 }
             }
         }
       case _ =>
-        IO.pure(apiError(replayApiError(ReplayApiErrorCode.MethodNotAllowed)))
+        errorResponse(replayApiError(ReplayApiErrorCode.MethodNotAllowed))
     }
 
   private def decodeRecordRequest(request: Request[IO]): IO[Either[ReplayRecordDecodeError, ReplayRecordCommand]] =

@@ -1,12 +1,15 @@
-# 后端运行结构与 route/test 清理审计
+# 后端运行结构与 http4s 清理审计
 
-本文只描述当前 `multimodule` 分支、当前 worktree 下的后端事实。判断依据来自：
+本文只描述当前 `multimodule` 分支、当前 worktree 下的后端事实。结论来自以下证据：
 
 - `package.json`
 - `backend/build.sbt`
 - `backend/src/main/scala`
 - `backend/src/test/scala`
-- `rg` 对 `routes`、`HttpExchange`、`APIMessage`、`BackendHttp4sRoutes` 的搜索结果
+- `git branch --show-current`
+- `git log --left-right main...HEAD`
+- `git diff --name-status main...HEAD -- backend/src/main/scala backend/src/test/scala backend/build.sbt`
+- `rg` 对 `BackendHttp4sApp`、`BackendHttp4sRoutes`、`routes`、`HttpExchange` 的搜索结果
 
 ## 1. 当前结论
 
@@ -37,18 +40,16 @@ BackendHttp4sApp.run
 
 | 问题 | 当前结论 |
 | --- | --- |
-| 现在真正跑的是不是 `src/main` | 是。入口是 `BackendHttp4sApp`。 |
-| 现在真正跑的是不是旧 `BackendApp` | 不是。当前 `backend/src/main` 下已经没有旧 `BackendApp.scala`。 |
-| route 包还能不能继续“清空” | `backend/src/main` 下已经没有任何 `*/routes` 包；旧 `HttpExchange` route adapter 已经清掉。 |
-| test 是否仍依赖旧 route | 没有发现依赖旧 `routes` 包的 test；当前 route contract test 直接测 http4s adapter。 |
-| 是否应该删除所有 test | 不应该。应保留当前 main 真实路径的 http4s contract 和 service contract。 |
-| 当前分支是否等于 Git `main` | 不是。当前分支是 `multimodule`，`main` 仍是旧架构基线。 |
+| 当前真正跑的是不是 `src/main` | 是。入口是 `BackendHttp4sApp`。 |
+| 当前真正跑的是不是旧 `BackendApp` | 不是。当前 `backend/src/main` 下已经没有旧 `BackendApp.scala`。 |
+| route 包还能不能继续“清空” | 旧 `*/routes` 包已经从 main 源码中清掉；现在不能把 `http4s/` 当成可删除旧 route，因为它就是当前生产 HTTP adapter。 |
+| test 是否仍依赖旧 route | 未发现 `src/test` 依赖旧 `*/routes` 包；当前 route contract test 直接测 http4s adapter。 |
+| 是否应该删除全部 test | 不应该。应该保留能验证当前 main 入口、http4s contract、service state transition 和边界规则的测试。 |
+| 当前分支是否等于 Git `main` | 不是。当前分支是 `multimodule`，`main` 是迁移前基线。 |
 
-## 2. 当前真正起作用的代码
+## 2. 真实运行入口
 
-### 2.1 运行入口
-
-| 文件 | 作用 |
+| 文件 | 当前作用 |
 | --- | --- |
 | `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sApp.scala` | 进程入口：加载环境、创建 runtime、启动 Ember HTTP server。 |
 | `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sRoutes.scala` | 当前 HTTP route 总组合入口。 |
@@ -58,181 +59,155 @@ BackendHttp4sApp.run
 | `backend/src/main/scala/slaydemo/backend/BackendEnvironment.scala` | 从环境变量和本地 env 文件读取配置。 |
 | `backend/src/main/scala/slaydemo/backend/BackendConfig.scala` | 后端配置值对象。 |
 
-### 2.2 当前 HTTP adapter
+核心运行事实：
 
-当前所有 HTTP 请求通过 `BackendHttp4sRoutes.backendRoutes(...)` 组合。`backend/src/main/scala/slaydemo/backend/http4s` 下的正式运行文件是：
+- `BackendHttp4sApp` 通过 `Resource.make(IO.blocking(BackendRuntime.fromEnvironment(env)))` 创建 runtime。
+- `BackendRuntime` 创建当前真实 service，包括 `InMemoryBattleQueueService`、`InMemoryBattleStateService`、`DefaultIdentityService`、`DefaultReplayService`、`DefaultMailService` 等。
+- `BackendHttp4sRoutes.backendRoutes(...)` 把这些 service 注入 http4s routes。
+- `EmberServerBuilder` 才是真正监听端口并处理请求的 HTTP server。
 
-| 文件 | 当前作用 |
-| --- | --- |
-| `BackendHttp4sRoutes.scala` | 总 route composition，把各 domain route 组合成一个 `HttpRoutes[IO]`。 |
-| `Http4sRouteSupport.scala` | CORS、错误响应、请求 path、阻塞 service 调用边界。 |
-| `HealthHttp4sRoutes.scala` | health API。 |
-| `IdentityHttp4sRoutes.scala` | 注册、登录、当前用户、账号列表。 |
-| `MailHttp4sRoutes.scala` | 邮件列表、邮件已读。 |
-| `SocialHttp4sRoutes.scala` | 好友请求查询、创建、响应。 |
-| `ForumHttp4sRoutes.scala` | forum topic、reply、vote。 |
-| `GovernanceHttp4sRoutes.scala` | 贡献调整、治理通知。 |
-| `ReplayHttp4sRoutes.scala` | replay catalog、detail、comments。 |
-| `BotProfileHttp4sRoutes.scala` | bot profile 列表。 |
-| `BattleQueueHttp4sRoutes.scala` | battle queue status/join/leave。 |
-| `BattleRoomHttp4sRoutes.scala` | room snapshot/heartbeat。 |
-| `BattleStateHttp4sRoutes.scala` | battle state read/SSE stream。 |
-| `BattleCommandHttp4sRoutes.scala` | battle command submit。 |
-| `BattleResultHttp4sRoutes.scala` | battle result list/record。 |
+## 3. 当前 http4s 层问题
 
-这些文件是当前 main 后端的 HTTP 边界，不是可以清空的旧 route。
+当前 `http4s/` 不是旧代码，但结构确实已经中期失控。
 
-### 2.3 当前业务层
+### 3.1 `BackendHttp4sRoutes` 变成全后端总线
 
-`BackendRuntime` 实例化的 service 是当前 main 的真实业务入口。主要分层如下：
+`BackendHttp4sRoutes.scala` 一次性接收十几个 service，然后用 `<+>` 平铺组合所有 route：
+
+```text
+HealthHttp4sRoutes
+IdentityHttp4sRoutes
+MailHttp4sRoutes
+SocialHttp4sRoutes
+ForumHttp4sRoutes
+GovernanceHttp4sRoutes
+ReplayHttp4sRoutes
+BotProfileHttp4sRoutes
+BattleQueueHttp4sRoutes
+BattleRoomHttp4sRoutes
+BattleStateHttp4sRoutes
+BattleCommandHttp4sRoutes
+BattleResultHttp4sRoutes
+```
+
+问题不是功能错误，而是它已经承担了“全后端功能总线”的职责。battle、identity、mail、social、forum、governance 被平铺在同一层，读代码时很难一眼看出某个业务域的完整 HTTP 边界。
+
+### 3.2 每个 route 文件都像手写 HTTP 状态机
+
+各 route 文件重复处理：
+
+- path 判断
+- method switch
+- `OPTIONS` / `HEAD` / `GET` / `POST`
+- request body decode
+- API error 映射
+- `IO.blocking` 包同步 service 调用
+- response status/body/CORS
+
+这使 route 不像声明式路由，更像每个文件手写一套小型 HTTP 状态机。
+
+### 3.3 `Http4sRouteSupport` 是万能工具箱
+
+`Http4sRouteSupport.scala` 同时管理：
+
+- request path
+- entity decode
+- JSON object decode
+- CORS response
+- success response
+- error response
+- blocking boundary
+
+短期能减少重复，长期会把所有 route 都绑到同一个通用工具箱，导致公共 helper 越来越厚，模块边界越来越弱。
+
+### 3.4 HTTP 层知道过多业务错误细节
+
+例如 battle command route 会把 battle service 的错误枚举翻译成 HTTP error。这个职责可以存在于 HTTP adapter，但最好下沉到 battle 模块内部的 error mapper，而不是留在全局平铺的 route 文件中。
+
+## 4. 当前真实源码层级
+
+### 4.1 领域模块
 
 | 目录 | 当前作用 |
 | --- | --- |
-| `battle/services` | battle 队列、session、runtime、world、combat、actors、abilities、results。 |
-| `identity/services` | 账号注册、登录、session 当前用户。 |
-| `mail/services` | 邮件列表和已读状态。 |
-| `social/services` | 好友请求。 |
-| `forum/services` | 论坛 topic/reply/vote。 |
-| `governance/services` | 治理与通知。 |
-| `replay/services` | replay 记录、列表、评论。 |
-| `bots/services` | bot profile。 |
-| `shared/services` | health。 |
+| `battle` | 战斗队列、房间、状态、命令、结算、地图、武器、技能、bot、碰撞等。 |
+| `identity` | 账号、登录、session token、密码哈希。 |
+| `mail` | 邮件列表、已读状态。 |
+| `social` | 好友请求。 |
+| `forum` | 论坛 topic/reply/vote。 |
+| `governance` | 贡献调整和治理通知。 |
+| `replay` | 回放记录、目录、评论、结算展示。 |
+| `bots` | bot profile。 |
+| `shared` | 共享 id、配置、storage、database support、health。 |
+| `http4s` | 当前所有 HTTP adapter 和全局 route support。 |
 
-这些 service 不是独立微服务进程，而是同一个 JVM 后端里的业务模块。
+### 4.2 battle 内部
 
-## 3. 已经清掉的旧代码
-
-### 3.1 旧 main 入口和旧 route
-
-当前分支已经删除旧 Java `HttpServer` main 入口：
-
-| 已删除文件 | 原作用 |
+| 目录 | 当前作用 |
 | --- | --- |
-| `backend/src/main/scala/slaydemo/backend/BackendApp.scala` | 旧 Java HttpServer 入口。 |
-| `backend/src/main/scala/slaydemo/backend/BackendRouteCatalog.scala` | 旧 route catalog。 |
-| `backend/src/main/scala/slaydemo/backend/BackendRouteRegistry.scala` | 旧 route registry。 |
+| `battle/objects` | 战斗领域对象和值对象。 |
+| `battle/objects/apiTypes` | battle HTTP request/response DTO、codec、parser。 |
+| `battle/services/queue` | 排队、join/leave、room snapshot、heartbeat。 |
+| `battle/services/session` | battle state service、command acceptance/application、stored battle。 |
+| `battle/services/runtime` | tick 推进、finish/finalization、event、retention、aggregate update。 |
+| `battle/services/world` | 地图、碰撞、几何、移动、出生点。 |
+| `battle/services/combat` | 武器、开火、弹体、命中、伤害、terminal。 |
+| `battle/services/actors` | player、bot、input、生命周期、运行时 actor 更新。 |
+| `battle/services/abilities` | skill、pickup、slow field。 |
+| `battle/services/results` | result、settlement、finish projection、replay、history。 |
+| `battle/database` | 战斗结果持久化，包含 file/in-memory/postgres 实现。 |
 
-当前分支已经删除这些旧 `routes` 包：
+这说明 battle service 已经按业务域拆开了，但 HTTP adapter 仍然没有按 battle 模块聚合。
 
-| 已删除目录 | 原作用 |
-| --- | --- |
-| `battle/routes` | battle 旧 HttpExchange parser/handler/renderer。 |
-| `bots/routes` | bot profile 旧 route。 |
-| `forum/routes` | forum 旧 parser/handler/renderer。 |
-| `governance/routes` | governance 旧 parser/renderer。 |
-| `identity/routes` | identity 旧 route。 |
-| `mail/routes` | mail 旧 route。 |
-| `replay/routes` | replay 旧 route/parser/renderer。 |
-| `shared/routes` | 旧 shared HTTP support/health route。 |
-| `social/routes` | social 旧 route。 |
+## 5. 已清理的旧 route/test
 
-审计搜索结果：
+当前 `backend/src/main` 没有旧 `*/routes` 包，也没有旧 `HttpExchange` main source。
+
+审计结果：
 
 ```text
 rg --files backend/src/main/scala | rg "[\\/]routes[\\/]" -> 0
 rg --files backend/src/test/scala | rg "[\\/]routes[\\/]" -> 0
+rg -n "com.sun.net.httpserver|HttpExchange" backend/src/main/scala backend/src/test/scala
+  -> 只在 BackendApiBoundaryContractTest 的禁止规则中出现
 ```
 
-当前 `backend/src/main/scala` 没有 `routes` 路径，也没有旧 `HttpExchange` main source。
+已从 main 源码中删除或迁移的旧结构包括：
 
-### 3.2 旧 route test
-
-当前分支已经删除旧 route contract test，并用 http4s contract test 替代：
-
-| 已删除旧 test | 替代方向 |
+| 旧结构 | 当前状态 |
 | --- | --- |
-| `battle/routes/*RouteContractTest.scala` | `http4s/Battle*Http4sContractTest.scala` |
-| `bots/routes/BotProfileRouteContractTest.scala` | `http4s/BotProfileHttp4sContractTest.scala` |
-| `forum/routes/ForumRouteContractTest.scala` | `http4s/ForumHttp4sContractTest.scala` |
-| `governance/routes/GovernanceRouteContractTest.scala` | `http4s/GovernanceHttp4sContractTest.scala` |
-| `identity/routes/IdentityRouteContractTest.scala` | `http4s/IdentityHttp4sContractTest.scala` |
-| `mail/routes/MailRouteContractTest.scala` | `http4s/MailHttp4sContractTest.scala` |
-| `replay/routes/ReplayRouteContractTest.scala` | `http4s/ReplayHttp4sCatalogContractTest.scala` |
-| `shared/routes/HealthRouteContractTest.scala` | `http4s/HealthHttp4sRouteContractTest.scala` |
-| `social/routes/SocialRouteContractTest.scala` | `http4s/SocialHttp4sContractTest.scala` |
+| `BackendApp.scala` | 已删除。 |
+| `BackendRouteCatalog.scala` | 已删除。 |
+| `BackendRouteRegistry.scala` | 已删除。 |
+| `battle/routes` | 已删除或迁移到 `battle/objects/apiTypes`、`http4s`。 |
+| `bots/routes` | 已删除或迁移到 `bots/objects/apiTypes`、`http4s`。 |
+| `forum/routes` | 已删除或迁移到 `forum/objects/apiTypes`、`http4s`。 |
+| `governance/routes` | 已删除或迁移到 `governance/objects/apiTypes`、`http4s`。 |
+| `identity/routes` | 已删除或迁移到 `identity/api`、`http4s`。 |
+| `mail/routes` | 已删除或迁移到 `mail/objects/apiTypes`、`http4s`。 |
+| `replay/routes` | 已删除或迁移到 `replay/objects/apiTypes`、`http4s`。 |
+| `shared/routes` | 已删除或迁移到 `shared/api`、`http4s`。 |
+| `social/routes` | 已删除或迁移到 `social/objects/apiTypes`、`http4s`。 |
 
-当前 `BackendContractTestRunner` 调用的是新的 http4s contract 和 service contract，不是旧 route 包。
+结论：现在不应该再说“清空 route 包”，因为旧 route 包已经没了。真正该整理的是当前 `http4s/` 的模块化边界。
 
-### 3.3 `backend-legacy`
+## 6. 当前 test 的实际作用
 
-`backend-legacy` 目录仍然是 tracked 历史代码，但它不在 `backend/build.sbt` 的 project root 内，也不被下面命令调用：
+当前测试不是旧 main 的替身，而是分成三类：
 
-- `npm run backend:dev`
-- `npm run backend:compile`
-- `npm run backend:test-contracts`
-
-所以对当前后端运行链路来说，`backend-legacy` 是运行时完全不用的历史代码。是否删除它是仓库管理决策，不影响当前 main 后端是否能跑。
-
-## 4. 当前 test 到底在测什么
-
-| test 类型 | 是否保留 | 原因 |
+| test 类型 | 当前作用 | 是否保留 |
 | --- | --- | --- |
-| `http4s/*ContractTest.scala` | 保留 | 直接验证当前 `BackendHttp4sRoutes` 和各 domain http4s adapter。 |
-| service contract test | 保留 | 验证业务状态转换，不依赖 HTTP adapter。 |
-| repository/storage contract test | 保留 | 验证 memory/file/postgres repository 边界。 |
-| `BackendApiBoundaryContractTest` | 保留 | 防止旧 `routes`、`HttpExchange`、APIMessage boundary 重新出现。 |
-| 旧 `routes/*RouteContractTest.scala` | 已删除 | 旧 HttpExchange adapter 不再是 main。 |
+| `http4s/*ContractTest.scala` | 验证当前 http4s adapter 的 method/path/body/status/error shape。 | 保留。 |
+| `BackendHttp4sRoutesCompositionContractTest` | 验证总 route composition 能接住各业务域路径。 | 保留，但 fixture 可瘦身。 |
+| service contract test | 验证业务状态转换和 service 规则，不依赖 HTTP adapter。 | 保留。 |
+| repository/storage/boundary contract test | 验证 repository、storage、旧结构禁入规则。 | 保留。 |
+| 旧 `routes/*RouteContractTest.scala` | 当前不存在。 | 不需要恢复。 |
 
-因此，“test 和 main 根本内部逻辑不一样”的问题已经被部分修正：现在 route contract test 测的是当前 http4s adapter，composition contract test 测的是 `BackendHttp4sRoutes.backendRoutes(...)`，service contract test 测的是业务层。
+需要注意：
 
-仍然需要注意：大多数 route test 用的是 recording/stub service，而不是真实 `BackendRuntime.fromEnvironment(...)`。这类测试只能证明 HTTP contract 和 route 调度，不等同于完整端到端运行。完整端到端仍需要 smoke 脚本或实际启动后端。
-
-## 5. 当前还重复或不够简洁的地方
-
-### 5.1 http4s route adapter 仍有重复结构
-
-当前 route 已经比旧 `HttpExchange` 简洁，但各 route 文件仍重复这些模式：
-
-- method match：`OPTIONS`、`HEAD`、`GET`、`POST`。
-- request body decode 后映射到 domain API error。
-- domain `ApiErrorCode` 转 `HttpApiError`。
-- `blocking(service.xxx)` 包住同步 service 调用。
-- `Response[IO](Status.X).withEntity(...)` 手写成功响应。
-
-这不是旧 route 残留，但说明 route adapter 还可以继续瘦身。下一步应该抽薄的 http4s support/test fixture，而不是重新创建 `routes` 包。
-
-### 5.2 http4s tests 有大量 stub service
-
-`BackendHttp4sRoutesCompositionContractTest` 为了验证 route composition，定义了很多 `Unused*Service` stub。这些只存在于 test，不影响 main 运行。
-
-问题是测试代码偏长，不是业务重复。后续可以抽 `test/http4s/fixtures`，但不应该因为“看起来多”就删除测试覆盖。
-
-### 5.3 文档曾经滞后
-
-迁移过程中旧文档曾经保留 `legacy route`、`BackendApp`、`backend:dev:legacy` 等描述。当前事实是：
-
-- `package.json` 没有 `backend:dev:legacy`。
-- `backend/src/main` 没有旧 `BackendApp.scala`。
-- `backend/src/main` 没有 `routes` 包。
-- 默认运行入口只有 `BackendHttp4sApp`。
-
-## 6. 对“清空 route 和 test”的判断
-
-### 6.1 route
-
-可以清的旧 route 已经清掉了。当前 `backend/src/main` 没有 `*/routes` 包，也没有 `HttpExchange` route adapter。
-
-不应该清空 `backend/src/main/scala/slaydemo/backend/http4s`，因为这里就是当前 main 真正运行的 HTTP adapter。
-
-正确方向是：
-
-1. 保留 `http4s` adapter。
-2. 继续把 path、request DTO、response DTO、error enum 下沉到各 domain 的 `apiTypes` 或 `api` contract 文件。
-3. 把 route 文件瘦成“method/path/body -> service -> response”的薄边界。
-4. 抽公共 helper 减少重复，但不要牺牲 contract 清晰度。
-
-### 6.2 test
-
-不应该清空所有 test。当前 test 已经按当前 main 路径重建，主要分为：
-
-| test 类型 | 当前价值 |
-| --- | --- |
-| http4s route contract | 验证 HTTP method/path/body/status/error shape。 |
-| BackendHttp4sRoutes composition contract | 验证总 route composition 能接住各 domain 的路径。 |
-| service contract | 验证业务状态转换，不受 HTTP adapter 影响。 |
-| boundary contract | 防止旧 route/APIMessage/HttpExchange 回流。 |
-
-如果继续重构 test，应该做的是抽 fixture、减少重复 stub，而不是删除验证面。
+- 多数 http4s route test 使用 recording/stub service，不是完整 `BackendRuntime.fromEnvironment(...)`。
+- 因此 route test 能证明 HTTP contract 和 route 调度，不等同于完整端到端 smoke。
+- 如果要证明“实际能跑通”，还需要启动 `BackendHttp4sApp` 后做 smoke，例如 `npm run demo:api-contract` 或更小的 health/battle queue smoke。
 
 ## 7. Git 分支差异
 
@@ -242,39 +217,149 @@ rg --files backend/src/test/scala | rg "[\\/]routes[\\/]" -> 0
 multimodule
 ```
 
-当前 `main` 指向：
+当前 HEAD：
+
+```text
+d5fb942a566840343d981be3758013bff0ee29dd
+```
+
+当前 `main`：
 
 ```text
 483d4515a776e33aac98e43963c81617400e24dd
 ```
 
-当前 `multimodule` 相对 `main` 的后端核心变化是：
+相对 `main` 的后端核心差异：
 
-- 删除旧 `BackendApp`、`BackendRouteCatalog`、`BackendRouteRegistry`。
-- 删除旧 Java `HttpExchange` route adapter。
-- 新增 `backend/http4s` 入口和 route adapter。
-- 引入 `cats-effect`、`http4s`、`circe`、`log4cats`。
-- 把旧 route parser/renderer 大量迁到各 domain 的 `apiTypes` 或 `api` contract 文件。
-- 删除旧 route contract tests。
-- 新增当前 http4s contract tests。
-- 新增 boundary contract，阻止旧 route/APIMessage 结构回流。
+- `backend/build.sbt` 新增 http4s、cats-effect、circe、log4cats 依赖，并把 mainClass 指向 `BackendHttp4sApp`。
+- 删除旧 Java `HttpServer` 入口：`BackendApp.scala`、`BackendRouteCatalog.scala`、`BackendRouteRegistry.scala`。
+- 删除旧 `*/routes` 包。
+- 新增 `backend/http4s` 作为当前 HTTP adapter。
+- 新增 `BackendRuntime.scala` 作为 service/runtime 组装点。
+- battle objects 从单层文件拆到 `core/player/weapon/projectile/pickup/...`。
+- battle services 从单层文件拆到 `queue/session/runtime/world/combat/actors/abilities/results`。
+- parser/renderer/request/response 等旧 route 内容迁移到各 domain 的 `apiTypes` 或 `api`。
+- 新增当前 http4s contract tests 和边界测试，禁止旧 `HttpExchange` 和旧 route adapter 回流。
 
-所以，“当前跑的不是 Git main 分支”是正确的；但“当前跑的是 test 逻辑”是不正确的。当前跑的是 `multimodule` 分支的 `backend/src/main`，test 只是验证这套 main 入口和业务层。
+所以：“当前跑的不是 Git main 分支”是正确的；但“当前跑的是 test 逻辑”不正确。当前运行的是 `multimodule` 分支的 `backend/src/main`，测试只是验证这套 main 入口和业务层。
 
-## 8. 后续建议 ticket
+## 8. 推荐目标结构
 
-### BE-HTTP4S-TEST-FIXTURE-88
+当前 `http4s/` 不应继续平铺扩大。建议改为按业务域聚合模块，对外只暴露 domain module。
 
-目标：抽出 http4s contract tests 里重复的 `RouteResponse`、`run(...)`、recording service fixture，降低测试噪声，不降低覆盖面。
+```text
+backend/src/main/scala/slaydemo/backend/http4s/
+  BackendHttp4sApp.scala
+  HttpApiModules.scala
+  shared/
+    Http4sRouteSupport.scala
+    Http4sResponses.scala
+    Http4sCors.scala
+  battle/
+    BattleHttpModule.scala
+    BattleQueueRoutes.scala
+    BattleRoomRoutes.scala
+    BattleStateRoutes.scala
+    BattleCommandRoutes.scala
+    BattleResultRoutes.scala
+    BattleHttpCodecs.scala
+    BattleHttpErrors.scala
+  identity/
+    IdentityHttpModule.scala
+    IdentityRoutes.scala
+    IdentityHttpErrors.scala
+  social/
+    SocialHttpModule.scala
+    SocialRoutes.scala
+  forum/
+    ForumHttpModule.scala
+    ForumRoutes.scala
+  governance/
+    GovernanceHttpModule.scala
+    GovernanceRoutes.scala
+  replay/
+    ReplayHttpModule.scala
+    ReplayRoutes.scala
+  bots/
+    BotProfileHttpModule.scala
+    BotProfileRoutes.scala
+  health/
+    HealthHttpModule.scala
+    HealthRoutes.scala
+```
 
-范围：只改 `backend/src/test/scala/slaydemo/backend/http4s` 下的测试 fixture 和 imports。
+目标依赖方向：
 
-验收：`npm run backend:test-contracts` 通过。
+```text
+BackendHttp4sApp
+  -> HttpApiModules
+  -> battle.BattleHttpModule
+  -> battle.*Routes
+  -> battle services + battle apiTypes
 
-### BE-HTTP4S-ROUTE-SLIM-89
+BackendHttp4sApp
+  -> HttpApiModules
+  -> identity.IdentityHttpModule
+  -> identity service + identity api
+```
 
-目标：继续瘦身 http4s route adapter 中重复的 method/body/error 映射 helper。
+约束：
 
-范围：只改 `backend/src/main/scala/slaydemo/backend/http4s` 和必要的 domain `apiTypes` 调用点。
+- 模块之间不要直接互相调用 route。
+- 全局 shared helper 只能保留极薄的 HTTP 基础设施。
+- 业务错误映射留在 domain HTTP module 内部。
+- route 文件只做 method/path/body -> service -> response。
+- DTO、enum wire value、parser/encoder 的权威定义仍留在各 domain 的 `objects/apiTypes` 或 `api`。
 
-验收：`npm run backend:compile` 和 `npm run backend:test-contracts` 通过。
+## 9. 后续小票建议
+
+### BE-HTTP4S-MODULE-94
+
+目标：先迁移 battle HTTP adapter 到 `http4s/battle` 子目录，并新增 `BattleHttpModule.routes(...)`。
+
+允许范围：
+
+- `backend/src/main/scala/slaydemo/backend/http4s/Battle*Http4sRoutes.scala`
+- `backend/src/main/scala/slaydemo/backend/http4s/BackendHttp4sRoutes.scala`
+- 新增 `backend/src/main/scala/slaydemo/backend/http4s/battle/*`
+- 必要的 package/import 更新
+- 对应 `backend/src/test/scala/slaydemo/backend/http4s` 中 battle route test 的 import 更新
+
+验收：
+
+- `npm run backend:compile` 通过。
+- `npm run backend:test-contracts` 通过。
+- `git diff --check` 通过。
+- `BackendHttp4sRoutes.scala` 不再直接拼每个 battle 子 route，只拼 `BattleHttpModule.routes(...)`。
+
+### BE-HTTP4S-SHARED-95
+
+目标：把 `Http4sRouteSupport` 拆成更薄的 shared 基础设施，避免继续变成万能工具箱。
+
+建议拆分：
+
+- `Http4sResponses`
+- `Http4sCors`
+- `Http4sBodyDecoders`
+- `Http4sBlocking`
+
+验收：
+
+- domain route 只 import 自己需要的 helper。
+- 不改变 API contract。
+- `npm run backend:compile` 和 `npm run backend:test-contracts` 通过。
+
+### BE-HTTP4S-TEST-FIXTURE-96
+
+目标：整理 http4s route contract test fixture，减少 `Unused*Service` 和重复 `runRoute`/`RouteResponse` 样板。
+
+验收：
+
+- 测试覆盖不减少。
+- `npm run backend:test-contracts` 通过。
+
+## 10. 当前可执行结论
+
+不建议“清空 `http4s` route”。旧 route 已经清空；当前要做的是模块化当前正在运行的 http4s adapter。
+
+最安全的下一步是先做 `BE-HTTP4S-MODULE-94`：只把 battle HTTP adapter 下沉到 `http4s/battle`，让顶层 route composition 从“全功能总线”变成“按领域拼 module”。这会直接改善你指出的结构性问题，同时不改变 contract、不碰 service 业务逻辑、不删除测试反馈。

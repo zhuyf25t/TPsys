@@ -1,4 +1,4 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.battle
 
 import cats.effect.IO
 import io.circe.syntax.*
@@ -11,6 +11,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, requestPath}
 
 private[http4s] object BattleRoomHttp4sRoutes {

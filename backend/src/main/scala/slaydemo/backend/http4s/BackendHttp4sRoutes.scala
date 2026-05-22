@@ -10,6 +10,7 @@ import slaydemo.backend.battle.services.{
   BattleStateService,
   BattleResultService
 }
+import slaydemo.backend.http4s.battle.BattleHttpModule
 import slaydemo.backend.bots.services.BotProfileService
 import slaydemo.backend.forum.services.ForumService
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
@@ -43,14 +44,11 @@ object BackendHttp4sRoutes {
       GovernanceHttp4sRoutes.routes(contributionAdjustmentService, governanceNotificationService) <+>
       ReplayHttp4sRoutes.catalogRoutes(replayService) <+>
       BotProfileHttp4sRoutes.routes(botProfileService) <+>
-      BattleQueueHttp4sRoutes.statusRoutes(battleQueueService) <+>
-      BattleQueueHttp4sRoutes.joinRoutes(battleQueueService, battleJoinAuthorizationService) <+>
-      BattleQueueHttp4sRoutes.leaveRoutes(battleQueueService) <+>
-      BattleRoomHttp4sRoutes.snapshotRoutes(battleQueueService) <+>
-      BattleRoomHttp4sRoutes.heartbeatRoutes(battleQueueService) <+>
-      BattleStateHttp4sRoutes.streamRoutes(battleStateService) <+>
-      BattleStateHttp4sRoutes.readRoutes(battleStateService) <+>
-      BattleCommandHttp4sRoutes.routes(battleStateService) <+>
-      BattleResultHttp4sRoutes.routes(battleResultService)
+      BattleHttpModule.routes(
+        battleQueueService,
+        battleJoinAuthorizationService,
+        battleResultService,
+        battleStateService
+      )
 
 }

@@ -7,6 +7,7 @@ import org.http4s.implicits.uri
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.{BattleResultRecordCommand, BattleResultRecordError, BattleResultService}
+import slaydemo.backend.http4s.battle.BattleResultHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.objects.{DisplayName, PlayerHandle}
 

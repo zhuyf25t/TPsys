@@ -1,4 +1,4 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.battle
 
 import cats.effect.IO
 import fs2.Stream

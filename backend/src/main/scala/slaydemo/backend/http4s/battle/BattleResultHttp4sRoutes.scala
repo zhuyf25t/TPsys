@@ -1,4 +1,4 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.battle
 
 import cats.effect.IO
 import io.circe.syntax.*
@@ -13,6 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, errorResponse, jsonCreated, jsonOk, requestPath}
 
 private[http4s] object BattleResultHttp4sRoutes {

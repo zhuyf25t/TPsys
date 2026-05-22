@@ -7,6 +7,7 @@ import org.http4s.implicits.uri
 
 import slaydemo.backend.battle.objects.*
 import slaydemo.backend.battle.services.*
+import slaydemo.backend.http4s.battle.BattleCommandHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 
 object BattleCommandHttp4sContractTest {

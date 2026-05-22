@@ -160,12 +160,22 @@ final case class FriendRequestResponse(
   sourceHandle: String,
   targetHandle: String,
   createdAt: Long,
-  status: String,
+  status: FriendRequestStatus,
   respondedAt: Option[Long]
 )
 
 object FriendRequestResponse {
-  given Encoder[FriendRequestResponse] = deriveEncoder
+  given Encoder[FriendRequestResponse] =
+    Encoder.forProduct6("id", "sourceHandle", "targetHandle", "createdAt", "status", "respondedAt")(response =>
+      (
+        response.id,
+        response.sourceHandle,
+        response.targetHandle,
+        response.createdAt,
+        FriendRequestStatus.wireValue(response.status),
+        response.respondedAt
+      )
+    )
 
   def fromRecord(record: FriendRequestRecord): FriendRequestResponse =
     FriendRequestResponse(
@@ -173,7 +183,7 @@ object FriendRequestResponse {
       sourceHandle = record.sourceHandle.value,
       targetHandle = record.targetHandle.value,
       createdAt = record.createdAt.value,
-      status = FriendRequestStatus.wireValue(record.status),
+      status = record.status,
       respondedAt = record.respondedAt.map(_.value)
     )
 }

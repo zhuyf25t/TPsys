@@ -14,9 +14,14 @@ enum ForumApiRequestDecodeError {
   case InvalidJsonObject
 }
 
-final case class ForumApiRequestFields(fields: Map[String, String], voteSeen: Boolean) {
+enum ForumVoteFieldPresence {
+  case Missing
+  case Present
+}
+
+final case class ForumApiRequestFields(fields: Map[String, String], votePresence: ForumVoteFieldPresence) {
   def toCommandFields: ForumRequestFields =
-    ForumRequestFields(fields, voteSeen)
+    ForumRequestFields(fields, votePresence)
 }
 
 object ForumApiRequestFields {
@@ -25,16 +30,16 @@ object ForumApiRequestFields {
       val stringFields = parsedFields.collect { case (name, Some(value)) => name -> value }
       parsedFields.get("vote") match {
         case Some(None) =>
-          ForumApiRequestFields(stringFields.updated("vote", ""), voteSeen = true)
+          ForumApiRequestFields(stringFields.updated("vote", ""), ForumVoteFieldPresence.Present)
         case Some(Some(value)) =>
-          ForumApiRequestFields(stringFields.updated("vote", value), voteSeen = true)
+          ForumApiRequestFields(stringFields.updated("vote", value), ForumVoteFieldPresence.Present)
         case None =>
-          ForumApiRequestFields(stringFields, voteSeen = false)
+          ForumApiRequestFields(stringFields, ForumVoteFieldPresence.Missing)
       }
     }
 }
 
-final case class ForumRequestFields(fields: Map[String, String], voteSeen: Boolean) {
+final case class ForumRequestFields(fields: Map[String, String], votePresence: ForumVoteFieldPresence) {
   def stringValue(name: String): String =
     fields.getOrElse(name, "")
 

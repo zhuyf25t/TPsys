@@ -19,14 +19,14 @@ import slaydemo.backend.shared.policies.HandlePolicy
 
 object ForumCommandParsers {
   def parseVote(fields: ForumRequestFields): Either[ForumVoteParseError, Option[ForumVoteChoice]] =
-    fields.fields.get("vote") match {
-      case None if !fields.voteSeen =>
+    (fields.votePresence, fields.fields.get("vote")) match {
+      case (ForumVoteFieldPresence.Missing, None) =>
         Right(None)
-      case Some(raw) if raw.trim.isEmpty =>
+      case (_, Some(raw)) if raw.trim.isEmpty =>
         Right(None)
-      case Some(raw) =>
+      case (_, Some(raw)) =>
         ForumVoteChoice.fromWire(raw).map(Some(_)).toRight(ForumVoteParseError.InvalidVote)
-      case None =>
+      case (ForumVoteFieldPresence.Present, None) =>
         Right(None)
     }
 

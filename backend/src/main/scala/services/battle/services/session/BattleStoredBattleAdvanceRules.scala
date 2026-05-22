@@ -3,8 +3,8 @@ package services.battle.services.session
 import services.battle.services.*
 
 import services.battle.objects.*
-import services.battle.services.runtime.BattleRuntimeFinishRules.finishedAtForRoom
-import services.battle.services.runtime.BattleRuntimeStepRules.advanceStateStep
+import services.battle.engine.BattleRuntimeFinishRules.finishedAtForRoom
+import services.battle.engine.BattleRuntimeStepRules.advanceStateStep
 
 private[battle] final case class BattleRoomFinishedNotification(
   roomId: RoomId,

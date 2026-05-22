@@ -2,39 +2,39 @@ package services.battle
 
 package object services {
   export _root_.services.battle.engine.BattleEngine
-  export _root_.services.battle.services.abilities.BattlePickupCatalog
-  export _root_.services.battle.services.abilities.BattlePickupDefinition
-  export _root_.services.battle.services.abilities.BattlePickupRules
-  export _root_.services.battle.services.abilities.BattleSkillCatalog
-  export _root_.services.battle.services.abilities.BattleSkillCommandRules
-  export _root_.services.battle.services.abilities.BattleSkillRules
-  export _root_.services.battle.services.abilities.BattleSlowFieldRuntimeRules
-  export _root_.services.battle.services.actors.BattleBotCatalog
-  export _root_.services.battle.services.actors.BattleBotMoveSpeed
-  export _root_.services.battle.services.actors.BattleBotRules
-  export _root_.services.battle.services.actors.BattleInputRules
-  export _root_.services.battle.services.actors.BattlePlayerLifecycleRules
-  export _root_.services.battle.services.actors.BattlePlayerRuntimeRules
-  export _root_.services.battle.services.combat.BattleHeldFireRuntimeRules
-  export _root_.services.battle.services.combat.BattleProjectileFactoryRules
-  export _root_.services.battle.services.combat.BattleProjectileImpactRules
-  export _root_.services.battle.services.combat.BattleProjectileMotionRules
-  export _root_.services.battle.services.combat.BattleProjectileRuntimeRules
-  export _root_.services.battle.services.combat.BattleProjectileTargetingRules
-  export _root_.services.battle.services.combat.BattleProjectileTerminalRules
-  export _root_.services.battle.services.combat.BattleWeaponCatalog
-  export _root_.services.battle.services.combat.BattleWeaponFireDefinition
-  export _root_.services.battle.services.combat.BattleWeaponFireRules
-  export _root_.services.battle.services.combat.BattleWeaponFiringResource
-  export _root_.services.battle.services.combat.BattleWeaponHeat
-  export _root_.services.battle.services.combat.BattleWeaponHeatDefinition
-  export _root_.services.battle.services.combat.BattleWeaponHeatRatePerSecond
-  export _root_.services.battle.services.combat.BattleWeaponInventoryDefinition
-  export _root_.services.battle.services.combat.BattleWeaponProjectileCount
-  export _root_.services.battle.services.combat.BattleWeaponProjectileDefinition
-  export _root_.services.battle.services.combat.BattleWeaponProjectileSpeed
-  export _root_.services.battle.services.combat.BattleWeaponRecoilStrength
-  export _root_.services.battle.services.combat.BattleWeaponRules
+  export _root_.services.battle.engine.BattlePickupCatalog
+  export _root_.services.battle.engine.BattlePickupDefinition
+  export _root_.services.battle.engine.BattlePickupRules
+  export _root_.services.battle.engine.BattleSkillCatalog
+  export _root_.services.battle.engine.BattleSkillCommandRules
+  export _root_.services.battle.engine.BattleSkillRules
+  export _root_.services.battle.engine.BattleSlowFieldRuntimeRules
+  export _root_.services.battle.engine.BattleBotCatalog
+  export _root_.services.battle.engine.BattleBotMoveSpeed
+  export _root_.services.battle.engine.BattleBotRules
+  export _root_.services.battle.engine.BattleInputRules
+  export _root_.services.battle.engine.BattlePlayerLifecycleRules
+  export _root_.services.battle.engine.BattlePlayerRuntimeRules
+  export _root_.services.battle.engine.BattleHeldFireRuntimeRules
+  export _root_.services.battle.engine.BattleProjectileFactoryRules
+  export _root_.services.battle.engine.BattleProjectileImpactRules
+  export _root_.services.battle.engine.BattleProjectileMotionRules
+  export _root_.services.battle.engine.BattleProjectileRuntimeRules
+  export _root_.services.battle.engine.BattleProjectileTargetingRules
+  export _root_.services.battle.engine.BattleProjectileTerminalRules
+  export _root_.services.battle.engine.BattleWeaponCatalog
+  export _root_.services.battle.engine.BattleWeaponFireDefinition
+  export _root_.services.battle.engine.BattleWeaponFireRules
+  export _root_.services.battle.engine.BattleWeaponFiringResource
+  export _root_.services.battle.engine.BattleWeaponHeat
+  export _root_.services.battle.engine.BattleWeaponHeatDefinition
+  export _root_.services.battle.engine.BattleWeaponHeatRatePerSecond
+  export _root_.services.battle.engine.BattleWeaponInventoryDefinition
+  export _root_.services.battle.engine.BattleWeaponProjectileCount
+  export _root_.services.battle.engine.BattleWeaponProjectileDefinition
+  export _root_.services.battle.engine.BattleWeaponProjectileSpeed
+  export _root_.services.battle.engine.BattleWeaponRecoilStrength
+  export _root_.services.battle.engine.BattleWeaponRules
   export _root_.services.battle.services.queue.BattleQueueHeartbeatRules
   export _root_.services.battle.services.queue.BattleQueueIdAllocator
   export _root_.services.battle.services.queue.BattleQueueJoinAuthorizationError
@@ -82,12 +82,12 @@ package object services {
   export _root_.services.battle.services.results.BattleFinishProjectionStatusRules
   export _root_.services.battle.services.results.BattleFinishProjectionTimeRules
   export _root_.services.battle.services.results.BattleFinishProjector
-  export _root_.services.battle.services.results.BattleHistoryCatalog
-  export _root_.services.battle.services.results.BattleHistoryCount
+  export _root_.services.battle.engine.BattleHistoryCatalog
+  export _root_.services.battle.engine.BattleHistoryCount
   export _root_.services.battle.services.results.BattlePreviousRatings
   export _root_.services.battle.services.results.BattleProjectionArtifactWriteOutcome
   export _root_.services.battle.services.results.BattleReplayFallbackTimeline
-  export _root_.services.battle.services.results.BattleReplayFrameRecorder
+  export _root_.services.battle.engine.BattleReplayFrameRecorder
   export _root_.services.battle.services.results.BattleReplayFramesJson
   export _root_.services.battle.services.results.BattleReplayFramesJsonRenderer
   export _root_.services.battle.services.results.BattleReplayFrameTimelineRules
@@ -104,16 +104,16 @@ package object services {
   export _root_.services.battle.services.results.DefaultBattleResultService
   export _root_.services.battle.services.results.InMemoryBattleResultService
   export _root_.services.battle.services.results.NoopBattleFinishProjector
-  export _root_.services.battle.services.runtime.BattleAggregateUpdateRules
-  export _root_.services.battle.services.runtime.BattleEventFactory
-  export _root_.services.battle.services.runtime.BattleRetentionRules
-  export _root_.services.battle.services.runtime.BattleRuntimeCatalog
-  export _root_.services.battle.services.runtime.BattleRuntimeFinalizationRules
-  export _root_.services.battle.services.runtime.BattleRuntimeFinishRules
-  export _root_.services.battle.services.runtime.BattleRuntimeStepRules
-  export _root_.services.battle.services.runtime.BattleTimeRules
+  export _root_.services.battle.engine.BattleAggregateUpdateRules
+  export _root_.services.battle.engine.BattleEventFactory
+  export _root_.services.battle.engine.BattleRetentionRules
+  export _root_.services.battle.engine.BattleRuntimeCatalog
+  export _root_.services.battle.engine.BattleRuntimeFinalizationRules
+  export _root_.services.battle.engine.BattleRuntimeFinishRules
+  export _root_.services.battle.engine.BattleRuntimeStepRules
+  export _root_.services.battle.engine.BattleTimeRules
   export _root_.services.battle.services.session.BattleCommandAcceptanceFactory
-  export _root_.services.battle.services.session.BattleCommandApplicationRules
+  export _root_.services.battle.engine.BattleCommandApplicationRules
   export _root_.services.battle.services.session.BattleCommandOwnership
   export _root_.services.battle.services.session.BattleCommandSubmitError
   export _root_.services.battle.services.session.BattleFailureMessageFormatter
@@ -132,15 +132,15 @@ package object services {
   export _root_.services.battle.services.session.RandomBattleIdGenerator
   export _root_.services.battle.services.session.StateRead
   export _root_.services.battle.services.session.StoredBattle
-  export _root_.services.battle.services.world.ArenaObstacle
-  export _root_.services.battle.services.world.ArenaObstacleKind
-  export _root_.services.battle.services.world.BattleArenaCatalog
-  export _root_.services.battle.services.world.BattleArenaCollision
-  export _root_.services.battle.services.world.BattleGeometry
-  export _root_.services.battle.services.world.BattleInitialLayout
-  export _root_.services.battle.services.world.BattleMotionRules
-  export _root_.services.battle.services.world.BattleMovementCatalog
-  export _root_.services.battle.services.world.BattleMovementSpeed
-  export _root_.services.battle.services.world.BattleSlowFactor
-  export _root_.services.battle.services.world.BattleStaminaRatePerSecond
+  export _root_.services.battle.engine.ArenaObstacle
+  export _root_.services.battle.engine.ArenaObstacleKind
+  export _root_.services.battle.engine.BattleArenaCatalog
+  export _root_.services.battle.engine.BattleArenaCollision
+  export _root_.services.battle.engine.BattleGeometry
+  export _root_.services.battle.engine.BattleInitialLayout
+  export _root_.services.battle.engine.BattleMotionRules
+  export _root_.services.battle.engine.BattleMovementCatalog
+  export _root_.services.battle.engine.BattleMovementSpeed
+  export _root_.services.battle.engine.BattleSlowFactor
+  export _root_.services.battle.engine.BattleStaminaRatePerSecond
 }

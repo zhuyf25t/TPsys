@@ -3,7 +3,7 @@ package services.battle.services.session
 import services.battle.services.*
 
 import services.battle.objects.*
-import services.battle.services.actors.BattleInputRules.lastClientCommandSeq
+import services.battle.engine.BattleInputRules.lastClientCommandSeq
 
 private[services] object BattleCommandAcceptanceFactory {
   /** 中文名：ignored（ignored）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态。 */

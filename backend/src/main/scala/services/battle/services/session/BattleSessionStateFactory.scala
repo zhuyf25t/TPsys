@@ -3,9 +3,9 @@ package services.battle.services.session
 import services.battle.services.*
 
 import services.battle.objects.*
-import services.battle.services.world.BattleInitialLayout.*
-import services.battle.services.results.BattleReplayFrameRecorder.captureFrame
-import services.battle.services.combat.BattleWeaponRules.createWeaponState
+import services.battle.engine.BattleInitialLayout.*
+import services.battle.engine.BattleReplayFrameRecorder.captureFrame
+import services.battle.engine.BattleWeaponRules.createWeaponState
 import services.identity.objects.DisplayName
 
 private[services] object BattleSessionStateFactory {

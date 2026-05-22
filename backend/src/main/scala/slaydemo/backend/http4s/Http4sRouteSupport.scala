@@ -84,7 +84,7 @@ private[http4s] object Http4sRouteSupport {
   def codeMessageError(statusCode: Int, code: String): HttpApiError =
     typedApiError(statusCode = statusCode, code = code, message = code)
 
-  def statusFrom(statusCode: Int): Status =
+  private def statusFrom(statusCode: Int): Status =
     statusCode match {
       case 400 => Status.BadRequest
       case 401 => Status.Unauthorized

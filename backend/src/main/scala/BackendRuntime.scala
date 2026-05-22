@@ -12,6 +12,7 @@ import services.battle.application.{
   InMemoryBattleQueueService,
   InMemoryBattleStateService
 }
+import services.battle.ports.{BattleMailPublisherPort, BattleReplayWriterPort}
 import services.bots.services.{BotProfileService, DefaultBotProfileService}
 import services.forum.services.{DefaultForumService, ForumService}
 import services.governance.services.{
@@ -60,10 +61,18 @@ object BackendRuntime {
     val battleResultService = DefaultBattleResultService(repositories.battleResults)
     val replayService = DefaultReplayService(repositories.replay, () => System.currentTimeMillis())
     val mailService = DefaultMailService(repositories.mail, () => System.currentTimeMillis())
+    val battleReplayWriter = new BattleReplayWriterPort {
+      override def saveReplay(record: services.replay.objects.ReplayRecord): Unit =
+        repositories.replay.saveReplay(record)
+    }
+    val battleMailPublisher = new BattleMailPublisherPort {
+      override def publish(mail: services.mail.objects.MailRecord): Unit =
+        repositories.mail.save(mail)
+    }
     val battleFinishProjector = DefaultBattleFinishProjector(
       battleResultRepository = repositories.battleResults,
-      replayRepository = repositories.replay,
-      mailRepository = repositories.mail
+      replayWriter = battleReplayWriter,
+      mailPublisher = battleMailPublisher
     )
     val battleStateService = InMemoryBattleStateService(
       battleQueueService,

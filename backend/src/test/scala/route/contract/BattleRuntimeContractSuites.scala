@@ -12,7 +12,7 @@ import org.http4s.{Header, Headers, HttpRoutes, Method, Request}
 import org.typelevel.ci.CIString
 import scala.jdk.CollectionConverters.*
 
-import services.battle.routes.BattleHttp4sRoutes
+import route.battle.BattleHttp4sRoutes
 import route.bots.BotProfileHttp4sRoutes
 import route.governance.GovernanceHttp4sRoutes
 import route.health.{HealthHttp4sRoutes, HealthHttpModule}
@@ -34,7 +34,7 @@ import services.identity.database.{FileIdentityAccountRepository, InMemoryIdenti
 import services.identity.api.IdentityAccountSummary
 import services.identity.objects.{IdentityAccount, PasswordHash, PlainTextPassword, PlayerHandle, SessionToken, SkinId}
 import services.identity.ports.{PasswordVerification, Pbkdf2PasswordHasher, Sha256PasswordHasher}
-import services.mail.database.{FileMailRepository, InMemoryMailRepository}
+import services.mail.database.{FileMailRepository, InMemoryMailRepository, MailRepository}
 import services.mail.objects.*
 import services.replay.database.{FileReplayRepository, InMemoryReplayRepository, ReplayRepository}
 import services.replay.objects.*
@@ -61,10 +61,12 @@ import services.battle.application.{
   BattleStateService,
   BattleFinishProjectionFailureReporter,
   BattleFinishProjectionOutcome,
+  ConsoleBattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector,
   InMemoryBattleStateService,
   RealtimeRoomHeartbeatCommand
 }
+import services.battle.ports.{BattleMailPublisherPort, BattleReplayWriterPort}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,
@@ -2238,11 +2240,36 @@ private[contract] object BattleFinishProjectionContractTest:
     resultReadyStateSkipsResultWriteAndRetriesReplay()
     replayReadyStateSkipsReplayWriteAndRetriesResult()
 
+  private def finishProjector(
+    battleResults: BattleResultRepository,
+    replays: ReplayRepository,
+    mails: MailRepository,
+    reporter: BattleFinishProjectionFailureReporter = ConsoleBattleFinishProjectionFailureReporter
+  ): DefaultBattleFinishProjector =
+    new DefaultBattleFinishProjector(
+      battleResults,
+      replayWriter(replays),
+      mailPublisher(mails),
+      reporter
+    )
+
+  private def replayWriter(replays: ReplayRepository): BattleReplayWriterPort =
+    new BattleReplayWriterPort {
+      override def saveReplay(record: ReplayRecord): Unit =
+        replays.saveReplay(record)
+    }
+
+  private def mailPublisher(mails: MailRepository): BattleMailPublisherPort =
+    new BattleMailPublisherPort {
+      override def publish(mail: MailRecord): Unit =
+        mails.save(mail)
+    }
+
   private def nonFinishedStateWritesNothing(): Unit =
     val battleResults = InMemoryBattleResultRepository()
     val replays = InMemoryReplayRepository()
     val mails = InMemoryMailRepository()
-    val projector = DefaultBattleFinishProjector(battleResults, replays, mails)
+    val projector = finishProjector(battleResults, replays, mails)
     val state = finishedBattleState().copy(phase = BattlePhase.Active)
 
     ContractAssertions.assertEquals("non-finished outcome", projector.project(state), BattleFinishProjectionOutcome.NotConfigured)
@@ -2316,7 +2343,7 @@ private[contract] object BattleFinishProjectionContractTest:
     val replays = InMemoryReplayRepository()
     val mails = InMemoryMailRepository()
     val reporter = RecordingFailureReporter()
-    val projector = new DefaultBattleFinishProjector(
+    val projector = finishProjector(
       ThrowingBattleResultRepository(IllegalStateException("repository unavailable")),
       replays,
       mails,
@@ -2341,7 +2368,7 @@ private[contract] object BattleFinishProjectionContractTest:
     val replays = SaveFailingReplayRepository(IllegalStateException("replay unavailable"))
     val mails = InMemoryMailRepository()
     val reporter = RecordingFailureReporter()
-    val projector = new DefaultBattleFinishProjector(battleResults, replays, mails, reporter)
+    val projector = finishProjector(battleResults, replays, mails, reporter)
 
     projector.project(state) match {
       case BattleFinishProjectionOutcome.ResultProjectedReplayFailed(message) =>
@@ -2366,7 +2393,7 @@ private[contract] object BattleFinishProjectionContractTest:
     val replays = InMemoryReplayRepository()
     val mails = InMemoryMailRepository()
     val reporter = RecordingFailureReporter()
-    val projector = new DefaultBattleFinishProjector(battleResults, replays, mails, reporter)
+    val projector = finishProjector(battleResults, replays, mails, reporter)
 
     projector.project(state) match {
       case BattleFinishProjectionOutcome.ResultFailedReplayProjected(message) =>
@@ -2390,7 +2417,7 @@ private[contract] object BattleFinishProjectionContractTest:
     val battleResults = SaveFailingBattleResultRepository(IllegalStateException("result should not be rewritten"))
     val replays = InMemoryReplayRepository()
     val mails = InMemoryMailRepository()
-    val projector = new DefaultBattleFinishProjector(battleResults, replays, mails)
+    val projector = finishProjector(battleResults, replays, mails)
 
     ContractAssertions.assertEquals("result-ready replay retry outcome", projector.project(state), BattleFinishProjectionOutcome.Projected)
     ContractAssertions.assertEquals("result-ready retry writes replay", replays.findReplayById(ReplayId(state.battleId.value)).isDefined, true)
@@ -2401,7 +2428,7 @@ private[contract] object BattleFinishProjectionContractTest:
     val battleResults = InMemoryBattleResultRepository()
     val replays = SaveFailingReplayRepository(IllegalStateException("replay should not be rewritten"))
     val mails = InMemoryMailRepository()
-    val projector = new DefaultBattleFinishProjector(battleResults, replays, mails)
+    val projector = finishProjector(battleResults, replays, mails)
 
     ContractAssertions.assertEquals("replay-ready result retry outcome", projector.project(state), BattleFinishProjectionOutcome.Projected)
     ContractAssertions.assertEquals(
@@ -2482,7 +2509,7 @@ private[contract] object BattleFinishProjectionContractTest:
     battleResults.save(previousResult(state.battleId, PlayerHandle("Alice"), Rating(2000), EpochMillis(1710000001000L)))
     val replays = InMemoryReplayRepository()
     val mails = InMemoryMailRepository()
-    val projector = DefaultBattleFinishProjector(battleResults, replays, mails)
+    val projector = finishProjector(battleResults, replays, mails)
 
     ProjectionFixture(
       state = state,

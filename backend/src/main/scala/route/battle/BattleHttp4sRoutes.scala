@@ -1,7 +1,8 @@
-package services.battle.routes
+package route.battle
 
 import cats.effect.IO
 import org.http4s.HttpRoutes
+import services.battle.routes.{BattleAPIMessageRegistry, BattleAPIMessageServices}
 import system.api.APIMessageRouter
 
 object BattleHttp4sRoutes {

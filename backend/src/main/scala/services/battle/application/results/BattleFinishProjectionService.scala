@@ -5,10 +5,9 @@ import services.battle.application.*
 import scala.util.control.NonFatal
 
 import services.battle.persistence.BattleResultRepository
+import services.battle.ports.{BattleMailPublisherPort, BattleReplayWriterPort}
 import services.battle.objects.*
 import services.identity.objects.PlayerHandle
-import services.mail.database.MailRepository
-import services.replay.database.ReplayRepository
 
 enum BattleFinishProjectionOutcome {
   case Projected
@@ -53,14 +52,14 @@ object NoopBattleFinishProjector extends BattleFinishProjector {
 
 final class DefaultBattleFinishProjector(
   battleResultRepository: BattleResultRepository,
-  replayRepository: ReplayRepository,
-  mailRepository: MailRepository,
+  replayWriter: BattleReplayWriterPort,
+  mailPublisher: BattleMailPublisherPort,
   failureReporter: BattleFinishProjectionFailureReporter = ConsoleBattleFinishProjectionFailureReporter
 ) extends BattleFinishProjector {
   private val resultArtifactWriter =
-    BattleResultProjectionArtifactWriter(battleResultRepository, mailRepository)
+    BattleResultProjectionArtifactWriter(battleResultRepository, mailPublisher)
   private val replayArtifactWriter =
-    BattleReplayProjectionArtifactWriter(replayRepository)
+    BattleReplayProjectionArtifactWriter(replayWriter)
 
   /** 中文名：project（project）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果。 */
   override def project(state: BattleAggregateState): BattleFinishProjectionOutcome =
@@ -133,10 +132,10 @@ object DefaultBattleFinishProjector {
   /** 中文名：应用（apply）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果。 */
   def apply(
     battleResultRepository: BattleResultRepository,
-    replayRepository: ReplayRepository,
-    mailRepository: MailRepository
+    replayWriter: BattleReplayWriterPort,
+    mailPublisher: BattleMailPublisherPort
   ): DefaultBattleFinishProjector =
-    new DefaultBattleFinishProjector(battleResultRepository, replayRepository, mailRepository)
+    new DefaultBattleFinishProjector(battleResultRepository, replayWriter, mailPublisher)
 }
 
 private[services] enum BattleProjectionArtifactWriteOutcome {

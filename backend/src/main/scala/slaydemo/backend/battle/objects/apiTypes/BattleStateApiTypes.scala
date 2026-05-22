@@ -176,25 +176,8 @@ object BattleStateResponse {
       )*
     )
 
-  private def eventJson(event: BattleEventState): Json = {
-    val eventKind = BattleEventKind.wireValue(event.eventKind)
-    Json.obj(
-      "eventId" -> Json.fromString(event.eventId.value),
-      "type" -> Json.fromString(eventKind),
-      "kind" -> Json.fromString(eventKind),
-      "elapsedMs" -> Json.fromLong(event.elapsedMs.value),
-      "message" -> Json.fromString(event.message),
-      "source" -> eventParticipantJson(event.source),
-      "target" -> eventParticipantJson(event.target)
-    )
-  }
-
-  private def eventParticipantJson(participant: BattleEventParticipant): Json =
-    Json.obj(
-      "playerId" -> Json.fromString(participant.playerId.value),
-      "heroId" -> Json.fromString(participant.heroId.value),
-      "displayName" -> Json.fromString(participant.displayName.value)
-    )
+  private def eventJson(event: BattleEventState): Json =
+    BattleStateEventResponse.fromEvent(event).asJson
 
   private def vectorJson(vector: BattleVector2): Json =
     BattleStateVectorResponse.fromVector(vector).asJson
@@ -389,4 +372,63 @@ private object BattleStateSlowFieldResponse {
       ttlMs = field.ttlMs.value,
       durationMs = field.durationMs.value
     )
+}
+
+private final case class BattleStateEventParticipantResponse(
+  playerId: String,
+  heroId: String,
+  displayName: String
+)
+
+private object BattleStateEventParticipantResponse {
+  given Encoder[BattleStateEventParticipantResponse] =
+    Encoder.forProduct3("playerId", "heroId", "displayName")((response: BattleStateEventParticipantResponse) =>
+      (response.playerId, response.heroId, response.displayName)
+    )
+
+  def fromParticipant(participant: BattleEventParticipant): BattleStateEventParticipantResponse =
+    BattleStateEventParticipantResponse(
+      playerId = participant.playerId.value,
+      heroId = participant.heroId.value,
+      displayName = participant.displayName.value
+    )
+}
+
+private final case class BattleStateEventResponse(
+  eventId: String,
+  `type`: String,
+  kind: String,
+  elapsedMs: Long,
+  message: String,
+  source: BattleStateEventParticipantResponse,
+  target: BattleStateEventParticipantResponse
+)
+
+private object BattleStateEventResponse {
+  given Encoder[BattleStateEventResponse] =
+    Encoder.forProduct7("eventId", "type", "kind", "elapsedMs", "message", "source", "target")(
+      (response: BattleStateEventResponse) =>
+        (
+          response.eventId,
+          response.`type`,
+          response.kind,
+          response.elapsedMs,
+          response.message,
+          response.source,
+          response.target
+        )
+    )
+
+  def fromEvent(event: BattleEventState): BattleStateEventResponse = {
+    val eventKind = BattleEventKind.wireValue(event.eventKind)
+    BattleStateEventResponse(
+      eventId = event.eventId.value,
+      `type` = eventKind,
+      kind = eventKind,
+      elapsedMs = event.elapsedMs.value,
+      message = event.message,
+      source = BattleStateEventParticipantResponse.fromParticipant(event.source),
+      target = BattleStateEventParticipantResponse.fromParticipant(event.target)
+    )
+  }
 }

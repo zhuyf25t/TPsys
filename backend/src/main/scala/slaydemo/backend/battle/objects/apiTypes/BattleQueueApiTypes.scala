@@ -4,7 +4,7 @@ import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 import io.circe.generic.semiauto.deriveEncoder
 
 import slaydemo.backend.battle.objects.*
-import slaydemo.backend.battle.services.{BattleQueueJoinCommand, RealtimeRoomHeartbeatCommand}
+import slaydemo.backend.battle.services.{BattleQueueJoinCommand, BattleRoomError, RealtimeRoomHeartbeatCommand}
 import slaydemo.backend.identity.objects.{PlayerHandle, SessionToken}
 
 enum BattleQueueJoinAPIRequestError {
@@ -126,6 +126,68 @@ final case class RealtimeRoomHeartbeatAPIRequest(
 
 enum RealtimeRoomHeartbeatAPIRequestError {
   case InvalidJsonObject
+}
+
+enum BattleRoomApiErrorCode {
+  case InvalidRoomId
+  case InvalidJsonObject
+  case RoomNotFound
+  case SnapshotMethodNotAllowed
+  case HeartbeatMethodNotAllowed
+}
+
+object BattleRoomApiErrorCode {
+  def fromHeartbeatRequestError(error: RealtimeRoomHeartbeatAPIRequestError): BattleRoomApiErrorCode =
+    error match {
+      case RealtimeRoomHeartbeatAPIRequestError.InvalidJsonObject =>
+        BattleRoomApiErrorCode.InvalidJsonObject
+    }
+
+  def fromRoomError(error: BattleRoomError): BattleRoomApiErrorCode =
+    error match {
+      case BattleRoomError.MissingRoomId =>
+        BattleRoomApiErrorCode.InvalidRoomId
+      case BattleRoomError.RoomNotFound =>
+        BattleRoomApiErrorCode.RoomNotFound
+    }
+
+  def wireValue(code: BattleRoomApiErrorCode): String =
+    code match {
+      case BattleRoomApiErrorCode.InvalidRoomId =>
+        "invalid_room_id"
+      case BattleRoomApiErrorCode.InvalidJsonObject =>
+        "bad_request"
+      case BattleRoomApiErrorCode.RoomNotFound =>
+        "room_not_found"
+      case BattleRoomApiErrorCode.SnapshotMethodNotAllowed =>
+        "method_not_allowed"
+      case BattleRoomApiErrorCode.HeartbeatMethodNotAllowed =>
+        "method_not_allowed"
+    }
+
+  def message(code: BattleRoomApiErrorCode): String =
+    code match {
+      case BattleRoomApiErrorCode.InvalidRoomId =>
+        "roomId is required."
+      case BattleRoomApiErrorCode.InvalidJsonObject =>
+        "Request body must be a JSON object with supported primitive or object fields."
+      case BattleRoomApiErrorCode.RoomNotFound =>
+        "Battle room was not found."
+      case BattleRoomApiErrorCode.SnapshotMethodNotAllowed =>
+        "Only GET and OPTIONS are supported."
+      case BattleRoomApiErrorCode.HeartbeatMethodNotAllowed =>
+        "Only POST and OPTIONS are supported."
+    }
+
+  def statusCode(code: BattleRoomApiErrorCode): Int =
+    code match {
+      case BattleRoomApiErrorCode.RoomNotFound =>
+        404
+      case BattleRoomApiErrorCode.SnapshotMethodNotAllowed | BattleRoomApiErrorCode.HeartbeatMethodNotAllowed =>
+        405
+      case _ =>
+        400
+    }
 }
 
 object RealtimeRoomHeartbeatAPIRequest {

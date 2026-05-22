@@ -1,7 +1,7 @@
 package services
 
 import services.battle.objects.DurationMillis
-import services.battle.services.{
+import services.battle.application.{
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleResultService,

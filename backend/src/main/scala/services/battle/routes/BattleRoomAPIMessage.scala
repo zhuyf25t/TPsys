@@ -12,7 +12,7 @@ import services.battle.api.{
   RealtimeRoomSnapshotAPIRequestError,
   RealtimeRoomSnapshotResponse
 }
-import services.battle.services.BattleRoomError
+import services.battle.application.BattleRoomError
 import system.api.RegisteredAPIMessage
 
 object BattleRoomSnapshotAPIMessage {

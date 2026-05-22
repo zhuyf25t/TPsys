@@ -2,7 +2,7 @@ package services.battle.engine
 
 import services.battle.objects.*
 import BattleSkillCommandRules.CommandApplication
-import services.battle.services.session.{
+import services.battle.application.{
   BattleRoomFinishedNotification,
   BattleSessionSeed,
   BattleStoredBattleAdvanceResult,

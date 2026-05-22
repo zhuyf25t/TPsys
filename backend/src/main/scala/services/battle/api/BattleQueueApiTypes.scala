@@ -4,7 +4,7 @@ import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 import io.circe.generic.semiauto.deriveEncoder
 
 import services.battle.objects.*
-import services.battle.services.{
+import services.battle.application.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinCommand,
   BattleQueueLeaveOutcome,

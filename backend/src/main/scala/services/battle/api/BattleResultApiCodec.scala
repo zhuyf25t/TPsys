@@ -13,7 +13,7 @@ import services.battle.objects.{
   RatingDelta,
   Score
 }
-import services.battle.services.results.BattleResultRecordCommand
+import services.battle.application.BattleResultRecordCommand
 import services.identity.objects.{DisplayName, PlayerHandle}
 import system.policies.HandlePolicy
 

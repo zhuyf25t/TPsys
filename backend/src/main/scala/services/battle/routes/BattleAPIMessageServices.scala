@@ -1,6 +1,6 @@
 package services.battle.routes
 
-import services.battle.services.{
+import services.battle.application.{
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleResultService,

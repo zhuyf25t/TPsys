@@ -7,7 +7,7 @@ import services.battle.api.{
   BattleCommandAPIRequest,
   BattleCommandAPIRequestError
 }
-import services.battle.services.BattleCommandSubmitError
+import services.battle.application.BattleCommandSubmitError
 import system.api.RegisteredAPIMessage
 
 object BattleCommandAPIMessage {

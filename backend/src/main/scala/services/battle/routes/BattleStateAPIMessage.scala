@@ -5,7 +5,7 @@ import io.circe.Json
 
 import services.battle.objects.BattleId
 import services.battle.api.{BattleStateReadAPIRequest, BattleStateReadAPIRequestError, BattleStateResponse}
-import services.battle.services.BattleStateReadError
+import services.battle.application.BattleStateReadError
 import system.api.RegisteredAPIMessage
 
 object BattleStateReadAPIMessage {

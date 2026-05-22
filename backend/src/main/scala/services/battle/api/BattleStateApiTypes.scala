@@ -4,7 +4,7 @@ import io.circe.{Decoder, Encoder, HCursor, Json, JsonObject}
 import io.circe.syntax.*
 
 import services.battle.objects.*
-import services.battle.services.BattleStateReadError
+import services.battle.application.BattleStateReadError
 
 enum BattleStateApiErrorCode {
   case InvalidBattleId

@@ -41,7 +41,7 @@ import services.replay.database.{FileReplayRepository, InMemoryReplayRepository,
 import services.replay.objects.*
 import services.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 import services.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
-import services.battle.services.{
+import services.battle.application.{
   BattleCommandOwnership,
   BattleCommandSubmitError,
   BattleQueueJoinAuthorizationError,

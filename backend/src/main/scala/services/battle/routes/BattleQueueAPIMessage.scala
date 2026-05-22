@@ -15,7 +15,7 @@ import services.battle.api.{
   BattleQueueStatusAPIRequestError,
   BattleQueueSnapshotResponse
 }
-import services.battle.services.{
+import services.battle.application.{
   BattleQueueJoinAuthorizationError,
   BattleQueueStatusError
 }

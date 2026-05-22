@@ -8,7 +8,7 @@ import services.battle.api.{
   BattleResultRecordDecodeError,
   BattleResultRecordResponse
 }
-import services.battle.services.BattleResultRecordError
+import services.battle.application.BattleResultRecordError
 import system.api.RegisteredAPIMessage
 
 object BattleResultListAPIMessage {

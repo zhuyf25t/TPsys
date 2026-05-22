@@ -5,6 +5,7 @@ import org.http4s.implicits.uri
 import org.http4s.{Header, Headers, Method, Request}
 import org.typelevel.ci.CIString
 
+import slaydemo.backend.http4s.identity.IdentityHttp4sRoutes
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.api.IdentityAccountSummary
 import slaydemo.backend.identity.objects.{IdentityAccount, PlayerHandle, SessionToken, SkinId}

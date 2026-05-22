@@ -1,4 +1,4 @@
-package slaydemo.backend.http4s
+package slaydemo.backend.http4s.identity
 
 import cats.effect.IO
 import io.circe.syntax.*
@@ -6,6 +6,7 @@ import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{Headers, HttpRoutes, Method, Request, Response, Status}
 import org.typelevel.ci.CIString
 
+import slaydemo.backend.http4s.HttpApiError
 import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
 import slaydemo.backend.identity.api.{
   IdentityApiErrorCode,

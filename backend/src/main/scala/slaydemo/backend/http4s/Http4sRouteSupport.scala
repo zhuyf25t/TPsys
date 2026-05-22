@@ -26,6 +26,9 @@ private[http4s] object Http4sRouteSupport {
   def corsOk: IO[Response[IO]] =
     IO.pure(withCors(Response[IO](Status.Ok)))
 
+  def jsonOk(json: Json): IO[Response[IO]] =
+    IO.pure(withCors(Response[IO](Status.Ok).withEntity(json)))
+
   def decodeJsonObjectBody[E, A](
     request: Request[IO],
     invalidJson: E

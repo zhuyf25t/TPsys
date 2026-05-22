@@ -3,7 +3,7 @@ package slaydemo.backend.http4s
 import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response}
+import org.http4s.{HttpRoutes, Method, Request, Response, Status}
 
 import slaydemo.backend.governance.objects.apiTypes.{
   ContributionAdjustmentApiRequest,
@@ -19,7 +19,7 @@ import slaydemo.backend.governance.objects.apiTypes.{
   GovernanceReviewNotificationListResponse
 }
 import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeEntityBody, errorResponse, jsonOk, requestPath}
 
 private[http4s] object GovernanceHttp4sRoutes {
   import CirceEntityDecoder.*
@@ -129,10 +129,21 @@ private[http4s] object GovernanceHttp4sRoutes {
     governanceApiError(GovernanceApiErrorCode.fromReviewNotificationError(error))
 
   private def governanceApiError(code: GovernanceApiErrorCode): HttpApiError =
-    typedApiError(
-      statusCode = GovernanceApiErrorCode.statusCode(code),
+    apiError(
+      status = governanceApiStatus(code),
       code = GovernanceApiErrorCode.wireValue(code),
       message = GovernanceApiErrorCode.message(code)
     )
+
+  private def governanceApiStatus(code: GovernanceApiErrorCode): Status =
+    code match {
+      case GovernanceApiErrorCode.MethodNotAllowed => Status.MethodNotAllowed
+      case GovernanceApiErrorCode.InvalidActor     => Status.Forbidden
+      case GovernanceApiErrorCode.InvalidJsonObject => Status.BadRequest
+      case GovernanceApiErrorCode.InvalidTarget    => Status.BadRequest
+      case GovernanceApiErrorCode.InvalidDelta     => Status.BadRequest
+      case GovernanceApiErrorCode.InvalidKind      => Status.BadRequest
+      case GovernanceApiErrorCode.InvalidBody      => Status.BadRequest
+    }
 
 }

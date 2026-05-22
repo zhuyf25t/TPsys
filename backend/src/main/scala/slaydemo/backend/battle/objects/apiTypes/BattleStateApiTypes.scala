@@ -132,24 +132,10 @@ object BattleStateResponse {
   }
 
   private def weaponJson(weapon: BattleWeaponState): Json =
-    Json.obj(
-      "weaponKind" -> Json.fromString(WeaponKind.wireValue(weapon.weaponKind)),
-      "ammoInMagazine" -> Json.fromInt(weapon.ammoInMagazine.value),
-      "magazineSize" -> Json.fromInt(weapon.magazineSize.value),
-      "reserveAmmo" -> optionalIntJson(weapon.reserveAmmo.map(_.value)),
-      "fireCooldownMs" -> Json.fromLong(weapon.fireCooldownMs.value),
-      "reloadRemainingMs" -> Json.fromLong(weapon.reloadRemainingMs.value),
-      "heat" -> Json.fromInt(weapon.heat),
-      "overheated" -> Json.fromBoolean(weapon.overheated),
-      "overheatRemainingMs" -> Json.fromLong(weapon.overheatRemainingMs.value)
-    )
+    BattleStateWeaponResponse.fromWeapon(weapon).asJson
 
   private def skillJson(skill: BattlePlayerSkillState): Json =
-    Json.obj(
-      "kind" -> Json.fromString(SkillKind.wireValue(skill.skillKind)),
-      "cooldownMs" -> Json.fromLong(skill.cooldownMs.value),
-      "activeMs" -> Json.fromLong(skill.activeMs.value)
-    )
+    BattleStateSkillResponse.fromSkill(skill).asJson
 
   private def projectileJson(projectile: BattleProjectileState): Json =
     Json.obj(
@@ -254,4 +240,76 @@ private object BattleStateVectorResponse {
 
   def fromVector(vector: BattleVector2): BattleStateVectorResponse =
     BattleStateVectorResponse(x = vector.x, y = vector.y)
+}
+
+private final case class BattleStateWeaponResponse(
+  weaponKind: String,
+  ammoInMagazine: Int,
+  magazineSize: Int,
+  reserveAmmo: Option[Int],
+  fireCooldownMs: Long,
+  reloadRemainingMs: Long,
+  heat: Int,
+  overheated: Boolean,
+  overheatRemainingMs: Long
+)
+
+private object BattleStateWeaponResponse {
+  given Encoder[BattleStateWeaponResponse] =
+    Encoder.forProduct9(
+      "weaponKind",
+      "ammoInMagazine",
+      "magazineSize",
+      "reserveAmmo",
+      "fireCooldownMs",
+      "reloadRemainingMs",
+      "heat",
+      "overheated",
+      "overheatRemainingMs"
+    )((response: BattleStateWeaponResponse) =>
+      (
+        response.weaponKind,
+        response.ammoInMagazine,
+        response.magazineSize,
+        response.reserveAmmo,
+        response.fireCooldownMs,
+        response.reloadRemainingMs,
+        response.heat,
+        response.overheated,
+        response.overheatRemainingMs
+      )
+    )
+
+  def fromWeapon(weapon: BattleWeaponState): BattleStateWeaponResponse =
+    BattleStateWeaponResponse(
+      weaponKind = WeaponKind.wireValue(weapon.weaponKind),
+      ammoInMagazine = weapon.ammoInMagazine.value,
+      magazineSize = weapon.magazineSize.value,
+      reserveAmmo = weapon.reserveAmmo.map(_.value),
+      fireCooldownMs = weapon.fireCooldownMs.value,
+      reloadRemainingMs = weapon.reloadRemainingMs.value,
+      heat = weapon.heat,
+      overheated = weapon.overheated,
+      overheatRemainingMs = weapon.overheatRemainingMs.value
+    )
+}
+
+private final case class BattleStateSkillResponse(
+  kind: String,
+  cooldownMs: Long,
+  activeMs: Long
+)
+
+private object BattleStateSkillResponse {
+  given Encoder[BattleStateSkillResponse] =
+    Encoder.forProduct3("kind", "cooldownMs", "activeMs")((response: BattleStateSkillResponse) =>
+      (response.kind, response.cooldownMs, response.activeMs)
+    )
+
+  def fromSkill(skill: BattlePlayerSkillState): BattleStateSkillResponse =
+    BattleStateSkillResponse(
+      kind = SkillKind.wireValue(skill.skillKind),
+      cooldownMs = skill.cooldownMs.value,
+      activeMs = skill.activeMs.value
+    )
 }

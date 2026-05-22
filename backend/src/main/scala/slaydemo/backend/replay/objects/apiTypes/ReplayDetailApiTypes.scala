@@ -1,7 +1,7 @@
 package slaydemo.backend.replay.objects.apiTypes
 
+import io.circe.generic.semiauto.deriveEncoder
 import io.circe.parser.parse
-import io.circe.syntax.*
 import io.circe.{Encoder, Json}
 
 import slaydemo.backend.identity.objects.PlayerHandle
@@ -37,37 +37,7 @@ final case class ReplayDetailRecordResponse(
 )
 
 object ReplayDetailRecordResponse {
-  given Encoder[ReplayDetailRecordResponse] =
-    Encoder.instance { value =>
-      Json.obj(
-        "replayId" -> Json.fromString(value.replayId),
-        "battleId" -> Json.fromString(value.battleId),
-        "title" -> Json.fromString(value.title),
-        "modeLabel" -> Json.fromString(value.modeLabel),
-        "resultLabel" -> Json.fromString(value.resultLabel),
-        "finishedAt" -> Json.fromLong(value.finishedAt),
-        "finishedAtLabel" -> Json.fromString(value.finishedAtLabel),
-        "mapLabel" -> Json.fromString(value.mapLabel),
-        "highlightLine" -> Json.fromString(value.highlightLine),
-        "coverLabel" -> Json.fromString(value.coverLabel),
-        "playersLine" -> Json.fromString(value.playersLine),
-        "timelineHint" -> Json.fromString(value.timelineHint),
-        "score" -> Json.fromInt(value.score),
-        "placement" -> value.placement.asJson,
-        "ratingBefore" -> value.ratingBefore.asJson,
-        "ratingAfter" -> value.ratingAfter.asJson,
-        "ratingDelta" -> value.ratingDelta.asJson,
-        "durationMs" -> Json.fromLong(value.durationMs),
-        "aliveAtEnd" -> Json.fromBoolean(value.aliveAtEnd),
-        "thumbnailDataUrl" -> value.thumbnailDataUrl.asJson,
-        "frameCount" -> Json.fromInt(value.frameCount),
-        "playbackAvailable" -> Json.fromBoolean(value.playbackAvailable),
-        "handle" -> Json.fromString(value.handle),
-        "displayName" -> Json.fromString(value.displayName),
-        "currentLoadout" -> value.currentLoadout.asJson,
-        "frames" -> value.frames
-      )
-    }
+  given Encoder[ReplayDetailRecordResponse] = deriveEncoder
 
   def fromRecord(record: ReplayRecord, selectedHandle: Option[PlayerHandle]): ReplayDetailRecordResponse = {
     val settlement = selectedSettlement(record, selectedHandle)

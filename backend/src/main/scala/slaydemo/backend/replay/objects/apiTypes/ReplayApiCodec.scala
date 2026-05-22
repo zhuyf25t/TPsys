@@ -1,6 +1,6 @@
 package slaydemo.backend.replay.objects.apiTypes
 
-import io.circe.Json
+import io.circe.JsonObject
 import io.circe.parser.parse
 
 import slaydemo.backend.identity.objects.PlayerHandle
@@ -39,6 +39,9 @@ final case class ReplayCatalogQuery(
 )
 
 object ReplayApiCodec {
+  private val EmptyReplayRequestJson: JsonObject =
+    JsonObject.empty
+
   def catalogTarget(path: String): Option[ReplayCatalogTarget] = {
     val normalized = normalizedPath(path)
     if normalized == "/replay/catalog" then Some(ReplayCatalogTarget.Collection)
@@ -83,16 +86,16 @@ object ReplayApiCodec {
       .left.map(commentJsonObjectDecodeError)
       .flatMap(fields => ReplayCommandParsers.parseReplayCommentCommand(replayId, fields).left.map(commentDecodeError))
 
-  private def parseJsonObject(rawBody: String): Either[ReplayJsonObjectDecodeError, io.circe.JsonObject] = {
+  private def parseJsonObject(rawBody: String): Either[ReplayJsonObjectDecodeError, JsonObject] = {
     val trimmed = Option(rawBody).getOrElse("").trim
-    val parsed = if trimmed.isEmpty then Right(Json.obj()) else parse(trimmed)
-
-    parsed match {
-      case Left(_) =>
-        Left(ReplayJsonObjectDecodeError.BadJsonObject)
-      case Right(json) =>
-        json.asObject.toRight(ReplayJsonObjectDecodeError.BadJsonObject)
-    }
+    if trimmed.isEmpty then Right(EmptyReplayRequestJson)
+    else
+      parse(trimmed) match {
+        case Left(_) =>
+          Left(ReplayJsonObjectDecodeError.BadJsonObject)
+        case Right(json) =>
+          json.asObject.toRight(ReplayJsonObjectDecodeError.BadJsonObject)
+      }
   }
 
   private def recordJsonObjectDecodeError(error: ReplayJsonObjectDecodeError): ReplayRecordDecodeError =

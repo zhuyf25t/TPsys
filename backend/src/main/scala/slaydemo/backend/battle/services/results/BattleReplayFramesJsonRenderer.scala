@@ -1,6 +1,6 @@
 package slaydemo.backend.battle.services.results
 
-import io.circe.{Encoder, Json}
+import io.circe.Encoder
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax.*
 
@@ -207,13 +207,23 @@ private[services] object BattleReplayFramesJsonRenderer {
     position: BattleVector2,
     available: Boolean
   ): BattleReplayPickupPayload =
-    BattleReplayPickupPayload(
-      id = pickupId.value,
-      kind = replayPickupKind(pickupKind),
-      position = vectorPayload(position),
-      available = available,
-      weaponKind = weaponKind.map(WeaponKind.wireValue).filter(_.trim.nonEmpty)
-    )
+    weaponKind.map(WeaponKind.wireValue).filter(_.trim.nonEmpty) match {
+      case Some(weaponKind) =>
+        BattleReplayWeaponPickupPayload(
+          id = pickupId.value,
+          kind = replayPickupKind(pickupKind),
+          position = vectorPayload(position),
+          available = available,
+          weaponKind = weaponKind
+        )
+      case None =>
+        BattleReplaySimplePickupPayload(
+          id = pickupId.value,
+          kind = replayPickupKind(pickupKind),
+          position = vectorPayload(position),
+          available = available
+        )
+    }
 
   private def eventMessages(state: BattleAggregateState, elapsedMs: ElapsedMillis): Vector[String] =
     state.events
@@ -272,34 +282,38 @@ private[services] object BattleReplayFramesJsonRenderer {
     splashRadius: Double
   )
 
-  private final case class BattleReplayPickupPayload(
+  private sealed trait BattleReplayPickupPayload
+
+  private final case class BattleReplayWeaponPickupPayload(
     id: String,
     kind: String,
     position: BattleReplayVectorPayload,
     available: Boolean,
-    weaponKind: Option[String]
-  )
+    weaponKind: String
+  ) extends BattleReplayPickupPayload
+
+  private final case class BattleReplaySimplePickupPayload(
+    id: String,
+    kind: String,
+    position: BattleReplayVectorPayload,
+    available: Boolean
+  ) extends BattleReplayPickupPayload
 
   private final case class BattleReplayVectorPayload(x: Double, y: Double)
 
   private given Encoder[BattleReplayVectorPayload] = deriveEncoder
   private given Encoder[BattleReplayHeroPayload] = deriveEncoder
   private given Encoder[BattleReplayProjectilePayload] = deriveEncoder
+  private given Encoder[BattleReplayWeaponPickupPayload] = deriveEncoder
+  private given Encoder[BattleReplaySimplePickupPayload] = deriveEncoder
   private given Encoder[BattleReplayFramePayload] = deriveEncoder
 
   private given Encoder[BattleReplayPickupPayload] =
     Encoder.instance { pickup =>
-      val baseFields = Vector(
-        "id" -> Json.fromString(pickup.id),
-        "kind" -> Json.fromString(pickup.kind),
-        "position" -> pickup.position.asJson,
-        "available" -> Json.fromBoolean(pickup.available)
-      )
-      val optionalFields =
-        pickup.weaponKind
-          .map(value => Vector("weaponKind" -> Json.fromString(value)))
-          .getOrElse(Vector.empty)
-      Json.obj((baseFields ++ optionalFields)*)
+      pickup match {
+        case weaponPickup: BattleReplayWeaponPickupPayload => weaponPickup.asJson
+        case simplePickup: BattleReplaySimplePickupPayload => simplePickup.asJson
+      }
     }
 
 }

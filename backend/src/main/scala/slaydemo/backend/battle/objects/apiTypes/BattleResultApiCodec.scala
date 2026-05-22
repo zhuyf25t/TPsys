@@ -4,7 +4,7 @@ import io.circe.JsonObject
 import io.circe.parser.parse
 
 import slaydemo.backend.battle.objects.BattleId
-import slaydemo.backend.battle.services.BattleResultRecordCommand
+import slaydemo.backend.battle.services.{BattleResultRecordCommand, BattleResultRecordError}
 import slaydemo.backend.identity.objects.PlayerHandle
 
 final case class BattleResultListQuery(
@@ -23,6 +23,70 @@ enum BattleResultRecordDecodeError {
   case InvalidBattleId
   case InvalidHandle
   case VisitorNotAllowed
+}
+
+enum BattleResultApiErrorCode {
+  case MethodNotAllowed
+  case BadJson
+  case InvalidBattleId
+  case InvalidHandle
+  case VisitorNotAllowed
+}
+
+object BattleResultApiErrorCode {
+  def fromRecordDecodeError(error: BattleResultRecordDecodeError): BattleResultApiErrorCode =
+    error match {
+      case BattleResultRecordDecodeError.BadJson =>
+        BattleResultApiErrorCode.BadJson
+      case BattleResultRecordDecodeError.InvalidBattleId =>
+        BattleResultApiErrorCode.InvalidBattleId
+      case BattleResultRecordDecodeError.InvalidHandle =>
+        BattleResultApiErrorCode.InvalidHandle
+      case BattleResultRecordDecodeError.VisitorNotAllowed =>
+        BattleResultApiErrorCode.VisitorNotAllowed
+    }
+
+  def fromRecordError(error: BattleResultRecordError): BattleResultApiErrorCode =
+    error match {
+      case BattleResultRecordError.InvalidHandle =>
+        BattleResultApiErrorCode.InvalidHandle
+      case BattleResultRecordError.VisitorNotAllowed =>
+        BattleResultApiErrorCode.VisitorNotAllowed
+    }
+
+  def wireValue(code: BattleResultApiErrorCode): String =
+    code match {
+      case BattleResultApiErrorCode.MethodNotAllowed =>
+        "method_not_allowed"
+      case BattleResultApiErrorCode.BadJson =>
+        "bad_request"
+      case BattleResultApiErrorCode.InvalidBattleId =>
+        "invalid_battle_id"
+      case BattleResultApiErrorCode.InvalidHandle =>
+        "invalid_handle"
+      case BattleResultApiErrorCode.VisitorNotAllowed =>
+        "visitor_not_allowed"
+    }
+
+  def message(code: BattleResultApiErrorCode): String =
+    code match {
+      case BattleResultApiErrorCode.MethodNotAllowed =>
+        "Only GET, POST, HEAD, and OPTIONS are supported."
+      case BattleResultApiErrorCode.BadJson =>
+        "Request body must be a JSON object."
+      case _ =>
+        wireValue(code)
+    }
+
+  def statusCode(code: BattleResultApiErrorCode): Int =
+    code match {
+      case BattleResultApiErrorCode.MethodNotAllowed =>
+        405
+      case BattleResultApiErrorCode.VisitorNotAllowed =>
+        403
+      case _ =>
+        400
+    }
 }
 
 object BattleResultRequestTarget {

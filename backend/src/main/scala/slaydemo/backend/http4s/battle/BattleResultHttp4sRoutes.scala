@@ -2,10 +2,11 @@ package slaydemo.backend.http4s.battle
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request, Status}
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultApiCodec,
+  BattleResultApiErrorCode,
   BattleResultListResponse,
   BattleResultListQueryDecodeResult,
   BattleResultRecordDecodeError,
@@ -14,44 +15,13 @@ import slaydemo.backend.battle.objects.apiTypes.{
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
 import slaydemo.backend.http4s.HttpApiError
-import slaydemo.backend.http4s.HttpApiErrors.apiError
+import slaydemo.backend.http4s.HttpApiErrors.typedApiError
 import slaydemo.backend.http4s.Http4sCors.{corsNoContent, corsOk}
 import slaydemo.backend.http4s.Http4sEffects.blocking
 import slaydemo.backend.http4s.Http4sRequestPaths.requestPath
 import slaydemo.backend.http4s.Http4sResponses.{errorResponse, jsonCreated, jsonOk}
 
 private[http4s] object BattleResultHttp4sRoutes {
-  private val MethodNotAllowedError =
-    apiError(
-      Status.MethodNotAllowed,
-      "method_not_allowed",
-      "Only GET, POST, HEAD, and OPTIONS are supported."
-    )
-  private val BadJsonError =
-    apiError(
-      Status.BadRequest,
-      "bad_request",
-      "Request body must be a JSON object."
-    )
-  private val InvalidBattleIdError =
-    apiError(
-      Status.BadRequest,
-      "invalid_battle_id",
-      "invalid_battle_id"
-    )
-  private val InvalidHandleError =
-    apiError(
-      Status.BadRequest,
-      "invalid_handle",
-      "invalid_handle"
-    )
-  private val VisitorNotAllowedError =
-    apiError(
-      Status.Forbidden,
-      "visitor_not_allowed",
-      "visitor_not_allowed"
-    )
-
   def routes(service: BattleResultService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if isBattleResultPath(request) =>
@@ -86,7 +56,7 @@ private[http4s] object BattleResultHttp4sRoutes {
                 }
             }
           case _ =>
-            errorResponse(MethodNotAllowedError)
+            errorResponse(battleResultApiError(BattleResultApiErrorCode.MethodNotAllowed))
         }
     }
 
@@ -94,16 +64,15 @@ private[http4s] object BattleResultHttp4sRoutes {
     BattleResultRequestTarget.isResultPath(requestPath(request))
 
   private def resultRecordDecodeApiError(error: BattleResultRecordDecodeError): HttpApiError =
-    error match {
-      case BattleResultRecordDecodeError.BadJson           => BadJsonError
-      case BattleResultRecordDecodeError.InvalidBattleId   => InvalidBattleIdError
-      case BattleResultRecordDecodeError.InvalidHandle     => InvalidHandleError
-      case BattleResultRecordDecodeError.VisitorNotAllowed => VisitorNotAllowedError
-    }
+    battleResultApiError(BattleResultApiErrorCode.fromRecordDecodeError(error))
 
   private def resultRecordApiError(error: BattleResultRecordError): HttpApiError =
-    error match {
-      case BattleResultRecordError.InvalidHandle     => InvalidHandleError
-      case BattleResultRecordError.VisitorNotAllowed => VisitorNotAllowedError
-    }
+    battleResultApiError(BattleResultApiErrorCode.fromRecordError(error))
+
+  private def battleResultApiError(code: BattleResultApiErrorCode): HttpApiError =
+    typedApiError(
+      statusCode = BattleResultApiErrorCode.statusCode(code),
+      code = BattleResultApiErrorCode.wireValue(code),
+      message = BattleResultApiErrorCode.message(code)
+    )
 }

@@ -2,7 +2,7 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request, Response}
+import org.http4s.{HttpRoutes, Method, Request}
 
 import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultApiCodec,
@@ -13,7 +13,7 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, renderError, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, requestPath, typedApiError}
 
 private[http4s] object BattleResultHttp4sRoutes {
   private val MethodNotAllowedError =
@@ -57,7 +57,7 @@ private[http4s] object BattleResultHttp4sRoutes {
                   case Right(record) =>
                     jsonCreated(BattleResultRecordResponse.fromRecord(record).asJson)
                   case Left(error) =>
-                    IO.pure(resultRecordError(error))
+                    errorResponse(resultRecordApiError(error))
                 }
             }
           case _ =>
@@ -75,9 +75,6 @@ private[http4s] object BattleResultHttp4sRoutes {
       case BattleResultRecordDecodeError.InvalidHandle     => InvalidHandleError
       case BattleResultRecordDecodeError.VisitorNotAllowed => VisitorNotAllowedError
     }
-
-  private def resultRecordError(error: BattleResultRecordError): Response[IO] =
-    renderError(resultRecordApiError(error))
 
   private def resultRecordApiError(error: BattleResultRecordError): HttpApiError =
     error match {

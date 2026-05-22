@@ -62,9 +62,6 @@ private[http4s] object Http4sRouteSupport {
         decode(body)
     }
 
-  def renderError(status: Status, code: String, message: String): Response[IO] =
-    renderError(HttpApiError(status = status, code = code, message = message))
-
   def renderError(error: HttpApiError): Response[IO] =
     withCors(
       Response[IO](error.status).withEntity(

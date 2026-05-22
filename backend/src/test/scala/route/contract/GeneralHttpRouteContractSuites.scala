@@ -152,7 +152,6 @@ private[contract] object HealthHttp4sRouteContractTest:
     )
 
     ContractAssertions.assertEquals("health api message uppercase path status", response.status, 404)
-    ContractAssertions.assertContains("health api message uppercase path error", response.body, "Unsupported API: HEALTH")
     ContractAssertions.assertEquals("health api message uppercase path does not call service", service.currentCalls, 0)
 
   private def unsupportedMethodIsRejected(): Unit =

@@ -16,14 +16,10 @@ object APIMessageRouter:
     val apiMessagesByName = apiMessages.map(apiMessage => apiMessage.apiName -> apiMessage).toMap
 
     HttpRoutes.of[IO] {
-      case req @ POST -> Root / "api" / apiName =>
+      case req @ POST -> Root / "api" / apiName if apiMessagesByName.contains(apiName) =>
+        val apiMessage = apiMessagesByName(apiName)
         handleErrors {
-          for
-            apiMessage <- IO.fromOption(apiMessagesByName.get(apiName))(
-              APIMessageError.NotFound(s"Unsupported API: $apiName")
-            )
-            response <- runAPIMessage(req, apiMessage, resolveUserToken)
-          yield response
+          runAPIMessage(req, apiMessage, resolveUserToken)
         }
     }
 

@@ -2,7 +2,7 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request}
+import org.http4s.{HttpRoutes, Method, Request, Status}
 
 import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomHeartbeatAPIRequest,
@@ -11,23 +11,39 @@ import slaydemo.backend.battle.objects.apiTypes.{
   RealtimeRoomSnapshotResponse
 }
 import slaydemo.backend.battle.services.{BattleQueueService, BattleRoomError, RealtimeRoomHeartbeatCommand}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, methodNotAllowedError, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, decodeJsonObjectBody, errorResponse, jsonOk, requestPath}
 
 private[http4s] object BattleRoomHttp4sRoutes {
   private val InvalidRoomIdError =
-    typedApiError(statusCode = 400, code = "invalid_room_id", message = "roomId is required.")
+    apiError(
+      Status.BadRequest,
+      "invalid_room_id",
+      "roomId is required."
+    )
   private val InvalidJsonObjectError =
-    typedApiError(
-      statusCode = 400,
-      code = "bad_request",
-      message = "Request body must be a JSON object with supported primitive or object fields."
+    apiError(
+      Status.BadRequest,
+      "bad_request",
+      "Request body must be a JSON object with supported primitive or object fields."
     )
   private val RoomNotFoundError =
-    typedApiError(statusCode = 404, code = "room_not_found", message = "Battle room was not found.")
+    apiError(
+      Status.NotFound,
+      "room_not_found",
+      "Battle room was not found."
+    )
   private val SnapshotMethodNotAllowedError =
-    methodNotAllowedError("Only GET and OPTIONS are supported.")
+    apiError(
+      Status.MethodNotAllowed,
+      "method_not_allowed",
+      "Only GET and OPTIONS are supported."
+    )
   private val HeartbeatMethodNotAllowedError =
-    methodNotAllowedError("Only POST and OPTIONS are supported.")
+    apiError(
+      Status.MethodNotAllowed,
+      "method_not_allowed",
+      "Only POST and OPTIONS are supported."
+    )
 
   def snapshotRoutes(queueService: BattleQueueService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {

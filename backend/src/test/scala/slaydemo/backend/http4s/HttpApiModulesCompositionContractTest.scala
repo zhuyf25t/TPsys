@@ -125,24 +125,27 @@ object HttpApiModulesCompositionContractTest {
 
   private def run(request: Request[IO]): RouteResponse = {
     runRoute(
-      HttpApiModules.routes(
-        healthService = UnusedHealthService,
-        replayService = UnusedReplayService,
-        battleQueueService = UnusedBattleQueueService,
-        battleJoinAuthorizationService = UnusedJoinAuthorizationService,
-        battleResultService = UnusedBattleResultService,
-        battleStateService = UnusedBattleStateService,
-        botProfileService = UnusedBotProfileService,
-        identityService = UnusedIdentityService,
-        mailService = UnusedMailService,
-        friendRequestService = UnusedFriendRequestService,
-        forumService = UnusedForumService,
-        contributionAdjustmentService = UnusedContributionAdjustmentService,
-        governanceNotificationService = UnusedGovernanceNotificationService
-      ),
+      HttpApiModules.routes(UnusedHttpApiServices),
       request
     )
   }
+
+  private val UnusedHttpApiServices: HttpApiServices =
+    HttpApiServices(
+      healthService = UnusedHealthService,
+      replayService = UnusedReplayService,
+      battleQueueService = UnusedBattleQueueService,
+      battleJoinAuthorizationService = UnusedJoinAuthorizationService,
+      battleResultService = UnusedBattleResultService,
+      battleStateService = UnusedBattleStateService,
+      botProfileService = UnusedBotProfileService,
+      identityService = UnusedIdentityService,
+      mailService = UnusedMailService,
+      friendRequestService = UnusedFriendRequestService,
+      forumService = UnusedForumService,
+      contributionAdjustmentService = UnusedContributionAdjustmentService,
+      governanceNotificationService = UnusedGovernanceNotificationService
+    )
 
   private object UnusedHealthService extends HealthService {
     override def current: HealthResponse =

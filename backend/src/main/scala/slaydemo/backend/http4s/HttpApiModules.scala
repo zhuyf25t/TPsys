@@ -4,12 +4,6 @@ import cats.effect.IO
 import cats.syntax.all.*
 import org.http4s.HttpRoutes
 
-import slaydemo.backend.battle.services.{
-  BattleQueueJoinAuthorizationService,
-  BattleQueueService,
-  BattleStateService,
-  BattleResultService
-}
 import slaydemo.backend.http4s.battle.BattleHttpModule
 import slaydemo.backend.http4s.bots.BotProfileHttpModule
 import slaydemo.backend.http4s.forum.ForumHttpModule
@@ -19,44 +13,25 @@ import slaydemo.backend.http4s.identity.IdentityHttpModule
 import slaydemo.backend.http4s.mail.MailHttpModule
 import slaydemo.backend.http4s.replay.ReplayHttpModule
 import slaydemo.backend.http4s.social.SocialHttpModule
-import slaydemo.backend.bots.services.BotProfileService
-import slaydemo.backend.forum.services.ForumService
-import slaydemo.backend.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
-import slaydemo.backend.identity.services.IdentityService
-import slaydemo.backend.mail.services.MailService
-import slaydemo.backend.replay.services.ReplayService
-import slaydemo.backend.social.services.FriendRequestService
-import slaydemo.backend.shared.services.HealthService
 
 object HttpApiModules {
-  def routes(
-    healthService: HealthService,
-    replayService: ReplayService,
-    battleQueueService: BattleQueueService,
-    battleJoinAuthorizationService: BattleQueueJoinAuthorizationService,
-    battleResultService: BattleResultService,
-    battleStateService: BattleStateService,
-    botProfileService: BotProfileService,
-    identityService: IdentityService,
-    mailService: MailService,
-    friendRequestService: FriendRequestService,
-    forumService: ForumService,
-    contributionAdjustmentService: ContributionAdjustmentService,
-    governanceNotificationService: GovernanceNotificationService
-  ): HttpRoutes[IO] =
-    HealthHttpModule.routes(healthService) <+>
-      IdentityHttpModule.routes(identityService) <+>
-      MailHttpModule.routes(mailService) <+>
-      SocialHttpModule.routes(friendRequestService) <+>
-      ForumHttpModule.routes(forumService) <+>
-      GovernanceHttpModule.routes(contributionAdjustmentService, governanceNotificationService) <+>
-      ReplayHttpModule.routes(replayService) <+>
-      BotProfileHttpModule.routes(botProfileService) <+>
+  def routes(services: HttpApiServices): HttpRoutes[IO] =
+    HealthHttpModule.routes(services.healthService) <+>
+      IdentityHttpModule.routes(services.identityService) <+>
+      MailHttpModule.routes(services.mailService) <+>
+      SocialHttpModule.routes(services.friendRequestService) <+>
+      ForumHttpModule.routes(services.forumService) <+>
+      GovernanceHttpModule.routes(
+        services.contributionAdjustmentService,
+        services.governanceNotificationService
+      ) <+>
+      ReplayHttpModule.routes(services.replayService) <+>
+      BotProfileHttpModule.routes(services.botProfileService) <+>
       BattleHttpModule.routes(
-        battleQueueService,
-        battleJoinAuthorizationService,
-        battleResultService,
-        battleStateService
+        services.battleQueueService,
+        services.battleJoinAuthorizationService,
+        services.battleResultService,
+        services.battleStateService
       )
 
 }

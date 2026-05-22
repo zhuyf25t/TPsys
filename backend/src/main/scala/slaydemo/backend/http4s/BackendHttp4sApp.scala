@@ -18,21 +18,7 @@ object BackendHttp4sApp extends IOApp.Simple {
         for
           port <- httpPort(runtime.config)
           httpApp = HttpApiModules
-            .routes(
-              runtime.healthService,
-              runtime.replayService,
-              runtime.battleQueueService,
-              runtime.battleJoinAuthorizationService,
-              runtime.battleResultService,
-              runtime.battleStateService,
-              runtime.botProfileService,
-              runtime.identityService,
-              runtime.mailService,
-              runtime.friendRequestService,
-              runtime.forumService,
-              runtime.contributionAdjustmentService,
-              runtime.governanceNotificationService
-            )
+            .routes(HttpApiServices.fromRuntime(runtime))
             .orNotFound
           _ <- logger.info(s"Starting Slay http4s backend shell on http://0.0.0.0:${port.value}")
           _ <- EmberServerBuilder

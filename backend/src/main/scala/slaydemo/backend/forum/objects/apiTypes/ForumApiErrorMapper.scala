@@ -3,6 +3,8 @@ package slaydemo.backend.forum.objects.apiTypes
 import slaydemo.backend.forum.services.{ForumCreateTopicError, ForumTopicMutationError}
 
 enum ForumApiErrorCode {
+  case MethodNotAllowed
+  case InvalidJsonObject
   case InvalidTitle
   case InvalidBody
   case InvalidTag
@@ -16,6 +18,8 @@ enum ForumApiErrorCode {
 object ForumApiErrorCode {
   def wireValue(code: ForumApiErrorCode): String =
     code match {
+      case ForumApiErrorCode.MethodNotAllowed  => "method_not_allowed"
+      case ForumApiErrorCode.InvalidJsonObject => "bad_request"
       case ForumApiErrorCode.InvalidTitle       => "invalid_title"
       case ForumApiErrorCode.InvalidBody        => "invalid_body"
       case ForumApiErrorCode.InvalidTag         => "invalid_tag"
@@ -26,8 +30,16 @@ object ForumApiErrorCode {
       case ForumApiErrorCode.ReplyNotFound      => "reply_not_found"
     }
 
+  def message(code: ForumApiErrorCode): String =
+    code match {
+      case ForumApiErrorCode.MethodNotAllowed  => "Method is not allowed."
+      case ForumApiErrorCode.InvalidJsonObject => "Request body must be a JSON object with string fields."
+      case _                                   => wireValue(code)
+    }
+
   def statusCode(code: ForumApiErrorCode): Int =
     code match {
+      case ForumApiErrorCode.MethodNotAllowed  => 405
       case ForumApiErrorCode.VisitorNotAllowed  => 403
       case ForumApiErrorCode.TopicNotFound      => 404
       case ForumApiErrorCode.ReplyNotFound      => 404

@@ -27,11 +27,6 @@ object HttpApiModules {
       ) <+>
       ReplayHttpModule.routes(services.replayService) <+>
       BotProfileHttpModule.routes(services.botProfileService) <+>
-      BattleHttpModule.routes(
-        services.battleQueueService,
-        services.battleJoinAuthorizationService,
-        services.battleResultService,
-        services.battleStateService
-      )
+      BattleHttpModule.routes(services.battleServices)
 
 }

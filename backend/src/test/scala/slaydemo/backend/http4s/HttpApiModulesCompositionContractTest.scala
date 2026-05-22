@@ -31,6 +31,7 @@ import slaydemo.backend.governance.services.{
   GovernanceReviewNotificationCommand,
   GovernanceReviewNotificationSubmissionResult
 }
+import slaydemo.backend.http4s.battle.BattleHttpServices
 import slaydemo.backend.http4s.Http4sRouteContractSupport.{RouteResponse, runRoute}
 import slaydemo.backend.identity.api.IdentityAccountSummary
 import slaydemo.backend.identity.objects.{IdentityAccount, SessionToken}
@@ -134,10 +135,12 @@ object HttpApiModulesCompositionContractTest {
     HttpApiServices(
       healthService = UnusedHealthService,
       replayService = UnusedReplayService,
-      battleQueueService = UnusedBattleQueueService,
-      battleJoinAuthorizationService = UnusedJoinAuthorizationService,
-      battleResultService = UnusedBattleResultService,
-      battleStateService = UnusedBattleStateService,
+      battleServices = BattleHttpServices(
+        queueService = UnusedBattleQueueService,
+        joinAuthorizationService = UnusedJoinAuthorizationService,
+        resultService = UnusedBattleResultService,
+        stateService = UnusedBattleStateService
+      ),
       botProfileService = UnusedBotProfileService,
       identityService = UnusedIdentityService,
       mailService = UnusedMailService,

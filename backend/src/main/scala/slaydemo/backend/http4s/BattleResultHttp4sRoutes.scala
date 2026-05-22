@@ -2,7 +2,7 @@ package slaydemo.backend.http4s
 
 import cats.effect.IO
 import io.circe.syntax.*
-import org.http4s.{HttpRoutes, Method, Request}
+import org.http4s.{HttpRoutes, Method, Request, Status}
 
 import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultApiCodec,
@@ -13,19 +13,39 @@ import slaydemo.backend.battle.objects.apiTypes.{
   BattleResultRequestTarget
 }
 import slaydemo.backend.battle.services.{BattleResultRecordError, BattleResultService}
-import slaydemo.backend.http4s.Http4sRouteSupport.{blocking, codeMessageError, corsNoContent, corsOk, errorResponse, jsonCreated, jsonOk, methodNotAllowedError, requestPath, typedApiError}
+import slaydemo.backend.http4s.Http4sRouteSupport.{apiError, blocking, corsNoContent, corsOk, errorResponse, jsonCreated, jsonOk, requestPath}
 
 private[http4s] object BattleResultHttp4sRoutes {
   private val MethodNotAllowedError =
-    methodNotAllowedError("Only GET, POST, HEAD, and OPTIONS are supported.")
+    apiError(
+      Status.MethodNotAllowed,
+      "method_not_allowed",
+      "Only GET, POST, HEAD, and OPTIONS are supported."
+    )
   private val BadJsonError =
-    typedApiError(statusCode = 400, code = "bad_request", message = "Request body must be a JSON object.")
+    apiError(
+      Status.BadRequest,
+      "bad_request",
+      "Request body must be a JSON object."
+    )
   private val InvalidBattleIdError =
-    codeMessageError(statusCode = 400, code = "invalid_battle_id")
+    apiError(
+      Status.BadRequest,
+      "invalid_battle_id",
+      "invalid_battle_id"
+    )
   private val InvalidHandleError =
-    codeMessageError(statusCode = 400, code = "invalid_handle")
+    apiError(
+      Status.BadRequest,
+      "invalid_handle",
+      "invalid_handle"
+    )
   private val VisitorNotAllowedError =
-    codeMessageError(statusCode = 403, code = "visitor_not_allowed")
+    apiError(
+      Status.Forbidden,
+      "visitor_not_allowed",
+      "visitor_not_allowed"
+    )
 
   def routes(service: BattleResultService): HttpRoutes[IO] =
     HttpRoutes.of[IO] {

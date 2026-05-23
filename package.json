@@ -8,6 +8,7 @@
     "backend:dev": "cd backend && sbt \"runMain route.BackendHttp4sApp\"",
     "backend:compile": "cd backend && sbt compile",
     "backend:test-contracts": "cd backend && sbt \"Test / runMain route.contract.BackendContractTestRunner\"",
+    "audit:battle-api-alignment": "node scripts/audit-battle-api-message-alignment.mjs",
     "audit:battle-content": "node scripts/audit-battle-content-contract.mjs",
     "audit:battle-contracts": "npm run audit:battle-content",
     "audit:domain-alignment": "node scripts/audit-frontend-backend-domain-alignment.mjs",
@@ -39,9 +40,11 @@
     "react-router-dom": "^7.14.1"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^24.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.7"
   }

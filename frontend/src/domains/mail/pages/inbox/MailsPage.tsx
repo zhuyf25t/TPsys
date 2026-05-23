@@ -1,10 +1,7 @@
-import { useEffect, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { getCurrentAuthUser, isBuiltinAdminHandle, subscribeAuthState } from "../../../identity/api/authGateway";
-import {
-  CONTRIBUTION_ADJUSTMENTS_CHANGED_EVENT,
-  loadContributionAdjustments
-} from "../../../governance/api/governanceGateway";
+import { CONTRIBUTION_ADJUSTMENTS_CHANGED_EVENT, loadContributionAdjustments } from "../../../governance/api/governanceGateway";
 import {
   getMailSummaries,
   isRemoteMailSourceConfigured,
@@ -16,15 +13,26 @@ import {
   type FriendRequestMailStatus,
   type MailSummary
 } from "../../api/mailsGateway";
-import {
-  loadRemoteFriendRequests,
-  respondToFriendRequest,
-  type FriendRequestDecision
-} from "../../../social/api/friendRequestGateway";
+import { loadRemoteFriendRequests, respondToFriendRequest, type FriendRequestDecision } from "../../../social/api/friendRequestGateway";
 import { UserActionDot } from "../../../social/components/user-action-dot/UserActionDot";
 import { ShellLayout } from "../../../../shared/ui/ShellLayout";
+import { cn } from "../../../../shared/ui/classNames";
 
-/** 中文名：mailspage（MailsPage）。游戏职责：在前端邮件域中组织邮件摘要、通知和已读状态，支撑战斗外消息流转。 */
+type FriendRequestActionState = FriendRequestMailStatus | "processing" | "failed";
+type MailFilter = "all" | "unread" | "read" | "important" | "battle" | "friend";
+interface MailReadSyncResult {
+  ok: boolean;
+  requiresRemoteRefresh: boolean;
+}
+type ContributionAdjustmentRecords = NonNullable<Awaited<ReturnType<typeof loadContributionAdjustments>>>;
+
+const primaryButton =
+  "inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButton =
+  "inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+const filterButtonBase = "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition";
+
+/** 中文名称：站内信页。游戏职责：展示邮件摘要、通知、已读状态和好友请求处理。 */
 export function MailsPage() {
   const currentUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   const remoteMailSource = isRemoteMailSourceConfigured();
@@ -37,9 +45,7 @@ export function MailsPage() {
   const isAdminUser = isBuiltinAdminHandle(currentUser?.handle);
 
   const emptyTitle = mailLoadFailed ? "站内信暂时不可用" : "暂无通知";
-  const emptyDetail = mailLoadFailed
-    ? "后端暂时不可用，当前无法同步站内信。"
-    : "当前没有新的站内信。";
+  const emptyDetail = mailLoadFailed ? "后端暂时不可用，当前无法同步站内信。" : "当前没有新的站内信。";
 
   useEffect(() => {
     let cancelled = false;
@@ -168,9 +174,7 @@ export function MailsPage() {
     const targetIds = new Set(mailIds);
     setMailSummaries((current) =>
       current.map((mail) =>
-        targetIds.has(mail.id) || mail.relatedMailIds?.some((relatedMailId) => targetIds.has(relatedMailId))
-          ? { ...mail, unread: false }
-          : mail
+        targetIds.has(mail.id) || mail.relatedMailIds?.some((relatedMailId) => targetIds.has(relatedMailId)) ? { ...mail, unread: false } : mail
       )
     );
   };
@@ -180,9 +184,7 @@ export function MailsPage() {
     const failedTargetIds = new Set(failedMails.flatMap(getMailReadTargetIds));
     setMailSummaries((current) =>
       current.map((mail) =>
-        failedTargetIds.has(mail.id) || mail.relatedMailIds?.some((relatedMailId) => failedTargetIds.has(relatedMailId))
-          ? previousById.get(mail.id) ?? mail
-          : mail
+        failedTargetIds.has(mail.id) || mail.relatedMailIds?.some((relatedMailId) => failedTargetIds.has(relatedMailId)) ? previousById.get(mail.id) ?? mail : mail
       )
     );
   };
@@ -200,19 +202,11 @@ export function MailsPage() {
         }
       });
 
-      if (!changed) {
-        return current;
-      }
-
-      return next;
+      return changed ? next : current;
     });
   };
 
-  const setFriendRequestStatusOptimistically = (
-    mailId: string,
-    requestId: string,
-    status: FriendRequestMailStatus
-  ): void => {
+  const setFriendRequestStatusOptimistically = (mailId: string, requestId: string, status: FriendRequestMailStatus): void => {
     setMailSummaries((current) =>
       current.map((mail) =>
         mail.id === mailId
@@ -261,9 +255,7 @@ export function MailsPage() {
         return { ok: false, requiresRemoteRefresh: true };
       }
 
-      const readSynced = (
-        await Promise.all(mailIds.map((relatedMailId) => markMailAsReadRemote(ownerHandle, relatedMailId).catch(() => false)))
-      ).every(Boolean);
+      const readSynced = (await Promise.all(mailIds.map((relatedMailId) => markMailAsReadRemote(ownerHandle, relatedMailId).catch(() => false)))).every(Boolean);
       return { ok: readSynced, requiresRemoteRefresh: true };
     }
 
@@ -348,11 +340,7 @@ export function MailsPage() {
     }
   };
 
-  const handleFriendRequestDecision = async (
-    event: MouseEvent<HTMLButtonElement>,
-    mail: MailSummary,
-    decision: FriendRequestDecision
-  ): Promise<void> => {
+  const handleFriendRequestDecision = async (event: MouseEvent<HTMLButtonElement>, mail: MailSummary, decision: FriendRequestDecision): Promise<void> => {
     event.stopPropagation();
     const requestId = getFriendRequestId(mail);
     const actorHandle = currentUser?.handle?.trim() ?? "";
@@ -392,261 +380,237 @@ export function MailsPage() {
       title="站内信"
       subtitle="战报、评分变化、好友请求和系统通知都在这里。"
       headerAside={
-        <div className="mails-header-actions" aria-label="站内信快捷操作">
-          <span>15 秒同步</span>
-          <Link to="/replay">查看战报</Link>
-          <Link to="/rating">评分榜</Link>
+        <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600" aria-label="站内信快捷操作">
+          <span className="rounded-full bg-slate-100 px-3 py-1">15 秒同步</span>
+          <Link className="hover:text-emerald-700" to="/replay">
+            查看战报
+          </Link>
+          <Link className="hover:text-emerald-700" to="/rating">
+            评分榜
+          </Link>
         </div>
       }
     >
-      <section className="detail-card mails-overview">
-        <h3>消息概览</h3>
-        <p className="mails-overview__copy">
-          战报、评分更新与好友消息会在这里同步；旧版战报和评分邮件会合并显示成一条。
-        </p>
-        <div className="mails-overview__stats" aria-label="站内信统计">
-          <article className="mails-overview__tile">
-            <span>总计</span>
-            <strong>{mailSummaries.length}</strong>
-            <small>当前账号可见</small>
-          </article>
-          <article className="mails-overview__tile mails-overview__tile--hot">
-            <span>未读</span>
-            <strong>{unreadCount}</strong>
-            <small>需要处理</small>
-          </article>
-          <article className="mails-overview__tile">
-            <span>战报</span>
-            <strong>{battleCount}</strong>
-            <small>含回放入口</small>
-          </article>
-          <article className="mails-overview__tile">
-            <span>好友</span>
-            <strong>{friendCount}</strong>
-            <small>申请与回执</small>
-          </article>
-          <article className="mails-overview__tile mails-overview__tile--merged">
-            <span>已合并</span>
-            <strong>{mergedBattleCount}</strong>
-            <small>战报+评分</small>
-          </article>
-        </div>
-        <div className="mails-overview__toolbar">
-          <div className="pill-row mail-filter-row" aria-label="邮件筛选">
-            <button type="button" className={getMailFilterChipClass(mailFilter, "all")} onClick={() => setMailFilter("all")}>
-              总计 {mailSummaries.length}
-            </button>
-            <button type="button" className={getMailFilterChipClass(mailFilter, "unread")} onClick={() => setMailFilter("unread")}>
-              未读 {unreadCount}
-            </button>
-            <button type="button" className={getMailFilterChipClass(mailFilter, "read")} onClick={() => setMailFilter("read")}>
-              已读 {readCount}
-            </button>
-            <button type="button" className={getMailFilterChipClass(mailFilter, "important")} onClick={() => setMailFilter("important")}>
-              重要 {importantCount}
-            </button>
-            <button type="button" className={getMailFilterChipClass(mailFilter, "battle")} onClick={() => setMailFilter("battle")}>
-              战报 {battleCount}
-            </button>
-            <button type="button" className={getMailFilterChipClass(mailFilter, "friend")} onClick={() => setMailFilter("friend")}>
-              好友申请 {friendCount}
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-semibold text-slate-950">消息概览</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">战报、评分更新与好友消息会在这里同步；旧版战报和评分邮件会合并显示成一条。</p>
+            </div>
+            <button
+              type="button"
+              className={secondaryButton}
+              disabled={visibleUnreadMails.length === 0}
+              onClick={() => {
+                void handleMarkFilteredReadClick();
+              }}
+            >
+              {visibleUnreadMails.length > 0 ? `${markFilteredReadLabel} ${visibleUnreadMails.length}` : "当前筛选无未读"}
             </button>
           </div>
-          <button
-            type="button"
-            className="mail-bulk-read-button"
-            disabled={visibleUnreadMails.length === 0}
-            onClick={() => {
-              void handleMarkFilteredReadClick();
-            }}
-          >
-            {visibleUnreadMails.length > 0
-              ? `${markFilteredReadLabel} ${visibleUnreadMails.length}`
-              : "当前筛选无未读"}
-          </button>
-        </div>
-      </section>
 
-      {mailSummaries.length === 0 ? (
-        <section className="detail-card empty-state">
-          <h3>{emptyTitle}</h3>
-          <p>{emptyDetail}</p>
-          {!remoteMailSource && !mailLoadFailed ? (
-            <div className="cta-row">
-              <Link className="button-link button-link--primary" to="/battle?new=1">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="站内信统计">
+            <OverviewTile label="总计" value={mailSummaries.length} detail="当前账号可见" />
+            <OverviewTile label="未读" value={unreadCount} detail="需要处理" hot />
+            <OverviewTile label="战报" value={battleCount} detail="含回放入口" />
+            <OverviewTile label="好友" value={friendCount} detail="申请与回执" />
+            <OverviewTile label="已合并" value={mergedBattleCount} detail="战报+评分" merged />
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2" aria-label="邮件筛选">
+            <FilterButton activeFilter={mailFilter} filter="all" onClick={setMailFilter}>
+              总计 {mailSummaries.length}
+            </FilterButton>
+            <FilterButton activeFilter={mailFilter} filter="unread" onClick={setMailFilter}>
+              未读 {unreadCount}
+            </FilterButton>
+            <FilterButton activeFilter={mailFilter} filter="read" onClick={setMailFilter}>
+              已读 {readCount}
+            </FilterButton>
+            <FilterButton activeFilter={mailFilter} filter="important" onClick={setMailFilter}>
+              重要 {importantCount}
+            </FilterButton>
+            <FilterButton activeFilter={mailFilter} filter="battle" onClick={setMailFilter}>
+              战报 {battleCount}
+            </FilterButton>
+            <FilterButton activeFilter={mailFilter} filter="friend" onClick={setMailFilter}>
+              好友申请 {friendCount}
+            </FilterButton>
+          </div>
+        </section>
+
+        {mailSummaries.length === 0 ? (
+          <EmptyState title={emptyTitle} body={emptyDetail}>
+            {!remoteMailSource && !mailLoadFailed ? (
+              <Link className={primaryButton} to="/battle?new=1">
                 进入战斗
               </Link>
-            </div>
-          ) : null}
-        </section>
-      ) : filteredMailSummaries.length === 0 ? (
-        <section className="detail-card empty-state empty-state--dense">
-          <h3>没有符合筛选的邮件</h3>
-          <p>切换上方筛选条件可查看其他站内信。</p>
-        </section>
-      ) : (
-        <section className="mail-list">
-          {filteredMailSummaries.map((mail) => {
-            const friendRequestId = getFriendRequestId(mail);
-            const actionStatus = friendRequestActions[mail.id];
-            const friendRequestStatus = resolveFriendRequestStatus(mail.friendRequestStatus, actionStatus);
-            const friendRequestStatusLabel = getFriendRequestStatusLabel(friendRequestStatus, actionStatus);
-            const readFailure = mailReadFailures[mail.id];
-            const canRespondToFriendRequest =
-              mail.kind === "friend" && friendRequestId !== null && friendRequestStatus === "pending";
-            const isProcessing = actionStatus === "processing";
-            const isGovernancePendingMail = isAdminUser && mail.kind === "governance" && mail.subject.startsWith("[待处理]");
-            const governanceActorHandle = mail.governanceActorHandle?.trim() || "";
-            const governanceTargetPath = mail.governanceTargetPath?.trim() || "";
-            const mailSourcePath = mail.sourcePath?.trim() || "";
-            const mailSourceLabel = mail.sourceLabel?.trim() || "查看来源";
-            const matchedContributionAdjustment = isAdminUser
-              ? findMatchingContributionAdjustment(mail, contributionAdjustments)
-              : null;
-            const mergedBattleLabel = getMergedBattleMailLabel(mail);
+            ) : null}
+          </EmptyState>
+        ) : filteredMailSummaries.length === 0 ? (
+          <EmptyState title="没有符合筛选的邮件" body="切换上方筛选条件可查看其他站内信。" />
+        ) : (
+          <section className="flex flex-col gap-3">
+            {filteredMailSummaries.map((mail) => {
+              const friendRequestId = getFriendRequestId(mail);
+              const actionStatus = friendRequestActions[mail.id];
+              const friendRequestStatus = resolveFriendRequestStatus(mail.friendRequestStatus, actionStatus);
+              const friendRequestStatusLabel = getFriendRequestStatusLabel(friendRequestStatus, actionStatus);
+              const readFailure = mailReadFailures[mail.id];
+              const canRespondToFriendRequest = mail.kind === "friend" && friendRequestId !== null && friendRequestStatus === "pending";
+              const isProcessing = actionStatus === "processing";
+              const isGovernancePendingMail = isAdminUser && mail.kind === "governance" && isPendingGovernanceSubject(mail.subject);
+              const governanceActorHandle = mail.governanceActorHandle?.trim() || "";
+              const governanceTargetPath = mail.governanceTargetPath?.trim() || "";
+              const mailSourcePath = mail.sourcePath?.trim() || "";
+              const mailSourceLabel = mail.sourceLabel?.trim() || "查看来源";
+              const matchedContributionAdjustment = isAdminUser ? findMatchingContributionAdjustment(mail, contributionAdjustments) : null;
+              const mergedBattleLabel = getMergedBattleMailLabel(mail);
 
-            return (
-              <article
-                key={mail.id}
-                role="button"
-                tabIndex={0}
-                className={`mail-card${mail.unread ? " mail-card--unread" : " mail-card--read"}`}
-                onClick={() => {
-                  void handleMailClick(mail);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
+              return (
+                <article
+                  key={mail.id}
+                  role="button"
+                  tabIndex={0}
+                  className={cn(
+                    "grid cursor-pointer gap-4 rounded-lg border bg-white p-4 shadow-sm transition hover:border-emerald-300 md:grid-cols-[minmax(0,1fr)_260px]",
+                    mail.unread ? "border-emerald-300 ring-1 ring-emerald-100" : "border-slate-200"
+                  )}
+                  onClick={() => {
                     void handleMailClick(mail);
-                  }
-                }}
-                aria-label={`${mail.subject}${mail.unread ? "，未读" : "，已读"}`}
-              >
-                <div className="mail-card__main">
-                  <div className="mail-card__meta">
-                    <span className={`mail-card__flag mail-card__flag--${mail.kind}`}>{getMailKindLabel(mail)}</span>
-                    {mail.unread ? <span className="mail-card__dot" aria-label="未读邮件" /> : null}
-                    {mail.unread ? <span className="mail-card__status mail-card__status--unread">未读</span> : null}
-                    {!mail.unread ? <span className="mail-card__status mail-card__status--read">已读</span> : null}
-                    {mail.important ? <span className="mail-card__status">重要</span> : null}
-                    {mergedBattleLabel ? (
-                      <span className="mail-card__status mail-card__status--merged">{mergedBattleLabel}</span>
-                    ) : null}
-                  </div>
-                  <strong>{mail.subject}</strong>
-                  <span className="mail-card__excerpt">{mail.excerpt}</span>
-                </div>
-                <div
-                  className="mail-card__side"
-                  onClick={(event) => {
-                    event.stopPropagation();
                   }}
                   onKeyDown={(event) => {
-                    event.stopPropagation();
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void handleMailClick(mail);
+                    }
                   }}
+                  aria-label={`${mail.subject}${mail.unread ? "，未读" : "，已读"}`}
                 >
-                  <div className="mail-card__source">
-                    <small>{mail.senderLabel}</small>
-                    <small>{mail.receivedLabel}</small>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={getMailKindClass(mail)}>{getMailKindLabel(mail)}</span>
+                      {mail.unread ? <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="未读邮件" /> : null}
+                      <span className={cn("rounded-full px-2 py-1 text-xs font-semibold", mail.unread ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>
+                        {mail.unread ? "未读" : "已读"}
+                      </span>
+                      {mail.important ? <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">重要</span> : null}
+                      {mergedBattleLabel ? <span className="rounded-full bg-cyan-50 px-2 py-1 text-xs font-semibold text-cyan-700">{mergedBattleLabel}</span> : null}
+                    </div>
+                    <strong className="mt-3 block truncate text-lg font-semibold text-slate-950">{mail.subject}</strong>
+                    <span className="mt-2 block text-sm leading-6 text-slate-600">{mail.excerpt}</span>
                   </div>
-                  {mail.unread ? (
-                    <button
-                      type="button"
-                      className="mail-card__action mail-card__action--mark-read"
-                      onClick={(event) => handleMarkReadClick(event, mail)}
-                    >
-                      标为已读
-                    </button>
-                  ) : null}
-                  {mailSourcePath && !isGovernancePendingMail ? (
-                    <div className="mail-card__actions">
-                      {mailSourcePath.startsWith("/") ? (
-                        <Link className="mail-card__action mail-card__action--accept" to={mailSourcePath}>
-                          {mailSourceLabel}
-                        </Link>
-                      ) : (
-                        <a className="mail-card__action mail-card__action--accept" href={mailSourcePath}>
-                          {mailSourceLabel}
-                        </a>
-                      )}
+                  <div
+                    className="flex flex-col items-start gap-3 md:items-end"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                    }}
+                  >
+                    <div className="text-left text-xs text-slate-500 md:text-right">
+                      <small className="block">{mail.senderLabel}</small>
+                      <small className="block">{mail.receivedLabel}</small>
                     </div>
-                  ) : null}
-                  {isGovernancePendingMail ? (
-                    <div className="mail-card__actions">
-                      {governanceTargetPath ? (
-                        governanceTargetPath.startsWith("/") ? (
-                          <Link className="mail-card__action mail-card__action--accept" to={governanceTargetPath}>
-                            打开来源
-                          </Link>
-                        ) : (
-                          <a className="mail-card__action mail-card__action--accept" href={governanceTargetPath}>
-                            打开来源
-                          </a>
-                        )
-                      ) : null}
-                      {governanceActorHandle ? <small className="mail-card__action-status">处理 @{governanceActorHandle}</small> : null}
-                      {matchedContributionAdjustment ? (
-                        <small className="mail-card__action-status">
-                          已处理，已有裁决 {formatDelta(matchedContributionAdjustment.delta)}
-                        </small>
-                      ) : null}
-                      {governanceActorHandle ? (
-                        <UserActionDot
-                          handle={governanceActorHandle}
-                          sourceLabel={mail.subject}
-                          sourcePath={governanceTargetPath}
-                        />
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {canRespondToFriendRequest ? (
-                    <span className="mail-card__actions">
-                      <button
-                        type="button"
-                        className="mail-card__action mail-card__action--accept"
-                        disabled={isProcessing}
-                        onClick={(event) => {
-                          void handleFriendRequestDecision(event, mail, "accepted");
-                        }}
-                      >
-                        同意
+                    {mail.unread ? (
+                      <button type="button" className={secondaryButton} onClick={(event) => handleMarkReadClick(event, mail)}>
+                        标为已读
                       </button>
-                      <button
-                        type="button"
-                        className="mail-card__action"
-                        disabled={isProcessing}
-                        onClick={(event) => {
-                          void handleFriendRequestDecision(event, mail, "rejected");
-                        }}
-                      >
-                        拒绝
-                      </button>
-                      {friendRequestStatusLabel ? (
-                        <small className="mail-card__action-status">{friendRequestStatusLabel}</small>
-                      ) : null}
-                    </span>
-                  ) : null}
-                  {!canRespondToFriendRequest && friendRequestStatusLabel ? (
-                    <small className="mail-card__action-status">{friendRequestStatusLabel}</small>
-                  ) : null}
-                  {readFailure ? <small className="mail-card__action-status mail-card__action-status--failed">{readFailure}</small> : null}
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      )}
+                    ) : null}
+                    {mailSourcePath && !isGovernancePendingMail ? <SourceLink path={mailSourcePath} label={mailSourceLabel} /> : null}
+                    {isGovernancePendingMail ? (
+                      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                        {governanceTargetPath ? <SourceLink path={governanceTargetPath} label="打开来源" /> : null}
+                        {governanceActorHandle ? <small className="text-xs font-semibold text-slate-500">处理 @{governanceActorHandle}</small> : null}
+                        {matchedContributionAdjustment ? (
+                          <small className="text-xs font-semibold text-emerald-700">已处理，已有裁决 {formatDelta(matchedContributionAdjustment.delta)}</small>
+                        ) : null}
+                        {governanceActorHandle ? <UserActionDot handle={governanceActorHandle} sourceLabel={mail.subject} sourcePath={governanceTargetPath} /> : null}
+                      </div>
+                    ) : null}
+                    {canRespondToFriendRequest ? (
+                      <span className="flex flex-wrap items-center gap-2 md:justify-end">
+                        <button
+                          type="button"
+                          className={primaryButton}
+                          disabled={isProcessing}
+                          onClick={(event) => {
+                            void handleFriendRequestDecision(event, mail, "accepted");
+                          }}
+                        >
+                          同意
+                        </button>
+                        <button
+                          type="button"
+                          className={secondaryButton}
+                          disabled={isProcessing}
+                          onClick={(event) => {
+                            void handleFriendRequestDecision(event, mail, "rejected");
+                          }}
+                        >
+                          拒绝
+                        </button>
+                        {friendRequestStatusLabel ? <small className="text-xs font-semibold text-slate-500">{friendRequestStatusLabel}</small> : null}
+                      </span>
+                    ) : null}
+                    {!canRespondToFriendRequest && friendRequestStatusLabel ? <small className="text-xs font-semibold text-slate-500">{friendRequestStatusLabel}</small> : null}
+                    {readFailure ? <small className="text-xs font-semibold text-rose-700">{readFailure}</small> : null}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+      </section>
     </ShellLayout>
   );
 }
 
-type FriendRequestActionState = FriendRequestMailStatus | "processing" | "failed";
-type MailFilter = "all" | "unread" | "read" | "important" | "battle" | "friend";
-interface MailReadSyncResult {
-  ok: boolean;
-  requiresRemoteRefresh: boolean;
+function OverviewTile({ label, value, detail, hot, merged }: { label: string; value: number; detail: string; hot?: boolean; merged?: boolean }) {
+  return (
+    <article className={cn("rounded-lg border p-4", hot ? "border-emerald-200 bg-emerald-50" : merged ? "border-cyan-200 bg-cyan-50" : "border-slate-200 bg-slate-50")}>
+      <span className="text-xs font-semibold text-slate-500">{label}</span>
+      <strong className="mt-1 block text-2xl font-semibold text-slate-950">{value}</strong>
+      <small className="mt-1 block text-xs text-slate-500">{detail}</small>
+    </article>
+  );
 }
-type ContributionAdjustmentRecords = NonNullable<Awaited<ReturnType<typeof loadContributionAdjustments>>>;
+
+function FilterButton({ activeFilter, filter, onClick, children }: { activeFilter: MailFilter; filter: MailFilter; onClick: (filter: MailFilter) => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className={cn(filterButtonBase, activeFilter === filter ? "border-emerald-500 bg-emerald-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50")}
+      onClick={() => onClick(filter)}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EmptyState({ title, body, children }: { title: string; body: string; children?: ReactNode }) {
+  return (
+    <section className="flex flex-col items-start rounded-lg border border-dashed border-slate-300 bg-white p-6 shadow-sm">
+      <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+      {children ? <div className="mt-5">{children}</div> : null}
+    </section>
+  );
+}
+
+function SourceLink({ path, label }: { path: string; label: string }) {
+  return path.startsWith("/") ? (
+    <Link className={secondaryButton} to={path}>
+      {label}
+    </Link>
+  ) : (
+    <a className={secondaryButton} href={path}>
+      {label}
+    </a>
+  );
+}
 
 function getMailReadTargetIds(mail: MailSummary): string[] {
   return uniqueStrings([mail.id, ...(mail.relatedMailIds ?? [])]);
@@ -669,8 +633,19 @@ function getMergedBattleMailSourceCount(mail: MailSummary): number {
   return uniqueStrings(mail.relatedMailIds ?? []).length;
 }
 
-function getMailFilterChipClass(activeFilter: MailFilter, filter: MailFilter): string {
-  return `pill mail-filter-chip${activeFilter === filter ? " mail-filter-chip--active" : ""}`;
+function getMailKindClass(mail: MailSummary): string {
+  switch (mail.kind) {
+    case "battle":
+      return "rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700";
+    case "reward":
+      return "rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700";
+    case "friend":
+      return "rounded-full bg-cyan-50 px-2 py-1 text-xs font-semibold text-cyan-700";
+    case "governance":
+      return "rounded-full bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700";
+    default:
+      return "rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600";
+  }
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -690,10 +665,7 @@ function uniqueStrings(values: string[]): string[] {
   return result;
 }
 
-function findMatchingContributionAdjustment(
-  mail: MailSummary,
-  records: ContributionAdjustmentRecords
-): ContributionAdjustmentRecords[number] | null {
+function findMatchingContributionAdjustment(mail: MailSummary, records: ContributionAdjustmentRecords): ContributionAdjustmentRecords[number] | null {
   const normalizedActorHandle = normalizeHandle(mail.governanceActorHandle ?? "");
   if (!normalizedActorHandle) {
     return null;
@@ -747,10 +719,7 @@ function getFriendRequestIdFromMail(mailId: string): string | null {
   return requestId ? requestId : null;
 }
 
-function resolveFriendRequestStatus(
-  mailStatus: FriendRequestMailStatus | undefined,
-  actionStatus: FriendRequestActionState | undefined
-): FriendRequestMailStatus {
+function resolveFriendRequestStatus(mailStatus: FriendRequestMailStatus | undefined, actionStatus: FriendRequestActionState | undefined): FriendRequestMailStatus {
   if (actionStatus === "accepted" || actionStatus === "rejected") {
     return actionStatus;
   }
@@ -758,10 +727,7 @@ function resolveFriendRequestStatus(
   return mailStatus ?? "pending";
 }
 
-function getFriendRequestStatusLabel(
-  status: FriendRequestMailStatus,
-  actionStatus: FriendRequestActionState | undefined
-): string {
+function getFriendRequestStatusLabel(status: FriendRequestMailStatus, actionStatus: FriendRequestActionState | undefined): string {
   if (actionStatus === "processing") {
     return "处理中...";
   }
@@ -785,6 +751,10 @@ function resolveResultStatus(status: string | undefined, fallback: FriendRequest
   return status === "accepted" || status === "rejected" ? status : fallback;
 }
 
+function isPendingGovernanceSubject(subject: string): boolean {
+  return subject.startsWith("[待处理]") || subject.startsWith("[寰呭");
+}
+
 function getMailKindLabel(mail: MailSummary): string {
   if (mail.kind === "battle") {
     return "战报";
@@ -799,7 +769,7 @@ function getMailKindLabel(mail: MailSummary): string {
   }
 
   if (mail.kind === "governance") {
-    return mail.subject.startsWith("[待处理]") ? "待处理治理" : "治理通知";
+    return isPendingGovernanceSubject(mail.subject) ? "待处理治理" : "治理通知";
   }
 
   return "系统";

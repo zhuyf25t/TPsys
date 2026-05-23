@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   fetchDiscussionSummaries,
@@ -10,11 +10,21 @@ import {
 } from "../../api/forumGateway";
 import { ShellLayout } from "../../../../shared/ui/ShellLayout";
 import { UserActionDot } from "../../../social/components/user-action-dot/UserActionDot";
+import { cn } from "../../../../shared/ui/classNames";
 
 const DEFAULT_TAG = "战术讨论";
 const DISCUSSION_TAGS = ["战术讨论", "组队招募", "版本反馈"] as const;
 
-/** 中文名：discussionpage（DiscussionPage）。游戏职责：在前端论坛域中组织讨论数据、发帖回帖和投票交互，支撑玩家社区内容。 */
+const actionButtonBase =
+  "inline-flex h-9 items-center justify-center rounded-md border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+const primaryButton =
+  "inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButton =
+  "inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50";
+const fieldInput =
+  "mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20";
+
+/** 中文名称：论坛列表页。游戏职责：组织讨论数据、发帖和投票交互。 */
 export function DiscussionPage() {
   const [discussionSummaries, setDiscussionSummaries] = useState<DiscussionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,87 +129,72 @@ export function DiscussionPage() {
 
   return (
     <ShellLayout title="论坛" subtitle="查看全部讨论" hidePageHeader>
-      <section className="forum-board">
-        <header className="forum-board__lead">
-          <div className="forum-board__title">
-            <p className="replay-library__eyebrow">Forum</p>
-            <h3>讨论区</h3>
-            <p>只保留帖子本体、投票和回复入口。</p>
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+        <header className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Forum</p>
+            <h3 className="mt-2 text-2xl font-semibold text-slate-950">讨论区</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">保留帖子本体、投票和回复入口。</p>
           </div>
-          <div className="forum-board__summary" aria-label="讨论区统计">
-            <span>{loading ? "加载中" : `${discussionSummaries.length} 话题`}</span>
-            <span>{loading ? "..." : `${replyCount} 回复`}</span>
-            <button
-              type="button"
-              className="button-link button-link--primary forum-board__compose"
-              onClick={() => setComposerOpen(true)}
-            >
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600" aria-label="讨论区统计">
+            <span className="rounded-full bg-slate-100 px-3 py-1">{loading ? "加载中" : `${discussionSummaries.length} 话题`}</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">{loading ? "..." : `${replyCount} 回复`}</span>
+            <button type="button" className={primaryButton} onClick={() => setComposerOpen(true)}>
               发帖
             </button>
           </div>
         </header>
 
         {error ? (
-          <section className="detail-card empty-state empty-state--dense">
-            <h3>论坛加载失败</h3>
-            <p>{error}</p>
-            <button type="button" className="button-link button-link--primary" onClick={() => void refresh()}>
+          <EmptyState title="论坛加载失败" body={error}>
+            <button type="button" className={primaryButton} onClick={() => void refresh()}>
               重试
             </button>
-          </section>
+          </EmptyState>
         ) : loading ? (
-          <section className="detail-card empty-state empty-state--dense">
-            <h3>加载话题中</h3>
-            <p>后端数据还在拉取。</p>
-          </section>
+          <EmptyState title="加载话题中" body="后端数据正在拉取。" />
         ) : discussionSummaries.length === 0 ? (
-          <section className="detail-card empty-state empty-state--dense">
-            <h3>暂无话题</h3>
-            <p>当前后端没有返回任何共享讨论。</p>
-            <button type="button" className="button-link button-link--primary" onClick={() => setComposerOpen(true)}>
+          <EmptyState title="暂无话题" body="当前后端没有返回任何共享讨论。">
+            <button type="button" className={primaryButton} onClick={() => setComposerOpen(true)}>
               发起话题
             </button>
-          </section>
+          </EmptyState>
         ) : (
-          <section className="forum-list forum-list--compact" aria-label="讨论话题列表">
+          <section className="flex flex-col gap-3" aria-label="讨论话题列表">
             {discussionSummaries.map((topic) => (
-              <article key={topic.id} className="forum-topic forum-topic--row">
-                <div className="forum-topic__main">
-                  <div className="forum-topic__headline">
-                    <Link className="forum-topic__link" to={`/discussion/${topic.id}`}>
-                      <strong>{topic.title}</strong>
+              <article key={topic.id} className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link className="min-w-0 text-lg font-semibold text-slate-950 hover:text-emerald-700" to={`/discussion/${topic.id}`}>
+                      {topic.title}
                     </Link>
-                    <span className="forum-topic__tag">{topic.tag}</span>
+                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{topic.tag}</span>
                   </div>
-                  <div className="forum-topic__meta">
-                    <span className="user-handle-row user-handle-row--inline">
-                      <Link to={profilePath(topic.author)}>{topic.author}</Link>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <span className="inline-flex min-w-0 items-center gap-1">
+                      <Link className="font-semibold text-slate-700 hover:text-emerald-700" to={profilePath(topic.author)}>
+                        {topic.author}
+                      </Link>
                       <UserActionDot handle={topic.author} sourceLabel={`论坛帖子：${topic.title}`} sourcePath={`/discussion/${encodeURIComponent(topic.id)}`} />
                     </span>
                     <span>{topic.updatedAt}</span>
                     <span>{topic.replies} 回复</span>
-                    <span className="forum-topic__score">{formatVoteSummary(topic.score, topic.viewerVote)}</span>
+                    <span className="font-semibold text-slate-700">{formatVoteSummary(topic.score, topic.viewerVote)}</span>
                   </div>
-                  {topic.excerpt ? <p className="forum-topic__excerpt">{topic.excerpt}</p> : null}
+                  {topic.excerpt ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">{topic.excerpt}</p> : null}
                 </div>
-                <div className="forum-topic__actions" aria-label={`${topic.title} 操作`}>
-                  <button
-                    type="button"
-                    className={`forum-action${topic.viewerVote === "up" ? " forum-action--active" : ""}`}
-                    aria-pressed={topic.viewerVote === "up"}
-                    onClick={() => void handleVote(topic, "up")}
-                  >
+                <div className="flex flex-wrap items-center gap-2 md:justify-end" aria-label={`${topic.title} 操作`}>
+                  <VoteButton active={topic.viewerVote === "up"} onClick={() => void handleVote(topic, "up")}>
                     Up
-                  </button>
+                  </VoteButton>
+                  <VoteButton active={topic.viewerVote === "down"} onClick={() => void handleVote(topic, "down")}>
+                    Down
+                  </VoteButton>
                   <button
                     type="button"
-                    className={`forum-action${topic.viewerVote === "down" ? " forum-action--active" : ""}`}
-                    aria-pressed={topic.viewerVote === "down"}
-                    onClick={() => void handleVote(topic, "down")}
+                    className={cn(actionButtonBase, "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100")}
+                    onClick={() => openReport(topic)}
                   >
-                    Down
-                  </button>
-                  <button type="button" className="forum-action forum-action--report" onClick={() => openReport(topic)}>
                     Report
                   </button>
                 </div>
@@ -210,78 +205,117 @@ export function DiscussionPage() {
       </section>
 
       {composerOpen ? (
-        <div className="forum-modal" role="dialog" aria-modal="true" aria-label="发起新话题">
-          <div className="forum-modal__panel">
-            <button type="button" className="forum-modal__close" onClick={resetComposer} aria-label="关闭">
-              ×
-            </button>
-            <h3>发帖</h3>
-            <form className="truth-form" onSubmit={handleSubmit}>
-              <label className="truth-form__field">
-                <span>标题</span>
-                <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={48} required />
-              </label>
-              <label className="truth-form__field">
-                <span>标签</span>
-                <select value={tag} onChange={(event) => setTag(event.target.value)}>
-                  {DISCUSSION_TAGS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="truth-form__field">
-                <span>内容</span>
-                <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={6} maxLength={500} required />
-              </label>
-              <div className="cta-row">
-                <button className="button-link button-link--primary" type="submit" disabled={!title.trim() || !body.trim()}>
-                  发布
-                </button>
-                <button type="button" className="button-link" onClick={resetComposer}>
-                  关闭
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal title="发帖" ariaLabel="发起新话题" onClose={resetComposer}>
+          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+            <Field label="标题">
+              <input className={fieldInput} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={48} required />
+            </Field>
+            <Field label="标签">
+              <select className={fieldInput} value={tag} onChange={(event) => setTag(event.target.value)}>
+                {DISCUSSION_TAGS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="内容">
+              <textarea className={fieldInput} value={body} onChange={(event) => setBody(event.target.value)} rows={6} maxLength={500} required />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <button className={primaryButton} type="submit" disabled={!title.trim() || !body.trim()}>
+                发布
+              </button>
+              <button type="button" className={secondaryButton} onClick={resetComposer}>
+                关闭
+              </button>
+            </div>
+          </form>
+        </Modal>
       ) : null}
 
       {reportTarget ? (
-        <div className="forum-modal" role="dialog" aria-modal="true" aria-label="举报话题">
-          <div className="forum-modal__panel">
-            <button type="button" className="forum-modal__close" onClick={closeReport} aria-label="关闭">
-              ×
-            </button>
-            <h3>举报</h3>
-            <p>{reportTarget.title}</p>
-            <form className="truth-form" onSubmit={handleReportSubmit}>
-              <label className="truth-form__field">
-                <span>说明</span>
-                <textarea
-                  value={reportBody}
-                  onChange={(event) => setReportBody(event.target.value)}
-                  rows={4}
-                  maxLength={300}
-                  placeholder="请简要说明"
-                  required
-                />
-              </label>
-              {reportMessage ? <span className="forum-modal__thanks">{reportMessage}</span> : null}
-              <div className="cta-row">
-                <button className="button-link button-link--primary" type="submit" disabled={!reportBody.trim()}>
-                  提交
-                </button>
-                <button type="button" className="button-link" onClick={closeReport}>
-                  关闭
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal title="举报" ariaLabel="举报话题" onClose={closeReport}>
+          <p className="text-sm font-semibold text-slate-700">{reportTarget.title}</p>
+          <form className="mt-4 flex flex-col gap-4" onSubmit={handleReportSubmit}>
+            <Field label="说明">
+              <textarea
+                className={fieldInput}
+                value={reportBody}
+                onChange={(event) => setReportBody(event.target.value)}
+                rows={4}
+                maxLength={300}
+                placeholder="请简要说明"
+                required
+              />
+            </Field>
+            {reportMessage ? <span className="text-sm font-semibold text-emerald-700">{reportMessage}</span> : null}
+            <div className="flex flex-wrap gap-2">
+              <button className={primaryButton} type="submit" disabled={!reportBody.trim()}>
+                提交
+              </button>
+              <button type="button" className={secondaryButton} onClick={closeReport}>
+                关闭
+              </button>
+            </div>
+          </form>
+        </Modal>
       ) : null}
     </ShellLayout>
+  );
+}
+
+function EmptyState({ title, body, children }: { title: string; body: string; children?: ReactNode }) {
+  return (
+    <section className="flex flex-col items-start rounded-lg border border-dashed border-slate-300 bg-white p-6 shadow-sm">
+      <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+      {children ? <div className="mt-5">{children}</div> : null}
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block text-sm font-semibold text-slate-700">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Modal({ title, ariaLabel, onClose, children }: { title: string; ariaLabel: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6" role="dialog" aria-modal="true" aria-label={ariaLabel}>
+      <div className="relative max-h-[90vh] w-full max-w-xl overflow-auto rounded-lg bg-white p-6 shadow-2xl">
+        <button
+          type="button"
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-lg font-semibold text-slate-500 hover:bg-slate-50"
+          onClick={onClose}
+          aria-label="关闭"
+        >
+          x
+        </button>
+        <h3 className="pr-10 text-xl font-semibold text-slate-950">{title}</h3>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function VoteButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        actionButtonBase,
+        active ? "border-emerald-500 bg-emerald-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+      )}
+      aria-pressed={active}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -292,12 +326,12 @@ function profilePath(handle: string): string {
 function formatVoteSummary(score: number, viewerVote: DiscussionVote): string {
   const scoreLabel = score > 0 ? `+${score}` : `${score}`;
   if (viewerVote === "up") {
-    return `${scoreLabel} · 已赞`;
+    return `${scoreLabel} | 已赞`;
   }
 
   if (viewerVote === "down") {
-    return `${scoreLabel} · 已踩`;
+    return `${scoreLabel} | 已踩`;
   }
 
-  return `${scoreLabel} · 未投`;
+  return `${scoreLabel} | 未投`;
 }

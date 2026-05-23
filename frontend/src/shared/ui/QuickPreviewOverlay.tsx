@@ -1,4 +1,5 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { cn } from "./classNames";
 
 export interface QuickPreviewEntry {
   title: string;
@@ -19,7 +20,7 @@ export interface QuickPreviewOverlayProps {
   onClose: () => void;
 }
 
-/** 中文名：quickpreviewoverlay（QuickPreviewOverlay）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
+/** 中文名：快速预览层（QuickPreviewOverlay）。游戏职责：展示大厅角落入口的轻量预览。 */
 export function QuickPreviewOverlay({
   title,
   eyebrow,
@@ -32,61 +33,68 @@ export function QuickPreviewOverlay({
   onClose
 }: QuickPreviewOverlayProps) {
   return (
-    <div className="quick-overlay" role="presentation" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm" role="presentation" onClick={onClose}>
       <aside
-        className={`quick-overlay__panel quick-overlay__panel--${anchor}`}
+        className={cn(
+          "absolute top-6 flex max-h-[calc(100vh-3rem)] w-[min(420px,calc(100vw-2rem))] flex-col gap-4 overflow-hidden rounded border border-white/10 bg-slate-950/95 p-4 text-slate-100 shadow-2xl shadow-black/50",
+          anchor === "left" ? "left-4" : "right-4"
+        )}
         role="dialog"
         aria-modal="false"
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="quick-overlay__header">
+        <header className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
           <div>
-            <small>{eyebrow}</small>
-            <h3>{title}</h3>
-            <p>{detail}</p>
+            <small className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">{eyebrow}</small>
+            <h3 className="mt-2 text-xl font-black text-white">{title}</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-300">{detail}</p>
           </div>
-          <button type="button" className="quick-overlay__close" onClick={onClose} aria-label="关闭">
+          <button
+            type="button"
+            className="grid h-9 w-9 flex-none place-items-center rounded border border-white/10 bg-white/5 text-xl text-slate-200 transition hover:border-red-300/50 hover:text-red-100"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             ×
           </button>
         </header>
 
-        <div className="quick-overlay__list">
+        <div className="flex min-h-0 flex-col gap-3 overflow-auto pr-1">
           {items.length > 0 ? (
-            items.map((item) => (
+            items.map((item) =>
               item.onSelect ? (
                 <button
                   key={`${item.title}-${item.meta}`}
                   type="button"
-                  className="quick-overlay__item"
+                  className="rounded border border-white/10 bg-white/[0.04] p-3 text-left font-inherit transition hover:border-cyan-300/40 hover:bg-cyan-300/10"
                   onClick={item.onSelect}
-                  style={{ font: "inherit", cursor: "pointer", textAlign: "left" }}
                 >
-                  <strong>{item.title}</strong>
-                  <small>{item.meta}</small>
-                  <span>{item.detail}</span>
+                  <PreviewContent item={item} />
                 </button>
               ) : (
-                <article key={`${item.title}-${item.meta}`} className="quick-overlay__item">
-                  <strong>{item.title}</strong>
-                  <small>{item.meta}</small>
-                  <span>{item.detail}</span>
+                <article key={`${item.title}-${item.meta}`} className="rounded border border-white/10 bg-white/[0.04] p-3">
+                  <PreviewContent item={item} />
                 </article>
               )
-            ))
+            )
           ) : (
-            <article className="quick-overlay__item quick-overlay__item--empty">
-              <strong>{emptyTitle}</strong>
-              <span>{emptyDetail}</span>
+            <article className="rounded border border-dashed border-white/15 bg-white/[0.03] p-4">
+              <strong className="block text-sm text-white">{emptyTitle}</strong>
+              <span className="mt-2 block text-sm leading-6 text-slate-400">{emptyDetail}</span>
             </article>
           )}
         </div>
 
-        <footer className="quick-overlay__footer">
-          <Link className="quick-overlay__action quick-overlay__action--primary" to={viewAllPath}>
+        <footer className="flex flex-wrap justify-end gap-3 border-t border-white/10 pt-4">
+          <Link className="rounded border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20" to={viewAllPath}>
             查看全部
           </Link>
-          <button type="button" className="quick-overlay__action" onClick={onClose}>
+          <button
+            type="button"
+            className="rounded border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10"
+            onClick={onClose}
+          >
             返回
           </button>
         </footer>
@@ -95,3 +103,12 @@ export function QuickPreviewOverlay({
   );
 }
 
+function PreviewContent({ item }: { item: QuickPreviewEntry }) {
+  return (
+    <>
+      <strong className="block text-sm text-white">{item.title}</strong>
+      <small className="mt-1 block text-xs font-bold uppercase tracking-[0.18em] text-amber-200/80">{item.meta}</small>
+      <span className="mt-2 block text-sm leading-6 text-slate-300">{item.detail}</span>
+    </>
+  );
+}

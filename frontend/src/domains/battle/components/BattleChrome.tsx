@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "../../../shared/ui/classNames";
 import { GameCornerButton, type GameCornerIconKey } from "../../../shared/ui/GameCornerButton";
 
 export interface BattleChromeButton {
@@ -18,7 +19,7 @@ interface BattleChromeProps {
   children: ReactNode;
 }
 
-/** 中文名：战斗chrome（BattleChrome）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** 中文名：战斗壳层（BattleChrome）。游戏职责：承载 Phaser runtime、HUD、等待层和结果层。 */
 export function BattleChrome({
   phase,
   leftButtons,
@@ -32,18 +33,18 @@ export function BattleChrome({
   const showCornerButtons = leftButtons.length > 0 || rightButtons.length > 0;
 
   return (
-    <section className={`arena-shell arena-shell--${phase}`}>
-      <div className="arena-shell__viewport">{children}</div>
+    <section className={cn("relative min-h-screen overflow-hidden bg-slate-950 text-slate-100", phase === "matching" && "bg-slate-950")}>
+      <div className="absolute inset-0">{children}</div>
 
       {showEscape ? (
-        <div className="arena-shell__escape">
+        <div className="absolute left-4 top-4 z-30">
           <GameCornerButton label="返回大厅" iconKey="back" to="/" tooltipPlacement="bottom" />
         </div>
       ) : null}
 
       {showCornerButtons ? (
         <>
-          <div className="arena-shell__cluster arena-shell__cluster--left" aria-label="信息入口">
+          <div className="absolute left-4 top-4 z-30 flex gap-2" aria-label="信息入口">
             {leftButtons.map((button) => (
               <GameCornerButton
                 key={button.label}
@@ -56,7 +57,7 @@ export function BattleChrome({
             ))}
           </div>
 
-          <div className="arena-shell__cluster arena-shell__cluster--right" aria-label="消息入口">
+          <div className="absolute bottom-4 right-4 z-30 flex gap-2" aria-label="消息入口">
             {rightButtons.map((button) => (
               <GameCornerButton
                 key={button.label}

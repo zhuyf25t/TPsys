@@ -2,7 +2,7 @@ import ReactDOM from "react-dom/client";
 import { App } from "./app/App";
 import { AppProviders } from "./app/providers/AppProviders";
 import { sanitizeStartupStorage } from "./shared/storage/startupStorageSanitizer";
-import "./app/styles.css";
+import "./app/tailwind.css";
 
 const appElement = document.getElementById("app");
 

@@ -1,17 +1,18 @@
-import { useId, useState, type CSSProperties } from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router-dom";
+import { cn } from "./classNames";
 
 type CornerPlacement = "top" | "bottom";
 
 export type GameCornerIconKey = "replay" | "discussion" | "ranking" | "mails" | "social" | "back";
 
-const ICON_POSITIONS: Record<GameCornerIconKey, string> = {
-  replay: "0% 0%",
-  discussion: "33.333% 0%",
-  ranking: "66.666% 0%",
-  mails: "100% 0%",
-  social: "0% 50%",
-  back: "100% 50%"
+const ICON_SRC: Record<GameCornerIconKey, string> = {
+  replay: "/pics/icons/replay.png",
+  discussion: "/pics/icons/discussion.png",
+  ranking: "/pics/icons/ranking.png",
+  mails: "/pics/icons/mails.png",
+  social: "/pics/icons/social.png",
+  back: "/pics/icons/back.png"
 };
 
 interface GameCornerButtonProps {
@@ -23,7 +24,7 @@ interface GameCornerButtonProps {
   badgeCount?: number;
 }
 
-/** 中文名：gamecornerbutton（GameCornerButton）。游戏职责：在前端共享工程模块中统一公共逻辑，避免业务页面散落重复实现。 */
+/** 中文名：角落快捷按钮（GameCornerButton）。游戏职责：提供大厅角落的图片按钮和悬浮提示。 */
 export function GameCornerButton({ label, iconKey, onClick, to, tooltipPlacement, badgeCount }: GameCornerButtonProps) {
   const tooltipId = useId();
   const [hovered, setHovered] = useState(false);
@@ -33,12 +34,9 @@ export function GameCornerButton({ label, iconKey, onClick, to, tooltipPlacement
   const hasBadge = visibleBadgeCount > 0;
   const badgeLabel = hasBadge ? `${label} unread ${visibleBadgeCount}` : undefined;
   const badgeText = visibleBadgeCount > 99 ? "99+" : String(visibleBadgeCount);
-  const className = `game-corner-button game-corner-button--${tooltipPlacement}${visible ? " is-active" : ""}`;
-  const iconStyle = {
-    "--corner-icon-position": ICON_POSITIONS[iconKey]
-  } as CSSProperties;
+  const rootClassName = "relative inline-grid h-[70px] w-[92px] flex-none place-items-center bg-transparent p-0 text-inherit no-underline";
   const sharedProps = {
-    className,
+    className: rootClassName,
     onPointerEnter: () => setHovered(true),
     onPointerLeave: () => setHovered(false),
     onFocus: () => setFocused(true),
@@ -46,40 +44,55 @@ export function GameCornerButton({ label, iconKey, onClick, to, tooltipPlacement
     "aria-label": label,
     "aria-describedby": tooltipId
   };
+  const content = (
+    <>
+      <span
+        className={cn(
+          "relative grid h-full w-full place-items-center transition duration-150",
+          visible && "-translate-y-0.5 scale-105 brightness-110 saturate-110"
+        )}
+        aria-hidden="true"
+      >
+        <span className="relative grid h-[70px] w-[92px] place-items-center">
+          <img
+            className={cn("h-[70px] w-[92px] object-contain drop-shadow-[0_8px_10px_rgba(0,0,0,0.34)]", iconKey === "social" && "translate-y-1")}
+            src={ICON_SRC[iconKey]}
+            alt=""
+            draggable={false}
+          />
+          {hasBadge ? (
+            <span
+              className="absolute right-[13px] top-2.5 grid h-4 min-w-[18px] place-items-center rounded-full border border-orange-100/90 bg-red-600 px-1.5 text-[9px] font-black leading-none text-orange-50 shadow-[0_0_0_2px_rgba(15,7,5,0.72),0_4px_9px_rgba(167,0,23,0.42)]"
+              aria-label={badgeLabel}
+            >
+              {badgeText}
+            </span>
+          ) : null}
+        </span>
+      </span>
+      <span
+        id={tooltipId}
+        className={cn(
+          "pointer-events-none absolute left-1/2 z-20 min-h-[30px] -translate-x-1/2 whitespace-nowrap rounded border border-amber-200/20 bg-zinc-950/90 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-orange-50 opacity-0 shadow-xl transition duration-150",
+          tooltipPlacement === "top" ? "bottom-[calc(100%+5px)]" : "top-[calc(100%+5px)]",
+          visible && "opacity-100",
+          visible && tooltipPlacement === "top" && "-translate-y-0.5",
+          visible && tooltipPlacement === "bottom" && "translate-y-0.5"
+        )}
+        role="tooltip"
+      >
+        {label}
+      </span>
+    </>
+  );
 
   return to ? (
     <Link to={to} {...sharedProps}>
-      <span className="game-corner-button__icon" aria-hidden="true">
-        <span className="game-corner-button__plate">
-          <span className={`game-corner-button__glyph game-corner-button__glyph--${iconKey}`} style={iconStyle} />
-          {hasBadge ? <span className="game-corner-button__badge" aria-label={badgeLabel}>{badgeText}</span> : null}
-        </span>
-      </span>
-      <span id={tooltipId} className={`game-corner-button__tooltip game-corner-button__tooltip--${tooltipPlacement}`} role="tooltip">
-        {label}
-      </span>
+      {content}
     </Link>
   ) : (
-    <button
-      type="button"
-      className={className}
-      onClick={onClick}
-      onPointerEnter={sharedProps.onPointerEnter}
-      onPointerLeave={sharedProps.onPointerLeave}
-      onFocus={sharedProps.onFocus}
-      onBlur={sharedProps.onBlur}
-      aria-label={label}
-      aria-describedby={tooltipId}
-    >
-      <span className="game-corner-button__icon" aria-hidden="true">
-        <span className="game-corner-button__plate">
-          <span className={`game-corner-button__glyph game-corner-button__glyph--${iconKey}`} style={iconStyle} />
-          {hasBadge ? <span className="game-corner-button__badge" aria-label={badgeLabel}>{badgeText}</span> : null}
-        </span>
-      </span>
-      <span id={tooltipId} className={`game-corner-button__tooltip game-corner-button__tooltip--${tooltipPlacement}`} role="tooltip">
-        {label}
-      </span>
+    <button type="button" onClick={onClick} {...sharedProps}>
+      {content}
     </button>
   );
 }

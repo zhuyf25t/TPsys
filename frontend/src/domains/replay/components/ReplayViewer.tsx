@@ -4,8 +4,14 @@ import { ITEM_PICKUP_SPAWN_POINTS, WEAPON_PICKUP_SPAWN_POINTS } from "../../batt
 import { buildReplayLiveTimeline, buildReplayRoomInsights, getReplayDisplayFrames } from "../api/replayGateway";
 import { analyzeReplayFrameContinuity, hasMeaningfulReplayFrames } from "../objects/replayRecorder";
 import type { ReplayFrame, ReplayHeroFrame, ReplayPickupFrame, ReplayPlayback, ReplayProjectileFrame } from "../objects/replayTypes";
+import { cn } from "../../../shared/ui/classNames";
 
 const PLAYBACK_SPEED = 6;
+const pillClassName = "inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600";
+const primaryButtonClassName =
+  "inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700";
+const secondaryButtonClassName =
+  "inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50";
 
 interface ReplayViewerProps {
   replay: ReplayPlayback;
@@ -150,18 +156,18 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
   };
 
   return (
-    <div className="replay-viewer">
-      <div className={`replay-viewer__stage ${hasReplayFrames ? "replay-viewer__stage--playable" : "replay-viewer__stage--fallback"}`}>
+    <div className="flex flex-col gap-3">
+      <div className={cn("relative overflow-hidden rounded-lg border bg-slate-950 shadow-inner", hasReplayFrames ? "border-slate-800" : "border-slate-700")}>
         {hasReplayFrames ? (
-          <canvas ref={canvasRef} className="replay-viewer__canvas" />
+          <canvas ref={canvasRef} className="block h-[clamp(320px,58vw,680px)] w-full bg-slate-950" />
         ) : (
-          <div className="replay-viewer__fallback">
-            <div className="replay-viewer__fallback-card">
-              <div className="replay-viewer__fallback-media">
+          <div className="flex min-h-[360px] items-center justify-center bg-slate-950 p-5">
+            <div className="grid w-full max-w-4xl overflow-hidden rounded-lg border border-slate-700 bg-slate-900 shadow-2xl md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+              <div className="min-h-64 bg-slate-800">
                 {posterReady && replay.thumbnailDataUrl ? (
-                  <img className="replay-viewer__fallback-image" src={replay.thumbnailDataUrl} alt={replay.title} />
+                  <img className="h-full w-full object-cover" src={replay.thumbnailDataUrl} alt={replay.title} />
                 ) : (
-                  <div className="replay-viewer__fallback-poster">
+                  <div className="flex h-full min-h-64 flex-col justify-end bg-gradient-to-br from-slate-800 via-emerald-950 to-slate-950 p-6 text-white">
                     <strong>{replay.resultLabel}</strong>
                     <span>{replay.title}</span>
                     <small>{replay.highlightLine}</small>
@@ -169,29 +175,29 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
                 )}
               </div>
 
-              <div className="replay-viewer__fallback-copy">
-                <div className="replay-viewer__eyebrow">{capturedFrameCount > 0 ? "仅摘要 / 关键帧" : "战报封面"}</div>
+              <div className="flex flex-col justify-center p-6">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{capturedFrameCount > 0 ? "仅摘要 / 关键帧" : "战报封面"}</div>
                 <p>{capturedFrameCount > 0 ? "当前只有少量关键帧，保留结算结果，不会伪装成完整逐帧回放。" : "当前没有逐帧数据，仅保留战报信息与封面。"}</p>
-                <div className="replay-viewer__chips">
-                  <span className="pill">{replay.mapLabel}</span>
-                  <span className="pill">{replay.modeLabel}</span>
-                  <span className="pill">{replay.resultLabel}</span>
-                  <span className="pill">{roomInsights.frameCountLabel}</span>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className={pillClassName}>{replay.mapLabel}</span>
+                  <span className={pillClassName}>{replay.modeLabel}</span>
+                  <span className={pillClassName}>{replay.resultLabel}</span>
+                  <span className={pillClassName}>{roomInsights.frameCountLabel}</span>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        <div className="replay-viewer__badge-row">
-          <span className={`pill replay-viewer__badge replay-viewer__badge--${playableReplay && !sparseReplay ? "full" : "summary"}`}>
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          <span className={cn(pillClassName, playableReplay && !sparseReplay ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
             {playbackModeLabel}
           </span>
-          <span className="pill">{playbackStatusLabel}</span>
+          <span className={pillClassName}>{playbackStatusLabel}</span>
         </div>
 
         {hasVisualReplay && sparseReplay ? (
-          <div className="replay-viewer__sparse-banner">
+          <div className="absolute bottom-3 left-3 right-3 rounded-lg border border-amber-300 bg-amber-50/95 px-4 py-3 text-sm text-amber-900 shadow-sm">
             <strong>关键帧模式</strong>
             <span>帧数较少，画面会按现有帧插值播放。</span>
           </div>
@@ -199,20 +205,21 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
       </div>
 
       {hasReplayFrames && fullPlaybackAllowed ? (
-        <div className="replay-viewer__controls">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
           {animatedReplay ? (
-            <button type="button" className="button-link button-link--primary" onClick={togglePlayback}>
+            <button type="button" className={primaryButtonClassName} onClick={togglePlayback}>
               {playing ? "暂停" : "播放"}
             </button>
           ) : (
-            <span className="pill">{playableReplay ? "关键帧预览" : "仅摘要"}</span>
+            <span className={pillClassName}>{playableReplay ? "关键帧预览" : "仅摘要"}</span>
           )}
-          <button type="button" className="button-link" onClick={resetPlayback}>
+          <button type="button" className={secondaryButtonClassName} onClick={resetPlayback}>
             重播
           </button>
-          <label className="replay-viewer__seek">
+          <label className="flex min-w-56 flex-1 items-center gap-3 text-sm font-semibold text-slate-600">
             <span>进度</span>
             <input
+              className="h-2 w-full accent-emerald-600"
               type="range"
               min={0}
               max={totalMs}
@@ -224,20 +231,20 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
               }}
             />
           </label>
-          <span className="replay-viewer__time">
+          <span className="text-sm font-semibold tabular-nums text-slate-700">
             {formatTime(playheadMs)} / {formatTime(totalMs)}
           </span>
-          <span className="pill">关键帧 {displayFrames.length}</span>
+          <span className={pillClassName}>关键帧 {displayFrames.length}</span>
         </div>
       ) : hasReplayFrames ? (
-        <div className="replay-viewer__controls replay-viewer__controls--fallback">
-          <span className="pill">服务端关键帧 {displayFrames.length}</span>
-          <span className="pill">仅关键帧预览，不假装完整回放</span>
+        <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+          <span className={pillClassName}>服务端关键帧 {displayFrames.length}</span>
+          <span className={pillClassName}>仅关键帧预览，不假装完整回放</span>
         </div>
       ) : (
-        <div className="replay-viewer__controls replay-viewer__controls--fallback">
-          <span className="pill">{capturedFrameCount > 0 ? `仅摘要 · ${capturedFrameCount} 帧` : "暂无可播放时间轴"}</span>
-          <span className="pill">请查看战报结算与评论</span>
+        <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+          <span className={pillClassName}>{capturedFrameCount > 0 ? `仅摘要 | ${capturedFrameCount} 帧` : "暂无可播放时间轴"}</span>
+          <span className={pillClassName}>请查看战报结算与评论</span>
         </div>
       )}
     </div>

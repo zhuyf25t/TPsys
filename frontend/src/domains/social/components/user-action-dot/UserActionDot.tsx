@@ -5,6 +5,7 @@ import { getCurrentAuthUser, isBuiltinAdminHandle, subscribeAuthState } from "..
 import { recordContributionAdjustment, submitGovernanceReviewNotification } from "../../../governance/api/governanceGateway";
 import { buildBotProfilePath, isBotLikeHandle } from "../../../bots/objects/botHandle";
 import { getFriendRequestStatus, sendFriendRequest } from "../../api/friendRequestGateway";
+import { cn } from "../../../../shared/ui/classNames";
 
 const ADMIN_DELTAS = [1, 2, 5, 10, 20, 50, 100, -1] as const;
 const ADMIN_REASON_PRESETS = ["战绩贡献", "内容整理", "问题反馈", "社区帮助"] as const;
@@ -14,6 +15,13 @@ const PANEL_OFFSET_Y = 8;
 const VIEWPORT_PADDING = 12;
 const DEFAULT_PANEL_HEIGHT = 320;
 const BOT_SUGGESTION_MAX_LENGTH = 220;
+
+const primaryButton =
+  "inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButton =
+  "inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+const fieldClassName =
+  "mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20";
 
 interface PanelAnchor {
   point: {
@@ -40,7 +48,7 @@ interface UserActionDotProps {
   sourcePath?: string;
 }
 
-/** 中文名：useractiondot（UserActionDot）。游戏职责：在前端社交域中组织好友请求和本地社交状态，支撑玩家关系互动。 */
+/** 中文名称：用户操作点。游戏职责：组织好友请求、本地社交状态和管理员贡献调整入口。 */
 export function UserActionDot({ handle, className, sourceLabel, sourcePath }: UserActionDotProps) {
   const currentUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -66,6 +74,7 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
   const effectiveDelta = resolveEffectiveDelta(selectedDelta, customDelta);
   const sourceContext = resolveSourceContext(sourceLabel, sourcePath);
   const portalTarget = typeof document === "undefined" ? null : document.body;
+  const profilePath = isBotTarget ? buildBotProfilePath(handle) : `/profile/${encodeURIComponent(handle)}`;
 
   const closePanel = (): void => {
     setOpen(false);
@@ -144,8 +153,7 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
 
     updatePanelPosition();
 
-    const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => schedulePanelPositionUpdate());
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => schedulePanelPositionUpdate());
     if (resizeObserver && panelRef.current) {
       resizeObserver.observe(panelRef.current);
     }
@@ -173,13 +181,7 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
         targetHandle: handle
       });
 
-      setStatusMessage(
-        result.delivery === "failed"
-          ? "好友申请发送失败。"
-          : result.alreadySent
-            ? "好友申请已经发送过了。"
-            : "好友申请已发送。"
-      );
+      setStatusMessage(result.delivery === "failed" ? "好友申请发送失败。" : result.alreadySent ? "好友申请已经发送过了。" : "好友申请已发送。");
     } finally {
       setIsFriendSubmitting(false);
     }
@@ -228,11 +230,7 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
         sourcePath: sourceContext.path
       });
 
-      setStatusMessage(
-        result.delivery === "failed"
-          ? "贡献调整失败。"
-          : `已发送调整：${formatDelta(effectiveDelta)}。`
-      );
+      setStatusMessage(result.delivery === "failed" ? "贡献调整失败。" : `已发送调整：${formatDelta(effectiveDelta)}。`);
       if (result.ok) {
         setReason("");
         setCustomDelta("");
@@ -245,36 +243,40 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
   const panel = (
     <div
       ref={panelRef}
-      className="user-action-dot__panel"
+      className="z-50 overflow-auto rounded-lg border border-slate-200 bg-white p-4 text-slate-800 shadow-2xl"
       role="dialog"
       aria-modal="false"
       aria-label={`@${handle} 的操作面板`}
       style={panelStyle ?? { visibility: "hidden" }}
     >
-      <div className="user-action-dot__header">
-        <div>
-          <p className="eyebrow">{isBotTarget ? "机器人目标" : "目标用户"}</p>
-          <strong>@{handle}</strong>
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{isBotTarget ? "机器人目标" : "目标用户"}</p>
+          <strong className="mt-1 block truncate text-lg text-slate-950">@{handle}</strong>
         </div>
-        <Link className="button-link" to={`/profile/${encodeURIComponent(handle)}`}>
+        <Link className={secondaryButton} to={profilePath}>
           查看资料
         </Link>
       </div>
 
-      <div className="user-action-dot__context">
-        <span>来源</span>
-        {sourceContext.path ? <a href={sourceContext.path}>{sourceContext.label}</a> : <strong>{sourceContext.label}</strong>}
+      <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+        <span className="font-semibold text-slate-500">来源</span>
+        {sourceContext.path ? (
+          <a className="mt-1 block break-all font-semibold text-emerald-700 hover:text-emerald-800" href={sourceContext.path}>
+            {sourceContext.label}
+          </a>
+        ) : (
+          <strong className="mt-1 block">{sourceContext.label}</strong>
+        )}
       </div>
 
       {!isBotTarget ? (
-        <section className="user-action-dot__section">
-          <p className="user-action-dot__section-title">好友申请</p>
-          <p className="user-action-dot__section-copy">
-            {currentUser ? "发送好友申请后，对方会在站内收到通知。" : "登录后才能发送好友申请。"}
-          </p>
+        <section className="mt-4 border-t border-slate-200 pt-4">
+          <p className="text-sm font-semibold text-slate-950">好友申请</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{currentUser ? "发送好友申请后，对方会在站内收到通知。" : "登录后才能发送好友申请。"}</p>
           <button
             type="button"
-            className="button-link button-link--primary user-action-dot__action"
+            className={cn(primaryButton, "mt-3 w-full")}
             onClick={() => {
               void handleFriendRequest();
             }}
@@ -284,12 +286,13 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
           </button>
         </section>
       ) : (
-        <section className="user-action-dot__section">
-          <p className="user-action-dot__section-title">提交 bot 建议</p>
-          <p className="user-action-dot__section-copy">对机器人的意见会进入管理者通知链路。</p>
-          <label className="user-action-dot__field">
+        <section className="mt-4 border-t border-slate-200 pt-4">
+          <p className="text-sm font-semibold text-slate-950">提交 bot 建议</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">对机器人的意见会进入管理员通知链路。</p>
+          <label className="mt-3 block text-xs font-semibold text-slate-600">
             <span>建议内容</span>
             <textarea
+              className={fieldClassName}
               value={botSuggestionBody}
               onChange={(event) => setBotSuggestionBody(event.target.value)}
               rows={3}
@@ -299,7 +302,7 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
           </label>
           <button
             type="button"
-            className="button-link button-link--primary user-action-dot__action"
+            className={cn(primaryButton, "mt-3 w-full")}
             onClick={() => {
               void handleBotSuggestionSubmit();
             }}
@@ -311,14 +314,17 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
       )}
 
       {isAdmin ? (
-        <section className="user-action-dot__section user-action-dot__section--admin">
-          <p className="user-action-dot__section-title">处理贡献</p>
-          <div className="user-action-dot__delta-row" role="group" aria-label="贡献调整额度">
+        <section className="mt-4 border-t border-slate-200 pt-4">
+          <p className="text-sm font-semibold text-slate-950">处理贡献</p>
+          <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="贡献调整额度">
             {ADMIN_DELTAS.map((delta) => (
               <button
                 key={delta}
                 type="button"
-                className={`user-action-dot__delta${selectedDelta === delta ? " user-action-dot__delta--active" : ""}`}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                  selectedDelta === delta ? "border-emerald-500 bg-emerald-600 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                )}
                 onClick={() => {
                   setSelectedDelta(delta);
                 }}
@@ -328,12 +334,15 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
             ))}
           </div>
 
-          <div className="user-action-dot__preset-row" role="group" aria-label="贡献调整原因预设">
+          <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="贡献调整原因预设">
             {ADMIN_REASON_PRESETS.map((preset) => (
               <button
                 key={preset}
                 type="button"
-                className={`user-action-dot__preset${reasonPreset === preset ? " user-action-dot__preset--active" : ""}`}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-semibold transition",
+                  reasonPreset === preset ? "border-slate-700 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                )}
                 onClick={() => {
                   setReasonPreset(preset);
                 }}
@@ -343,34 +352,21 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
             ))}
           </div>
 
-          <label className="user-action-dot__field">
+          <label className="mt-3 block text-xs font-semibold text-slate-600">
             <span>原因说明</span>
-            <textarea
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              rows={3}
-              maxLength={120}
-              placeholder="可选补充说明。"
-            />
+            <textarea className={fieldClassName} value={reason} onChange={(event) => setReason(event.target.value)} rows={3} maxLength={120} placeholder="可选补充说明。" />
           </label>
 
-          <label className="user-action-dot__field">
+          <label className="mt-3 block text-xs font-semibold text-slate-600">
             <span>自定义额度</span>
-            <input
-              value={customDelta}
-              onChange={(event) => setCustomDelta(event.target.value)}
-              inputMode="numeric"
-              placeholder="可选整数。"
-            />
+            <input className={fieldClassName} value={customDelta} onChange={(event) => setCustomDelta(event.target.value)} inputMode="numeric" placeholder="可选整数。" />
           </label>
 
-          {customDelta.trim() && (effectiveDelta === null || effectiveDelta === 0) ? (
-            <p className="user-action-dot__status">自定义额度必须是非 0 整数。</p>
-          ) : null}
+          {customDelta.trim() && (effectiveDelta === null || effectiveDelta === 0) ? <p className="mt-2 text-xs font-semibold text-rose-700">自定义额度必须是非 0 整数。</p> : null}
 
           <button
             type="button"
-            className="button-link button-link--primary user-action-dot__action"
+            className={cn(primaryButton, "mt-3 w-full")}
             onClick={() => {
               void handleContributionSubmit();
             }}
@@ -381,16 +377,16 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
         </section>
       ) : null}
 
-      {statusMessage ? <p className="user-action-dot__status">{statusMessage}</p> : null}
+      {statusMessage ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-semibold text-slate-700">{statusMessage}</p> : null}
     </div>
   );
 
   return (
-    <div ref={rootRef} className={`user-action-dot${className ? ` ${className}` : ""}`}>
+    <div ref={rootRef} className={cn("inline-flex", className)}>
       <button
         ref={triggerRef}
         type="button"
-        className="user-action-dot__trigger"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-white shadow-sm transition hover:border-emerald-500 hover:bg-emerald-50"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`打开 @${handle} 的操作面板`}
@@ -409,7 +405,7 @@ export function UserActionDot({ handle, className, sourceLabel, sourcePath }: Us
           setOpen(true);
         }}
       >
-        <span className="user-action-dot__pill" aria-hidden="true" />
+        <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
       </button>
 
       {open && portalTarget ? createPortal(panel, portalTarget) : null}
@@ -441,7 +437,7 @@ function resolveEffectiveDelta(selectedDelta: number, customDelta: string): numb
 
 function buildContributionReason(reasonPreset: string, reason: string): string {
   const normalizedReason = reason.trim();
-  return normalizedReason ? `${reasonPreset}：${normalizedReason}` : reasonPreset;
+  return normalizedReason ? `${reasonPreset}: ${normalizedReason}` : reasonPreset;
 }
 
 function resolveSourceContext(sourceLabel?: string, sourcePath?: string): { label: string; path: string } {
@@ -495,11 +491,7 @@ function computePanelStyle(anchor: PanelAnchor, panelSize: PanelSize): CSSProper
   const panelHeight = availableHeight > 0 ? Math.min(Math.max(panelSize.height || DEFAULT_PANEL_HEIGHT, 0), availableHeight) : 0;
   const maxLeft = Math.max(VIEWPORT_PADDING, viewportWidth - panelWidth - VIEWPORT_PADDING);
   const maxTop = Math.max(VIEWPORT_PADDING, viewportHeight - panelHeight - VIEWPORT_PADDING);
-  const left = pickClosestClampedCoordinate(
-    [anchor.point.x + PANEL_OFFSET_X, anchor.point.x - PANEL_OFFSET_X - panelWidth],
-    VIEWPORT_PADDING,
-    maxLeft
-  );
+  const left = pickClosestClampedCoordinate([anchor.point.x + PANEL_OFFSET_X, anchor.point.x - PANEL_OFFSET_X - panelWidth], VIEWPORT_PADDING, maxLeft);
   const preferredTop = Math.max(anchor.point.y, anchor.rect.bottom) + PANEL_OFFSET_Y;
   const top = clampNumber(preferredTop, VIEWPORT_PADDING, maxTop);
 

@@ -26,17 +26,24 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     }
 
     return (
-      <main className="app-fallback">
-        <section className="app-fallback__panel">
-          <small>Runtime interrupted</small>
-          <h1>界面加载失败</h1>
-          <p>前端运行时出现错误。可以先清理旧的战斗恢复数据后重新进入；账号登录状态不会被清理。</p>
-          <pre>{this.state.error.message}</pre>
-          <button type="button" onClick={() => window.location.reload()}>
+      <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
+        <section className="mx-auto flex max-w-xl flex-col gap-4 rounded border border-red-400/30 bg-slate-900/95 p-6 shadow-2xl shadow-red-950/30">
+          <small className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">Runtime interrupted</small>
+          <h1 className="text-2xl font-bold">界面加载失败</h1>
+          <p className="text-sm leading-6 text-slate-300">
+            前端运行时出现错误。可以先清理旧的战斗恢复数据后重新进入；账号登录状态不会被清理。
+          </p>
+          <pre className="max-h-40 overflow-auto rounded bg-black/40 p-3 text-xs text-red-100">{this.state.error.message}</pre>
+          <button
+            type="button"
+            className="rounded border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-100 transition hover:bg-cyan-300/20"
+            onClick={() => window.location.reload()}
+          >
             重新进入
           </button>
           <button
             type="button"
+            className="rounded border border-amber-300/40 bg-amber-300/10 px-4 py-2 text-sm font-bold text-amber-100 transition hover:bg-amber-300/20"
             onClick={() => {
               resetRecoverableStartupStorage();
               window.location.reload();

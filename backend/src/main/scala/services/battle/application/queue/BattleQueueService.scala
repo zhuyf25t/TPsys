@@ -25,11 +25,11 @@ final class InMemoryBattleQueueService(
       advanceRooms(now)
       val normalizedCommand = BattleQueueJoinRules.normalizeCommand(command)
 
-      normalizedCommand.queueRequestId.flatMap(reuseWaitingQueueRequestOrForgetStale(_, now)) match {
+      normalizedCommand.queueRequestId.flatMap(reuseWaitingQueueRequestOrForgetStale(_, normalizedCommand.battleMode, now)) match {
         case Some(snapshot) =>
           snapshot
         case None =>
-          val room = selectJoinRoom(normalizedCommand.handle, normalizedCommand.queueRequestId, now)
+          val room = selectJoinRoom(normalizedCommand.handle, normalizedCommand.battleMode, normalizedCommand.queueRequestId, now)
           val ticketId = nextTicketId()
           val playerId = nextPlayerId()
           val draft = BattleQueueJoinRules.draft(normalizedCommand, room, ticketId, playerId, now)
@@ -108,14 +108,19 @@ final class InMemoryBattleQueueService(
     }
   }
 
-  private def selectJoinRoom(handle: PlayerHandle, queueRequestId: Option[QueueRequestId], now: EpochMillis): QueueRoom = {
+  private def selectJoinRoom(
+    handle: PlayerHandle,
+    battleMode: BattleMode,
+    queueRequestId: Option[QueueRequestId],
+    now: EpochMillis
+  ): QueueRoom = {
     val openRooms = BattleQueueRoomSelectionRules.openWaitingRooms(rooms.values)
-    BattleQueueRoomSelectionRules.reusableRoom(openRooms, handle, queueRequestId).getOrElse(createRoom(now))
+    BattleQueueRoomSelectionRules.reusableRoom(openRooms, handle, battleMode, queueRequestId).getOrElse(createRoom(now, battleMode))
   }
 
-  private def createRoom(now: EpochMillis): QueueRoom = {
+  private def createRoom(now: EpochMillis, battleMode: BattleMode): QueueRoom = {
     val roomId = nextRoomId()
-    val room = BattleQueueRoomLifecycleRules.newWaitingRoom(roomId, now, matchmakingDuration, capacity)
+    val room = BattleQueueRoomLifecycleRules.newWaitingRoom(roomId, battleMode, now, matchmakingDuration, capacity)
     rooms = rooms.updated(roomId, room)
     room
   }
@@ -130,6 +135,7 @@ final class InMemoryBattleQueueService(
 
   private def reuseWaitingQueueRequestOrForgetStale(
     queueRequestId: QueueRequestId,
+    battleMode: BattleMode,
     now: EpochMillis
   ): Option[BattleQueueSnapshot] = {
     val result = BattleQueueRequestReuseRules.reuseWaitingRequest(
@@ -137,6 +143,7 @@ final class InMemoryBattleQueueService(
       tickets = tickets,
       rooms = rooms,
       queueRequestId = queueRequestId,
+      battleMode = battleMode,
       now = now
     )
     queueRequests = result.queueRequests

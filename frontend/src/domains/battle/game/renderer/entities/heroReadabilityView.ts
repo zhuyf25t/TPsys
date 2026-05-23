@@ -161,7 +161,8 @@ export function createHeroReadabilityView(scene: Phaser.Scene, hero: Hero, isPla
       (isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha) * weaponCueStyle.stockAlphaScale
     )
     .setOrigin(0.74, 0.5)
-    .setDepth(HERO_READABILITY_WEAPON_STOCK_DEPTH);
+    .setDepth(HERO_READABILITY_WEAPON_STOCK_DEPTH)
+    .setVisible(false);
   const weaponCue = scene.add
     .rectangle(
       hero.position.x,
@@ -172,7 +173,8 @@ export function createHeroReadabilityView(scene: Phaser.Scene, hero: Hero, isPla
       isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha
     )
     .setOrigin(0.08, 0.5)
-    .setDepth(HERO_READABILITY_WEAPON_CUE_DEPTH);
+    .setDepth(HERO_READABILITY_WEAPON_CUE_DEPTH)
+    .setVisible(false);
   weaponCue.setStrokeStyle(weaponCueStyle.strokeWidth, weaponCueStyle.strokeTint, isPlayer ? weaponCueStyle.localStrokeAlpha : weaponCueStyle.remoteStrokeAlpha);
   const weaponMuzzle = scene.add
     .circle(
@@ -183,6 +185,7 @@ export function createHeroReadabilityView(scene: Phaser.Scene, hero: Hero, isPla
       (isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha) * weaponCueStyle.muzzleAlphaScale
     )
     .setDepth(HERO_READABILITY_WEAPON_MUZZLE_DEPTH);
+  weaponMuzzle.setVisible(false);
   weaponMuzzle.setStrokeStyle(1, weaponCueStyle.tint, isPlayer ? weaponCueStyle.localStrokeAlpha : weaponCueStyle.remoteStrokeAlpha);
 
   const marker =
@@ -250,36 +253,20 @@ export function syncHeroReadabilityVisuals(
   }
   const weaponKind = resolveHeroWeaponKind(hero);
   const weaponCueStyle = getWeaponCueReadabilityStyle(weaponKind);
-  const directionX = Math.cos(displayFacing);
-  const directionY = Math.sin(displayFacing);
   const cueLength = radius * weaponCueStyle.lengthRadiusScale;
   const cueOriginOffset = radius * 0.22;
   const alpha = isPlayer ? weaponCueStyle.localAlpha : weaponCueStyle.remoteAlpha;
   const strokeAlpha = isPlayer ? weaponCueStyle.localStrokeAlpha : weaponCueStyle.remoteStrokeAlpha;
 
-  view.weaponStock.setPosition(displayPosition.x - directionX * radius * 0.05, displayPosition.y - directionY * radius * 0.05);
-  view.weaponStock.setRotation(displayFacing);
-  view.weaponStock.setDisplaySize(radius * weaponCueStyle.stockLengthRadiusScale, weaponCueStyle.thickness * weaponCueStyle.stockThicknessScale);
-  view.weaponStock.setFillStyle(weaponCueStyle.strokeTint, alpha * weaponCueStyle.stockAlphaScale);
-  view.weaponStock.setStrokeStyle(1, weaponCueStyle.tint, strokeAlpha * 0.72);
-
-  view.weaponCue.setPosition(displayPosition.x + directionX * cueOriginOffset, displayPosition.y + directionY * cueOriginOffset);
-  view.weaponCue.setRotation(displayFacing);
-  view.weaponCue.setDisplaySize(cueLength, weaponCueStyle.thickness);
-  view.weaponCue.setFillStyle(weaponCueStyle.tint, alpha);
-  view.weaponCue.setStrokeStyle(
-    weaponCueStyle.strokeWidth,
-    weaponCueStyle.strokeTint,
-    strokeAlpha
-  );
-
-  view.weaponMuzzle.setPosition(
-    displayPosition.x + directionX * (cueOriginOffset + cueLength * 0.92),
-    displayPosition.y + directionY * (cueOriginOffset + cueLength * 0.92)
-  );
-  view.weaponMuzzle.setRadius(weaponCueStyle.muzzleRadius);
-  view.weaponMuzzle.setFillStyle(weaponCueStyle.strokeTint, alpha * weaponCueStyle.muzzleAlphaScale);
-  view.weaponMuzzle.setStrokeStyle(1, weaponCueStyle.tint, strokeAlpha);
+  if (view.weaponStock.visible) {
+    view.weaponStock.setVisible(false);
+  }
+  if (view.weaponCue.visible) {
+    view.weaponCue.setVisible(false);
+  }
+  if (view.weaponMuzzle.visible) {
+    view.weaponMuzzle.setVisible(false);
+  }
   syncHeroWeaponOverlayVisuals({
     view: view.weaponOverlay,
     weaponKind,

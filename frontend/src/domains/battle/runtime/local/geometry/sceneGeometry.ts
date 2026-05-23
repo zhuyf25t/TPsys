@@ -1,9 +1,15 @@
 import type { Vec2 } from "../../../objects/types";
-import { findMotionDestination, collidesWithObstacles as motionCollidesWithObstacles, intersectsObstacle as motionIntersectsObstacle } from "../movement/motionController";
+import {
+  findMotionDestination,
+  collidesWithObstacles as motionCollidesWithObstacles,
+  intersectsObstacle as motionIntersectsObstacle,
+  type MotionObstacleShape
+} from "../movement/motionController";
 
 export interface SceneGeometryObstacleBounds {
   position: Vec2;
   size: Vec2;
+  shape?: MotionObstacleShape;
 }
 
 export interface FindDashDestinationInput {

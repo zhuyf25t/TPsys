@@ -8,12 +8,14 @@ private[services] object BattleQueueRoomLifecycleRules {
   /** 中文名：newwaiting房间（newWaitingRoom）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
   def newWaitingRoom(
     roomId: RoomId,
+    battleMode: BattleMode,
     now: EpochMillis,
     matchmakingDuration: DurationMillis,
     capacity: BattleCapacity
   ): QueueRoom =
     QueueRoom(
       roomId = roomId,
+      battleMode = battleMode,
       createdAt = now,
       startsAt = EpochMillis(now.value + matchmakingDuration.value),
       deadline = EpochMillis(now.value + matchmakingDuration.value),
@@ -35,6 +37,7 @@ private[services] object BattleQueueRoomLifecycleRules {
   def startRoom(room: QueueRoom, battleId: BattleId, now: EpochMillis): QueueRoom = {
     val session = BattleRoomBootstrapper.createSession(
       battleId = battleId,
+      battleMode = room.battleMode,
       startsAt = room.startsAt,
       now = now,
       capacity = room.capacity,

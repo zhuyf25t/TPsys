@@ -40,6 +40,7 @@ export interface RenderGameSceneHudInput {
 
 export interface UpdateGameSceneOcclusionInput {
   player: Hero;
+  heroes: readonly Hero[];
   sharedAuthoritativeRuntime: boolean;
   localHeroDisplay: LocalHeroDisplay;
   occludables: readonly OccludableView[];
@@ -116,12 +117,15 @@ export function renderGameSceneHud({
 /** 中文名：更新gamesceneocclusion（updateGameSceneOcclusion）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function updateGameSceneOcclusion({
   player,
+  heroes,
   sharedAuthoritativeRuntime,
   localHeroDisplay,
   occludables
 }: UpdateGameSceneOcclusionInput): void {
+  const renderedPlayer = localHeroDisplay.heroFor(player, sharedAuthoritativeRuntime);
   updateOccludableAlpha({
-    player: localHeroDisplay.heroFor(player, sharedAuthoritativeRuntime),
+    player: renderedPlayer,
+    heroes: heroes.map((hero) => (hero.heroId === player.heroId ? renderedPlayer : hero)),
     occludables
   });
 }

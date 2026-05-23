@@ -1,12 +1,16 @@
 import Phaser from "phaser";
 import type { Vec2, WeaponKind } from "../../../objects/types";
+import { getWeaponWorldTextureRef } from "../weaponRasterAtlas";
 
-const HERO_READABILITY_WEAPON_OVERLAY_DEPTH = 40.5;
+const HERO_READABILITY_WEAPON_OVERLAY_DEPTH = 52;
+const HERO_WEAPON_MAX_DISPLAY_SIZE = 22;
+const HERO_WEAPON_FORWARD_OFFSET_RADIUS_SCALE = 1.32;
+const HERO_WEAPON_SIDE_OFFSET_RADIUS_SCALE = 0.9;
 
 export interface HeroWeaponOverlayView {
-  primary: Phaser.GameObjects.Rectangle;
-  secondary: Phaser.GameObjects.Rectangle;
-  core: Phaser.GameObjects.Arc;
+  sprite: Phaser.GameObjects.Image;
+  textureKey: string;
+  frameName?: string;
 }
 
 export interface SyncHeroWeaponOverlayVisualsInput {
@@ -21,206 +25,59 @@ export interface SyncHeroWeaponOverlayVisualsInput {
   strokeAlpha: number;
 }
 
-/** 中文名：创建英雄武器overlayview（createHeroWeaponOverlayView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** 中文名：创建英雄武器贴图层（createHeroWeaponOverlayView）。游戏职责：创建角色身上的持枪 world 贴图容器，由同步函数按武器类型切换真实 SVG。 */
 export function createHeroWeaponOverlayView(scene: Phaser.Scene, position: Vec2): HeroWeaponOverlayView {
+  const textureRef = getWeaponWorldTextureRef("Pistol");
   return {
-    primary: scene.add
-      .rectangle(position.x, position.y, 1, 1, 0xffffff, 0)
+    sprite: scene.add
+      .image(position.x, position.y, textureRef.textureKey, textureRef.frameName)
+      .setOrigin(0.5, 0.5)
       .setDepth(HERO_READABILITY_WEAPON_OVERLAY_DEPTH)
       .setVisible(false),
-    secondary: scene.add
-      .rectangle(position.x, position.y, 1, 1, 0xffffff, 0)
-      .setDepth(HERO_READABILITY_WEAPON_OVERLAY_DEPTH)
-      .setVisible(false),
-    core: scene.add
-      .circle(position.x, position.y, 1, 0xffffff, 0)
-      .setDepth(HERO_READABILITY_WEAPON_OVERLAY_DEPTH)
-      .setVisible(false)
+    textureKey: textureRef.textureKey,
+    frameName: textureRef.frameName
   };
 }
 
-/** 中文名：设置英雄武器overlayvisible（setHeroWeaponOverlayVisible）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** 中文名：设置英雄武器贴图可见（setHeroWeaponOverlayVisible）。游戏职责：在角色死亡、离屏或重用视图时统一隐藏/显示持枪贴图。 */
 export function setHeroWeaponOverlayVisible(view: HeroWeaponOverlayView, visible: boolean): void {
-  view.primary.setVisible(visible);
-  view.secondary.setVisible(visible);
-  view.core.setVisible(visible);
+  view.sprite.setVisible(visible);
 }
 
-/** 中文名：sync英雄武器overlayvisuals（syncHeroWeaponOverlayVisuals）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
-export function syncHeroWeaponOverlayVisuals({
-  view,
-  weaponKind,
-  displayPosition,
-  displayFacing,
-  radius,
-  cueOriginOffset,
-  cueLength,
-  alpha,
-  strokeAlpha
-}: SyncHeroWeaponOverlayVisualsInput): void {
+/** 中文名：同步英雄武器贴图视觉（syncHeroWeaponOverlayVisuals）。游戏职责：把当前武器的 world SVG 固定在角色中下方，并让它随角色朝向旋转。 */
+export function syncHeroWeaponOverlayVisuals(input: SyncHeroWeaponOverlayVisualsInput): void {
+  const { view, weaponKind, displayPosition, displayFacing, radius, alpha } = input;
+  const textureRef = getWeaponWorldTextureRef(weaponKind);
   const directionX = Math.cos(displayFacing);
   const directionY = Math.sin(displayFacing);
   const perpendicularX = -directionY;
   const perpendicularY = directionX;
-  const resolvePosition = (forwardOffset: number, sideOffset: number): Vec2 => ({
-    x: displayPosition.x + directionX * forwardOffset + perpendicularX * sideOffset,
-    y: displayPosition.y + directionY * forwardOffset + perpendicularY * sideOffset
-  });
+  const forwardOffset = radius * HERO_WEAPON_FORWARD_OFFSET_RADIUS_SCALE;
+  const sideOffset = radius * HERO_WEAPON_SIDE_OFFSET_RADIUS_SCALE;
 
-  setHeroWeaponOverlayVisible(view, false);
-
-  switch (weaponKind) {
-    case "Pistol":
-      syncWeaponOverlayRectangle(
-        view.primary,
-        resolvePosition(cueOriginOffset - radius * 0.02, radius * 0.22),
-        displayFacing + 1.05,
-        radius * 0.32,
-        5,
-        0x8a593c,
-        alpha * 0.72,
-        0xfff0c6,
-        strokeAlpha * 0.7
-      );
-      syncWeaponOverlayRectangle(
-        view.secondary,
-        resolvePosition(cueOriginOffset + cueLength * 0.4, -radius * 0.11),
-        displayFacing,
-        cueLength * 0.42,
-        2.2,
-        0xfffbdf,
-        alpha * 0.5
-      );
-      return;
-    case "RocketLauncher":
-      syncWeaponOverlayRectangle(
-        view.primary,
-        resolvePosition(cueOriginOffset + cueLength * 0.52, -radius * 0.23),
-        displayFacing,
-        cueLength * 0.72,
-        3,
-        0xffd36a,
-        alpha * 0.72,
-        0xfff1b8,
-        strokeAlpha * 0.5
-      );
-      syncWeaponOverlayRectangle(
-        view.secondary,
-        resolvePosition(cueOriginOffset + cueLength * 0.22, 0),
-        displayFacing,
-        4,
-        radius * 0.68,
-        0x6f331f,
-        alpha * 0.68,
-        0xffc08a,
-        strokeAlpha * 0.8
-      );
-      syncWeaponOverlayCore(
-        view.core,
-        resolvePosition(cueOriginOffset + cueLength * 0.96, 0),
-        4.5,
-        0xff6a2f,
-        alpha * 0.7,
-        0xffe0a8,
-        strokeAlpha
-      );
-      return;
-    case "Gatling":
-      syncWeaponOverlayRectangle(
-        view.primary,
-        resolvePosition(cueOriginOffset + cueLength * 0.54, -radius * 0.14),
-        displayFacing,
-        cueLength * 0.84,
-        2.4,
-        0xfff0a3,
-        alpha * 0.78
-      );
-      syncWeaponOverlayRectangle(
-        view.secondary,
-        resolvePosition(cueOriginOffset + cueLength * 0.54, radius * 0.14),
-        displayFacing,
-        cueLength * 0.84,
-        2.4,
-        0xfff0a3,
-        alpha * 0.78
-      );
-      syncWeaponOverlayCore(
-        view.core,
-        resolvePosition(cueOriginOffset + cueLength * 0.56, 0),
-        4.2,
-        0xff6f32,
-        alpha * 0.62,
-        0xfff0a3,
-        strokeAlpha
-      );
-      return;
-    case "Shotgun":
-      syncWeaponOverlayRectangle(
-        view.primary,
-        resolvePosition(cueOriginOffset + cueLength * 0.5, -radius * 0.18),
-        displayFacing,
-        cueLength * 0.86,
-        3.4,
-        0xfff4cd,
-        alpha * 0.74,
-        0x6d3b22,
-        strokeAlpha * 0.55
-      );
-      syncWeaponOverlayRectangle(
-        view.secondary,
-        resolvePosition(cueOriginOffset + cueLength * 0.5, radius * 0.18),
-        displayFacing,
-        cueLength * 0.86,
-        3.4,
-        0xfff4cd,
-        alpha * 0.74,
-        0x6d3b22,
-        strokeAlpha * 0.55
-      );
-      syncWeaponOverlayCore(
-        view.core,
-        resolvePosition(cueOriginOffset + cueLength * 0.22, 0),
-        3.8,
-        0xc9773e,
-        alpha * 0.64,
-        0xffefb7,
-        strokeAlpha * 0.9
-      );
-      return;
+  if (
+    view.textureKey !== textureRef.textureKey ||
+    view.frameName !== textureRef.frameName ||
+    view.sprite.texture.key !== textureRef.textureKey
+  ) {
+    view.sprite.setTexture(textureRef.textureKey, textureRef.frameName);
+    view.textureKey = textureRef.textureKey;
+    view.frameName = textureRef.frameName;
+    syncWeaponSpriteDisplayScale(view.sprite);
   }
+
+  view.sprite.setVisible(true);
+  view.sprite.setAlpha(alpha);
+  view.sprite.setPosition(
+    displayPosition.x + directionX * forwardOffset + perpendicularX * sideOffset,
+    displayPosition.y + directionY * forwardOffset + perpendicularY * sideOffset
+  );
+  view.sprite.setRotation(displayFacing);
 }
 
-function syncWeaponOverlayRectangle(
-  view: Phaser.GameObjects.Rectangle,
-  position: Vec2,
-  rotation: number,
-  width: number,
-  height: number,
-  fillTint: number,
-  fillAlpha: number,
-  strokeTint = fillTint,
-  strokeAlpha = 0
-): void {
-  view.setVisible(true);
-  view.setPosition(position.x, position.y);
-  view.setRotation(rotation);
-  view.setDisplaySize(width, height);
-  view.setFillStyle(fillTint, fillAlpha);
-  view.setStrokeStyle(strokeAlpha > 0 ? 1 : 0, strokeTint, strokeAlpha);
-}
-
-function syncWeaponOverlayCore(
-  view: Phaser.GameObjects.Arc,
-  position: Vec2,
-  radius: number,
-  fillTint: number,
-  fillAlpha: number,
-  strokeTint: number,
-  strokeAlpha: number
-): void {
-  view.setVisible(true);
-  view.setPosition(position.x, position.y);
-  view.setRadius(radius);
-  view.setFillStyle(fillTint, fillAlpha);
-  view.setStrokeStyle(strokeAlpha > 0 ? 1 : 0, strokeTint, strokeAlpha);
+function syncWeaponSpriteDisplayScale(sprite: Phaser.GameObjects.Image): void {
+  const frameWidth = sprite.frame.width > 0 ? sprite.frame.width : HERO_WEAPON_MAX_DISPLAY_SIZE;
+  const frameHeight = sprite.frame.height > 0 ? sprite.frame.height : HERO_WEAPON_MAX_DISPLAY_SIZE;
+  const sourceMax = Math.max(frameWidth, frameHeight, 1);
+  sprite.setScale(HERO_WEAPON_MAX_DISPLAY_SIZE / sourceMax);
 }

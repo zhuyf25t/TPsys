@@ -24,14 +24,14 @@ export interface LocalAuthoritativeHeroCorrectionResult {
   ignoredByDeadzone: boolean;
 }
 
-const LOCAL_AUTHORITATIVE_HARD_SNAP_DISTANCE = 160;
+const LOCAL_AUTHORITATIVE_HARD_SNAP_DISTANCE = 320;
 const LOCAL_AUTHORITATIVE_STATIONARY_CORRECTION = {
   deadzone: 10,
   halfLifeMs: 180
 } as const;
 const LOCAL_AUTHORITATIVE_MOVING_CORRECTION = {
-  deadzone: 24,
-  halfLifeMs: 240
+  deadzone: 42,
+  halfLifeMs: 320
 } as const;
 
 interface LocalAuthoritativeHeroCorrectionTuning {

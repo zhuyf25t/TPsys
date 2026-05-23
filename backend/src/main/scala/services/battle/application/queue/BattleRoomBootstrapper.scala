@@ -18,6 +18,7 @@ private[services] object BattleRoomBootstrapper {
   /** 中文名：创建会话（createSession）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
   def createSession(
     battleId: BattleId,
+    battleMode: BattleMode,
     startsAt: EpochMillis,
     now: EpochMillis,
     capacity: BattleCapacity,
@@ -56,6 +57,7 @@ private[services] object BattleRoomBootstrapper {
 
     BattleSessionDescriptor(
       battleId = battleId,
+      battleMode = battleMode,
       startedAt = startsAt,
       serverTime = now,
       roster = roster,

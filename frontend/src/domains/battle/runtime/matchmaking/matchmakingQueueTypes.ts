@@ -41,6 +41,10 @@ export interface MatchmakingBattleSessionBootstrap {
 
 export interface MatchmakingBattleSessionDescriptor {
   battleId: string;
+  modeId?: string;
+  modeLabel?: string;
+  mapId?: string;
+  mapLabel?: string;
   startedAt: number;
   serverTime: number;
   roster: MatchmakingBattleSessionRosterEntry[];
@@ -57,6 +61,10 @@ export interface MatchmakingQueueState {
   playerId: string;
   roomId: string;
   matchId: string;
+  modeId: string;
+  modeLabel: string;
+  mapId: string;
+  mapLabel: string;
   createdAt: number;
   startsAt: number;
   deadline: number;
@@ -142,6 +150,10 @@ export function createLocalMatchmakingQueueState(handle: string): MatchmakingQue
     playerId: localPlayerId,
     roomId: `local-room-${seed}`,
     matchId: `local-room-${seed}`,
+    modeId: "default",
+    modeLabel: "默认模式",
+    mapId: "default-industrial-arena",
+    mapLabel: "默认地图",
     createdAt: now,
     startsAt: now + MATCHMAKING_DURATION_MS,
     deadline: now + MATCHMAKING_DURATION_MS,

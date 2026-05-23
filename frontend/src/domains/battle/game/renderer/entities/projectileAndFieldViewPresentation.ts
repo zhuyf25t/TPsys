@@ -1,11 +1,11 @@
 import Phaser from "phaser";
-import type { GameSnapshot, Projectile, ProjectileKind, SlowField, Vec2 } from "../../../objects/types";
-import { BULLET_TEXTURE_KEY, ROCKET_TEXTURE_KEY } from "../../constants";
+import type { GameSnapshot, Projectile, SlowField, Vec2 } from "../../../objects/types";
+import { getProjectileTextureRef } from "../projectileRasterAtlas";
 
 export interface ProjectileView {
   sprite: Phaser.GameObjects.Image;
-  glow: Phaser.GameObjects.Arc;
-  trail: Phaser.GameObjects.Rectangle;
+  textureKey: string;
+  frameName: string;
 }
 
 export interface SlowFieldView {
@@ -26,6 +26,7 @@ export interface ProjectileInterpolationBuffer {
 interface ProjectileAndFieldViewState {
   projectileInterpolationBuffers: Map<string, ProjectileInterpolationBuffer>;
   projectileViews: Map<string, ProjectileView>;
+  projectileViewPool: ProjectileView[];
   slowFieldViews: Map<string, SlowFieldView>;
   scratchLiveProjectileIds: Set<string>;
   scratchLiveSlowFieldIds: Set<string>;
@@ -45,6 +46,8 @@ const AUTHORITATIVE_PROJECTILE_SMOOTHING_MS = 55;
 const AUTHORITATIVE_PROJECTILE_INTERPOLATION_BUFFER_CAP = 8;
 const AUTHORITATIVE_PROJECTILE_POSITION_EPSILON = 0.05;
 const AUTHORITATIVE_PROJECTILE_FACING_EPSILON = 0.001;
+const PROJECTILE_VIEW_POOL_LIMIT = 96;
+const PROJECTILE_VIEW_CULL_PADDING = 320;
 
 /** 中文名：获取投射物展示position从views（getProjectileDisplayPositionFromViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function getProjectileDisplayPositionFromViews(
@@ -76,7 +79,18 @@ export function syncProjectileViews({
 
   snapshot.projectiles.forEach((projectile) => {
     liveIds.add(projectile.projectileId);
-    const existing = worldViews.projectileViews.get(projectile.projectileId) ?? createProjectileView(scene, projectile);
+
+    if (!isProjectileInsideCullBounds(scene, projectile)) {
+      const existing = worldViews.projectileViews.get(projectile.projectileId);
+      if (existing) {
+        releaseProjectileView(worldViews, existing);
+        worldViews.projectileViews.delete(projectile.projectileId);
+      }
+      worldViews.projectileInterpolationBuffers.delete(projectile.projectileId);
+      return;
+    }
+
+    const existing = worldViews.projectileViews.get(projectile.projectileId) ?? acquireProjectileView(scene, worldViews, projectile);
     worldViews.projectileViews.set(projectile.projectileId, existing);
 
     const isLocalPlayerProjectile = projectile.ownerHeroId === snapshot.playerHeroId;
@@ -104,7 +118,7 @@ export function syncProjectileViews({
       continue;
     }
 
-    destroyProjectileView(view);
+    releaseProjectileView(worldViews, view);
     worldViews.projectileViews.delete(projectileId);
     worldViews.projectileInterpolationBuffers.delete(projectileId);
   }
@@ -114,6 +128,23 @@ export function syncProjectileViews({
       worldViews.projectileInterpolationBuffers.delete(projectileId);
     }
   }
+}
+
+function isProjectileInsideCullBounds(scene: Phaser.Scene, projectile: Projectile): boolean {
+  const camera = scene.cameras.main;
+  const worldView = {
+    x: Number.isFinite(camera.scrollX) ? camera.scrollX : camera.worldView.x,
+    y: Number.isFinite(camera.scrollY) ? camera.scrollY : camera.worldView.y,
+    width: camera.width > 0 ? camera.width : camera.worldView.width,
+    height: camera.height > 0 ? camera.height : camera.worldView.height
+  };
+  const cullRadius = Math.max(projectile.radius, PROJECTILE_VIEW_CULL_PADDING);
+  return (
+    projectile.position.x >= worldView.x - cullRadius &&
+    projectile.position.x <= worldView.x + worldView.width + cullRadius &&
+    projectile.position.y >= worldView.y - cullRadius &&
+    projectile.position.y <= worldView.y + worldView.height + cullRadius
+  );
 }
 
 interface ProjectileDisplayState {
@@ -299,83 +330,58 @@ function createSlowFieldView(scene: Phaser.Scene, field: SlowField): SlowFieldVi
 }
 
 function createProjectileView(scene: Phaser.Scene, projectile: Projectile): ProjectileView {
-  const isRocket = projectile.kind === "rocket";
-  const style = getProjectileReadabilityStyle(projectile);
-  const trail = scene.add
-    .rectangle(projectile.position.x, projectile.position.y, style.trailLength, style.trailHeight, style.trailTint, style.trailAlpha)
-    .setOrigin(1, 0.5)
-    .setDepth(41);
-  const glow = scene.add.circle(projectile.position.x, projectile.position.y, style.glowRadius, style.glowTint, style.glowAlpha).setDepth(42);
+  const textureRef = getProjectileTextureRef(projectile.kind);
   const sprite = scene.add
-    .image(projectile.position.x, projectile.position.y, isRocket ? ROCKET_TEXTURE_KEY : BULLET_TEXTURE_KEY)
-    .setScale(projectile.kind === "shotgun-pellet" ? 0.22 : isRocket ? 0.52 : projectile.kind === "gatling-bullet" ? 0.26 : 0.32)
+    .image(projectile.position.x, projectile.position.y, textureRef.textureKey, textureRef.frameName)
+    .setOrigin(0.5, 0.5)
     .setDepth(43);
 
-  if (projectile.kind === "rocket") {
-    sprite.setTint(0xffb36f);
-  } else if (projectile.kind === "gatling-bullet") {
-    sprite.setTint(0xffd86d);
-  } else if (projectile.kind === "shotgun-pellet") {
-    sprite.setTint(0xfff7cf);
-  } else {
-    sprite.setTint(0xdaf3ff);
-  }
-
-  syncProjectileReadabilityVisuals({ sprite, glow, trail }, projectile, projectile.position, projectile.facing);
-  return { sprite, glow, trail };
+  const view = { sprite, textureKey: textureRef.textureKey, frameName: textureRef.frameName };
+  configureProjectileView(view, projectile);
+  syncProjectileReadabilityVisuals(view, projectile, projectile.position, projectile.facing);
+  return view;
 }
 
-interface ProjectileReadabilityStyle {
-  glowAlpha: number;
-  glowRadius: number;
-  glowTint: number;
-  trailAlpha: number;
-  trailHeight: number;
-  trailLength: number;
-  trailTint: number;
+function acquireProjectileView(
+  scene: Phaser.Scene,
+  worldViews: ProjectileAndFieldViewState,
+  projectile: Projectile
+): ProjectileView {
+  const reused = worldViews.projectileViewPool.pop();
+  if (!reused) {
+    return createProjectileView(scene, projectile);
+  }
+
+  reused.sprite.setActive(true).setVisible(true);
+  configureProjectileView(reused, projectile);
+  syncProjectileReadabilityVisuals(reused, projectile, projectile.position, projectile.facing);
+  return reused;
 }
 
-const PROJECTILE_READABILITY_STYLES: Record<ProjectileKind, ProjectileReadabilityStyle> = {
-  "pistol-bullet": {
-    glowAlpha: 0.18,
-    glowRadius: 5,
-    glowTint: 0xdaf3ff,
-    trailAlpha: 0.34,
-    trailHeight: 2,
-    trailLength: 20,
-    trailTint: 0xaeeeff
-  },
-  rocket: {
-    glowAlpha: 0.24,
-    glowRadius: 12,
-    glowTint: 0xff9b55,
-    trailAlpha: 0.42,
-    trailHeight: 9,
-    trailLength: 42,
-    trailTint: 0xff7a32
-  },
-  "gatling-bullet": {
-    glowAlpha: 0.2,
-    glowRadius: 5,
-    glowTint: 0xffd86d,
-    trailAlpha: 0.48,
-    trailHeight: 3,
-    trailLength: 30,
-    trailTint: 0xffe28a
-  },
-  "shotgun-pellet": {
-    glowAlpha: 0.14,
-    glowRadius: 4,
-    glowTint: 0xfff7cf,
-    trailAlpha: 0.32,
-    trailHeight: 3,
-    trailLength: 16,
-    trailTint: 0xfff0b8
-  }
-};
+function releaseProjectileView(worldViews: ProjectileAndFieldViewState, view: ProjectileView): void {
+  view.sprite.setActive(false).setVisible(false);
 
-function getProjectileReadabilityStyle(projectile: Projectile): ProjectileReadabilityStyle {
-  return PROJECTILE_READABILITY_STYLES[projectile.kind];
+  if (worldViews.projectileViewPool.length >= PROJECTILE_VIEW_POOL_LIMIT) {
+    destroyProjectileView(view);
+    return;
+  }
+
+  worldViews.projectileViewPool.push(view);
+}
+
+function configureProjectileView(view: ProjectileView, projectile: Projectile): void {
+  const textureRef = getProjectileTextureRef(projectile.kind);
+  if (
+    view.textureKey !== textureRef.textureKey ||
+    view.frameName !== textureRef.frameName ||
+    view.sprite.texture.key !== textureRef.textureKey
+  ) {
+    view.sprite.setTexture(textureRef.textureKey, textureRef.frameName);
+    view.textureKey = textureRef.textureKey;
+    view.frameName = textureRef.frameName;
+  }
+  view.sprite.setScale(textureRef.scale);
+  view.sprite.setTint(textureRef.tint);
 }
 
 function syncProjectileReadabilityVisuals(
@@ -384,23 +390,15 @@ function syncProjectileReadabilityVisuals(
   displayPosition: Vec2,
   displayFacing: number
 ): void {
-  const style = getProjectileReadabilityStyle(projectile);
   const lifetimeAlpha = Phaser.Math.Clamp(projectile.ttlMs / Math.max(1, projectile.maxLifetimeMs), 0.2, 1);
 
-  view.glow.setPosition(displayPosition.x, displayPosition.y);
-  view.glow.setRadius(style.glowRadius);
-  view.glow.setFillStyle(style.glowTint, style.glowAlpha * lifetimeAlpha);
-
-  view.trail.setPosition(displayPosition.x, displayPosition.y);
-  view.trail.setRotation(displayFacing);
-  view.trail.setDisplaySize(style.trailLength, style.trailHeight);
-  view.trail.setFillStyle(style.trailTint, style.trailAlpha * lifetimeAlpha);
+  view.sprite.setPosition(displayPosition.x, displayPosition.y);
+  view.sprite.setRotation(displayFacing);
+  view.sprite.setAlpha(lifetimeAlpha);
 }
 
 function destroyProjectileView(view: ProjectileView): void {
   view.sprite.destroy();
-  view.glow.destroy();
-  view.trail.destroy();
 }
 
 function resolveRenderNowMs(scene: Phaser.Scene): number {

@@ -13,31 +13,35 @@ private[services] object BattleSessionStateFactory {
     battleDuration: DurationMillis,
     now: EpochMillis
   ): BattleAggregateState = {
-    val startedAt = if seed.descriptor.startedAt.value > 0L then seed.descriptor.startedAt else now
-    val players = bootstrapSeats(seed.descriptor).map(toPlayerState)
-    val pickups = BattleEngine.initialPickups
-    BattleAggregateState(
-      battleId = seed.descriptor.battleId,
-      roomId = seed.roomId,
-      phase = BattlePhase.Active,
-      serverTime = startedAt,
-      startedAt = startedAt,
-      durationMs = battleDuration,
-      elapsedMs = ElapsedMillis(0L),
-      endsAt = EpochMillis(startedAt.value + battleDuration.value),
-      worldSize = BattleEngine.WorldSize,
-      tick = BattleTick(0L),
-      artifactStatus = BattleArtifactStatus.Pending,
-      players = players,
-      projectiles = Vector.empty,
-      projectileTerminals = Vector.empty,
-      slowFields = Vector.empty,
-      pickups = pickups,
-      replayFrames = Vector(BattleEngine.captureReplayFrame(ElapsedMillis(0L), players, Vector.empty, pickups)),
-      events = Vector.empty,
-      winnerPlayerId = None,
-      winnerHeroId = None
-    )
+    val mapId = BattleMode.mapId(seed.descriptor.battleMode)
+    BattleEngine.withMap(mapId) {
+      val startedAt = if seed.descriptor.startedAt.value > 0L then seed.descriptor.startedAt else now
+      val players = bootstrapSeats(seed.descriptor).map(toPlayerState)
+      val pickups = BattleEngine.initialPickups
+      BattleAggregateState(
+        battleId = seed.descriptor.battleId,
+        roomId = seed.roomId,
+        mapId = mapId,
+        phase = BattlePhase.Active,
+        serverTime = startedAt,
+        startedAt = startedAt,
+        durationMs = battleDuration,
+        elapsedMs = ElapsedMillis(0L),
+        endsAt = EpochMillis(startedAt.value + battleDuration.value),
+        worldSize = BattleEngine.WorldSize,
+        tick = BattleTick(0L),
+        artifactStatus = BattleArtifactStatus.Pending,
+        players = players,
+        projectiles = Vector.empty,
+        projectileTerminals = Vector.empty,
+        slowFields = Vector.empty,
+        pickups = pickups,
+        replayFrames = Vector(BattleEngine.captureReplayFrame(ElapsedMillis(0L), players, Vector.empty, pickups)),
+        events = Vector.empty,
+        winnerPlayerId = None,
+        winnerHeroId = None
+      )
+    }
   }
 
   private def bootstrapSeats(descriptor: BattleSessionDescriptor): Vector[BattleSessionBootstrapSeat] =

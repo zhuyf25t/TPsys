@@ -1,5 +1,5 @@
 import type { ItemPickup, Vec2, WeaponPickup } from "../../../objects/types";
-import { ITEM_PICKUP_SPAWN_POINTS, WEAPON_PICKUP_SPAWN_POINTS } from "../../../game/spawn";
+import { getItemPickupSpawnPoints, getWeaponPickupSpawnPoints } from "../../../game/assets/battleContentCatalog";
 import { resolvePickupSpawnPoint, type PickupSpawnResolverContext, type RectLike } from "./pickupSpawnResolver";
 
 interface PickupObstacleBoundsLike {
@@ -85,7 +85,7 @@ function advanceWeaponPickups(input: AdvancePickupLifecycleInput): void {
 
     pickup.respawnMs = Math.max(0, pickup.respawnMs - input.deltaMs);
     if (pickup.respawnMs === 0) {
-      pickup.position = resolvePickupSpawnPoint("weapon", pickup.weaponId, WEAPON_PICKUP_SPAWN_POINTS, createPickupSpawnResolverContext(input));
+      pickup.position = resolvePickupSpawnPoint("weapon", pickup.weaponId, getWeaponPickupSpawnPoints(), createPickupSpawnResolverContext(input));
       pickup.available = true;
     }
   });
@@ -99,7 +99,7 @@ function advanceItemPickups(input: AdvancePickupLifecycleInput): void {
 
     pickup.respawnMs = Math.max(0, pickup.respawnMs - input.deltaMs);
     if (pickup.respawnMs === 0) {
-      pickup.position = resolvePickupSpawnPoint("medkit", pickup.pickupId, ITEM_PICKUP_SPAWN_POINTS, createPickupSpawnResolverContext(input));
+      pickup.position = resolvePickupSpawnPoint("medkit", pickup.pickupId, getItemPickupSpawnPoints(), createPickupSpawnResolverContext(input));
       pickup.available = true;
     }
   });

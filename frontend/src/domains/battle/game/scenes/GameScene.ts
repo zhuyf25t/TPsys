@@ -56,6 +56,9 @@ interface GameSceneOptions {
   sharedAuthoritativeRuntime?: boolean;
 }
 
+const OCCLUSION_SYNC_INTERVAL_MS = 120;
+const OCCLUSION_SYNC_POSITION_DELTA = 48;
+
 export class GameScene extends Phaser.Scene {
   private snapshot!: GameSnapshot;
   private controls!: ControlKeys;
@@ -93,6 +96,8 @@ export class GameScene extends Phaser.Scene {
   private authoritativeRemoteHeroIds = new Set<string>();
   private latestPlayerCommand: PlayerCommand | null = null;
   private authoritativePreparedSkillOverride: PreparedSkill = null;
+  private lastOcclusionSyncAtMs = Number.NEGATIVE_INFINITY;
+  private lastOcclusionSyncPosition: Vec2 | null = null;
   private elapsedOffsetMs = 0;
   private readonly sharedAuthoritativeRuntime: boolean;
 
@@ -304,12 +309,7 @@ export class GameScene extends Phaser.Scene {
 
     this.syncWorldViews(command, delta);
     this.battleFeedbackBridge.update(this.sharedAuthoritativeRuntime);
-    updateGameSceneOcclusion({
-      player: this.getPlayerHero(),
-      sharedAuthoritativeRuntime: this.sharedAuthoritativeRuntime,
-      localHeroDisplay: this.localHeroDisplay,
-      occludables: this.occludables
-    });
+    this.updateOcclusionIfNeeded(time);
     this.renderHud(Math.round(this.game.loop.actualFps));
     this.vfx.updateVisualEffects(delta);
 
@@ -359,6 +359,28 @@ export class GameScene extends Phaser.Scene {
       cameraTarget: this.cameraTarget,
       cameraOffset: this.cameraOffset
     });
+  }
+  private updateOcclusionIfNeeded(timeMs: number) {
+    const player = this.getPlayerHero();
+    const playerPosition = this.localHeroDisplay.positionFor(player, this.sharedAuthoritativeRuntime);
+    const elapsedMs = Number.isFinite(timeMs) ? timeMs - this.lastOcclusionSyncAtMs : OCCLUSION_SYNC_INTERVAL_MS;
+    const movedDistance = this.lastOcclusionSyncPosition
+      ? Math.hypot(playerPosition.x - this.lastOcclusionSyncPosition.x, playerPosition.y - this.lastOcclusionSyncPosition.y)
+      : Number.POSITIVE_INFINITY;
+
+    if (elapsedMs < OCCLUSION_SYNC_INTERVAL_MS && movedDistance < OCCLUSION_SYNC_POSITION_DELTA) {
+      return;
+    }
+
+    updateGameSceneOcclusion({
+      player,
+      heroes: this.snapshot.heroes,
+      sharedAuthoritativeRuntime: this.sharedAuthoritativeRuntime,
+      localHeroDisplay: this.localHeroDisplay,
+      occludables: this.occludables
+    });
+    this.lastOcclusionSyncAtMs = Number.isFinite(timeMs) ? timeMs : 0;
+    this.lastOcclusionSyncPosition = { x: playerPosition.x, y: playerPosition.y };
   }
   private handleResize(_gameSize?: Phaser.Structs.Size) {
     this.cameras.main.setSize(this.scale.width, this.scale.height);

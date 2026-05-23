@@ -7,6 +7,7 @@ package object objects {
   export _root_.services.battle.objects.core.BattleEventId
   export _root_.services.battle.objects.core.BattleHighlightLine
   export _root_.services.battle.objects.core.BattleId
+  export _root_.services.battle.objects.core.BattleMapId
   export _root_.services.battle.objects.core.BattleMapLabel
   export _root_.services.battle.objects.core.BattleModeLabel
   export _root_.services.battle.objects.core.BattlePlacement

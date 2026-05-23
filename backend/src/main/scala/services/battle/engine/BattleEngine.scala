@@ -10,11 +10,14 @@ object BattleEngine {
   val TickStep: DurationMillis =
     BattleRuntimeCatalog.TickStep
 
-  val WorldSize: BattleVector2 =
+  def WorldSize: BattleVector2 =
     BattleArenaCatalog.WorldSize
 
   val ZeroVector: BattleVector2 =
     BattleArenaCatalog.ZeroVector
+
+  def withMap[A](mapId: BattleMapId)(work: => A): A =
+    BattleArenaCatalog.withMap(mapId)(work)
 
   def initialPickups: Vector[BattlePickupState] =
     BattleInitialLayout.initialPickups
@@ -38,7 +41,9 @@ object BattleEngine {
     requestedDeltaMs: Long,
     now: EpochMillis
   ): BattleAggregateState =
-    BattleRuntimeStepRules.advanceStateStep(state, requestedDeltaMs, now)
+    withMap(state.mapId) {
+      BattleRuntimeStepRules.advanceStateStep(state, requestedDeltaMs, now)
+    }
 
   def finishedAtForRoom(state: BattleAggregateState): EpochMillis =
     BattleRuntimeFinishRules.finishedAtForRoom(state)
@@ -51,5 +56,7 @@ object BattleEngine {
     player: BattlePlayerState,
     request: BattleCommandRequest
   ): CommandApplication =
-    BattleCommandApplicationRules.applyCommand(state, player, request)
+    withMap(state.mapId) {
+      BattleCommandApplicationRules.applyCommand(state, player, request)
+    }
 }

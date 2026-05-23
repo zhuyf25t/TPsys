@@ -46,6 +46,10 @@ export interface RealtimeBattleSessionBootstrap {
 
 export interface RealtimeBattleSessionDescriptor {
   battleId: string;
+  modeId?: string;
+  modeLabel?: string;
+  mapId?: string;
+  mapLabel?: string;
   startedAt: number;
   serverTime: number;
   roster: RealtimeBattleSessionRosterEntry[];
@@ -55,6 +59,10 @@ export interface RealtimeBattleSessionDescriptor {
 
 export interface RealtimeRoomSnapshot {
   roomId: string;
+  modeId?: string;
+  modeLabel?: string;
+  mapId?: string;
+  mapLabel?: string;
   serverTime: number;
   participants: RealtimeRoomParticipant[];
   capacity: number;
@@ -112,6 +120,10 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
 
   const value = payload as Partial<RealtimeRoomSnapshot> & Record<string, unknown>;
   const roomId = readString(value.roomId);
+  const modeId = readString(value.modeId);
+  const modeLabel = readString(value.modeLabel);
+  const mapId = readString(value.mapId);
+  const mapLabel = readString(value.mapLabel);
   const serverTime = readNumber(value.serverTime);
   const capacity = readNumber(value.capacity);
 
@@ -127,6 +139,10 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
 
   return {
     roomId,
+    ...(modeId ? { modeId } : {}),
+    ...(modeLabel ? { modeLabel } : {}),
+    ...(mapId ? { mapId } : {}),
+    ...(mapLabel ? { mapLabel } : {}),
     serverTime,
     participants,
     capacity: Math.max(1, capacity),
@@ -143,6 +159,10 @@ function normalizeBattleSessionDescriptor(payload: unknown): RealtimeBattleSessi
 
   const value = payload as Partial<RealtimeBattleSessionDescriptor> & Record<string, unknown>;
   const battleId = readString(value.battleId);
+  const modeId = readString(value.modeId);
+  const modeLabel = readString(value.modeLabel);
+  const mapId = readString(value.mapId);
+  const mapLabel = readString(value.mapLabel);
   const startedAt = readNumber(value.startedAt);
   const serverTime = readNumber(value.serverTime);
   const capacity = readNumber(value.capacity);
@@ -158,6 +178,10 @@ function normalizeBattleSessionDescriptor(payload: unknown): RealtimeBattleSessi
 
   return {
     battleId,
+    ...(modeId ? { modeId } : {}),
+    ...(modeLabel ? { modeLabel } : {}),
+    ...(mapId ? { mapId } : {}),
+    ...(mapLabel ? { mapLabel } : {}),
     startedAt,
     serverTime,
     roster,

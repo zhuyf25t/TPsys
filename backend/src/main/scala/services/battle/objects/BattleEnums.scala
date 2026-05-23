@@ -1,5 +1,7 @@
 package services.battle.objects
 
+import services.battle.objects.core.{BattleMapId, BattleMapLabel, BattleModeLabel}
+
 enum MatchmakingRoomPhase {
   case Waiting
   case Active
@@ -34,6 +36,54 @@ object MatchmakingRoomPhase {
       case "unknown"  => Some(MatchmakingRoomPhase.Unknown)
       case _          => None
     }
+}
+
+enum BattleMode {
+  case Default
+  case Autumn
+}
+
+object BattleMode {
+  def default: BattleMode =
+    BattleMode.Default
+
+  def wireValue(value: BattleMode): String =
+    value match {
+      case BattleMode.Default => "default"
+      case BattleMode.Autumn  => "autumn"
+    }
+
+  def fromWire(value: String): Option[BattleMode] =
+    Option(value).map(_.trim.toLowerCase).flatMap {
+      case "default" | "default-mode" | "default_mode" =>
+        Some(BattleMode.Default)
+      case "autumn" | "fall" | "fall-hunt" | "fall_hunt" =>
+        Some(BattleMode.Autumn)
+      case _ =>
+        None
+    }
+
+  def mapId(value: BattleMode): BattleMapId =
+    value match {
+      case BattleMode.Default => BattleMapId("default-industrial-arena")
+      case BattleMode.Autumn  => BattleMapId("fall-hunt-v1")
+    }
+
+  def modeLabel(value: BattleMode): BattleModeLabel =
+    BattleModeLabel.fromWire(
+      value match {
+        case BattleMode.Default => "默认模式"
+        case BattleMode.Autumn  => "秋季模式"
+      }
+    )
+
+  def mapLabel(value: BattleMode): BattleMapLabel =
+    BattleMapLabel.fromWire(
+      value match {
+        case BattleMode.Default => "默认地图"
+        case BattleMode.Autumn  => "秋季地图"
+      }
+    )
 }
 
 enum BattlePhase {

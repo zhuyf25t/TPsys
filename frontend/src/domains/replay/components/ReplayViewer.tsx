@@ -600,15 +600,16 @@ function drawInnerObstacles(context: CanvasRenderingContext2D, viewport: ReplayV
 function drawObstacleBlock(
   context: CanvasRenderingContext2D,
   viewport: ReplayViewport,
-  obstacle: { kind: "wall" | "crate"; position: { x: number; y: number }; size: { x: number; y: number } }
+  obstacle: { kind: string; position: { x: number; y: number }; size: { x: number; y: number } }
 ): void {
   const rect = toCanvasRect(obstacle.position, obstacle.size, viewport);
+  const isLightCover = obstacle.kind === "crate" || obstacle.kind === "hay" || obstacle.kind === "logs" || obstacle.kind === "stump";
   context.save();
   context.shadowColor = "rgba(0, 0, 0, 0.36)";
   context.shadowBlur = Math.max(2, 8 * viewport.scale);
   context.shadowOffsetY = Math.max(1, 5 * viewport.scale);
-  context.fillStyle = obstacle.kind === "crate" ? "#8a5c32" : "#777a70";
-  context.strokeStyle = obstacle.kind === "crate" ? "rgba(42, 24, 12, 0.82)" : "rgba(26, 29, 25, 0.86)";
+  context.fillStyle = isLightCover ? "#8a5c32" : "#777a70";
+  context.strokeStyle = isLightCover ? "rgba(42, 24, 12, 0.82)" : "rgba(26, 29, 25, 0.86)";
   context.lineWidth = 2;
   context.fillRect(rect.x, rect.y, rect.width, rect.height);
   context.shadowColor = "transparent";

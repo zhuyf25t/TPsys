@@ -1,0 +1,144 @@
+{
+  "mapId": "fall-hunt-v1",
+  "displayName": "Fall Hunt",
+  "themeId": "fall",
+  "worldSize": { "x": 2560, "y": 1600 },
+  "sourceCrop": {
+    "sourceMapId": "suroi-fall",
+    "sourceSize": { "x": 1924, "y": 1924 },
+    "crop": { "x": 481, "y": 0, "width": 1443, "height": 1203 },
+    "scale": 1.3300083126,
+    "offset": { "x": 320, "y": 0 }
+  },
+  "heroDefinitions": [
+    { "heroId": "player-1", "displayName": "Player 1", "position": { "x": 700, "y": 800 } },
+    { "heroId": "bot-1", "displayName": "Bot 1", "position": { "x": 800, "y": 330 } },
+    { "heroId": "bot-2", "displayName": "Bot 2", "position": { "x": 1760, "y": 330 } },
+    { "heroId": "bot-3", "displayName": "Bot 3", "position": { "x": 1280, "y": 780 } },
+    { "heroId": "bot-4", "displayName": "Bot 4", "position": { "x": 1760, "y": 1180 } },
+    { "heroId": "bot-5", "displayName": "Bot 5", "position": { "x": 800, "y": 1220 } }
+  ],
+  "terrainPatches": [
+    { "id": "fall-play-area", "kind": "grass", "shape": "rect", "position": { "x": 1280, "y": 800 }, "size": { "x": 1920, "y": 1600 }, "color": "#566d43", "alpha": 0.82 },
+    { "id": "left-buffer-woods", "kind": "grass", "shape": "rect", "position": { "x": 160, "y": 800 }, "size": { "x": 320, "y": 1600 }, "color": "#465d3f", "alpha": 0.74 },
+    { "id": "right-buffer-woods", "kind": "grass", "shape": "rect", "position": { "x": 2400, "y": 800 }, "size": { "x": 320, "y": 1600 }, "color": "#415a3e", "alpha": 0.78 },
+    { "id": "main-clearing", "kind": "clearing", "shape": "ellipse", "position": { "x": 1280, "y": 830 }, "size": { "x": 780, "y": 470 }, "color": "#a77f47", "alpha": 0.26 },
+    { "id": "north-clearing", "kind": "clearing", "shape": "ellipse", "position": { "x": 1450, "y": 330 }, "size": { "x": 640, "y": 280 }, "color": "#9e7744", "alpha": 0.22 },
+    { "id": "south-clearing", "kind": "clearing", "shape": "ellipse", "position": { "x": 1080, "y": 1240 }, "size": { "x": 590, "y": 310 }, "color": "#b08a4c", "alpha": 0.22 },
+    { "id": "diagonal-trail-a", "kind": "trail", "shape": "rect", "position": { "x": 1120, "y": 650 }, "size": { "x": 1120, "y": 72 }, "rotation": -0.55, "color": "#c1a06a", "alpha": 0.34 },
+    { "id": "diagonal-trail-b", "kind": "trail", "shape": "rect", "position": { "x": 1540, "y": 1020 }, "size": { "x": 920, "y": 66 }, "rotation": 0.46, "color": "#c6a46d", "alpha": 0.31 },
+    { "id": "north-pond", "kind": "water", "shape": "ellipse", "position": { "x": 2020, "y": 210 }, "size": { "x": 410, "y": 155 }, "color": "#4b7a74", "alpha": 0.54 },
+    { "id": "mud-lowland", "kind": "mud", "shape": "ellipse", "position": { "x": 1880, "y": 1320 }, "size": { "x": 360, "y": 210 }, "color": "#6e5d3f", "alpha": 0.2 }
+  ],
+  "trees": [
+    { "treeId": "tree-big-oak-nw-1", "treeKind": "big_oak_tree", "position": { "x": 600, "y": 260 }, "trunkTexture": "fall-big-oak-trunk-1", "leavesTexture": "fall-big-oak-leaves-1", "trunkSize": { "x": 136, "y": 136 }, "leavesSize": { "x": 230, "y": 252 }, "leavesOffset": { "x": 0, "y": -22 }, "trunkCollision": { "kind": "circle", "radius": 27 }, "leafOcclusion": { "kind": "circle", "radius": 108 } },
+    { "treeId": "tree-maple-nw-2", "treeKind": "maple_tree", "position": { "x": 760, "y": 520 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-maple-leaves-1", "trunkSize": { "x": 104, "y": 104 }, "leavesSize": { "x": 188, "y": 194 }, "leavesOffset": { "x": 0, "y": -16 }, "trunkCollision": { "kind": "circle", "radius": 21 }, "leafOcclusion": { "kind": "circle", "radius": 88 } },
+    { "treeId": "tree-birch-west-1", "treeKind": "birch_tree", "position": { "x": 560, "y": 1040 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-birch-leaves-1", "trunkSize": { "x": 92, "y": 92 }, "leavesSize": { "x": 168, "y": 178 }, "leavesOffset": { "x": 0, "y": -14 }, "trunkCollision": { "kind": "circle", "radius": 18 }, "leafOcclusion": { "kind": "circle", "radius": 78 } },
+    { "treeId": "tree-big-oak-sw-1", "treeKind": "big_oak_tree", "position": { "x": 940, "y": 1380 }, "trunkTexture": "fall-big-oak-trunk-2", "leavesTexture": "fall-big-oak-leaves-2", "trunkSize": { "x": 142, "y": 142 }, "leavesSize": { "x": 236, "y": 258 }, "leavesOffset": { "x": 0, "y": -22 }, "trunkCollision": { "kind": "circle", "radius": 28 }, "leafOcclusion": { "kind": "circle", "radius": 112 } },
+    { "treeId": "tree-oak-north-1", "treeKind": "oak_tree", "position": { "x": 1060, "y": 230 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-oak-leaves-1", "trunkSize": { "x": 96, "y": 96 }, "leavesSize": { "x": 176, "y": 188 }, "leavesOffset": { "x": 0, "y": -16 }, "trunkCollision": { "kind": "circle", "radius": 19 }, "leafOcclusion": { "kind": "circle", "radius": 82 } },
+    { "treeId": "tree-maple-mid-1", "treeKind": "maple_tree", "position": { "x": 1160, "y": 930 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-maple-leaves-2", "trunkSize": { "x": 106, "y": 106 }, "leavesSize": { "x": 192, "y": 198 }, "leavesOffset": { "x": 0, "y": -17 }, "trunkCollision": { "kind": "circle", "radius": 21 }, "leafOcclusion": { "kind": "circle", "radius": 90 } },
+    { "treeId": "tree-big-oak-south-1", "treeKind": "big_oak_tree", "position": { "x": 1340, "y": 1240 }, "trunkTexture": "fall-big-oak-trunk-3", "leavesTexture": "fall-big-oak-leaves-3", "trunkSize": { "x": 138, "y": 138 }, "leavesSize": { "x": 228, "y": 250 }, "leavesOffset": { "x": 0, "y": -21 }, "trunkCollision": { "kind": "circle", "radius": 27 }, "leafOcclusion": { "kind": "circle", "radius": 106 } },
+    { "treeId": "tree-maple-north-2", "treeKind": "maple_tree", "position": { "x": 1620, "y": 220 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-maple-leaves-3", "trunkSize": { "x": 106, "y": 106 }, "leavesSize": { "x": 194, "y": 200 }, "leavesOffset": { "x": 0, "y": -17 }, "trunkCollision": { "kind": "circle", "radius": 21 }, "leafOcclusion": { "kind": "circle", "radius": 90 } },
+    { "treeId": "tree-big-oak-ne-1", "treeKind": "big_oak_tree", "position": { "x": 1880, "y": 520 }, "trunkTexture": "fall-big-oak-trunk-4", "leavesTexture": "fall-big-oak-leaves-4", "trunkSize": { "x": 140, "y": 140 }, "leavesSize": { "x": 236, "y": 258 }, "leavesOffset": { "x": 0, "y": -22 }, "trunkCollision": { "kind": "circle", "radius": 28 }, "leafOcclusion": { "kind": "circle", "radius": 112 } },
+    { "treeId": "tree-birch-east-1", "treeKind": "birch_tree", "position": { "x": 1980, "y": 900 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-birch-leaves-2", "trunkSize": { "x": 92, "y": 92 }, "leavesSize": { "x": 168, "y": 178 }, "leavesOffset": { "x": 0, "y": -14 }, "trunkCollision": { "kind": "circle", "radius": 18 }, "leafOcclusion": { "kind": "circle", "radius": 78 } },
+    { "treeId": "tree-big-oak-se-1", "treeKind": "big_oak_tree", "position": { "x": 1680, "y": 1360 }, "trunkTexture": "fall-big-oak-trunk-5", "leavesTexture": "fall-big-oak-leaves-5", "trunkSize": { "x": 138, "y": 138 }, "leavesSize": { "x": 230, "y": 252 }, "leavesOffset": { "x": 0, "y": -22 }, "trunkCollision": { "kind": "circle", "radius": 27 }, "leafOcclusion": { "kind": "circle", "radius": 108 } },
+    { "treeId": "tree-oak-south-2", "treeKind": "oak_tree", "position": { "x": 1100, "y": 1450 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-oak-leaves-2", "trunkSize": { "x": 96, "y": 96 }, "leavesSize": { "x": 178, "y": 190 }, "leavesOffset": { "x": 0, "y": -16 }, "trunkCollision": { "kind": "circle", "radius": 19 }, "leafOcclusion": { "kind": "circle", "radius": 82 } },
+    { "treeId": "tree-big-oak-east-2", "treeKind": "big_oak_tree", "position": { "x": 2060, "y": 1280 }, "trunkTexture": "fall-big-oak-trunk-6", "leavesTexture": "fall-big-oak-leaves-6", "trunkSize": { "x": 142, "y": 142 }, "leavesSize": { "x": 238, "y": 260 }, "leavesOffset": { "x": 0, "y": -22 }, "trunkCollision": { "kind": "circle", "radius": 28 }, "leafOcclusion": { "kind": "circle", "radius": 112 } },
+    { "treeId": "tree-maple-west-south-2", "treeKind": "maple_tree", "position": { "x": 720, "y": 1420 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-maple-leaves-1", "trunkSize": { "x": 104, "y": 104 }, "leavesSize": { "x": 188, "y": 194 }, "leavesOffset": { "x": 0, "y": -16 }, "trunkCollision": { "kind": "circle", "radius": 21 }, "leafOcclusion": { "kind": "circle", "radius": 88 } },
+    { "treeId": "tree-maple-mid-2", "treeKind": "maple_tree", "position": { "x": 1480, "y": 840 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-maple-leaves-2", "trunkSize": { "x": 104, "y": 104 }, "leavesSize": { "x": 190, "y": 196 }, "leavesOffset": { "x": 0, "y": -17 }, "trunkCollision": { "kind": "circle", "radius": 21 }, "leafOcclusion": { "kind": "circle", "radius": 88 } },
+    { "treeId": "tree-big-oak-east-south-2", "treeKind": "big_oak_tree", "position": { "x": 1830, "y": 1450 }, "trunkTexture": "fall-big-oak-trunk-2", "leavesTexture": "fall-big-oak-leaves-2", "trunkSize": { "x": 136, "y": 136 }, "leavesSize": { "x": 228, "y": 250 }, "leavesOffset": { "x": 0, "y": -21 }, "trunkCollision": { "kind": "circle", "radius": 27 }, "leafOcclusion": { "kind": "circle", "radius": 106 } },
+    { "treeId": "tree-oak-west-mid", "treeKind": "oak_tree", "position": { "x": 1010, "y": 670 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-oak-leaves-1", "trunkSize": { "x": 96, "y": 96 }, "leavesSize": { "x": 176, "y": 188 }, "leavesOffset": { "x": 0, "y": -16 }, "trunkCollision": { "kind": "circle", "radius": 19 }, "leafOcclusion": { "kind": "circle", "radius": 82 } },
+    { "treeId": "tree-birch-east-north", "treeKind": "birch_tree", "position": { "x": 2050, "y": 300 }, "trunkTexture": "fall-maple-trunk", "leavesTexture": "fall-birch-leaves-1", "trunkSize": { "x": 92, "y": 92 }, "leavesSize": { "x": 168, "y": 178 }, "leavesOffset": { "x": 0, "y": -14 }, "trunkCollision": { "kind": "circle", "radius": 18 }, "leafOcclusion": { "kind": "circle", "radius": 78 } }
+  ],
+  "obstacles": [
+    { "obstacleId": "rock-west-1", "kind": "rock", "texture": "fall-clearing-boulder-1", "position": { "x": 600, "y": 720 }, "displaySize": { "x": 88, "y": 72 }, "collision": { "kind": "circle", "radius": 34 } },
+    { "obstacleId": "logs-mid-west", "kind": "logs", "texture": "fall-large-logs-pile", "position": { "x": 940, "y": 940 }, "displaySize": { "x": 148, "y": 92 }, "collision": { "kind": "aabb", "size": { "x": 116, "y": 56 } } },
+    { "obstacleId": "boulder-south-mid", "kind": "rock", "texture": "fall-clearing-boulder-2", "position": { "x": 1040, "y": 1160 }, "displaySize": { "x": 96, "y": 82 }, "collision": { "kind": "circle", "radius": 40 } },
+    { "obstacleId": "boulder-east-mid", "kind": "rock", "texture": "fall-clearing-boulder-1", "position": { "x": 1840, "y": 740 }, "displaySize": { "x": 92, "y": 76 }, "collision": { "kind": "circle", "radius": 36 } },
+    { "obstacleId": "hay-south-east", "kind": "hay", "texture": "fall-hay-bale", "position": { "x": 1500, "y": 1180 }, "displaySize": { "x": 94, "y": 70 }, "collision": { "kind": "aabb", "size": { "x": 76, "y": 52 } } },
+    { "obstacleId": "stump-nw", "kind": "stump", "texture": "fall-stump", "position": { "x": 680, "y": 430 }, "displaySize": { "x": 70, "y": 62 }, "collision": { "kind": "circle", "radius": 24 } },
+    { "obstacleId": "logs-east-south", "kind": "logs", "texture": "fall-large-logs-pile", "position": { "x": 1970, "y": 1170 }, "displaySize": { "x": 142, "y": 88 }, "collision": { "kind": "aabb", "size": { "x": 110, "y": 52 } } },
+    { "obstacleId": "bush-north-path", "kind": "bush", "texture": "fall-vibrant-bush-1", "position": { "x": 1320, "y": 255 }, "displaySize": { "x": 86, "y": 72 }, "collision": null },
+    { "obstacleId": "bush-center", "kind": "bush", "texture": "fall-vibrant-bush-2", "position": { "x": 1360, "y": 980 }, "displaySize": { "x": 88, "y": 74 }, "collision": null },
+    { "obstacleId": "leaf-pile-west", "kind": "leaf_pile", "texture": "fall-oak-leaf-pile", "position": { "x": 860, "y": 760 }, "displaySize": { "x": 118, "y": 82 }, "collision": null },
+    { "obstacleId": "leaf-pile-east", "kind": "leaf_pile", "texture": "fall-oak-leaf-pile", "position": { "x": 1680, "y": 650 }, "displaySize": { "x": 120, "y": 84 }, "collision": null },
+    { "obstacleId": "bush-south-path", "kind": "bush", "texture": "fall-vibrant-bush-3", "position": { "x": 1250, "y": 1350 }, "displaySize": { "x": 86, "y": 72 }, "collision": null }
+  ],
+  "buildings": [
+    {
+      "buildingId": "barn-north-clearing",
+      "kind": "barn",
+      "position": { "x": 1350, "y": 500 },
+      "floorTexture": "fall-barn-floor",
+      "roofTexture": "fall-barn-roof",
+      "floorSize": { "x": 392, "y": 300 },
+      "roofSize": { "x": 408, "y": 318 },
+      "roofOffset": { "x": 0, "y": -8 },
+      "interior": { "kind": "aabb", "position": { "x": 1350, "y": 500 }, "size": { "x": 330, "y": 230 } },
+      "walls": [
+        { "wallId": "barn-top", "collision": { "kind": "aabb", "position": { "x": 1350, "y": 360 }, "size": { "x": 380, "y": 28 } } },
+        { "wallId": "barn-left", "collision": { "kind": "aabb", "position": { "x": 1160, "y": 500 }, "size": { "x": 28, "y": 252 } } },
+        { "wallId": "barn-right", "collision": { "kind": "aabb", "position": { "x": 1540, "y": 500 }, "size": { "x": 28, "y": 252 } } },
+        { "wallId": "barn-bottom-left", "collision": { "kind": "aabb", "position": { "x": 1235, "y": 640 }, "size": { "x": 150, "y": 28 } } },
+        { "wallId": "barn-bottom-right", "collision": { "kind": "aabb", "position": { "x": 1465, "y": 640 }, "size": { "x": 150, "y": 28 } } }
+      ],
+      "doors": [
+        { "doorId": "barn-south-door", "position": { "x": 1350, "y": 642 }, "size": { "x": 76, "y": 34 } }
+      ]
+    },
+    {
+      "buildingId": "tent-west-south",
+      "kind": "tent",
+      "position": { "x": 820, "y": 1120 },
+      "floorTexture": "fall-tent-floor",
+      "roofTexture": "fall-tent-roof",
+      "floorSize": { "x": 206, "y": 148 },
+      "roofSize": { "x": 214, "y": 156 },
+      "roofOffset": { "x": 0, "y": -4 },
+      "interior": { "kind": "aabb", "position": { "x": 820, "y": 1120 }, "size": { "x": 156, "y": 104 } },
+      "walls": [
+        { "wallId": "tent-top", "collision": { "kind": "aabb", "position": { "x": 820, "y": 1050 }, "size": { "x": 170, "y": 22 } } },
+        { "wallId": "tent-left", "collision": { "kind": "aabb", "position": { "x": 730, "y": 1120 }, "size": { "x": 22, "y": 114 } } },
+        { "wallId": "tent-bottom", "collision": { "kind": "aabb", "position": { "x": 820, "y": 1190 }, "size": { "x": 170, "y": 22 } } },
+        { "wallId": "tent-right-top", "collision": { "kind": "aabb", "position": { "x": 910, "y": 1086 }, "size": { "x": 22, "y": 48 } } },
+        { "wallId": "tent-right-bottom", "collision": { "kind": "aabb", "position": { "x": 910, "y": 1164 }, "size": { "x": 22, "y": 48 } } }
+      ],
+      "doors": [
+        { "doorId": "tent-east-door", "position": { "x": 910, "y": 1125 }, "size": { "x": 34, "y": 58 } }
+      ]
+    },
+    {
+      "buildingId": "hay-shed-east-south",
+      "kind": "hay_shed",
+      "position": { "x": 1740, "y": 1040 },
+      "floorTexture": "fall-patch-floor",
+      "roofTexture": "fall-hay-shed-roof-1",
+      "floorSize": { "x": 268, "y": 205 },
+      "roofSize": { "x": 260, "y": 192 },
+      "roofOffset": { "x": -5, "y": -5 },
+      "interior": { "kind": "aabb", "position": { "x": 1740, "y": 1040 }, "size": { "x": 194, "y": 130 } },
+      "walls": [
+        { "wallId": "shed-top", "collision": { "kind": "aabb", "position": { "x": 1740, "y": 950 }, "size": { "x": 220, "y": 22 } } },
+        { "wallId": "shed-left", "collision": { "kind": "aabb", "position": { "x": 1625, "y": 1040 }, "size": { "x": 22, "y": 140 } } },
+        { "wallId": "shed-right", "collision": { "kind": "aabb", "position": { "x": 1855, "y": 1040 }, "size": { "x": 22, "y": 140 } } },
+        { "wallId": "shed-bottom-left", "collision": { "kind": "aabb", "position": { "x": 1685, "y": 1130 }, "size": { "x": 94, "y": 22 } } },
+        { "wallId": "shed-bottom-right", "collision": { "kind": "aabb", "position": { "x": 1805, "y": 1130 }, "size": { "x": 70, "y": 22 } } }
+      ],
+      "doors": [
+        { "doorId": "shed-south-door", "position": { "x": 1742, "y": 1130 }, "size": { "x": 58, "y": 34 } }
+      ]
+    }
+  ],
+  "weaponPickups": [
+    { "pickupId": "pickup-rocket-1", "weaponKind": "RocketLauncher", "position": { "x": 1280, "y": 760 } },
+    { "pickupId": "pickup-gatling-1", "weaponKind": "Gatling", "position": { "x": 720, "y": 770 } },
+    { "pickupId": "pickup-shotgun-1", "weaponKind": "Shotgun", "position": { "x": 1840, "y": 800 } },
+    { "pickupId": "pickup-rocket-2", "weaponKind": "RocketLauncher", "position": { "x": 1280, "y": 1340 } },
+    { "pickupId": "pickup-gatling-2", "weaponKind": "Gatling", "position": { "x": 960, "y": 420 } },
+    { "pickupId": "pickup-shotgun-2", "weaponKind": "Shotgun", "position": { "x": 1660, "y": 1160 } }
+  ],
+  "itemPickups": [
+    { "pickupId": "pickup-medkit-1", "kind": "Medkit", "position": { "x": 1120, "y": 960 } },
+    { "pickupId": "pickup-medkit-2", "kind": "Medkit", "position": { "x": 1580, "y": 300 } }
+  ]
+}

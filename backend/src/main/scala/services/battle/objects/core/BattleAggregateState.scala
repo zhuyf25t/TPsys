@@ -15,6 +15,7 @@ import services.battle.objects.weapon.*
 final case class BattleAggregateState(
   battleId: BattleId,
   roomId: RoomId,
+  mapId: BattleMapId,
   phase: BattlePhase,
   serverTime: EpochMillis,
   startedAt: EpochMillis,

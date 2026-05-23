@@ -3,6 +3,7 @@ import {
   FLOOR_TEXTURE_KEY,
   FLOOR_TILE_SIZE,
   GLOBAL_BACKGROUND_PADDING,
+  getActiveBattleMap,
   HERO_RADIUS,
   OUTSIDE_TEXTURE_KEY,
   STONE_TEXTURE_KEY,
@@ -19,6 +20,11 @@ const BORDER_SHADOW_COLOR = 0x05070a;
 
 /** 中文名：创建竞技场presentationlayers（createArenaPresentationLayers）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createArenaPresentationLayers(scene: Phaser.Scene): void {
+  if (getActiveBattleMap().themeId === "fall") {
+    createFallPresentationLayers(scene);
+    return;
+  }
+
   const extendedWidth = WORLD_SIZE.x + GLOBAL_BACKGROUND_PADDING * 2;
   const extendedHeight = WORLD_SIZE.y + GLOBAL_BACKGROUND_PADDING * 2;
 
@@ -37,6 +43,86 @@ export function createArenaPresentationLayers(scene: Phaser.Scene): void {
 
   createMetalArenaFloor(scene);
   createBoundaryReadabilityLayer(scene);
+}
+
+function createFallPresentationLayers(scene: Phaser.Scene): void {
+  const extendedWidth = WORLD_SIZE.x + GLOBAL_BACKGROUND_PADDING * 2;
+  const extendedHeight = WORLD_SIZE.y + GLOBAL_BACKGROUND_PADDING * 2;
+  const centerX = WORLD_SIZE.x / 2;
+  const centerY = WORLD_SIZE.y / 2;
+
+  scene.add.rectangle(centerX, centerY, extendedWidth, extendedHeight, 0x263528, 1).setDepth(-40);
+  scene.add.rectangle(centerX, centerY, WORLD_SIZE.x, WORLD_SIZE.y, 0x38533c, 0.78).setDepth(-30);
+
+  getActiveBattleMap().terrainPatches.forEach((patch) => {
+    const color = colorFromHex(patch.color);
+    const object =
+      patch.shape === "ellipse"
+        ? scene.add.ellipse(patch.position.x, patch.position.y, patch.size.x, patch.size.y, color, patch.alpha)
+        : scene.add.rectangle(patch.position.x, patch.position.y, patch.size.x, patch.size.y, color, patch.alpha);
+    object.setDepth(terrainDepth(patch.kind));
+
+    if (patch.rotation !== undefined) {
+      object.setRotation(patch.rotation);
+    }
+  });
+
+  createFallGroundTexture(scene);
+  createFallCropFrame(scene);
+  createBoundaryReadabilityLayer(scene);
+}
+
+function createFallGroundTexture(scene: Phaser.Scene): void {
+  const leafColors = [0xb06d24, 0xc18b2f, 0x8f4d2d, 0xd0a044, 0x5b6f3f];
+  for (let index = 0; index < 120; index += 1) {
+    const x = 96 + ((index * 173) % (WORLD_SIZE.x - 192));
+    const y = 84 + ((index * 251) % (WORLD_SIZE.y - 168));
+    const color = leafColors[index % leafColors.length];
+    scene.add
+      .ellipse(x, y, 16 + (index % 4) * 5, 7 + (index % 3) * 3, color, 0.1 + (index % 5) * 0.012)
+      .setRotation((index % 11) * 0.21)
+      .setDepth(-6);
+  }
+
+  for (let x = FLOOR_TILE_SIZE; x < WORLD_SIZE.x; x += FLOOR_TILE_SIZE * 2) {
+    scene.add.rectangle(x, WORLD_SIZE.y - FLOOR_TILE_SIZE - 8, 22, 4, 0xc69444, 0.16).setDepth(39);
+  }
+
+  for (let y = FLOOR_TILE_SIZE; y < WORLD_SIZE.y; y += FLOOR_TILE_SIZE * 2) {
+    scene.add.rectangle(WORLD_SIZE.x - FLOOR_TILE_SIZE - 8, y, 4, 22, 0xc69444, 0.16).setDepth(39);
+  }
+}
+
+function createFallCropFrame(scene: Phaser.Scene): void {
+  const crop = getActiveBattleMap().sourceCrop;
+  const left = crop.offset.x;
+  const top = crop.offset.y;
+  const width = crop.crop.width * crop.scale;
+  const height = crop.crop.height * crop.scale;
+
+  scene.add.rectangle(left + width / 2, top + height / 2, width, height, 0x000000, 0).setStrokeStyle(3, 0xb98b42, 0.28).setDepth(38);
+  scene.add.rectangle(left / 2, WORLD_SIZE.y / 2, left, WORLD_SIZE.y, 0x1d2b22, 0.12).setDepth(-4);
+  scene.add.rectangle(WORLD_SIZE.x - left / 2, WORLD_SIZE.y / 2, left, WORLD_SIZE.y, 0x1b2a22, 0.14).setDepth(-4);
+}
+
+function terrainDepth(kind: string): number {
+  switch (kind) {
+    case "water":
+      return -18;
+    case "trail":
+      return -15;
+    case "clearing":
+    case "mud":
+      return -16;
+    case "grass":
+      return -22;
+    default:
+      return -20;
+  }
+}
+
+function colorFromHex(value: string): number {
+  return Number.parseInt(value.replace("#", ""), 16);
 }
 
 function createPatternRect(

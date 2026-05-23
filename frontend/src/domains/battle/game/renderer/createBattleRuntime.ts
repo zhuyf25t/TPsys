@@ -13,6 +13,7 @@ import {
 import { buildBattleRuntimeAuthoritativeFrame } from "./authoritativeBattleStateBridge";
 import { applyAuthoritativeFrameToSnapshot } from "./authoritativeFrameSnapshotApplier";
 import type { AuthoritativeLocalHeroReplayCommandEntry } from "./authoritativeLocalHeroReplay";
+import { setActiveBattleMap } from "../maps/battleMapCatalog";
 
 export interface BattleRuntimeHandle {
   destroy: () => void;
@@ -35,6 +36,7 @@ export interface CreateBattleRuntimeOptions {
   initialAuthoritativeState?: AuthoritativeBattleState | null;
   localAuthoritativePlayerId?: string;
   sharedAuthoritativeRuntime?: boolean;
+  mapId?: string;
 }
 
 function installContextMenuLock(): () => void {
@@ -57,8 +59,10 @@ export function createBattleRuntime({
   initialParticipants,
   initialAuthoritativeState = null,
   localAuthoritativePlayerId = "",
-  sharedAuthoritativeRuntime = false
+  sharedAuthoritativeRuntime = false,
+  mapId
 }: CreateBattleRuntimeOptions): BattleRuntimeHandle {
+  setActiveBattleMap(initialAuthoritativeState?.mapId ?? mapId);
   mountNode.replaceChildren();
   hudRoot.replaceChildren();
   hudRoot.id = "hud-root";

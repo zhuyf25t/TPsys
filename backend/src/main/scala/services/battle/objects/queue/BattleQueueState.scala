@@ -62,6 +62,7 @@ final case class BattleSessionBootstrap(
 
 final case class BattleSessionDescriptor(
   battleId: BattleId,
+  battleMode: BattleMode,
   startedAt: EpochMillis,
   serverTime: EpochMillis,
   roster: Vector[BattleSessionRosterEntry],
@@ -73,6 +74,7 @@ final case class BattleQueueSnapshot(
   ticketId: TicketId,
   playerId: PlayerId,
   roomId: RoomId,
+  battleMode: BattleMode,
   createdAt: EpochMillis,
   startsAt: EpochMillis,
   deadline: EpochMillis,
@@ -87,6 +89,7 @@ final case class BattleQueueSnapshot(
 
 final case class RealtimeRoomSnapshot(
   roomId: RoomId,
+  battleMode: BattleMode,
   serverTime: EpochMillis,
   participants: Vector[BattleQueueParticipant],
   capacity: BattleCapacity,

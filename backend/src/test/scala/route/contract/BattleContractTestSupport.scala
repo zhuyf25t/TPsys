@@ -120,6 +120,7 @@ private[contract] object BattleContractFixtures:
       ticketId = TicketId("ticket-1"),
       playerId = PlayerId("player-1"),
       roomId = RoomId("room-1"),
+      battleMode = BattleMode.Default,
       createdAt = EpochMillis(1000),
       startsAt = EpochMillis(6000),
       deadline = EpochMillis(7000),
@@ -146,6 +147,7 @@ private[contract] object BattleContractFixtures:
     BattleAggregateState(
       battleId = battleId,
       roomId = RoomId("room-1"),
+      mapId = BattleMode.mapId(BattleMode.Default),
       phase = BattlePhase.Active,
       serverTime = EpochMillis(2000),
       startedAt = EpochMillis(1000),
@@ -169,6 +171,7 @@ private[contract] object BattleContractFixtures:
   def roomSnapshot(roomId: RoomId): RealtimeRoomSnapshot =
     RealtimeRoomSnapshot(
       roomId = roomId,
+      battleMode = BattleMode.Default,
       serverTime = EpochMillis(1500),
       participants = Vector(
         BattleQueueParticipant(

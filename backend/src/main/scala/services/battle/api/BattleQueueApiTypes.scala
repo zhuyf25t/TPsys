@@ -10,6 +10,7 @@ enum BattleQueueJoinAPIRequestError {
   case InvalidJsonObject
   case InvalidRating
   case InvalidHandle
+  case InvalidBattleMode
   case MissingSession
 }
 
@@ -46,6 +47,8 @@ object BattleQueueApiErrorCode {
         BattleQueueApiErrorCode.InvalidRating
       case BattleQueueJoinAPIRequestError.InvalidHandle =>
         BattleQueueApiErrorCode.InvalidHandle
+      case BattleQueueJoinAPIRequestError.InvalidBattleMode =>
+        BattleQueueApiErrorCode.InvalidJsonObject
       case BattleQueueJoinAPIRequestError.MissingSession =>
         BattleQueueApiErrorCode.MissingSession
     }
@@ -128,6 +131,7 @@ object BattleQueueApiErrorCode {
 final case class BattleQueueJoinAPIRequest(
   handle: Option[String],
   sessionToken: Option[String],
+  modeId: Option[String],
   queueRequestId: Option[String],
   rating: Option[Int],
   avatar: Option[String],
@@ -139,9 +143,11 @@ final case class BattleQueueJoinAPIRequest(
         .toRight(BattleQueueJoinAPIRequestError.InvalidHandle)
       session <- SessionToken.fromString(sessionToken.getOrElse(""))
         .toRight(BattleQueueJoinAPIRequestError.MissingSession)
+      battleMode <- decodeBattleMode(modeId)
     yield BattleQueueJoinCommand(
       handle = playerHandle,
       sessionToken = session,
+      battleMode = battleMode,
       queueRequestId = queueRequestId.flatMap(nonEmptyText).map(QueueRequestId.apply),
       rating = rating.map(Rating.apply),
       avatar = avatar.flatMap(nonEmptyText),
@@ -150,6 +156,14 @@ final case class BattleQueueJoinAPIRequest(
 
   private def nonEmptyText(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
+
+  private def decodeBattleMode(value: Option[String]): Either[BattleQueueJoinAPIRequestError, BattleMode] =
+    value.flatMap(nonEmptyText) match {
+      case None =>
+        Right(BattleMode.default)
+      case Some(modeId) =>
+        BattleMode.fromWire(modeId).toRight(BattleQueueJoinAPIRequestError.InvalidBattleMode)
+    }
 }
 
 final case class BattleQueueLeaveAPIRequest(ticketId: Option[String]) {
@@ -360,6 +374,10 @@ object RealtimeRoomSnapshotAPIRequest {
 
 final case class RealtimeRoomSnapshotResponse(
   roomId: String,
+  modeId: String,
+  modeLabel: String,
+  mapId: String,
+  mapLabel: String,
   serverTime: Long,
   participants: Vector[BattleQueueParticipantResponse],
   capacity: Int,
@@ -374,6 +392,10 @@ object RealtimeRoomSnapshotResponse {
   def fromSnapshot(snapshot: RealtimeRoomSnapshot): RealtimeRoomSnapshotResponse =
     RealtimeRoomSnapshotResponse(
       roomId = snapshot.roomId.value,
+      modeId = BattleMode.wireValue(snapshot.battleMode),
+      modeLabel = BattleMode.modeLabel(snapshot.battleMode).value,
+      mapId = BattleMode.mapId(snapshot.battleMode).value,
+      mapLabel = BattleMode.mapLabel(snapshot.battleMode).value,
       serverTime = snapshot.serverTime.value,
       participants = snapshot.participants.map(BattleQueueParticipantResponse.fromParticipant),
       capacity = snapshot.capacity.value,
@@ -388,6 +410,7 @@ object BattleQueueJoinAPIRequest {
     for
       handle <- BattleQueueAPIRequestCodec.optionalText(cursor, "handle")
       sessionToken <- BattleQueueAPIRequestCodec.optionalText(cursor, "sessionToken")
+      modeId <- BattleQueueAPIRequestCodec.optionalText(cursor, "modeId")
       queueRequestId <- BattleQueueAPIRequestCodec.optionalText(cursor, "queueRequestId")
       rating <- BattleQueueAPIRequestCodec.optionalInt(cursor, "rating")
       avatar <- BattleQueueAPIRequestCodec.optionalText(cursor, "avatar")
@@ -395,6 +418,7 @@ object BattleQueueJoinAPIRequest {
     yield BattleQueueJoinAPIRequest(
       handle = handle,
       sessionToken = sessionToken,
+      modeId = modeId,
       queueRequestId = queueRequestId,
       rating = rating,
       avatar = avatar,
@@ -571,6 +595,10 @@ object BattleSessionBootstrapResponse {
 
 final case class BattleSessionDescriptorResponse(
   battleId: String,
+  modeId: String,
+  modeLabel: String,
+  mapId: String,
+  mapLabel: String,
   startedAt: Long,
   serverTime: Long,
   roster: Vector[BattleSessionRosterEntryResponse],
@@ -584,6 +612,10 @@ object BattleSessionDescriptorResponse {
   def fromSession(session: BattleSessionDescriptor): BattleSessionDescriptorResponse =
     BattleSessionDescriptorResponse(
       battleId = session.battleId.value,
+      modeId = BattleMode.wireValue(session.battleMode),
+      modeLabel = BattleMode.modeLabel(session.battleMode).value,
+      mapId = BattleMode.mapId(session.battleMode).value,
+      mapLabel = BattleMode.mapLabel(session.battleMode).value,
       startedAt = session.startedAt.value,
       serverTime = session.serverTime.value,
       roster = session.roster.map(BattleSessionRosterEntryResponse.fromEntry),
@@ -596,6 +628,10 @@ final case class BattleQueueSnapshotResponse(
   ticketId: String,
   playerId: String,
   roomId: String,
+  modeId: String,
+  modeLabel: String,
+  mapId: String,
+  mapLabel: String,
   createdAt: Long,
   startsAt: Long,
   deadline: Long,
@@ -616,6 +652,10 @@ object BattleQueueSnapshotResponse {
       ticketId = snapshot.ticketId.value,
       playerId = snapshot.playerId.value,
       roomId = snapshot.roomId.value,
+      modeId = BattleMode.wireValue(snapshot.battleMode),
+      modeLabel = BattleMode.modeLabel(snapshot.battleMode).value,
+      mapId = BattleMode.mapId(snapshot.battleMode).value,
+      mapLabel = BattleMode.mapLabel(snapshot.battleMode).value,
       createdAt = snapshot.createdAt.value,
       startsAt = snapshot.startsAt.value,
       deadline = snapshot.deadline.value,

@@ -1,7 +1,8 @@
 import Phaser from "phaser";
 import type { ItemPickup, Vec2, WeaponKind, WeaponPickup } from "../../../objects/types";
-import { CRATE_TEXTURE_KEY, WEAPON_PICKUP_ICON_KEYS } from "../../constants";
-import { getItemPickupDisplayLabel, getWeaponDisplayLabel, getWeaponPickupTint } from "../../../components/presenters/battleDisplayCatalog";
+import { CRATE_TEXTURE_KEY } from "../../constants";
+import { getItemPickupDisplayLabel, getWeaponDisplayLabel } from "../../../components/presenters/battleDisplayCatalog";
+import { getWeaponPickupTextureRef, type WeaponTextureRef } from "../weaponRasterAtlas";
 
 const PICKUP_HALO_DEPTH = 61;
 const PICKUP_INNER_RING_DEPTH = 61.5;
@@ -41,7 +42,7 @@ const WEAPON_PICKUP_READABILITY_STYLES: Record<WeaponKind, PickupReadabilityStyl
     strokeTint: 0xaeeeff,
     strokeAlpha: 0.58,
     strokeWidth: 1,
-    spriteScale: 0.88,
+    spriteScale: 0.18,
     labelColor: "#d9f6ff",
     labelPlateTint: 0x102635,
     labelPlateAlpha: 0.76,
@@ -54,7 +55,7 @@ const WEAPON_PICKUP_READABILITY_STYLES: Record<WeaponKind, PickupReadabilityStyl
     strokeTint: 0xff9b55,
     strokeAlpha: 0.72,
     strokeWidth: 2,
-    spriteScale: 1.08,
+    spriteScale: 0.2,
     labelColor: "#ffd7ad",
     labelPlateTint: 0x32170e,
     labelPlateAlpha: 0.78,
@@ -67,7 +68,7 @@ const WEAPON_PICKUP_READABILITY_STYLES: Record<WeaponKind, PickupReadabilityStyl
     strokeTint: 0xffd86d,
     strokeAlpha: 0.68,
     strokeWidth: 2,
-    spriteScale: 0.98,
+    spriteScale: 0.2,
     labelColor: "#ffe7a3",
     labelPlateTint: 0x2d220f,
     labelPlateAlpha: 0.78,
@@ -80,7 +81,7 @@ const WEAPON_PICKUP_READABILITY_STYLES: Record<WeaponKind, PickupReadabilityStyl
     strokeTint: 0xffefb7,
     strokeAlpha: 0.68,
     strokeWidth: 2,
-    spriteScale: 1,
+    spriteScale: 0.2,
     labelColor: "#fff0ce",
     labelPlateTint: 0x2f1c10,
     labelPlateAlpha: 0.78,
@@ -105,15 +106,15 @@ const ITEM_PICKUP_READABILITY_STYLE: PickupReadabilityStyle = {
 /** 中文名：创建武器拾取物view（createWeaponPickupView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createWeaponPickupView(scene: Phaser.Scene, pickup: WeaponPickup): PickupView {
   const style = getWeaponPickupReadabilityStyle(pickup.weaponKind);
-  const view = createBasePickupView({
+  const textureRef = getWeaponPickupTextureRef(pickup.weaponKind);
+  return createBasePickupView({
     scene,
     position: pickup.position,
-    textureKey: WEAPON_PICKUP_ICON_KEYS[pickup.weaponKind],
+    textureKey: textureRef.textureKey,
+    frameName: textureRef.frameName,
     label: getWeaponDisplayLabel(pickup.weaponKind),
     style
   });
-  view.sprite.setTint(getWeaponPickupTint(pickup.weaponKind));
-  return view;
 }
 
 /** 中文名：创建item拾取物view（createItemPickupView）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
@@ -184,6 +185,7 @@ interface CreateBasePickupViewInput {
   scene: Phaser.Scene;
   position: Vec2;
   textureKey: string;
+  frameName?: WeaponTextureRef["frameName"];
   label: string;
   style: PickupReadabilityStyle;
 }
@@ -192,6 +194,7 @@ function createBasePickupView({
   scene,
   position,
   textureKey,
+  frameName,
   label,
   style
 }: CreateBasePickupViewInput): PickupView {
@@ -201,7 +204,10 @@ function createBasePickupView({
   const innerRing = scene.add.circle(position.x, position.y, style.radius * 0.58, style.strokeTint, 0).setDepth(PICKUP_INNER_RING_DEPTH);
   innerRing.setStrokeStyle(1, style.strokeTint, 0.32);
 
-  const sprite = scene.add.image(position.x, position.y, textureKey).setScale(style.spriteScale).setDepth(PICKUP_SPRITE_DEPTH);
+  const sprite = scene.add
+    .image(position.x, position.y, textureKey, frameName)
+    .setScale(style.spriteScale)
+    .setDepth(PICKUP_SPRITE_DEPTH);
 
   const labelPlate = scene.add
     .rectangle(position.x, position.y + 34, 72, 20, style.labelPlateTint, style.labelPlateAlpha)

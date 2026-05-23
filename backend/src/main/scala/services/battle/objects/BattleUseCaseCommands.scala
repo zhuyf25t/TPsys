@@ -5,6 +5,7 @@ import services.identity.objects.{DisplayName, PlayerHandle, SessionToken}
 final case class BattleQueueJoinCommand(
   handle: PlayerHandle,
   sessionToken: SessionToken,
+  battleMode: BattleMode,
   queueRequestId: Option[QueueRequestId],
   rating: Option[Rating],
   avatar: Option[String],

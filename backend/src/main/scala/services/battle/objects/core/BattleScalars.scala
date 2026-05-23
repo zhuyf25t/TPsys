@@ -22,6 +22,7 @@ final case class SpawnPointIndex(value: Int) extends AnyVal
 final case class BattleCapacity(value: Int) extends AnyVal
 final case class Rating(value: Int) extends AnyVal
 final case class RatingDelta(value: Int) extends AnyVal
+final case class BattleMapId(value: String) extends AnyVal
 final case class BattleResultLabel private (value: String) extends AnyVal
 final case class BattleModeLabel private (value: String) extends AnyVal
 final case class BattleMapLabel private (value: String) extends AnyVal

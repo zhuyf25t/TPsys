@@ -43,6 +43,8 @@ object BattleQueueJoinAPIMessage {
         BattleAPIMessageSupport.badRequest("Handle must be a playable non-visitor handle.")
       case BattleQueueJoinAPIRequestError.MissingSession =>
         BattleAPIMessageSupport.unauthorized("Session token is required.")
+      case BattleQueueJoinAPIRequestError.InvalidBattleMode =>
+        BattleAPIMessageSupport.badRequest("Invalid battle mode.")
       case BattleQueueJoinAPIRequestError.InvalidRating | BattleQueueJoinAPIRequestError.InvalidJsonObject =>
         BattleAPIMessageSupport.badRequest("Invalid battle queue join request.")
     }

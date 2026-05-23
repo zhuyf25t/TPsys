@@ -1,0 +1,38 @@
+{
+  "frames": {
+    "pistol-bullet": {
+      "frame": { "x": 0, "y": 0, "w": 64, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 24 },
+      "sourceSize": { "w": 64, "h": 24 }
+    },
+    "gatling-bullet": {
+      "frame": { "x": 64, "y": 0, "w": 64, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 24 },
+      "sourceSize": { "w": 64, "h": 24 }
+    },
+    "shotgun-pellet": {
+      "frame": { "x": 0, "y": 24, "w": 40, "h": 20 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 40, "h": 20 },
+      "sourceSize": { "w": 40, "h": 20 }
+    },
+    "rocket": {
+      "frame": { "x": 0, "y": 44, "w": 96, "h": 36 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 96, "h": 36 },
+      "sourceSize": { "w": 96, "h": 36 }
+    }
+  },
+  "meta": {
+    "image": "projectile-raster-atlas.png",
+    "format": "RGBA8888",
+    "size": { "w": 128, "h": 80 },
+    "scale": "1"
+  }
+}

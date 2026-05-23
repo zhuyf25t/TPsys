@@ -56,6 +56,7 @@ export interface WorldViewState {
   remoteHeroInterpolationBuffers: Map<string, RemoteHeroInterpolationBuffer>;
   projectileInterpolationBuffers: Map<string, ProjectileInterpolationBuffer>;
   projectileViews: Map<string, ProjectileView>;
+  projectileViewPool: ProjectileView[];
   slowFieldViews: Map<string, SlowFieldView>;
   pickupViews: Map<string, PickupView>;
   itemPickupViews: Map<string, PickupView>;
@@ -105,6 +106,7 @@ export function createWorldViewState(context: WorldViewFactoryContext): WorldVie
   const remoteHeroInterpolationBuffers = new Map<string, RemoteHeroInterpolationBuffer>();
   const projectileInterpolationBuffers = new Map<string, ProjectileInterpolationBuffer>();
   const projectileViews = new Map<string, ProjectileView>();
+  const projectileViewPool: ProjectileView[] = [];
   const slowFieldViews = new Map<string, SlowFieldView>();
   const pickupViews = new Map<string, PickupView>();
   const itemPickupViews = new Map<string, PickupView>();
@@ -181,6 +183,7 @@ export function createWorldViewState(context: WorldViewFactoryContext): WorldVie
     remoteHeroInterpolationBuffers,
     projectileInterpolationBuffers,
     projectileViews,
+    projectileViewPool,
     slowFieldViews,
     pickupViews,
     itemPickupViews,
@@ -250,9 +253,6 @@ export function syncHeroViews({
     view.silhouetteRing.setVisible(true);
     view.hitRing.setVisible(true);
     view.statusRing.setVisible(true);
-    view.weaponStock.setVisible(true);
-    view.weaponCue.setVisible(true);
-    view.weaponMuzzle.setVisible(true);
     view.sprite.setVisible(true);
     view.nameLabel.setVisible(true);
     view.healthBackground.setVisible(true);

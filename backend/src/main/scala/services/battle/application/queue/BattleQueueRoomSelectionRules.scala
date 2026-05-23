@@ -2,7 +2,7 @@ package services.battle.application
 
 import services.battle.application.*
 
-import services.battle.objects.{MatchmakingRoomPhase, QueueRequestId}
+import services.battle.objects.{BattleMode, MatchmakingRoomPhase, QueueRequestId}
 import services.identity.objects.PlayerHandle
 
 private[services] object BattleQueueRoomSelectionRules {
@@ -17,10 +17,12 @@ private[services] object BattleQueueRoomSelectionRules {
   def reusableRoom(
     openRooms: Vector[QueueRoom],
     handle: PlayerHandle,
+    battleMode: BattleMode,
     queueRequestId: Option[QueueRequestId]
   ): Option[QueueRoom] =
-    if shouldStartFreshRoom(openRooms, handle, queueRequestId) then None
-    else openRooms.headOption
+    val modeRooms = openRooms.filter(_.battleMode == battleMode)
+    if shouldStartFreshRoom(modeRooms, handle, queueRequestId) then None
+    else modeRooms.headOption
 
   private def shouldStartFreshRoom(
     openRooms: Vector[QueueRoom],

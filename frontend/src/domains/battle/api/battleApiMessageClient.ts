@@ -28,6 +28,7 @@ export interface BattleApiVector {
 export interface BattleQueueJoinAPIMessageRequest {
   handle: string;
   sessionToken: string;
+  modeId: string;
   queueRequestId?: string;
   rating?: string;
   skin?: string;

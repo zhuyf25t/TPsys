@@ -41,13 +41,17 @@ private[services] object BattleArenaCollision {
     end: BattleVector2,
     radius: Double,
     obstacle: ArenaObstacle
-  ): Option[Double] = {
-    val minX = obstacle.position.x - obstacle.size.x / 2.0 - radius
-    val maxX = obstacle.position.x + obstacle.size.x / 2.0 + radius
-    val minY = obstacle.position.y - obstacle.size.y / 2.0 - radius
-    val maxY = obstacle.position.y + obstacle.size.y / 2.0 + radius
-    firstSegmentAabbEnterT(start, end, minX, maxX, minY, maxY)
-  }
+  ): Option[Double] =
+    obstacle.shape match {
+      case ArenaObstacleShape.Aabb(size) =>
+        val minX = obstacle.position.x - size.x / 2.0 - radius
+        val maxX = obstacle.position.x + size.x / 2.0 + radius
+        val minY = obstacle.position.y - size.y / 2.0 - radius
+        val maxY = obstacle.position.y + size.y / 2.0 + radius
+        firstSegmentAabbEnterT(start, end, minX, maxX, minY, maxY)
+      case ArenaObstacleShape.Circle(obstacleRadius) =>
+        segmentCircleHitT(start, end, obstacle.position, obstacleRadius + radius)
+    }
 
   /** 中文名：firstsegmentaabbentert（firstSegmentAabbEnterT）。游戏职责：在后端世界域中管理地图、碰撞、几何、移动和出生点，约束实体在战场中的空间行为。 */
   def firstSegmentAabbEnterT(
@@ -144,6 +148,11 @@ private[services] object BattleArenaCollision {
   def canPlayerOccupy(point: BattleVector2, radius: Double): Boolean =
     isInWorld(point, radius) && !collidesWithArenaObstacles(point, radius)
 
+  def hasArenaLineOfSight(start: BattleVector2, end: BattleVector2): Boolean =
+    BattleArenaCatalog.ArenaObstacles.forall(obstacle =>
+      firstSegmentObstacleEnterT(start, end, BattleArenaCatalog.ProjectileShooterAdvantageRadius, obstacle).isEmpty
+    )
+
   /** 中文名：collideswith竞技场obstacles（collidesWithArenaObstacles）。游戏职责：在后端世界域中管理地图、碰撞、几何、移动和出生点，约束实体在战场中的空间行为。 */
   def collidesWithArenaObstacles(point: BattleVector2, radius: Double): Boolean =
     BattleArenaCatalog.ArenaObstacles.exists(obstacle => intersectsObstacle(point, radius, obstacle))
@@ -153,11 +162,17 @@ private[services] object BattleArenaCollision {
     point: BattleVector2,
     radius: Double,
     obstacle: ArenaObstacle
-  ): Boolean = {
-    val dx = math.abs(point.x - obstacle.position.x)
-    val dy = math.abs(point.y - obstacle.position.y)
-    dx < radius + obstacle.size.x / 2.0 && dy < radius + obstacle.size.y / 2.0
-  }
+  ): Boolean =
+    obstacle.shape match {
+      case ArenaObstacleShape.Aabb(size) =>
+        val dx = math.abs(point.x - obstacle.position.x)
+        val dy = math.abs(point.y - obstacle.position.y)
+        dx < radius + size.x / 2.0 && dy < radius + size.y / 2.0
+      case ArenaObstacleShape.Circle(obstacleRadius) =>
+        val dx = point.x - obstacle.position.x
+        val dy = point.y - obstacle.position.y
+        dx * dx + dy * dy < math.pow(radius + obstacleRadius, 2.0)
+    }
 
   /** 中文名：判断是否in世界（isInWorld）。游戏职责：在后端世界域中管理地图、碰撞、几何、移动和出生点，约束实体在战场中的空间行为。 */
   def isInWorld(point: BattleVector2, radius: Double): Boolean =

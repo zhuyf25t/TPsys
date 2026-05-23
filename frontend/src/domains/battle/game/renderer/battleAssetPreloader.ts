@@ -2,18 +2,13 @@ import type Phaser from "phaser";
 import {
   ALT_GRASS_TEXTURE_KEY,
   ASSET_PATHS,
-  BULLET_TEXTURE_KEY,
   BUSH_TEXTURE_KEY,
   CRATE_TEXTURE_KEY,
   DIRT_TEXTURE_KEY,
+  FALL_ASSET_PATHS,
   FLOOR_TEXTURE_KEY,
-  GATLING_PICKUP_TEXTURE_KEY,
   OUTSIDE_TEXTURE_KEY,
-  PISTOL_PICKUP_TEXTURE_KEY,
   ROCK_TEXTURE_KEY,
-  ROCKET_PICKUP_TEXTURE_KEY,
-  ROCKET_TEXTURE_KEY,
-  SHOTGUN_PICKUP_TEXTURE_KEY,
   STONE_TEXTURE_KEY,
   STONE_TRIM_TEXTURE_KEY,
   TREE_TEXTURE_KEY,
@@ -21,6 +16,8 @@ import {
   WATER_TEXTURE_KEY,
   WOOD_TEXTURE_KEY
 } from "../constants";
+import { PROJECTILE_RASTER_ATLAS_TEXTURE_KEY } from "./projectileRasterAtlas";
+import { WEAPON_RASTER_ATLAS_TEXTURE_KEY } from "./weaponRasterAtlas";
 
 /** 中文名：preload战斗assets（preloadBattleAssets）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function preloadBattleAssets(scene: Phaser.Scene): void {
@@ -37,12 +34,19 @@ export function preloadBattleAssets(scene: Phaser.Scene): void {
   scene.load.image(ROCK_TEXTURE_KEY, ASSET_PATHS.rock);
   scene.load.image(WALL_TEXTURE_KEY, ASSET_PATHS.wall);
   scene.load.image(CRATE_TEXTURE_KEY, ASSET_PATHS.crate);
-  scene.load.image(BULLET_TEXTURE_KEY, ASSET_PATHS.bullet);
-  scene.load.image(ROCKET_TEXTURE_KEY, ASSET_PATHS.rocket);
-  scene.load.image(PISTOL_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupPistol);
-  scene.load.image(ROCKET_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupRocket);
-  scene.load.image(GATLING_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupGatling);
-  scene.load.image(SHOTGUN_PICKUP_TEXTURE_KEY, ASSET_PATHS.pickupShotgun);
+  scene.load.atlas(
+    PROJECTILE_RASTER_ATLAS_TEXTURE_KEY,
+    "/assets/battle/projectiles/projectile-raster-atlas.png",
+    "/assets/battle/projectiles/projectile-raster-atlas.json"
+  );
+  scene.load.atlas(
+    WEAPON_RASTER_ATLAS_TEXTURE_KEY,
+    "/assets/battle/weapons/weapon-raster-atlas.png",
+    "/assets/battle/weapons/weapon-raster-atlas.json"
+  );
+  Object.entries(FALL_ASSET_PATHS).forEach(([textureKey, path]) => {
+    scene.load.image(textureKey, path);
+  });
   scene.load.image("hero-player", ASSET_PATHS.player);
   scene.load.image("hero-survivor", ASSET_PATHS.survivor);
   scene.load.image("hero-soldier", ASSET_PATHS.soldier);

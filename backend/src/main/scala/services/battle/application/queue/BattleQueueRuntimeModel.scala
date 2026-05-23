@@ -6,6 +6,7 @@ import services.battle.objects.*
 
 private[services] final case class QueueRoom(
   roomId: RoomId,
+  battleMode: BattleMode,
   createdAt: EpochMillis,
   startsAt: EpochMillis,
   deadline: EpochMillis,
@@ -42,6 +43,7 @@ private[services] object BattleQueueSnapshots {
       ticketId = entry.ticketId,
       playerId = entry.playerId,
       roomId = room.roomId,
+      battleMode = room.battleMode,
       createdAt = entry.participant.joinedAt,
       startsAt = room.startsAt,
       deadline = room.deadline,
@@ -58,6 +60,7 @@ private[services] object BattleQueueSnapshots {
   def toRoomSnapshot(room: QueueRoom, now: EpochMillis): RealtimeRoomSnapshot =
     RealtimeRoomSnapshot(
       roomId = room.roomId,
+      battleMode = room.battleMode,
       serverTime = now,
       participants = room.participants.map(_.participant),
       capacity = room.capacity,

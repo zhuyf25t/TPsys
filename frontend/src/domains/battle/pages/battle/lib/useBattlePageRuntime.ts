@@ -79,9 +79,17 @@ import {
   resolveCommandFailureNotice
 } from "./authoritativeCommandNotice";
 import { isBattleVisitorHandle } from "../../../objects/battleRules";
+import {
+  BATTLE_PLAY_MODE_OPTIONS,
+  DEFAULT_BATTLE_MODE_ID,
+  inferBattleModeIdFromMapId,
+  resolveBattlePlayMode,
+  resolveMapIdForBattleMode,
+  type BattlePlayModeId
+} from "../../../game/maps/battleMapCatalog";
 
-const AUTHORITATIVE_STATE_POLL_INTERVAL_MS = 33;
-const AUTHORITATIVE_COMMAND_UPLINK_INTERVAL_MS = 33;
+const AUTHORITATIVE_STATE_POLL_INTERVAL_MS = 100;
+const AUTHORITATIVE_COMMAND_UPLINK_INTERVAL_MS = 50;
 const AUTHORITATIVE_BOOTSTRAP_RETRY_MS = 150;
 const AUTHORITATIVE_RESULT_READY_RETRY_MS = 250;
 const AUTHORITATIVE_RESULT_READY_TIMEOUT_MS = 5_000;
@@ -158,6 +166,7 @@ export function useBattlePageRuntime() {
   const [currentReplayId, setCurrentReplayId] = useState<string | null>(null);
   const [matchPhase, setMatchPhase] = useState<MatchPhase>("matching");
   const [queueState, setQueueState] = useState<MatchmakingQueueState | null>(null);
+  const [selectedBattleModeId, setSelectedBattleModeId] = useState<BattlePlayModeId>(DEFAULT_BATTLE_MODE_ID);
   const [activeDrawer, setActiveDrawer] = useState<BattleDrawerId | null>(null);
   const [transientNotice, setTransientNotice] = useState<BattlePageTransientNotice | null>(null);
   const [entryBlockNotice, setEntryBlockNotice] = useState<string | null>(null);
@@ -263,6 +272,17 @@ export function useBattlePageRuntime() {
 
     const resolveRuntimeBattleId = (preferredQueueState: MatchmakingQueueState | null = queueStateRef.current): string =>
       battleIdRef.current ?? resolveBackendBattleId(preferredQueueState) ?? createLocalBattleId();
+
+    const resolveRuntimeMapId = (
+      preferredQueueState: MatchmakingQueueState | null = queueStateRef.current,
+      preferredAuthoritativeState: AuthoritativeBattleState | null = authoritativeBattleStateRef.current,
+      restoredSession: ActiveBattleSession | null = restoredActiveSession
+    ): string =>
+      preferredAuthoritativeState?.mapId?.trim() ||
+      restoredSession?.mapId?.trim() ||
+      preferredQueueState?.battleSession?.mapId?.trim() ||
+      preferredQueueState?.mapId?.trim() ||
+      resolveMapIdForBattleMode(selectedBattleModeId);
 
     const resolveAuthoritativeRuntimeBattleId = (
       preferredQueueState: MatchmakingQueueState | null = queueStateRef.current
@@ -689,6 +709,7 @@ export function useBattlePageRuntime() {
         owner: currentBattleSessionOwner,
         ...(activeSessionEpochRef.current ? { sessionEpoch: activeSessionEpochRef.current } : {}),
         battleId,
+        mapId: resolveRuntimeMapId(),
         ...(sharedAuthoritativeRuntimeRef.current ? { sharedAuthoritativeRuntime: true } : {}),
         ...(sharedAuthoritativeRuntimeRef.current && localAuthoritativePlayerId
           ? { localAuthoritativePlayerId }
@@ -1059,7 +1080,8 @@ export function useBattlePageRuntime() {
         initialParticipants,
         initialAuthoritativeState,
         localAuthoritativePlayerId: resolveLocalAuthoritativePlayerId(),
-        sharedAuthoritativeRuntime
+        sharedAuthoritativeRuntime,
+        mapId: resolveRuntimeMapId(queueStateRef.current, initialAuthoritativeState, restoredActiveSession)
       });
 
       runtimeHandleRef.current = runtime;
@@ -1241,6 +1263,7 @@ export function useBattlePageRuntime() {
     function applyQueueState(nextQueueState: MatchmakingQueueState, syncDeadline: boolean): void {
       queueStateRef.current = nextQueueState;
       localAuthoritativePlayerIdRef.current = nextQueueState.playerId;
+      setSelectedBattleModeId(inferBattleModeIdFromMapId(nextQueueState.mapId));
       setQueueState(nextQueueState);
 
       if (!syncDeadline) {
@@ -1555,6 +1578,7 @@ export function useBattlePageRuntime() {
       const joined = await joinMatchmakingQueue({
         handle: loadout.handle,
         sessionToken: currentBattleSessionOwner.sessionToken,
+        modeId: selectedBattleModeId,
         queueRequestId,
         rating: loadout.rating,
         skin: loadout.skinId
@@ -1609,7 +1633,15 @@ export function useBattlePageRuntime() {
       tearDownRuntime();
       clearTransientNotice();
     };
-  }, [currentBattleSessionOwner.handle, currentBattleSessionOwner.sessionToken, isBattleEntryBlocked, loadout.handle, matchNonce, location.search]);
+  }, [
+    currentBattleSessionOwner.handle,
+    currentBattleSessionOwner.sessionToken,
+    isBattleEntryBlocked,
+    loadout.handle,
+    matchNonce,
+    location.search,
+    selectedBattleModeId
+  ]);
 
   const clearTransientNotice = (): void => {
     if (transientNoticeTimerRef.current !== null) {
@@ -1618,6 +1650,24 @@ export function useBattlePageRuntime() {
     }
     transientNoticeLastShownRef.current = null;
     setTransientNotice(null);
+  };
+
+  const selectBattleMode = (modeId: BattlePlayModeId): void => {
+    const nextModeId = resolveBattlePlayMode(modeId).modeId;
+    if (nextModeId === selectedBattleModeId || matchPhase !== "matching") {
+      return;
+    }
+
+    discardSessionOnNextTeardownRef.current = true;
+    newBattleResetPendingRef.current = true;
+    countdownStartedAtRef.current = null;
+    matchWaitDeadlineRef.current = null;
+    battleIdRef.current = null;
+    activeSessionEpochRef.current = publishActiveBattleSessionEpoch(currentBattleSessionOwner);
+    clearActiveBattleSession(currentBattleSessionOwner);
+    setQueueState(null);
+    setSelectedBattleModeId(nextModeId);
+    setMatchNonce((value) => value + 1);
   };
 
   return {
@@ -1631,7 +1681,10 @@ export function useBattlePageRuntime() {
     activeDrawer,
     transientNotice,
     entryBlockNotice,
+    selectedBattleModeId,
+    battleModeOptions: BATTLE_PLAY_MODE_OPTIONS,
     ...pageData,
+    selectBattleMode,
     openDrawer: setActiveDrawer,
     closeDrawer: () => setActiveDrawer(null),
     startNewMatch: () => {

@@ -156,6 +156,7 @@ export interface AuthoritativeBattleEventState {
 export interface AuthoritativeBattleState {
   battleId: string;
   roomId: string;
+  mapId: string;
   phase: string;
   serverTime: number;
   startedAt: number;
@@ -316,6 +317,7 @@ function normalizeAuthoritativeBattleState(payload: unknown): AuthoritativeBattl
   const value = payload as Partial<AuthoritativeBattleState> & Record<string, unknown>;
   const battleId = readString(value.battleId);
   const roomId = readString(value.roomId);
+  const mapId = readString(value.mapId);
   const phase = readString(value.phase);
   const serverTime = readNumber(value.serverTime);
   const startedAt = readNumber(value.startedAt);
@@ -328,6 +330,7 @@ function normalizeAuthoritativeBattleState(payload: unknown): AuthoritativeBattl
   if (
     !battleId ||
     !roomId ||
+    !mapId ||
     !phase ||
     serverTime === null ||
     startedAt === null ||
@@ -366,6 +369,7 @@ function normalizeAuthoritativeBattleState(payload: unknown): AuthoritativeBattl
   return {
     battleId,
     roomId,
+    mapId,
     phase,
     serverTime,
     startedAt,

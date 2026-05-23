@@ -254,11 +254,13 @@ function readStoredActiveBattleSession(
 
     const localAuthoritativePlayerId = normalizeOptionalStoredString(parsed.localAuthoritativePlayerId);
     const localAuthoritativeTicketId = normalizeOptionalStoredString(parsed.localAuthoritativeTicketId);
+    const mapId = normalizeOptionalStoredString(parsed.mapId);
     const session: ActiveBattleSession = {
       version: 1,
       owner: ownerResolution.owner,
       ...(sessionEpoch ? { sessionEpoch } : {}),
       battleId: typeof parsed.battleId === "string" && parsed.battleId.trim() ? parsed.battleId : `battle-${savedAt}`,
+      ...(mapId ? { mapId } : {}),
       ...(parsed.sharedAuthoritativeRuntime === true ? { sharedAuthoritativeRuntime: true } : {}),
       ...(localAuthoritativePlayerId ? { localAuthoritativePlayerId } : {}),
       ...(localAuthoritativeTicketId ? { localAuthoritativeTicketId } : {}),
@@ -495,6 +497,7 @@ function mergeCompletedActiveBattleSessions(
       nextSession.localAuthoritativePlayerId ?? previousSession.localAuthoritativePlayerId,
     localAuthoritativeTicketId:
       nextSession.localAuthoritativeTicketId ?? previousSession.localAuthoritativeTicketId,
+    mapId: nextSession.mapId ?? previousSession.mapId,
     lastReplaySampleElapsed: maxNullableNumber(
       previousSession.lastReplaySampleElapsed,
       nextSession.lastReplaySampleElapsed,

@@ -85,6 +85,7 @@ object BattleStateResponse {
 private final case class BattleStateRootResponse(
   battleId: String,
   roomId: String,
+  mapId: String,
   phase: String,
   serverTime: Long,
   startedAt: Long,
@@ -107,56 +108,39 @@ private final case class BattleStateRootResponse(
 
 private object BattleStateRootResponse {
   given Encoder[BattleStateRootResponse] =
-    Encoder.forProduct20(
-      "battleId",
-      "roomId",
-      "phase",
-      "serverTime",
-      "startedAt",
-      "durationMs",
-      "elapsedMs",
-      "endsAt",
-      "worldSize",
-      "tick",
-      "resultReady",
-      "replayReady",
-      "players",
-      "projectiles",
-      "projectileTerminals",
-      "slowFields",
-      "pickups",
-      "events",
-      "winnerPlayerId",
-      "winnerHeroId"
-    )((response: BattleStateRootResponse) =>
-      (
-        response.battleId,
-        response.roomId,
-        response.phase,
-        response.serverTime,
-        response.startedAt,
-        response.durationMs,
-        response.elapsedMs,
-        response.endsAt,
-        response.worldSize,
-        response.tick,
-        response.resultReady,
-        response.replayReady,
-        response.players,
-        response.projectiles,
-        response.projectileTerminals,
-        response.slowFields,
-        response.pickups,
-        response.events,
-        response.winnerPlayerId,
-        response.winnerHeroId
-      )
+    Encoder.instance(response =>
+      Json
+        .obj(
+          "battleId" -> response.battleId.asJson,
+          "roomId" -> response.roomId.asJson,
+          "mapId" -> response.mapId.asJson,
+          "phase" -> response.phase.asJson,
+          "serverTime" -> response.serverTime.asJson,
+          "startedAt" -> response.startedAt.asJson,
+          "durationMs" -> response.durationMs.asJson,
+          "elapsedMs" -> response.elapsedMs.asJson,
+          "endsAt" -> response.endsAt.asJson,
+          "worldSize" -> response.worldSize.asJson,
+          "tick" -> response.tick.asJson,
+          "resultReady" -> response.resultReady.asJson,
+          "replayReady" -> response.replayReady.asJson,
+          "players" -> response.players.asJson,
+          "projectiles" -> response.projectiles.asJson,
+          "projectileTerminals" -> response.projectileTerminals.asJson,
+          "slowFields" -> response.slowFields.asJson,
+          "pickups" -> response.pickups.asJson,
+          "events" -> response.events.asJson,
+          "winnerPlayerId" -> response.winnerPlayerId.asJson,
+          "winnerHeroId" -> response.winnerHeroId.asJson
+        )
+        .dropNullValues
     )
 
   def fromState(state: BattleAggregateState): BattleStateRootResponse =
     BattleStateRootResponse(
       battleId = state.battleId.value,
       roomId = state.roomId.value,
+      mapId = state.mapId.value,
       phase = BattlePhase.wireValue(state.phase),
       serverTime = state.serverTime.value,
       startedAt = state.startedAt.value,

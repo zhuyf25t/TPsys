@@ -2,18 +2,24 @@ import Phaser from "phaser";
 import type { Vec2 } from "../../../objects/types";
 import {
   CRATE_TEXTURE_KEY,
+  getActiveBattleMap,
   ROCK_TEXTURE_KEY,
   STONE_TRIM_TEXTURE_KEY,
   WALL_TEXTURE_KEY
 } from "../../constants";
-import { ITEM_PICKUP_SPAWN_POINTS, WEAPON_PICKUP_SPAWN_POINTS } from "../../spawn";
+import { getItemPickupSpawnPoints, getWeaponPickupSpawnPoints } from "../../assets/battleContentCatalog";
 import type { OccludableSprite, OccludableView } from "./arenaBuilder";
 
 const ARENA_ENERGY_ACCENT_COLOR = 0x58d6ff;
 
 /** 中文名：创建拾取物pads（createPickupPads）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createPickupPads(scene: Phaser.Scene): void {
-  WEAPON_PICKUP_SPAWN_POINTS.forEach((point) => {
+  if (getActiveBattleMap().themeId === "fall") {
+    createFallPickupPads(scene);
+    return;
+  }
+
+  getWeaponPickupSpawnPoints().forEach((point) => {
     scene.add.tileSprite(point.position.x, point.position.y + 8, 112, 82, STONE_TRIM_TEXTURE_KEY).setDepth(-12).setTint(0x29343a).setAlpha(0.98);
     scene.add
       .rectangle(point.position.x, point.position.y + 8, 118, 88, 0x11181c, 0.18)
@@ -25,7 +31,7 @@ export function createPickupPads(scene: Phaser.Scene): void {
       .setDepth(-10);
   });
 
-  ITEM_PICKUP_SPAWN_POINTS.forEach((point) => {
+  getItemPickupSpawnPoints().forEach((point) => {
     scene.add
       .tileSprite(point.position.x, point.position.y + 8, 100, 76, STONE_TRIM_TEXTURE_KEY)
       .setDepth(-12)
@@ -39,6 +45,20 @@ export function createPickupPads(scene: Phaser.Scene): void {
       .rectangle(point.position.x, point.position.y + 8, 72, 44, 0x8ff3ff, 0.06)
       .setStrokeStyle(1, 0x8ff3ff, 0.4)
       .setDepth(-10);
+  });
+}
+
+function createFallPickupPads(scene: Phaser.Scene): void {
+  getWeaponPickupSpawnPoints().forEach((point) => {
+    scene.add.ellipse(point.position.x + 5, point.position.y + 9, 104, 68, 0x2b2f1d, 0.18).setDepth(19);
+    scene.add.ellipse(point.position.x, point.position.y + 4, 98, 58, 0xa57634, 0.2).setDepth(20);
+    scene.add.ellipse(point.position.x, point.position.y + 4, 68, 34, 0xe0b15e, 0.12).setDepth(21);
+  });
+
+  getItemPickupSpawnPoints().forEach((point) => {
+    scene.add.ellipse(point.position.x + 5, point.position.y + 9, 92, 62, 0x20301f, 0.18).setDepth(19);
+    scene.add.ellipse(point.position.x, point.position.y + 4, 84, 50, 0x527546, 0.22).setDepth(20);
+    scene.add.ellipse(point.position.x, point.position.y + 4, 58, 30, 0x9be77d, 0.12).setDepth(21);
   });
 }
 
@@ -100,6 +120,7 @@ function registerDecorativeOccludable(sprite: OccludableSprite, baseAlpha: numbe
   occludables.push({
     sprite,
     bounds: new Phaser.Geom.Rectangle(bounds.x, bounds.y, bounds.width, bounds.height),
-    baseAlpha
+    baseAlpha,
+    mode: "local-probe"
   });
 }

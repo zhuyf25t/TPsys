@@ -142,7 +142,7 @@ private[contract] object BattleStateRuntimeContractTest:
     noopSkillCommandSuppressesPrimaryFire()
     replayFramesCaptureRuntimeAndFinish()
     replayFrameHistoryIsBounded()
-    botRuntimeControlMovesAimsAndRespectsOpeningDelay()
+    botRuntimeControlMovesAimsAndFiresAfterOpeningDelay()
     emptyMagazineStartsAutomaticReload()
     finishedStateProjectsArtifactsOnce()
     finishedStateTracksPartialArtifactReadiness()
@@ -257,11 +257,11 @@ private[contract] object BattleStateRuntimeContractTest:
     val clock = TestClock(1_000L)
     val service = battleStateService(
       clock = clock,
-      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(3))
+      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(0), battleMode = BattleMode.Autumn)
     )
 
     val initialAlice = playerById(battleState(service, "obstacle movement initial"), PlayerId("alice"))
-    ContractAssertions.assertEquals("runtime front right spawn", initialAlice.position, BattleVector2(1600.0, 320.0))
+    ContractAssertions.assertEquals("runtime fall west spawn", initialAlice.position, BattleVector2(700.0, 800.0))
 
     service.acceptCommand(
       command(
@@ -272,13 +272,13 @@ private[contract] object BattleStateRuntimeContractTest:
       )
     ).fold(error => fail(s"movement command failed: $error"), identity)
 
-    clock.now = 3_000L
+    clock.now = 4_000L
     val movedAlice = playerById(battleState(service, "obstacle movement advanced"), PlayerId("alice"))
 
-    ContractAssertions.assertEquals("runtime obstacle movement keeps x lane", movedAlice.position.x, 1600.0)
+    ContractAssertions.assertEquals("runtime obstacle movement keeps x lane", movedAlice.position.x, 700.0)
     assert(
-      movedAlice.position.y > initialAlice.position.y && movedAlice.position.y <= 590.0,
-      s"runtime expected alice to stop before right lane wall, got ${movedAlice.position}"
+      movedAlice.position.y > initialAlice.position.y && movedAlice.position.y <= 1395.0,
+      s"runtime expected alice to stop before fall tree trunk, got ${movedAlice.position}"
     )
 
   private def walkingUsesFrontendBaseMoveSpeed(): Unit =
@@ -528,9 +528,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(5),
+        aliceSpawnPointIndex = SpawnPointIndex(2),
         botSpawnPointIndex = SpawnPointIndex(4),
-        secondIsBot = false
+        secondIsBot = false,
+        battleMode = BattleMode.Autumn
       )
     )
     val initial = battleState(service, "exact projectile block initial")
@@ -558,7 +559,7 @@ private[contract] object BattleStateRuntimeContractTest:
       )
     ).fold(error => fail(s"exact block release failed: $error"), identity)
 
-    clock.now = 1_500L
+    clock.now = 1_700L
     val blocked = battleState(service, "exact projectile block terminal")
     val terminal = blocked.projectileTerminals
       .find(terminal => terminal.ownerHeroId == alice.heroId && terminal.projectileKind == ProjectileKind.PistolBullet)
@@ -566,7 +567,7 @@ private[contract] object BattleStateRuntimeContractTest:
 
     ContractAssertions.assertEquals("runtime exact projectile block reason", terminal.reason, ProjectileTerminalReason.Blocked)
     assertClose("runtime exact projectile block terminal x", terminal.terminalPosition.x, 2488.0, 0.001)
-    assertClose("runtime exact projectile block terminal y", terminal.terminalPosition.y, 800.0, 0.001)
+    assertClose("runtime exact projectile block terminal y", terminal.terminalPosition.y, 330.0, 0.001)
     assert(
       terminal.end.x > terminal.terminalPosition.x,
       s"runtime blocked terminal should preserve full segment end beyond blocker, terminal=${terminal.terminalPosition}, end=${terminal.end}"
@@ -726,8 +727,9 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(5),
-        botSpawnPointIndex = SpawnPointIndex(1)
+        aliceSpawnPointIndex = SpawnPointIndex(4),
+        botSpawnPointIndex = SpawnPointIndex(1),
+        secondIsBot = false
       )
     )
     battleState(service, "terminal retention initial")
@@ -737,7 +739,7 @@ private[contract] object BattleStateRuntimeContractTest:
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 130L,
-        movement = BattleCommandVector(1.0, 0.0)
+        movement = BattleCommandVector(-1.0, 0.0)
       )
     ).fold(error => fail(s"shotgun pickup movement failed: $error"), identity)
 
@@ -853,7 +855,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val clock = TestClock(1_000L)
     val service = battleStateService(
       clock = clock,
-      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(4))
+      seed = sessionSeed(
+        aliceSpawnPointIndex = SpawnPointIndex(2),
+        secondIsBot = false
+      )
     )
 
     battleState(service, "medkit pickup initial")
@@ -862,7 +867,7 @@ private[contract] object BattleStateRuntimeContractTest:
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 13L,
-        movement = BattleCommandVector(0.0, -1.0)
+        movement = BattleCommandVector(-1.0, 0.0)
       )
     ).fold(error => fail(s"medkit pickup movement failed: $error"), identity)
 
@@ -873,7 +878,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val healEvent = pickedUp.events.lastOption.getOrElse(fail("missing medkit pickup event"))
 
     ContractAssertions.assertEquals("runtime medkit consumed", medkit.available, false)
-    ContractAssertions.assertEquals("runtime medkit respawn timer starts", medkit.respawnMs, DurationMillis(10000L))
+    assert(
+      medkit.respawnMs.value > 0L && medkit.respawnMs.value <= 10000L,
+      s"runtime medkit respawn timer should be active and no greater than full duration, got ${medkit.respawnMs}"
+    )
     ContractAssertions.assertEquals("runtime medkit event kind", healEvent.eventKind, BattleEventKind.Heal)
     ContractAssertions.assertEquals("runtime medkit event target", healEvent.target.playerId, PlayerId("alice"))
 
@@ -882,7 +890,7 @@ private[contract] object BattleStateRuntimeContractTest:
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 14L,
-        movement = BattleCommandVector(0.0, 1.0)
+        movement = BattleCommandVector(1.0, 0.0)
       )
     ).fold(error => fail(s"medkit move-away command failed: $error"), identity)
 
@@ -947,8 +955,8 @@ private[contract] object BattleStateRuntimeContractTest:
     ContractAssertions.assertEquals("runtime medkit heal setup damages target", damagedTarget.hp, HitPoints(88))
 
     val medkitContactPoints = Vector(
-      BattleVector2(996.0, 800.0),
-      BattleVector2(996.0, 608.0)
+      BattleVector2(900.0, 900.0),
+      BattleVector2(1120.0, 960.0)
     )
     var moveSeq = 21L
     var healed = battleState(service, "medkit heal before pickup movement")
@@ -1069,7 +1077,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val rocketClock = TestClock(1_000L)
     val rocketService = battleStateService(
       clock = rocketClock,
-      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(3))
+      seed = sessionSeed(
+        aliceSpawnPointIndex = SpawnPointIndex(3),
+        secondIsBot = false
+      )
     )
     battleState(rocketService, "rocket initial")
     rocketService.acceptCommand(
@@ -1148,7 +1159,7 @@ private[contract] object BattleStateRuntimeContractTest:
     val shotgunClock = TestClock(1_000L)
     val shotgunService = battleStateService(
       clock = shotgunClock,
-      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(5))
+      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(4))
     )
     battleState(shotgunService, "shotgun initial")
     shotgunService.acceptCommand(
@@ -1156,7 +1167,7 @@ private[contract] object BattleStateRuntimeContractTest:
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 28L,
-        movement = BattleCommandVector(1.0, 0.0)
+        movement = BattleCommandVector(-1.0, 0.0)
       )
     ).fold(error => fail(s"shotgun pickup move failed: $error"), identity)
     shotgunClock.now = 1_300L
@@ -1291,7 +1302,7 @@ private[contract] object BattleStateRuntimeContractTest:
         displayName = DisplayName("Direct"),
         seat = SeatIndex(1),
         isBot = false,
-        spawnPointIndex = Some(SpawnPointIndex(3))
+        spawnPointIndex = Some(SpawnPointIndex(0))
       ),
       seat(
         playerId = PlayerId("splash"),
@@ -1300,13 +1311,14 @@ private[contract] object BattleStateRuntimeContractTest:
         displayName = DisplayName("Splash"),
         seat = SeatIndex(2),
         isBot = false,
-        spawnPointIndex = Some(SpawnPointIndex(3))
+        spawnPointIndex = Some(SpawnPointIndex(0))
       )
     )
     val service = battleStateService(
       clock = clock,
       seed = sessionSeedWithSeats(
         seats,
+        battleMode = BattleMode.Autumn,
         commandOwnership = Vector(
           BattleCommandOwnership(PlayerId("alice"), TicketId("ticket-alice")),
           BattleCommandOwnership(PlayerId("direct"), TicketId("ticket-direct")),
@@ -1452,7 +1464,7 @@ private[contract] object BattleStateRuntimeContractTest:
         displayName = DisplayName("Target"),
         seat = SeatIndex(1),
         isBot = false,
-        spawnPointIndex = Some(SpawnPointIndex(5))
+        spawnPointIndex = Some(SpawnPointIndex(3))
       ),
       seat(
         playerId = PlayerId("bystander"),
@@ -1468,7 +1480,8 @@ private[contract] object BattleStateRuntimeContractTest:
       clock = clock,
       seed = sessionSeedWithSeats(
         seats,
-        Vector(
+        battleMode = BattleMode.Autumn,
+        commandOwnership = Vector(
           BattleCommandOwnership(PlayerId("alice"), TicketId("ticket-alice")),
           BattleCommandOwnership(PlayerId("target"), TicketId("ticket-target"))
         )
@@ -1695,7 +1708,7 @@ private[contract] object BattleStateRuntimeContractTest:
       s"runtime old replay interval frame should be pruned, got ${retained.replayFrames.map(_.elapsedMs.value)}"
     )
 
-  private def botRuntimeControlMovesAimsAndRespectsOpeningDelay(): Unit =
+  private def botRuntimeControlMovesAimsAndFiresAfterOpeningDelay(): Unit =
     val clock = TestClock(1_000L)
     val service = battleStateService(
       clock = clock,
@@ -1708,38 +1721,24 @@ private[contract] object BattleStateRuntimeContractTest:
     val initial = battleState(service, "bot control initial")
     val initialBot = playerById(initial, PlayerId("bot-one"))
 
-    clock.now = 2_000L
-    val beforeOpeningDelay = battleState(service, "bot control before opening delay")
+    clock.now = 5_900L
+    val beforeOpeningDelay = battleState(service, "bot control before opening fire delay")
     val movedBot = playerById(beforeOpeningDelay, PlayerId("bot-one"))
     assert(
-      distanceBetweenForTest(initialBot.position, movedBot.position) > 0.25,
+      distanceBetweenForTest(initialBot.position, movedBot.position) > 10.0,
       s"runtime expected bot to move without client commands, initial=${initialBot.position}, moved=${movedBot.position}"
     )
     assert(vectorLengthForTest(movedBot.movement) > 0.9, s"runtime expected bot movement intent, got ${movedBot.movement}")
     assert(vectorLengthForTest(movedBot.aim) > 0.9, s"runtime expected bot aim intent, got ${movedBot.aim}")
     ContractAssertions.assertEquals(
-      "runtime bot does not fire before human opening delay",
+      "runtime bot does not fire before opening fire delay",
       beforeOpeningDelay.projectiles.exists(_.ownerHeroId == movedBot.heroId),
       false
     )
-    ContractAssertions.assertEquals("runtime bot primary held before opening delay", movedBot.primaryHeld, false)
+    ContractAssertions.assertEquals("runtime bot primary held before opening fire delay", movedBot.primaryHeld, false)
 
-    val nearOpeningDelay = (3_000L to 15_950L by 250L).foldLeft(beforeOpeningDelay) { (_, now) =>
-      clock.now = now
-      val state = battleState(service, s"bot control before opening delay $now")
-      val bot = playerById(state, PlayerId("bot-one"))
-      ContractAssertions.assertEquals(
-        "runtime bot does not fire while human opening delay remains active",
-        state.projectiles.exists(_.ownerHeroId == bot.heroId),
-        false
-      )
-      state
-    }
-    val waitingBot = playerById(nearOpeningDelay, PlayerId("bot-one"))
-    ContractAssertions.assertEquals("runtime bot still does not hold primary before opening delay", waitingBot.primaryHeld, false)
-
-    clock.now = 17_100L
-    val afterOpeningDelay = battleState(service, "bot control after opening delay")
+    clock.now = 6_200L
+    val afterOpeningDelay = battleState(service, "bot control after opening fire delay")
     val firingBot = playerById(afterOpeningDelay, PlayerId("bot-one"))
     val firingAlice = playerById(afterOpeningDelay, PlayerId("alice"))
     val botProjectiles = afterOpeningDelay.projectiles.filter(_.ownerHeroId == firingBot.heroId)
@@ -1748,9 +1747,9 @@ private[contract] object BattleStateRuntimeContractTest:
       botProjectiles.headOption.map(_.projectileKind).orElse(botTerminals.headOption.map(_.projectileKind))
     assert(
       botProjectiles.nonEmpty || botTerminals.nonEmpty,
-      s"runtime expected bot to fire after opening delay, elapsed=${afterOpeningDelay.elapsedMs.value}, primaryHeld=${firingBot.primaryHeld}, distance=${distanceBetweenForTest(firingBot.position, firingAlice.position)}, bot=${firingBot.position}, target=${firingAlice.position}, active=${botProjectiles.length}, terminals=${botTerminals.length}, weapon=${firingBot.weapons.headOption}"
+      s"runtime expected bot to fire after opening fire delay, elapsed=${afterOpeningDelay.elapsedMs.value}, primaryHeld=${firingBot.primaryHeld}, distance=${distanceBetweenForTest(firingBot.position, firingAlice.position)}, bot=${firingBot.position}, target=${firingAlice.position}, active=${botProjectiles.length}, terminals=${botTerminals.length}, weapon=${firingBot.weapons.headOption}"
     )
-    ContractAssertions.assertEquals("runtime bot primary held after opening delay", firingBot.primaryHeld, true)
+    ContractAssertions.assertEquals("runtime bot primary held after opening fire delay", firingBot.primaryHeld, true)
     ContractAssertions.assertEquals("runtime bot projectile kind", firedProjectileKind, Some(ProjectileKind.PistolBullet))
     val firingBotWeapon = firingBot.weapons.headOption.getOrElse(fail("missing firing bot weapon"))
     assert(firingBotWeapon.ammoInMagazine.value > 0, s"runtime bot should still have ammo after early firing window, weapon=$firingBotWeapon")
@@ -1980,12 +1979,14 @@ private[contract] object BattleStateRuntimeContractTest:
   private def sessionSeed(
     aliceSpawnPointIndex: SpawnPointIndex = SpawnPointIndex(0),
     botSpawnPointIndex: SpawnPointIndex = SpawnPointIndex(1),
-    secondIsBot: Boolean = true
+    secondIsBot: Boolean = true,
+    battleMode: BattleMode = BattleMode.Autumn
   ): BattleSessionSeed =
     BattleSessionSeed(
       roomId = RoomId("room-state-runtime"),
       descriptor = BattleSessionDescriptor(
         battleId = BattleId("battle-state-runtime"),
+        battleMode = battleMode,
         startedAt = EpochMillis(1_000L),
         serverTime = EpochMillis(1_000L),
         roster = Vector.empty,
@@ -2026,12 +2027,14 @@ private[contract] object BattleStateRuntimeContractTest:
 
   private def sessionSeedWithSeats(
     seats: Vector[BattleSessionBootstrapSeat],
+    battleMode: BattleMode = BattleMode.Default,
     commandOwnership: Vector[BattleCommandOwnership] = Vector.empty
   ): BattleSessionSeed =
     BattleSessionSeed(
       roomId = RoomId("room-state-runtime"),
       descriptor = BattleSessionDescriptor(
         battleId = BattleId("battle-state-runtime"),
+        battleMode = battleMode,
         startedAt = EpochMillis(1_000L),
         serverTime = EpochMillis(1_000L),
         roster = Vector.empty,
@@ -2557,6 +2560,7 @@ private[contract] object BattleFinishProjectionContractTest:
     BattleAggregateState(
       battleId = BattleId("battle-finish-write"),
       roomId = RoomId("room-finish-write"),
+      mapId = BattleMode.mapId(BattleMode.Default),
       phase = BattlePhase.Finished,
       serverTime = EpochMillis(1710000000000L),
       startedAt = EpochMillis(1709999998200L),

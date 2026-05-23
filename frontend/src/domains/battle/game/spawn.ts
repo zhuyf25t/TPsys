@@ -9,6 +9,12 @@ import {
   SKIN_VISUALS,
   WEAPON_PICKUP_DEFINITIONS,
   WEAPON_PICKUP_SPAWN_POINTS,
+  getHeroDefinitions,
+  getHeroSpawnPoints,
+  getItemPickupDefinitions,
+  getItemPickupSpawnPoints,
+  getWeaponPickupDefinitions,
+  getWeaponPickupSpawnPoints,
   type HeroVisualDefinition
 } from "./assets/battleContentCatalog";
 import { HERO_MAX_HP, HERO_MAX_STAMINA, HERO_RADIUS, TEAM_MODE, WEAPON_PICKUP_RESPAWN_MS } from "./constants";
@@ -103,7 +109,7 @@ function resolveInitialHeroDefinitions(
       heroId: config.heroId.trim()
     }))
     .filter((config) => config.heroId.length > 0)
-    .slice(0, HERO_DEFINITIONS.length);
+    .slice(0, getHeroDefinitions().length);
 
   if (providedHeroes.length > 0) {
     return providedHeroes.map((config, index) => {
@@ -120,7 +126,7 @@ function resolveInitialHeroDefinitions(
     });
   }
 
-  return HERO_DEFINITIONS.map((definition) => ({
+  return getHeroDefinitions().map((definition) => ({
     heroId: definition.heroId,
     displayName: definition.heroId === "player-1" ? playerHandle : definition.displayName,
     position: { x: definition.position.x, y: definition.position.y },
@@ -135,11 +141,12 @@ function buildHeroVisualOverrides(
 }
 
 function resolveSpawnDefinition(spawnPointIndex: number | undefined, fallbackIndex: number): (typeof HERO_DEFINITIONS)[number] {
+  const heroDefinitions = getHeroDefinitions();
   const index =
     typeof spawnPointIndex === "number" && Number.isFinite(spawnPointIndex)
       ? Math.max(0, Math.trunc(spawnPointIndex))
       : fallbackIndex;
-  return HERO_DEFINITIONS[index] ?? HERO_DEFINITIONS[fallbackIndex] ?? HERO_DEFINITIONS[0];
+  return heroDefinitions[index] ?? heroDefinitions[fallbackIndex] ?? heroDefinitions[0] ?? HERO_DEFINITIONS[0];
 }
 
 function resolveDefinitionVisual(heroId: string): HeroVisualDefinition {
@@ -161,7 +168,7 @@ function resolveSkinVisual(skin: string | undefined): HeroVisualDefinition | nul
 
 /** 中文名：创建initial武器pickups（createInitialWeaponPickups）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createInitialWeaponPickups(): WeaponPickup[] {
-  return WEAPON_PICKUP_DEFINITIONS.map((definition) => ({
+  return getWeaponPickupDefinitions().map((definition) => ({
     weaponId: definition.pickupId,
     weaponKind: definition.weaponKind,
     position: { x: definition.position.x, y: definition.position.y },
@@ -172,7 +179,7 @@ export function createInitialWeaponPickups(): WeaponPickup[] {
 
 /** 中文名：创建initialitempickups（createInitialItemPickups）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createInitialItemPickups(): ItemPickup[] {
-  return ITEM_PICKUP_DEFINITIONS.map((definition) => ({
+  return getItemPickupDefinitions().map((definition) => ({
     pickupId: definition.pickupId,
     kind: definition.kind,
     position: { x: definition.position.x, y: definition.position.y },
@@ -183,8 +190,9 @@ export function createInitialItemPickups(): ItemPickup[] {
 
 /** 中文名：选择randomspawnpoint（chooseRandomSpawnPoint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function chooseRandomSpawnPoint(randomValue: number): Vec2 {
-  const index = Math.floor(randomValue * HERO_SPAWN_POINTS.length) % HERO_SPAWN_POINTS.length;
-  const point = HERO_SPAWN_POINTS[index];
+  const spawnPoints = getHeroSpawnPoints();
+  const index = Math.floor(randomValue * spawnPoints.length) % spawnPoints.length;
+  const point = spawnPoints[index] ?? HERO_SPAWN_POINTS[0];
 
   return {
     x: point.x,
@@ -194,8 +202,10 @@ export function chooseRandomSpawnPoint(randomValue: number): Vec2 {
 
 /** 中文名：选择random拾取物spawnpoint（chooseRandomPickupSpawnPoint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function chooseRandomPickupSpawnPoint(randomValue: number): Vec2 {
-  const index = Math.floor(randomValue * WEAPON_PICKUP_SPAWN_POINTS.length) % WEAPON_PICKUP_SPAWN_POINTS.length;
-  const point = WEAPON_PICKUP_SPAWN_POINTS[index]?.position ?? WEAPON_PICKUP_DEFINITIONS[0].position;
+  const spawnPoints = getWeaponPickupSpawnPoints();
+  const definitions = getWeaponPickupDefinitions();
+  const index = Math.floor(randomValue * spawnPoints.length) % spawnPoints.length;
+  const point = spawnPoints[index]?.position ?? definitions[0]?.position ?? WEAPON_PICKUP_DEFINITIONS[0].position;
 
   return {
     x: point.x,
@@ -205,8 +215,10 @@ export function chooseRandomPickupSpawnPoint(randomValue: number): Vec2 {
 
 /** 中文名：选择randomitem拾取物spawnpoint（chooseRandomItemPickupSpawnPoint）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function chooseRandomItemPickupSpawnPoint(randomValue: number): Vec2 {
-  const index = Math.floor(randomValue * ITEM_PICKUP_SPAWN_POINTS.length) % ITEM_PICKUP_SPAWN_POINTS.length;
-  const point = ITEM_PICKUP_SPAWN_POINTS[index]?.position ?? ITEM_PICKUP_DEFINITIONS[0].position;
+  const spawnPoints = getItemPickupSpawnPoints();
+  const definitions = getItemPickupDefinitions();
+  const index = Math.floor(randomValue * spawnPoints.length) % spawnPoints.length;
+  const point = spawnPoints[index]?.position ?? definitions[0]?.position ?? ITEM_PICKUP_DEFINITIONS[0].position;
 
   return {
     x: point.x,

@@ -1069,6 +1069,47 @@
   color: rgba(255, 239, 211, 0.78);
 }
 
+.arena-shell__overlay--matching .match-board__mode-picker {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.arena-shell__overlay--matching .match-board__mode-option {
+  display: grid;
+  gap: 4px;
+  min-height: 68px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 199, 104, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 242, 216, 0.78);
+  background: rgba(0, 0, 0, 0.2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.arena-shell__overlay--matching .match-board__mode-option strong {
+  color: #fff4d6;
+  font-size: 0.95rem;
+}
+
+.arena-shell__overlay--matching .match-board__mode-option span {
+  color: rgba(214, 246, 255, 0.66);
+  font-size: 0.78rem;
+}
+
+.arena-shell__overlay--matching .match-board__mode-option--active {
+  border-color: rgba(98, 230, 255, 0.55);
+  background: linear-gradient(135deg, rgba(98, 230, 255, 0.16), rgba(255, 199, 104, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(98, 230, 255, 0.16);
+}
+
+.arena-shell__overlay--matching .match-board__mode-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .arena-shell__overlay--matching .match-board__summary-card {
   grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;

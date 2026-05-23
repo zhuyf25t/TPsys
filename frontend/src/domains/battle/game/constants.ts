@@ -1,12 +1,30 @@
 import type { TeamMode, Vec2, WeaponKind } from "../objects/types";
-import { DEFAULT_BATTLE_MAP, type ArenaObstacle } from "./maps/battleMapCatalog";
+import { DEFAULT_BATTLE_MAP, getActiveBattleMap, type ArenaObstacle } from "./maps/battleMapCatalog";
 
+export {
+  BATTLE_PLAY_MODE_OPTIONS,
+  DEFAULT_BATTLE_MAP,
+  DEFAULT_BATTLE_MODE_ID,
+  getActiveBattleMap,
+  inferBattleModeIdFromMapId,
+  resolveBattleMap,
+  resolveBattlePlayMode,
+  resolveMapIdForBattleMode,
+  setActiveBattleMap
+} from "./maps/battleMapCatalog";
 export type { ArenaObstacle } from "./maps/battleMapCatalog";
 
 export const GAME_WIDTH = 1280;
 export const GAME_HEIGHT = 720;
 
-export const WORLD_SIZE: Vec2 = DEFAULT_BATTLE_MAP.worldSize;
+export const WORLD_SIZE: Vec2 = {
+  get x() {
+    return getActiveBattleMap().worldSize.x;
+  },
+  get y() {
+    return getActiveBattleMap().worldSize.y;
+  }
+};
 export const GLOBAL_BACKGROUND_PADDING = 600;
 
 export const TEAM_MODE: TeamMode = "FreeForAll";
@@ -48,6 +66,10 @@ export const PISTOL_PICKUP_TEXTURE_KEY = "pickup-pistol";
 export const GATLING_PICKUP_TEXTURE_KEY = "pickup-gatling";
 export const SHOTGUN_PICKUP_TEXTURE_KEY = "pickup-shotgun";
 export const ROCKET_PICKUP_TEXTURE_KEY = "pickup-rocket";
+export const PISTOL_WORLD_TEXTURE_KEY = "weapon-world-pistol";
+export const GATLING_WORLD_TEXTURE_KEY = "weapon-world-gatling";
+export const SHOTGUN_WORLD_TEXTURE_KEY = "weapon-world-shotgun";
+export const ROCKET_WORLD_TEXTURE_KEY = "weapon-world-rocket";
 export const PLAYER_TEXTURE_KEY = "hero-player";
 export const SURVIVOR_TEXTURE_KEY = "hero-survivor";
 export const SOLDIER_TEXTURE_KEY = "hero-soldier";
@@ -74,19 +96,65 @@ export const ASSET_PATHS = {
   crate: "/assets/battle/arena/sealed_crate.svg",
   bullet: "/assets/battle/projectiles/energy_bullet.svg",
   rocket: "/assets/battle/projectiles/rocket_shell.svg",
-  pickupPistol: "/assets/battle/pickups/pistol_icon.svg",
-  pickupGatling: "/assets/battle/pickups/gatling_icon.svg",
-  pickupShotgun: "/assets/battle/pickups/shotgun_icon.svg",
-  pickupRocket: "/assets/battle/pickups/rocket_icon.svg",
-  player: "/assets/kenney-top-down-shooter/PNG/Man Blue/manBlue_gun.png",
-  survivor: "/assets/kenney-top-down-shooter/PNG/Survivor 1/survivor1_gun.png",
-  soldier: "/assets/kenney-top-down-shooter/PNG/Soldier 1/soldier1_gun.png",
-  brown: "/assets/kenney-top-down-shooter/PNG/Man Brown/manBrown_gun.png",
-  old: "/assets/kenney-top-down-shooter/PNG/Man Old/manOld_gun.png",
-  woman: "/assets/kenney-top-down-shooter/PNG/Woman Green/womanGreen_gun.png",
-  hitman: "/assets/kenney-top-down-shooter/PNG/Hitman 1/hitman1_gun.png",
-  robot: "/assets/kenney-top-down-shooter/PNG/Robot 1/robot1_gun.png",
-  zombie: "/assets/kenney-top-down-shooter/PNG/Zombie 1/zoimbie1_gun.png"
+  pickupPistol: "/assets/battle/weapons/deagle.svg",
+  pickupGatling: "/assets/battle/weapons/acr.svg",
+  pickupShotgun: "/assets/battle/weapons/badlander.svg",
+  pickupRocket: "/assets/battle/weapons/m202.svg",
+  weaponPistolWorld: "/assets/battle/weapons/deagle_world.svg",
+  weaponGatlingWorld: "/assets/battle/weapons/acr_world.svg",
+  weaponShotgunWorld: "/assets/battle/weapons/badlander_world.svg",
+  weaponRocketWorld: "/assets/battle/weapons/m202_world.svg",
+  player: "/assets/kenney-top-down-shooter/PNG/Man Blue/manBlue_hold.png",
+  survivor: "/assets/kenney-top-down-shooter/PNG/Survivor 1/survivor1_hold.png",
+  soldier: "/assets/kenney-top-down-shooter/PNG/Soldier 1/soldier1_hold.png",
+  brown: "/assets/kenney-top-down-shooter/PNG/Man Brown/manBrown_hold.png",
+  old: "/assets/kenney-top-down-shooter/PNG/Man Old/manOld_hold.png",
+  woman: "/assets/kenney-top-down-shooter/PNG/Woman Green/womanGreen_hold.png",
+  hitman: "/assets/kenney-top-down-shooter/PNG/Hitman 1/hitman1_hold.png",
+  robot: "/assets/kenney-top-down-shooter/PNG/Robot 1/robot1_hold.png",
+  zombie: "/assets/kenney-top-down-shooter/PNG/Zombie 1/zoimbie1_hold.png"
+} as const;
+
+export const FALL_ASSET_PATHS = {
+  "fall-big-oak-trunk-1": "/assets/battle/fall/obstacles/big_oak_tree_trunk_1.svg",
+  "fall-big-oak-trunk-2": "/assets/battle/fall/obstacles/big_oak_tree_trunk_2.svg",
+  "fall-big-oak-trunk-3": "/assets/battle/fall/obstacles/big_oak_tree_trunk_3.svg",
+  "fall-big-oak-trunk-4": "/assets/battle/fall/obstacles/big_oak_tree_trunk_4.svg",
+  "fall-big-oak-trunk-5": "/assets/battle/fall/obstacles/big_oak_tree_trunk_5.svg",
+  "fall-big-oak-trunk-6": "/assets/battle/fall/obstacles/big_oak_tree_trunk_6.svg",
+  "fall-big-oak-leaves-1": "/assets/battle/fall/obstacles/big_oak_tree_leaves_1.svg",
+  "fall-big-oak-leaves-2": "/assets/battle/fall/obstacles/big_oak_tree_leaves_2.svg",
+  "fall-big-oak-leaves-3": "/assets/battle/fall/obstacles/big_oak_tree_leaves_3.svg",
+  "fall-big-oak-leaves-4": "/assets/battle/fall/obstacles/big_oak_tree_leaves_4.svg",
+  "fall-big-oak-leaves-5": "/assets/battle/fall/obstacles/big_oak_tree_leaves_5.svg",
+  "fall-big-oak-leaves-6": "/assets/battle/fall/obstacles/big_oak_tree_leaves_6.svg",
+  "fall-maple-trunk": "/assets/battle/fall/obstacles/maple_tree_trunk.svg",
+  "fall-maple-leaves-1": "/assets/battle/fall/obstacles/maple_tree_leaves_1.svg",
+  "fall-maple-leaves-2": "/assets/battle/fall/obstacles/maple_tree_leaves_2.svg",
+  "fall-maple-leaves-3": "/assets/battle/fall/obstacles/maple_tree_leaves_3.svg",
+  "fall-birch-leaves-1": "/assets/battle/fall/obstacles/birch_tree_leaves_1.svg",
+  "fall-birch-leaves-2": "/assets/battle/fall/obstacles/birch_tree_leaves_2.svg",
+  "fall-oak-leaves-1": "/assets/battle/fall/obstacles/oak_tree_leaves_1.svg",
+  "fall-oak-leaves-2": "/assets/battle/fall/obstacles/oak_tree_leaves_2.svg",
+  "fall-clearing-boulder-1": "/assets/battle/fall/obstacles/clearing_boulder_1.svg",
+  "fall-clearing-boulder-2": "/assets/battle/fall/obstacles/clearing_boulder_2.svg",
+  "fall-vibrant-bush-1": "/assets/battle/fall/obstacles/vibrant_bush_1.svg",
+  "fall-vibrant-bush-2": "/assets/battle/fall/obstacles/vibrant_bush_2.svg",
+  "fall-vibrant-bush-3": "/assets/battle/fall/obstacles/vibrant_bush_3.svg",
+  "fall-hay-bale": "/assets/battle/fall/obstacles/hay_bale.svg",
+  "fall-large-logs-pile": "/assets/battle/fall/obstacles/large_logs_pile.svg",
+  "fall-oak-leaf-pile": "/assets/battle/fall/obstacles/oak_leaf_pile.svg",
+  "fall-stump": "/assets/battle/fall/obstacles/stump.svg",
+  "fall-barn-floor": "/assets/battle/fall/buildings/barn_floor_1.svg",
+  "fall-barn-roof": "/assets/battle/fall/buildings/barn_ceiling.svg",
+  "fall-tent-floor": "/assets/battle/fall/buildings/tent_floor.svg",
+  "fall-tent-roof": "/assets/battle/fall/buildings/tent_ceiling.svg",
+  "fall-big-tent-floor": "/assets/battle/fall/buildings/tent_floor_big.svg",
+  "fall-big-tent-roof": "/assets/battle/fall/buildings/tent_ceiling_big.svg",
+  "fall-patch-floor": "/assets/battle/fall/buildings/fall_patch_floor.svg",
+  "fall-hay-shed-roof-1": "/assets/battle/fall/buildings/hay_shed_ceiling_1.svg",
+  "fall-hay-shed-roof-2": "/assets/battle/fall/buildings/hay_shed_ceiling_2.svg",
+  "fall-door": "/assets/battle/fall/shared/door.svg"
 } as const;
 
 export const HERO_TEXTURE_KEYS = {
@@ -122,4 +190,11 @@ export const WEAPON_PICKUP_ICON_KEYS: Record<WeaponKind, string> = {
   RocketLauncher: ROCKET_PICKUP_TEXTURE_KEY,
   Gatling: GATLING_PICKUP_TEXTURE_KEY,
   Shotgun: SHOTGUN_PICKUP_TEXTURE_KEY
+};
+
+export const WEAPON_WORLD_TEXTURE_KEYS: Record<WeaponKind, string> = {
+  Pistol: PISTOL_WORLD_TEXTURE_KEY,
+  RocketLauncher: ROCKET_WORLD_TEXTURE_KEY,
+  Gatling: GATLING_WORLD_TEXTURE_KEY,
+  Shotgun: SHOTGUN_WORLD_TEXTURE_KEY
 };

@@ -6,21 +6,33 @@ import {
   MATCHMAKING_SLOT_COUNT,
   type MatchmakingQueueState
 } from "../../../runtime/matchmaking/matchmakingQueueTypes";
+import type { BattlePlayModeId, BattlePlayModeOption } from "../../../game/maps/battleMapCatalog";
 
 interface MatchingOverlayProps {
   countdownMs: number;
   loadout: ReturnType<typeof getLoadoutSummary>;
   queueState: MatchmakingQueueState | null;
+  selectedBattleModeId: BattlePlayModeId;
+  battleModeOptions: readonly BattlePlayModeOption[];
+  onBattleModeChange: (modeId: BattlePlayModeId) => void;
 }
 
-/** 中文名：matchingoverlay（MatchingOverlay）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
-export function MatchingOverlay({ countdownMs, loadout, queueState }: MatchingOverlayProps) {
+/** 中文名：匹配等待层（MatchingOverlay）。游戏职责：展示等待房间、玩家席位和战斗玩法选择。 */
+export function MatchingOverlay({
+  countdownMs,
+  loadout,
+  queueState,
+  selectedBattleModeId,
+  battleModeOptions,
+  onBattleModeChange
+}: MatchingOverlayProps) {
   const roomParticipants = queueState?.participants ?? [];
   const slots = buildMatchmakingSlots(loadout.handle, queueState);
   const roomIdLabel = queueState ? shortenRoomId(queueState.roomId) : "等待服务器分配房间";
   const queueLabel = formatQueueLabel(queueState);
   const phaseLabel = formatPhaseLabel(queueState);
-  const countdownLabel = queueState ? formatMatchmakingTime(countdownMs) : "—";
+  const countdownLabel = queueState ? formatMatchmakingTime(countdownMs) : "-";
+  const modeSelectionDisabled = queueState?.phase === "active";
 
   return (
     <div className="arena-shell__overlay arena-shell__overlay--matching">
@@ -56,6 +68,25 @@ export function MatchingOverlay({ countdownMs, loadout, queueState }: MatchingOv
                 ? "10 秒后开战，房间会用电脑玩家自动补齐至 6 人。"
                 : "正在向服务器申请房间并同步 6 人对局状态，请稍候。"}
             </p>
+          </div>
+
+          <div className="match-board__mode-picker" aria-label="玩法选择">
+            {battleModeOptions.map((option) => {
+              const active = option.modeId === selectedBattleModeId;
+              return (
+                <button
+                  key={option.modeId}
+                  type="button"
+                  className={`match-board__mode-option${active ? " match-board__mode-option--active" : ""}`}
+                  aria-pressed={active}
+                  disabled={modeSelectionDisabled}
+                  onClick={() => onBattleModeChange(option.modeId)}
+                >
+                  <strong>{option.label}</strong>
+                  <span>{option.mapLabel}</span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="match-board__summary-card">
@@ -181,5 +212,5 @@ function shortenRoomId(roomId: string): string {
     return normalized;
   }
 
-  return `${normalized.slice(0, 8)}…${normalized.slice(-6)}`;
+  return `${normalized.slice(0, 8)}-${normalized.slice(-6)}`;
 }

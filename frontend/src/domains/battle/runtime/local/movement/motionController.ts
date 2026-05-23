@@ -3,7 +3,12 @@ import type { Vec2 } from "../../../objects/types";
 export interface MotionObstacleBounds {
   position: Vec2;
   size: Vec2;
+  shape?: MotionObstacleShape;
 }
+
+export type MotionObstacleShape =
+  | { kind: "aabb"; size: Vec2 }
+  | { kind: "circle"; radius: number };
 
 export interface MotionDestinationInput {
   position: Vec2;
@@ -167,9 +172,14 @@ export function collidesWithObstacles(
 
 /** 中文名：intersectsobstacle（intersectsObstacle）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function intersectsObstacle(position: Vec2, radius: number, obstacle: MotionObstacleBounds): boolean {
+  if (obstacle.shape?.kind === "circle") {
+    return Math.hypot(position.x - obstacle.position.x, position.y - obstacle.position.y) < radius + obstacle.shape.radius;
+  }
+
+  const size = obstacle.shape?.kind === "aabb" ? obstacle.shape.size : obstacle.size;
   const dx = Math.abs(position.x - obstacle.position.x);
   const dy = Math.abs(position.y - obstacle.position.y);
-  return dx < radius + obstacle.size.x / 2 && dy < radius + obstacle.size.y / 2;
+  return dx < radius + size.x / 2 && dy < radius + size.y / 2;
 }
 
 /** 中文名：判断是否inside世界（isInsideWorld）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */

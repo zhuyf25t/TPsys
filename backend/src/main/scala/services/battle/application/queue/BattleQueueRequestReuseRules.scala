@@ -16,13 +16,16 @@ private[services] object BattleQueueRequestReuseRules {
     tickets: Map[TicketId, TicketRecord],
     rooms: Map[RoomId, QueueRoom],
     queueRequestId: QueueRequestId,
+    battleMode: BattleMode,
     now: EpochMillis
   ): BattleQueueRequestReuseResult =
     queueRequests.get(queueRequestId) match {
       case None =>
         BattleQueueRequestReuseResult(snapshot = None, queueRequests = queueRequests)
       case Some(ticketId) =>
-        val snapshot = BattleQueueTicketSnapshots.snapshotForWaitingTicket(tickets, rooms, ticketId, now)
+        val snapshot = BattleQueueTicketSnapshots
+          .snapshotForWaitingTicket(tickets, rooms, ticketId, now)
+          .filter(_.battleMode == battleMode)
         val nextQueueRequests =
           if snapshot.isEmpty then queueRequests.removed(queueRequestId)
           else queueRequests

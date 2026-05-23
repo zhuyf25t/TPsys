@@ -65,6 +65,9 @@ export function BattlePage() {
             countdownMs={runtime.matchCountdownMs}
             loadout={runtime.loadout}
             queueState={runtime.queueState}
+            selectedBattleModeId={runtime.selectedBattleModeId}
+            battleModeOptions={runtime.battleModeOptions}
+            onBattleModeChange={runtime.selectBattleMode}
           />
         ) : null
       }

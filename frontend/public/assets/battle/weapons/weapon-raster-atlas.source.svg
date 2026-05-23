@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="192" viewBox="0 0 512 192">
+  <image href="deagle.svg" x="0" y="0" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+  <image href="acr.svg" x="128" y="0" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+  <image href="badlander.svg" x="256" y="0" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+  <image href="m202.svg" x="384" y="0" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+  <image href="deagle_world.svg" x="0" y="96" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+  <image href="acr_world.svg" x="128" y="96" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+  <image href="badlander_world.svg" x="256" y="96" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+  <image href="m202_world.svg" x="384" y="96" width="128" height="96" preserveAspectRatio="xMidYMid meet" />
+</svg>

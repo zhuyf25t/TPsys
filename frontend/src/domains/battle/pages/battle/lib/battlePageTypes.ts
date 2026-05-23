@@ -17,6 +17,7 @@ export interface ActiveBattleSession {
   owner: ActiveBattleSessionOwner;
   sessionEpoch?: string;
   battleId: string;
+  mapId?: string;
   sharedAuthoritativeRuntime?: boolean;
   localAuthoritativePlayerId?: string;
   localAuthoritativeTicketId?: string;

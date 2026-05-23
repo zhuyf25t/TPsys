@@ -28,6 +28,7 @@ const QUEUE_REQUEST_TIMEOUT_MS = 1_250;
 export async function joinMatchmakingQueue(input: {
   handle: string;
   sessionToken: string | null;
+  modeId: string;
   queueRequestId?: string;
   rating?: number;
   skin?: string;
@@ -35,6 +36,7 @@ export async function joinMatchmakingQueue(input: {
   const normalizedHandle = input.handle.trim();
   const normalizedSessionToken = input.sessionToken?.trim() ?? "";
   const normalizedQueueRequestId = input.queueRequestId?.trim() ?? "";
+  const normalizedModeId = input.modeId.trim() || "default";
   if (!normalizedHandle || !normalizedSessionToken || isBattleVisitorHandle(normalizedHandle)) {
     return null;
   }
@@ -42,6 +44,7 @@ export async function joinMatchmakingQueue(input: {
   const request: BattleQueueJoinAPIMessageRequest = {
     handle: normalizedHandle,
     sessionToken: normalizedSessionToken,
+    modeId: normalizedModeId,
     ...(normalizedQueueRequestId ? { queueRequestId: normalizedQueueRequestId } : {}),
     ...(typeof input.rating === "number" && Number.isFinite(input.rating)
       ? { rating: String(Math.trunc(input.rating)) }
@@ -109,6 +112,10 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
   const capacity = readNumber(value.capacity);
   const durationMs = readNumber(value.durationMs);
   const serverTime = readNumber(value.serverTime);
+  const modeId = readString(value.modeId) ?? "default";
+  const modeLabel = readString(value.modeLabel) ?? "默认模式";
+  const mapId = readString(value.mapId) ?? "default-industrial-arena";
+  const mapLabel = readString(value.mapLabel) ?? "默认地图";
 
   if (
     !ticketId ||
@@ -136,6 +143,10 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
     playerId,
     roomId,
     matchId: battleSession?.battleId ?? roomId,
+    modeId: battleSession?.modeId ?? modeId,
+    modeLabel: battleSession?.modeLabel ?? modeLabel,
+    mapId: battleSession?.mapId ?? mapId,
+    mapLabel: battleSession?.mapLabel ?? mapLabel,
     createdAt,
     startsAt,
     deadline,
@@ -160,12 +171,20 @@ function mergeRealtimeRoomSnapshot(
   const participants = snapshot.participants.map(toQueueParticipant);
   const battleSession = toMatchmakingBattleSessionDescriptor(snapshot.battleSession) ?? currentState.battleSession ?? null;
   const queuedHandles = resolveQueuedHandles(participants, battleSession);
+  const modeId = battleSession?.modeId ?? snapshot.modeId ?? currentState.modeId;
+  const modeLabel = battleSession?.modeLabel ?? snapshot.modeLabel ?? currentState.modeLabel;
+  const mapId = battleSession?.mapId ?? snapshot.mapId ?? currentState.mapId;
+  const mapLabel = battleSession?.mapLabel ?? snapshot.mapLabel ?? currentState.mapLabel;
 
   return {
     ...currentState,
     roomId: snapshot.roomId,
     playerId: currentState.playerId,
     matchId: battleSession?.battleId ?? currentState.matchId,
+    modeId,
+    modeLabel,
+    mapId,
+    mapLabel,
     serverTime: snapshot.serverTime,
     syncedAt,
     participants,
@@ -236,6 +255,10 @@ interface RemoteMatchmakingQueueStateDto {
   capacity?: unknown;
   durationMs?: unknown;
   phase?: unknown;
+  modeId?: unknown;
+  modeLabel?: unknown;
+  mapId?: unknown;
+  mapLabel?: unknown;
   finishedAt?: unknown;
   battleSession?: unknown;
 }
@@ -247,6 +270,10 @@ function normalizeBattleSessionDescriptor(payload: unknown): MatchmakingBattleSe
 
   const value = payload as Partial<MatchmakingBattleSessionDescriptor> & Record<string, unknown>;
   const battleId = readString(value.battleId);
+  const modeId = readString(value.modeId);
+  const modeLabel = readString(value.modeLabel);
+  const mapId = readString(value.mapId);
+  const mapLabel = readString(value.mapLabel);
   const startedAt = readNumber(value.startedAt);
   const serverTime = readNumber(value.serverTime);
   const capacity = readNumber(value.capacity);
@@ -262,6 +289,10 @@ function normalizeBattleSessionDescriptor(payload: unknown): MatchmakingBattleSe
 
   return {
     battleId,
+    ...(modeId ? { modeId } : {}),
+    ...(modeLabel ? { modeLabel } : {}),
+    ...(mapId ? { mapId } : {}),
+    ...(mapLabel ? { mapLabel } : {}),
     startedAt,
     serverTime,
     roster,
@@ -371,6 +402,10 @@ function toMatchmakingBattleSessionDescriptor(
 
   return {
     battleId: battleSession.battleId,
+    ...(battleSession.modeId ? { modeId: battleSession.modeId } : {}),
+    ...(battleSession.modeLabel ? { modeLabel: battleSession.modeLabel } : {}),
+    ...(battleSession.mapId ? { mapId: battleSession.mapId } : {}),
+    ...(battleSession.mapLabel ? { mapLabel: battleSession.mapLabel } : {}),
     startedAt: battleSession.startedAt,
     serverTime: battleSession.serverTime,
     roster: battleSession.roster

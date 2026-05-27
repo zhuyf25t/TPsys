@@ -1,16 +1,7 @@
 package services.battle.objects.weapon
 
-import services.battle.objects.*
-import services.battle.objects.core.*
-import services.battle.objects.event.*
-import services.battle.objects.pickup.*
-import services.battle.objects.player.*
-import services.battle.objects.projectile.*
-import services.battle.objects.queue.*
-import services.battle.objects.replay.*
-import services.battle.objects.result.*
-import services.battle.objects.skill.*
-import services.battle.objects.weapon.*
+import services.battle.objects.WeaponKind
+import services.battle.objects.core.{AmmoCount, BattleWeaponHeat, CooldownMillis}
 
 final case class BattleWeaponState(
   weaponKind: WeaponKind,
@@ -19,7 +10,7 @@ final case class BattleWeaponState(
   reserveAmmo: Option[AmmoCount],
   fireCooldownMs: CooldownMillis,
   reloadRemainingMs: CooldownMillis,
-  heat: Int,
+  heat: BattleWeaponHeat,
   thermalState: BattleWeaponThermalState
 ) {
   /**

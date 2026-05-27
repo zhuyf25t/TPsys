@@ -3,6 +3,7 @@ package services.battle
 package object objects {
   export _root_.services.battle.objects.core.AmmoCount
   export _root_.services.battle.objects.core.BattleAggregateState
+  export _root_.services.battle.objects.core.BattleAvatarKey
   export _root_.services.battle.objects.core.BattleCapacity
   export _root_.services.battle.objects.core.BattleEventId
   export _root_.services.battle.objects.core.BattleHighlightLine
@@ -14,9 +15,13 @@ package object objects {
   export _root_.services.battle.objects.core.BattlePlayersLine
   export _root_.services.battle.objects.core.BattleResultId
   export _root_.services.battle.objects.core.BattleResultLabel
+  export _root_.services.battle.objects.core.BattleResultListLimit
+  export _root_.services.battle.objects.core.BattleSkinKey
   export _root_.services.battle.objects.core.BattleTick
   export _root_.services.battle.objects.core.BattleTimelineHint
   export _root_.services.battle.objects.core.BattleVector2
+  export _root_.services.battle.objects.core.BattleWeaponHeat
+  export _root_.services.battle.objects.core.BattleWeaponHeatRatePerSecond
   export _root_.services.battle.objects.core.ClientCommandSeq
   export _root_.services.battle.objects.core.CooldownMillis
   export _root_.services.battle.objects.core.Damage
@@ -26,6 +31,7 @@ package object objects {
   export _root_.services.battle.objects.core.FacingRadians
   export _root_.services.battle.objects.core.HeroId
   export _root_.services.battle.objects.core.HitPoints
+  export _root_.services.battle.objects.core.KillCount
   export _root_.services.battle.objects.core.PickupId
   export _root_.services.battle.objects.core.PlayerId
   export _root_.services.battle.objects.core.ProjectileId
@@ -47,6 +53,7 @@ package object objects {
   export _root_.services.battle.objects.event.BattleEventParticipant
   export _root_.services.battle.objects.event.BattleEventState
   export _root_.services.battle.objects.pickup.BattlePickupAvailability
+  export _root_.services.battle.objects.pickup.BattlePickupDefinition
   export _root_.services.battle.objects.pickup.BattlePickupState
   export _root_.services.battle.objects.player.BattleParticipantKind
   export _root_.services.battle.objects.player.BattlePlayerLifeState
@@ -67,7 +74,12 @@ package object objects {
   export _root_.services.battle.objects.replay.BattleReplayHeroLifeState
   export _root_.services.battle.objects.replay.BattleReplayPickupFrameState
   export _root_.services.battle.objects.replay.BattleReplayProjectileFrameState
+  export _root_.services.battle.objects.result.BattleFinishProjectionOutcome
+  export _root_.services.battle.objects.result.BattleFinishProjector
+  export _root_.services.battle.objects.result.BattleFinishProjectionStatus
+  export _root_.services.battle.objects.result.BattleResultList
   export _root_.services.battle.objects.result.BattleResultRecord
+  export _root_.services.battle.objects.result.NoopBattleFinishProjector
   export _root_.services.battle.objects.skill.BattleCommandSkillIntents
   export _root_.services.battle.objects.skill.BattleSlowFieldState
   export _root_.services.battle.objects.weapon.BattleWeaponState

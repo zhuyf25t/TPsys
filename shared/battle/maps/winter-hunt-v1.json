@@ -1,0 +1,1397 @@
+{
+  "mapId": "winter-hunt-v1",
+  "displayName": "Winter Hunt",
+  "themeId": "winter",
+  "worldSize": {
+    "x": 2560,
+    "y": 1600
+  },
+  "sourceCrop": {
+    "sourceMapId": "suroi-winter",
+    "sourceSize": {
+      "x": 1924,
+      "y": 1924
+    },
+    "crop": {
+      "x": 102,
+      "y": 260,
+      "width": 1720,
+      "height": 1320
+    },
+    "scale": 1.2121212121,
+    "offset": {
+      "x": 238,
+      "y": 0
+    }
+  },
+  "heroDefinitions": [
+    {
+      "heroId": "player-1",
+      "displayName": "Player 1",
+      "position": {
+        "x": 640,
+        "y": 820
+      }
+    },
+    {
+      "heroId": "bot-1",
+      "displayName": "Bot 1",
+      "position": {
+        "x": 760,
+        "y": 260
+      }
+    },
+    {
+      "heroId": "bot-2",
+      "displayName": "Bot 2",
+      "position": {
+        "x": 1870,
+        "y": 360
+      }
+    },
+    {
+      "heroId": "bot-3",
+      "displayName": "Bot 3",
+      "position": {
+        "x": 1300,
+        "y": 840
+      }
+    },
+    {
+      "heroId": "bot-4",
+      "displayName": "Bot 4",
+      "position": {
+        "x": 1790,
+        "y": 1260
+      }
+    },
+    {
+      "heroId": "bot-5",
+      "displayName": "Bot 5",
+      "position": {
+        "x": 700,
+        "y": 1280
+      }
+    }
+  ],
+  "terrainPatches": [
+    {
+      "id": "winter-play-area",
+      "kind": "grass",
+      "shape": "rect",
+      "position": {
+        "x": 1280,
+        "y": 800
+      },
+      "size": {
+        "x": 2160,
+        "y": 1600
+      },
+      "color": "#d7e9ef",
+      "alpha": 0.9
+    },
+    {
+      "id": "left-buffer-woods",
+      "kind": "grass",
+      "shape": "rect",
+      "position": {
+        "x": 100,
+        "y": 800
+      },
+      "size": {
+        "x": 200,
+        "y": 1600
+      },
+      "color": "#c3d9e2",
+      "alpha": 0.82
+    },
+    {
+      "id": "right-buffer-woods",
+      "kind": "grass",
+      "shape": "rect",
+      "position": {
+        "x": 2460,
+        "y": 800
+      },
+      "size": {
+        "x": 200,
+        "y": 1600
+      },
+      "color": "#bed4dd",
+      "alpha": 0.86
+    },
+    {
+      "id": "main-clearing",
+      "kind": "clearing",
+      "shape": "ellipse",
+      "position": {
+        "x": 1160,
+        "y": 760
+      },
+      "size": {
+        "x": 920,
+        "y": 520
+      },
+      "color": "#eef7fb",
+      "alpha": 0.27
+    },
+    {
+      "id": "north-clearing",
+      "kind": "clearing",
+      "shape": "ellipse",
+      "position": {
+        "x": 1700,
+        "y": 360
+      },
+      "size": {
+        "x": 760,
+        "y": 310
+      },
+      "color": "#e5f1f7",
+      "alpha": 0.23
+    },
+    {
+      "id": "south-clearing",
+      "kind": "clearing",
+      "shape": "ellipse",
+      "position": {
+        "x": 1490,
+        "y": 1260
+      },
+      "size": {
+        "x": 720,
+        "y": 350
+      },
+      "color": "#e7f3f8",
+      "alpha": 0.24
+    },
+    {
+      "id": "diagonal-trail-a",
+      "kind": "trail",
+      "shape": "rect",
+      "position": {
+        "x": 1040,
+        "y": 610
+      },
+      "size": {
+        "x": 1260,
+        "y": 84
+      },
+      "rotation": -0.42,
+      "color": "#b8cad3",
+      "alpha": 0.36
+    },
+    {
+      "id": "diagonal-trail-b",
+      "kind": "trail",
+      "shape": "rect",
+      "position": {
+        "x": 1600,
+        "y": 1080
+      },
+      "size": {
+        "x": 1080,
+        "y": 80
+      },
+      "rotation": 0.34,
+      "color": "#b6c8d1",
+      "alpha": 0.33
+    },
+    {
+      "id": "north-pond",
+      "kind": "water",
+      "shape": "ellipse",
+      "position": {
+        "x": 520,
+        "y": 1240
+      },
+      "size": {
+        "x": 470,
+        "y": 190
+      },
+      "color": "#7fb5cb",
+      "alpha": 0.56
+    },
+    {
+      "id": "mud-lowland",
+      "kind": "mud",
+      "shape": "ellipse",
+      "position": {
+        "x": 2110,
+        "y": 1320
+      },
+      "size": {
+        "x": 420,
+        "y": 240
+      },
+      "color": "#c8c1ad",
+      "alpha": 0.22
+    }
+  ],
+  "trees": [
+    {
+      "treeId": "tree-big-oak-nw-1",
+      "treeKind": "big_oak_tree",
+      "position": {
+        "x": 470,
+        "y": 340
+      },
+      "trunkTexture": "shared-oak-trunk-1",
+      "leavesTexture": "winter-big-oak-1",
+      "trunkSize": {
+        "x": 136,
+        "y": 136
+      },
+      "leavesSize": {
+        "x": 230,
+        "y": 252
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -22
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 27
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 108
+      }
+    },
+    {
+      "treeId": "tree-maple-nw-2",
+      "treeKind": "maple_tree",
+      "position": {
+        "x": 690,
+        "y": 210
+      },
+      "trunkTexture": "shared-pine-trunk",
+      "leavesTexture": "winter-pine-tree",
+      "trunkSize": {
+        "x": 104,
+        "y": 104
+      },
+      "leavesSize": {
+        "x": 199,
+        "y": 210
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -16
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 21
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 88
+      }
+    },
+    {
+      "treeId": "tree-birch-west-1",
+      "treeKind": "birch_tree",
+      "position": {
+        "x": 440,
+        "y": 930
+      },
+      "trunkTexture": "shared-birch-trunk",
+      "leavesTexture": "winter-birch-1",
+      "trunkSize": {
+        "x": 92,
+        "y": 92
+      },
+      "leavesSize": {
+        "x": 168,
+        "y": 178
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -14
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 18
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 78
+      }
+    },
+    {
+      "treeId": "tree-big-oak-sw-1",
+      "treeKind": "big_oak_tree",
+      "position": {
+        "x": 720,
+        "y": 1340
+      },
+      "trunkTexture": "shared-oak-trunk-2",
+      "leavesTexture": "winter-big-oak-4",
+      "trunkSize": {
+        "x": 142,
+        "y": 142
+      },
+      "leavesSize": {
+        "x": 236,
+        "y": 258
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -22
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 28
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 112
+      }
+    },
+    {
+      "treeId": "tree-oak-north-1",
+      "treeKind": "oak_tree",
+      "position": {
+        "x": 1130,
+        "y": 270
+      },
+      "trunkTexture": "shared-oak-trunk-1",
+      "leavesTexture": "winter-big-oak-5",
+      "trunkSize": {
+        "x": 96,
+        "y": 96
+      },
+      "leavesSize": {
+        "x": 176,
+        "y": 188
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -16
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 19
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 82
+      }
+    },
+    {
+      "treeId": "tree-maple-mid-1",
+      "treeKind": "maple_tree",
+      "position": {
+        "x": 1040,
+        "y": 1030
+      },
+      "trunkTexture": "shared-pine-trunk",
+      "leavesTexture": "winter-pine-tree",
+      "trunkSize": {
+        "x": 106,
+        "y": 106
+      },
+      "leavesSize": {
+        "x": 204,
+        "y": 214
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -17
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 21
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 90
+      }
+    },
+    {
+      "treeId": "tree-big-oak-south-1",
+      "treeKind": "big_oak_tree",
+      "position": {
+        "x": 1380,
+        "y": 1370
+      },
+      "trunkTexture": "shared-oak-trunk-1",
+      "leavesTexture": "winter-big-oak-2",
+      "trunkSize": {
+        "x": 138,
+        "y": 138
+      },
+      "leavesSize": {
+        "x": 228,
+        "y": 250
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -21
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 27
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 106
+      }
+    },
+    {
+      "treeId": "tree-maple-north-2",
+      "treeKind": "maple_tree",
+      "position": {
+        "x": 1460,
+        "y": 460
+      },
+      "trunkTexture": "shared-pine-trunk",
+      "leavesTexture": "winter-pine-tree",
+      "trunkSize": {
+        "x": 106,
+        "y": 106
+      },
+      "leavesSize": {
+        "x": 206,
+        "y": 216
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -17
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 21
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 90
+      }
+    },
+    {
+      "treeId": "tree-big-oak-ne-1",
+      "treeKind": "big_oak_tree",
+      "position": {
+        "x": 1980,
+        "y": 390
+      },
+      "trunkTexture": "shared-oak-trunk-1",
+      "leavesTexture": "winter-big-oak-4",
+      "trunkSize": {
+        "x": 140,
+        "y": 140
+      },
+      "leavesSize": {
+        "x": 236,
+        "y": 258
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -22
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 28
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 112
+      }
+    },
+    {
+      "treeId": "tree-birch-east-1",
+      "treeKind": "birch_tree",
+      "position": {
+        "x": 2180,
+        "y": 760
+      },
+      "trunkTexture": "shared-birch-trunk",
+      "leavesTexture": "winter-birch-2",
+      "trunkSize": {
+        "x": 92,
+        "y": 92
+      },
+      "leavesSize": {
+        "x": 168,
+        "y": 178
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -14
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 18
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 78
+      }
+    },
+    {
+      "treeId": "tree-big-oak-se-1",
+      "treeKind": "big_oak_tree",
+      "position": {
+        "x": 1880,
+        "y": 1290
+      },
+      "trunkTexture": "shared-oak-trunk-1",
+      "leavesTexture": "winter-big-oak-1",
+      "trunkSize": {
+        "x": 138,
+        "y": 138
+      },
+      "leavesSize": {
+        "x": 230,
+        "y": 252
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -22
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 27
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 108
+      }
+    },
+    {
+      "treeId": "tree-oak-south-2",
+      "treeKind": "oak_tree",
+      "position": {
+        "x": 1180,
+        "y": 1440
+      },
+      "trunkTexture": "shared-oak-trunk-2",
+      "leavesTexture": "winter-big-oak-2",
+      "trunkSize": {
+        "x": 96,
+        "y": 96
+      },
+      "leavesSize": {
+        "x": 178,
+        "y": 190
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -16
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 19
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 82
+      }
+    },
+    {
+      "treeId": "tree-big-oak-east-2",
+      "treeKind": "big_oak_tree",
+      "position": {
+        "x": 2220,
+        "y": 1180
+      },
+      "trunkTexture": "shared-oak-trunk-1",
+      "leavesTexture": "winter-big-oak-3",
+      "trunkSize": {
+        "x": 142,
+        "y": 142
+      },
+      "leavesSize": {
+        "x": 238,
+        "y": 260
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -22
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 28
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 112
+      }
+    },
+    {
+      "treeId": "tree-maple-west-south-2",
+      "treeKind": "maple_tree",
+      "position": {
+        "x": 520,
+        "y": 1450
+      },
+      "trunkTexture": "shared-pine-trunk",
+      "leavesTexture": "winter-pine-tree",
+      "trunkSize": {
+        "x": 104,
+        "y": 104
+      },
+      "leavesSize": {
+        "x": 199,
+        "y": 210
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -16
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 21
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 88
+      }
+    },
+    {
+      "treeId": "tree-maple-mid-2",
+      "treeKind": "maple_tree",
+      "position": {
+        "x": 1580,
+        "y": 820
+      },
+      "trunkTexture": "shared-pine-trunk",
+      "leavesTexture": "winter-pine-tree",
+      "trunkSize": {
+        "x": 104,
+        "y": 104
+      },
+      "leavesSize": {
+        "x": 201,
+        "y": 212
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -17
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 21
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 88
+      }
+    },
+    {
+      "treeId": "tree-big-oak-east-south-2",
+      "treeKind": "big_oak_tree",
+      "position": {
+        "x": 1710,
+        "y": 1490
+      },
+      "trunkTexture": "shared-oak-trunk-2",
+      "leavesTexture": "winter-big-oak-1",
+      "trunkSize": {
+        "x": 136,
+        "y": 136
+      },
+      "leavesSize": {
+        "x": 228,
+        "y": 250
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -21
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 27
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 106
+      }
+    },
+    {
+      "treeId": "tree-oak-west-mid",
+      "treeKind": "oak_tree",
+      "position": {
+        "x": 900,
+        "y": 660
+      },
+      "trunkTexture": "shared-oak-trunk-1",
+      "leavesTexture": "winter-big-oak-2",
+      "trunkSize": {
+        "x": 96,
+        "y": 96
+      },
+      "leavesSize": {
+        "x": 176,
+        "y": 188
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -16
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 19
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 82
+      }
+    },
+    {
+      "treeId": "tree-birch-east-north",
+      "treeKind": "birch_tree",
+      "position": {
+        "x": 2060,
+        "y": 230
+      },
+      "trunkTexture": "shared-birch-trunk",
+      "leavesTexture": "winter-birch-2",
+      "trunkSize": {
+        "x": 92,
+        "y": 92
+      },
+      "leavesSize": {
+        "x": 168,
+        "y": 178
+      },
+      "leavesOffset": {
+        "x": 0,
+        "y": -14
+      },
+      "trunkCollision": {
+        "kind": "circle",
+        "radius": 18
+      },
+      "leafOcclusion": {
+        "kind": "circle",
+        "radius": 78
+      }
+    }
+  ],
+  "obstacles": [
+    {
+      "obstacleId": "rock-west-1",
+      "kind": "rock",
+      "texture": "winter-rock-1",
+      "position": {
+        "x": 520,
+        "y": 580
+      },
+      "displaySize": {
+        "x": 88,
+        "y": 72
+      },
+      "collision": {
+        "kind": "circle",
+        "radius": 34
+      }
+    },
+    {
+      "obstacleId": "logs-mid-west",
+      "kind": "logs",
+      "texture": "shared-small-logs-pile",
+      "position": {
+        "x": 910,
+        "y": 820
+      },
+      "displaySize": {
+        "x": 148,
+        "y": 92
+      },
+      "collision": {
+        "kind": "aabb",
+        "size": {
+          "x": 116,
+          "y": 56
+        }
+      }
+    },
+    {
+      "obstacleId": "boulder-south-mid",
+      "kind": "rock",
+      "texture": "winter-rock-2",
+      "position": {
+        "x": 1180,
+        "y": 1120
+      },
+      "displaySize": {
+        "x": 96,
+        "y": 82
+      },
+      "collision": {
+        "kind": "circle",
+        "radius": 40
+      }
+    },
+    {
+      "obstacleId": "boulder-east-mid",
+      "kind": "rock",
+      "texture": "winter-rock-3",
+      "position": {
+        "x": 2050,
+        "y": 680
+      },
+      "displaySize": {
+        "x": 92,
+        "y": 76
+      },
+      "collision": {
+        "kind": "circle",
+        "radius": 36
+      }
+    },
+    {
+      "obstacleId": "hay-south-east",
+      "kind": "hay",
+      "texture": "winter-frozen-crate-1",
+      "position": {
+        "x": 1480,
+        "y": 980
+      },
+      "displaySize": {
+        "x": 94,
+        "y": 70
+      },
+      "collision": {
+        "kind": "aabb",
+        "size": {
+          "x": 76,
+          "y": 52
+        }
+      }
+    },
+    {
+      "obstacleId": "stump-nw",
+      "kind": "stump",
+      "texture": "winter-rock-3",
+      "position": {
+        "x": 560,
+        "y": 420
+      },
+      "displaySize": {
+        "x": 70,
+        "y": 62
+      },
+      "collision": {
+        "kind": "circle",
+        "radius": 24
+      }
+    },
+    {
+      "obstacleId": "logs-east-south",
+      "kind": "logs",
+      "texture": "shared-small-logs-pile",
+      "position": {
+        "x": 2180,
+        "y": 1040
+      },
+      "displaySize": {
+        "x": 142,
+        "y": 88
+      },
+      "collision": {
+        "kind": "aabb",
+        "size": {
+          "x": 110,
+          "y": 52
+        }
+      }
+    },
+    {
+      "obstacleId": "bush-north-path",
+      "kind": "bush",
+      "texture": "winter-bush",
+      "position": {
+        "x": 1380,
+        "y": 350
+      },
+      "displaySize": {
+        "x": 86,
+        "y": 72
+      },
+      "collision": null
+    },
+    {
+      "obstacleId": "bush-center",
+      "kind": "bush",
+      "texture": "winter-blueberry-bush",
+      "position": {
+        "x": 1340,
+        "y": 900
+      },
+      "displaySize": {
+        "x": 88,
+        "y": 74
+      },
+      "collision": null
+    },
+    {
+      "obstacleId": "leaf-pile-west",
+      "kind": "leaf_pile",
+      "texture": "winter-planted-bushes",
+      "position": {
+        "x": 760,
+        "y": 700
+      },
+      "displaySize": {
+        "x": 118,
+        "y": 82
+      },
+      "collision": null
+    },
+    {
+      "obstacleId": "leaf-pile-east",
+      "kind": "leaf_pile",
+      "texture": "winter-planted-bushes",
+      "position": {
+        "x": 1780,
+        "y": 740
+      },
+      "displaySize": {
+        "x": 120,
+        "y": 84
+      },
+      "collision": null
+    },
+    {
+      "obstacleId": "bush-south-path",
+      "kind": "bush",
+      "texture": "winter-planted-bushes",
+      "position": {
+        "x": 1120,
+        "y": 1290
+      },
+      "displaySize": {
+        "x": 86,
+        "y": 72
+      },
+      "collision": null
+    }
+  ],
+  "buildings": [
+    {
+      "buildingId": "barn-north-clearing",
+      "kind": "barn",
+      "position": {
+        "x": 980,
+        "y": 610
+      },
+      "floorTexture": "shared-red-house-floor-1",
+      "roofTexture": "winter-red-house-roof",
+      "floorSize": {
+        "x": 392,
+        "y": 300
+      },
+      "roofSize": {
+        "x": 408,
+        "y": 318
+      },
+      "roofOffset": {
+        "x": 0,
+        "y": -8
+      },
+      "interior": {
+        "kind": "aabb",
+        "position": {
+          "x": 980,
+          "y": 610
+        },
+        "size": {
+          "x": 330,
+          "y": 230
+        }
+      },
+      "walls": [
+        {
+          "wallId": "barn-top",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 980,
+              "y": 470
+            },
+            "size": {
+              "x": 380,
+              "y": 28
+            }
+          }
+        },
+        {
+          "wallId": "barn-left",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 790,
+              "y": 610
+            },
+            "size": {
+              "x": 28,
+              "y": 252
+            }
+          }
+        },
+        {
+          "wallId": "barn-right",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1170,
+              "y": 610
+            },
+            "size": {
+              "x": 28,
+              "y": 252
+            }
+          }
+        },
+        {
+          "wallId": "barn-bottom-left",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 865,
+              "y": 750
+            },
+            "size": {
+              "x": 150,
+              "y": 28
+            }
+          }
+        },
+        {
+          "wallId": "barn-bottom-right",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1095,
+              "y": 750
+            },
+            "size": {
+              "x": 150,
+              "y": 28
+            }
+          }
+        }
+      ],
+      "doors": [
+        {
+          "doorId": "barn-south-door",
+          "position": {
+            "x": 980,
+            "y": 752
+          },
+          "size": {
+            "x": 76,
+            "y": 34
+          }
+        }
+      ]
+    },
+    {
+      "buildingId": "tent-west-south",
+      "kind": "tent",
+      "position": {
+        "x": 2040,
+        "y": 520
+      },
+      "floorTexture": "shared-green-house-floor-1",
+      "roofTexture": "winter-green-house-roof-1",
+      "floorSize": {
+        "x": 206,
+        "y": 148
+      },
+      "roofSize": {
+        "x": 214,
+        "y": 156
+      },
+      "roofOffset": {
+        "x": 0,
+        "y": -5
+      },
+      "interior": {
+        "kind": "aabb",
+        "position": {
+          "x": 2040,
+          "y": 520
+        },
+        "size": {
+          "x": 156,
+          "y": 104
+        }
+      },
+      "walls": [
+        {
+          "wallId": "tent-top",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 2040,
+              "y": 450
+            },
+            "size": {
+              "x": 170,
+              "y": 22
+            }
+          }
+        },
+        {
+          "wallId": "tent-left",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1950,
+              "y": 520
+            },
+            "size": {
+              "x": 22,
+              "y": 114
+            }
+          }
+        },
+        {
+          "wallId": "tent-bottom",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 2040,
+              "y": 590
+            },
+            "size": {
+              "x": 170,
+              "y": 22
+            }
+          }
+        },
+        {
+          "wallId": "tent-right-top",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 2130,
+              "y": 486
+            },
+            "size": {
+              "x": 22,
+              "y": 48
+            }
+          }
+        },
+        {
+          "wallId": "tent-right-bottom",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 2130,
+              "y": 564
+            },
+            "size": {
+              "x": 22,
+              "y": 48
+            }
+          }
+        }
+      ],
+      "doors": [
+        {
+          "doorId": "tent-east-door",
+          "position": {
+            "x": 2130,
+            "y": 525
+          },
+          "size": {
+            "x": 34,
+            "y": 58
+          }
+        }
+      ]
+    },
+    {
+      "buildingId": "hay-shed-east-south",
+      "kind": "tent",
+      "position": {
+        "x": 1500,
+        "y": 1180
+      },
+      "floorTexture": "winter-igloo-floor",
+      "roofTexture": "winter-igloo-roof-1",
+      "floorSize": {
+        "x": 268,
+        "y": 205
+      },
+      "roofSize": {
+        "x": 260,
+        "y": 192
+      },
+      "roofOffset": {
+        "x": -3,
+        "y": -4
+      },
+      "interior": {
+        "kind": "aabb",
+        "position": {
+          "x": 1500,
+          "y": 1180
+        },
+        "size": {
+          "x": 194,
+          "y": 130
+        }
+      },
+      "walls": [
+        {
+          "wallId": "shed-top",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1500,
+              "y": 1090
+            },
+            "size": {
+              "x": 220,
+              "y": 22
+            }
+          }
+        },
+        {
+          "wallId": "shed-left",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1385,
+              "y": 1180
+            },
+            "size": {
+              "x": 22,
+              "y": 140
+            }
+          }
+        },
+        {
+          "wallId": "shed-right",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1615,
+              "y": 1180
+            },
+            "size": {
+              "x": 22,
+              "y": 140
+            }
+          }
+        },
+        {
+          "wallId": "shed-bottom-left",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1445,
+              "y": 1270
+            },
+            "size": {
+              "x": 94,
+              "y": 22
+            }
+          }
+        },
+        {
+          "wallId": "shed-bottom-right",
+          "collision": {
+            "kind": "aabb",
+            "position": {
+              "x": 1565,
+              "y": 1270
+            },
+            "size": {
+              "x": 70,
+              "y": 22
+            }
+          }
+        }
+      ],
+      "doors": [
+        {
+          "doorId": "shed-south-door",
+          "position": {
+            "x": 1502,
+            "y": 1270
+          },
+          "size": {
+            "x": 58,
+            "y": 34
+          }
+        }
+      ]
+    }
+  ],
+  "weaponPickups": [
+    {
+      "pickupId": "pickup-rocket-1",
+      "weaponKind": "RocketLauncher",
+      "position": {
+        "x": 1320,
+        "y": 700
+      }
+    },
+    {
+      "pickupId": "pickup-gatling-1",
+      "weaponKind": "Gatling",
+      "position": {
+        "x": 620,
+        "y": 760
+      }
+    },
+    {
+      "pickupId": "pickup-shotgun-1",
+      "weaponKind": "Shotgun",
+      "position": {
+        "x": 1990,
+        "y": 850
+      }
+    },
+    {
+      "pickupId": "pickup-rocket-2",
+      "weaponKind": "RocketLauncher",
+      "position": {
+        "x": 1220,
+        "y": 1310
+      }
+    },
+    {
+      "pickupId": "pickup-gatling-2",
+      "weaponKind": "Gatling",
+      "position": {
+        "x": 960,
+        "y": 360
+      }
+    },
+    {
+      "pickupId": "pickup-shotgun-2",
+      "weaponKind": "Shotgun",
+      "position": {
+        "x": 1810,
+        "y": 1120
+      }
+    }
+  ],
+  "itemPickups": [
+    {
+      "pickupId": "pickup-medkit-1",
+      "kind": "Medkit",
+      "position": {
+        "x": 1120,
+        "y": 900
+      }
+    },
+    {
+      "pickupId": "pickup-medkit-2",
+      "kind": "Medkit",
+      "position": {
+        "x": 1640,
+        "y": 520
+      }
+    }
+  ]
+}

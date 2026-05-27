@@ -19,6 +19,39 @@ export default defineConfig({
   },
   build: {
     outDir: "../dist",
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        const warningId = typeof warning.id === "string" ? warning.id.replace(/\\/g, "/") : "";
+        if (warning.code === "MODULE_LEVEL_DIRECTIVE" && warning.message.includes("\"use client\"") && warningId.includes("/node_modules/react-router/")) {
+          return;
+        }
+
+        defaultHandler(warning);
+      },
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, "/");
+
+          if (normalizedId.includes("/node_modules/phaser/")) {
+            return "vendor-phaser";
+          }
+
+          if (
+            normalizedId.includes("/node_modules/react/") ||
+            normalizedId.includes("/node_modules/react-dom/") ||
+            normalizedId.includes("/node_modules/react-router/")
+          ) {
+            return "vendor-react";
+          }
+
+          if (normalizedId.includes("/src/runtime/battle/")) {
+            return "runtime-battle";
+          }
+
+          return undefined;
+        }
+      }
+    }
   }
 });

@@ -24,6 +24,10 @@ object HttpApiModules {
       GovernanceHttpModule.routes(services.governanceServices) <+>
       ReplayHttpModule.routes(services.replayService) <+>
       BotProfileHttpModule.routes(services.botProfileService) <+>
-      BattleHttp4sRoutes.routes(services.battleServices)
+      BattleHttp4sRoutes.routes(
+        services.battleRuntimeContext,
+        services.identityService,
+        services.battleResultBackend
+      )
 
 }

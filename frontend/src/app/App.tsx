@@ -1,4 +1,4 @@
-import { AuthSessionBootstrap } from "../domains/identity/components/AuthSessionBootstrap";
+import { AuthSessionBootstrap } from "../components/auth/AuthSessionBootstrap";
 import { AppRoutes } from "./routes";
 
 export function App() {

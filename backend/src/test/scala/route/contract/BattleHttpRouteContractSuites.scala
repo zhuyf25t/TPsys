@@ -13,6 +13,7 @@ import org.typelevel.ci.CIString
 import scala.jdk.CollectionConverters.*
 
 import route.battle.BattleHttp4sRoutes
+import route.battle.BattleHttp4sResultBackend
 import route.bots.BotProfileHttp4sRoutes
 import route.governance.GovernanceHttp4sRoutes
 import route.health.{HealthHttp4sRoutes, HealthHttpModule}
@@ -22,8 +23,8 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
-import services.battle.persistence.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
-import services.battle.routes.BattleAPIMessageServices
+import services.battle.database.results.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
+import services.battle.routes.BattleAPIRuntimeContext
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -41,27 +42,28 @@ import services.replay.database.{FileReplayRepository, InMemoryReplayRepository,
 import services.replay.objects.*
 import services.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 import services.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
-import services.battle.application.{
+import services.battle.database.session.{
   BattleCommandOwnership,
   BattleCommandSubmitError,
+  BattleSessionLookup,
+  BattleSessionSeed,
+  BattleRoomLifecycleSink,
+  BattleStateReadError,
+  BattleStateService,
+  InMemoryBattleStateService
+}
+import services.battle.database.queue.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleQueueStatusError,
-  BattleRoomError,
-  BattleResultRecordError,
-  BattleResultService,
-  BattleFinishProjector,
-  BattleRoomLifecycleSink,
-  BattleSessionLookup,
-  BattleSessionSeed,
-  BattleStateReadError,
-  BattleStateService,
-  BattleFinishProjectionFailureReporter,
-  BattleFinishProjectionOutcome,
-  DefaultBattleFinishProjector,
-  InMemoryBattleStateService
+  BattleRoomError
 }
+import services.battle.database.projections.{
+  BattleFinishProjectionFailureReporter,
+  DefaultBattleFinishProjector
+}
+import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,
@@ -114,16 +116,18 @@ private[contract] object BattleHttpRouteContractSupport:
   def routes(
     queueService: BattleQueueService = NoopBattleQueueService,
     joinAuthorizationService: BattleQueueJoinAuthorizationService = AllowBattleQueueJoinAuthorizationService,
-    resultService: BattleResultService = NoopBattleResultService,
-    stateService: BattleStateService = NoopBattleStateService
+    resultRepository: BattleResultRepository = InMemoryBattleResultRepository(),
+    stateService: BattleStateService = NoopBattleStateService,
+    identityService: IdentityService = AllowIdentityService
   ): HttpRoutes[IO] =
     BattleHttp4sRoutes.routes(
-      BattleAPIMessageServices(
+      BattleAPIRuntimeContext(
         queueService = queueService,
         joinAuthorizationService = joinAuthorizationService,
-        resultService = resultService,
         stateService = stateService
-      )
+      ),
+      identityService = identityService,
+      resultBackend = BattleHttp4sResultBackend.RepositoryBacked(resultRepository)
     )
 
   private object AllowBattleQueueJoinAuthorizationService extends BattleQueueJoinAuthorizationService:
@@ -159,12 +163,34 @@ private[contract] object BattleHttpRouteContractSupport:
     override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] =
       Left(BattleCommandSubmitError.BattleNotFound)
 
-  private object NoopBattleResultService extends BattleResultService:
-    override def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord] =
-      Left(BattleResultRecordError.InvalidHandle)
+  private object AllowIdentityService extends IdentityService:
+    override def register(command: IdentityRegistrationCommand): Either[IdentityRegistrationError, IdentityAccount] =
+      Right(identityAccount(command.handle, command.skinId, None))
 
-    override def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord] =
+    override def issueSession(command: IdentitySessionCommand): Either[IdentitySessionError, IdentityAccount] =
+      Right(identityAccount(command.handle, SkinId.Blue, Some(SessionToken(s"session-${command.handle.key}"))))
+
+    override def current(sessionToken: Option[SessionToken]): Either[IdentityCurrentSessionError, IdentityAccount] =
+      sessionToken match
+        case Some(token) =>
+          Right(identityAccount(PlayerHandle("tester"), SkinId.Blue, Some(token)))
+        case None =>
+          Left(IdentityCurrentSessionError.MissingSession)
+
+    override def listActiveAccounts(): Vector[IdentityAccountSummary] =
       Vector.empty
+
+  private def identityAccount(
+    handle: PlayerHandle,
+    skinId: SkinId,
+    sessionToken: Option[SessionToken]
+  ): IdentityAccount =
+    IdentityAccount.active(
+      userId = UserId(s"user-${handle.key}"),
+      handle = handle,
+      skinId = skinId,
+      sessionToken = sessionToken
+    )
 
 private[contract] object BattleQueueHttp4sRouteContractTest:
   def run(): Unit =
@@ -179,7 +205,7 @@ private[contract] object BattleQueueHttp4sRouteContractTest:
       BattleHttpRouteContractSupport.routes(queueService = queueService, joinAuthorizationService = authorizationService),
       Request[IO](method = Method.POST, uri = uri"/api/battlequeuejoin")
         .withEntity(
-          """{"handle":"Alice","sessionToken":"session-alice","queueRequestId":"queue-request-1","rating":1200,"avatar":"fox","skin":"soldier"}"""
+          """{"userToken":"session-tester","handle":"Alice","sessionToken":"session-alice","queueRequestId":"queue-request-1","rating":1200,"avatar":"fox","skin":"soldier"}"""
         )
     )
 
@@ -196,7 +222,7 @@ private[contract] object BattleQueueHttp4sRouteContractTest:
   private def statusRequiresTicketId(): Unit =
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(queueService = RecordingBattleQueueService()),
-      Request[IO](method = Method.POST, uri = uri"/api/battlequeuestatus").withEntity("{}")
+      Request[IO](method = Method.POST, uri = uri"/api/battlequeuestatus").withEntity("""{"userToken":"session-tester"}""")
     )
 
     ContractAssertions.assertEquals("queue status missing ticket status", response.status, 400)
@@ -206,7 +232,7 @@ private[contract] object BattleQueueHttp4sRouteContractTest:
     val service = RecordingBattleQueueService()
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(queueService = service),
-      Request[IO](method = Method.POST, uri = uri"/api/battlequeuestatus").withEntity("""{"ticketId":"ticket-1"}""")
+      Request[IO](method = Method.POST, uri = uri"/api/battlequeuestatus").withEntity("""{"userToken":"session-tester","ticketId":"ticket-1"}""")
     )
 
     ContractAssertions.assertEquals("queue status response status", response.status, 200)
@@ -232,7 +258,14 @@ private[contract] object BattleQueueHttp4sRouteContractTest:
 
     override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] =
       statusTicketIds = statusTicketIds :+ ticketId
-      Right(BattleContractFixtures.queueSnapshot(PlayerHandle("Alice"), Some(Rating(1200)), Some("fox"), Some("soldier")))
+      Right(
+        BattleContractFixtures.queueSnapshot(
+          PlayerHandle("Alice"),
+          Some(Rating(1200)),
+          BattleAvatarKey.fromWire("fox"),
+          BattleSkinKey.fromWire("soldier")
+        )
+      )
 
     override def leave(ticketId: TicketId): BattleQueueLeaveOutcome =
       BattleQueueLeaveOutcome.LeftQueue
@@ -258,7 +291,7 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
   private def snapshotRequiresRoomId(): Unit =
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(queueService = RecordingBattleRoomQueueService()),
-      Request[IO](method = Method.POST, uri = uri"/api/battleroomsnapshot").withEntity("{}")
+      Request[IO](method = Method.POST, uri = uri"/api/battleroomsnapshot").withEntity("""{"userToken":"session-tester"}""")
     )
 
     ContractAssertions.assertEquals("room snapshot missing room status", response.status, 400)
@@ -268,7 +301,7 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
     val service = RecordingBattleRoomQueueService()
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(queueService = service),
-      Request[IO](method = Method.POST, uri = uri"/api/battleroomsnapshot").withEntity("""{"roomId":"room-1"}""")
+      Request[IO](method = Method.POST, uri = uri"/api/battleroomsnapshot").withEntity("""{"userToken":"session-tester","roomId":"room-1"}""")
     )
 
     ContractAssertions.assertEquals("room snapshot status", response.status, 200)
@@ -281,7 +314,7 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(queueService = service),
       Request[IO](method = Method.POST, uri = uri"/api/battleroomheartbeat")
-        .withEntity("""{"roomId":"room-1","ticketId":"ticket-1","handle":"Alice"}""")
+        .withEntity("""{"userToken":"session-tester","roomId":"room-1","ticketId":"ticket-1","handle":"Alice"}""")
     )
 
     ContractAssertions.assertEquals("room heartbeat status", response.status, 200)
@@ -299,7 +332,14 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
       BattleContractFixtures.queueSnapshot(command.handle, command.rating, command.avatar, command.skin)
 
     override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] =
-      Right(BattleContractFixtures.queueSnapshot(PlayerHandle("Alice"), Some(Rating(1200)), Some("fox"), Some("soldier")))
+      Right(
+        BattleContractFixtures.queueSnapshot(
+          PlayerHandle("Alice"),
+          Some(Rating(1200)),
+          BattleAvatarKey.fromWire("fox"),
+          BattleSkinKey.fromWire("soldier")
+        )
+      )
 
     override def leave(ticketId: TicketId): BattleQueueLeaveOutcome =
       BattleQueueLeaveOutcome.LeftQueue
@@ -327,7 +367,7 @@ private[contract] object BattleStateHttp4sRouteContractTest:
     val service = RecordingBattleStateService()
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(stateService = service),
-      Request[IO](method = Method.POST, uri = uri"/api/battlestateread").withEntity("""{"battleId":"battle-1"}""")
+      Request[IO](method = Method.POST, uri = uri"/api/battlestateread").withEntity("""{"userToken":"session-tester","battleId":"battle-1"}""")
     )
 
     ContractAssertions.assertEquals("battle state read status", response.status, 200)
@@ -340,7 +380,7 @@ private[contract] object BattleStateHttp4sRouteContractTest:
   private def readRequiresBattleId(): Unit =
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(stateService = RecordingBattleStateService()),
-      Request[IO](method = Method.POST, uri = uri"/api/battlestateread").withEntity("{}")
+      Request[IO](method = Method.POST, uri = uri"/api/battlestateread").withEntity("""{"userToken":"session-tester"}""")
     )
 
     ContractAssertions.assertEquals("battle state missing id status", response.status, 400)
@@ -389,7 +429,7 @@ private[contract] object BattleCommandHttp4sRouteContractTest:
 
   private def commandBody(ticketId: Option[String]): String =
     val ticketField = ticketId.map(value => s""""ticketId":"$value",""").getOrElse("")
-    s"""{"battleId":"battle-1","playerId":"player-1",$ticketField"clientTick":15,"clientCommandSeq":16,"movement":{"x":1.0,"y":0.0},"aim":{"x":0.0,"y":1.0},"primaryHeld":true,"sprint":false,"reloadPressed":false,"castDash":false,"castBlink":false,"castFreeze":false,"pointerWorld":{"x":12.0,"y":18.0},"switchWeaponDirection":1,"switchWeaponIndex":0}"""
+    s"""{"userToken":"session-tester","battleId":"battle-1","playerId":"player-1",$ticketField"clientTick":15,"clientCommandSeq":16,"movement":{"x":1.0,"y":0.0},"aim":{"x":0.0,"y":1.0},"primaryHeld":true,"sprint":false,"reloadPressed":false,"castDash":false,"castBlink":false,"castFreeze":false,"pointerWorld":{"x":12.0,"y":18.0},"switchWeaponDirection":1,"switchWeaponIndex":0}"""
 
   private final class RecordingBattleCommandStateService extends BattleStateService:
     var acceptedRequests: Vector[BattleCommandRequest] = Vector.empty
@@ -417,22 +457,22 @@ private[contract] object BattleResultHttp4sRouteContractTest:
     postParsesRecordAndRendersCreated()
 
   private def listRendersRecordsAndPassesFilters(): Unit =
-    val service = RecordingBattleResultService()
+    val repository = RecordingBattleResultRepository()
     val response = RouteContractSupport.runRoute(
-      BattleHttpRouteContractSupport.routes(resultService = service),
+      BattleHttpRouteContractSupport.routes(resultRepository = repository),
       Request[IO](method = Method.POST, uri = uri"/api/battleresultlist")
-        .withEntity("""{"handle":"Alice","battleId":"battle-1","limit":5}""")
+        .withEntity("""{"userToken":"session-tester","handle":"Alice","battleId":"battle-1","limit":5}""")
     )
 
     ContractAssertions.assertEquals("battle result list status", response.status, 200)
     ContractAssertions.assertContains("battle result list wrapper", response.body, """"results":[""")
     ContractAssertions.assertContains("battle result list result id", response.body, """"resultId":"battle-1:alice"""")
-    ContractAssertions.assertEquals("battle result list filters", service.listCalls, Vector((Some(PlayerHandle("Alice")), Some(BattleId("battle-1")), 5)))
+    ContractAssertions.assertEquals("battle result list filters", repository.listCalls, Vector((Some(PlayerHandle("Alice")), Some(BattleId("battle-1")), 15)))
 
   private def postParsesRecordAndRendersCreated(): Unit =
-    val service = RecordingBattleResultService()
+    val repository = RecordingBattleResultRepository()
     val response = RouteContractSupport.runRoute(
-      BattleHttpRouteContractSupport.routes(resultService = service),
+      BattleHttpRouteContractSupport.routes(resultRepository = repository),
       Request[IO](method = Method.POST, uri = uri"/api/battleresultrecord")
         .withEntity(resultRecordBody)
     )
@@ -440,20 +480,20 @@ private[contract] object BattleResultHttp4sRouteContractTest:
     ContractAssertions.assertEquals("battle result post status", response.status, 200)
     ContractAssertions.assertContains("battle result post id", response.body, """"resultId":"battle-1:alice"""")
     ContractAssertions.assertContains("battle result post score", response.body, """"score":42""")
-    ContractAssertions.assertEquals("battle result record count", service.recordCommands.length, 1)
-    ContractAssertions.assertEquals("battle result record handle", service.recordCommands.head.handle, PlayerHandle("Alice"))
-    ContractAssertions.assertEquals("battle result record battle", service.recordCommands.head.battleId, BattleId("battle-1"))
+    ContractAssertions.assertEquals("battle result record count", repository.savedRecords.length, 1)
+    ContractAssertions.assertEquals("battle result record handle", repository.savedRecords.head.handle, PlayerHandle("Alice"))
+    ContractAssertions.assertEquals("battle result record battle", repository.savedRecords.head.battleId, BattleId("battle-1"))
 
   private val resultRecordBody: String =
-    """{"battleId":"battle-1","handle":"Alice","displayName":"Alice","finishedAt":3000,"finishedAtLabel":"now","durationMs":120000,"score":42,"placement":1,"aliveAtEnd":true,"ratingBefore":1200,"ratingDelta":15,"ratingAfter":1215,"resultLabel":"Victory","modeLabel":"Arena","mapLabel":"Island","highlightLine":"Alice won","playersLine":"Alice","timelineHint":"2m","currentLoadout":"Pistol"}"""
+    """{"userToken":"session-tester","battleId":"battle-1","handle":"Alice","displayName":"Alice","finishedAt":3000,"finishedAtLabel":"now","durationMs":120000,"score":42,"placement":1,"aliveAtEnd":true,"ratingBefore":1200,"ratingDelta":15,"ratingAfter":1215,"resultLabel":"Victory","modeLabel":"Arena","mapLabel":"Island","highlightLine":"Alice won","playersLine":"Alice","timelineHint":"2m","currentLoadout":"Pistol"}"""
 
-  private final class RecordingBattleResultService extends BattleResultService:
-    var recordCommands: Vector[BattleResultRecordCommand] = Vector.empty
+  private final class RecordingBattleResultRepository extends BattleResultRepository:
+    var savedRecords: Vector[BattleResultRecord] = Vector.empty
     var listCalls: Vector[(Option[PlayerHandle], Option[BattleId], Int)] = Vector.empty
 
-    override def record(command: BattleResultRecordCommand): Either[BattleResultRecordError, BattleResultRecord] =
-      recordCommands = recordCommands :+ command
-      Right(BattleContractFixtures.resultRecord(command.battleId, command.handle))
+    override def save(record: BattleResultRecord): BattleResultRecord =
+      savedRecords = savedRecords :+ record
+      record
 
     override def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord] =
       listCalls = listCalls :+ ((handle, battleId, limit))

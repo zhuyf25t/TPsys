@@ -1,1 +1,9 @@
 @import "tailwindcss";
+@import "./styles/base.css";
+@import "./styles/game-corner.css";
+@import "./styles/lobby-shell.css";
+@import "./styles/overlays.css";
+@import "./styles/content-pages.css";
+@import "./styles/forum-pages.css";
+@import "./styles/profile-pages.css";
+@import "./styles/replay-pages.css";

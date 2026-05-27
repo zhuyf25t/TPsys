@@ -9,6 +9,6 @@ object HealthAPIMessage {
     RegisteredAPIMessage(
       apiName = APIMessage.apiNameFromClassName(getClass.getSimpleName),
       requiresUserToken = false,
-      planJson = _ => IO.blocking(service.current).map(_.asJson)
+      planJson = (_, _) => IO.blocking(service.current).map(_.asJson)
     )
 }

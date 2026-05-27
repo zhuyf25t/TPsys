@@ -1,17 +1,22 @@
 package services.battle.objects.queue
 
-import services.battle.objects.*
-import services.battle.objects.core.*
-import services.battle.objects.event.*
-import services.battle.objects.pickup.*
-import services.battle.objects.player.*
-import services.battle.objects.projectile.*
-import services.battle.objects.queue.*
-import services.battle.objects.replay.*
-import services.battle.objects.result.*
-import services.battle.objects.skill.*
-import services.battle.objects.weapon.*
-
+import services.battle.objects.{BattleMode, MatchmakingRoomPhase}
+import services.battle.objects.core.{
+  BattleCapacity,
+  BattleAvatarKey,
+  BattleId,
+  DurationMillis,
+  EpochMillis,
+  HeroId,
+  PlayerId,
+  Rating,
+  RoomId,
+  SeatIndex,
+  SpawnPointIndex,
+  BattleSkinKey,
+  TicketId
+}
+import services.battle.objects.player.BattleParticipantKind
 import services.identity.objects.{DisplayName, PlayerHandle}
 
 final case class BattleQueueParticipant(
@@ -20,8 +25,8 @@ final case class BattleQueueParticipant(
   joinedAt: EpochMillis,
   lastSeen: EpochMillis,
   rating: Option[Rating],
-  avatar: Option[String],
-  skin: Option[String]
+  avatar: Option[BattleAvatarKey],
+  skin: Option[BattleSkinKey]
 )
 
 final case class BattleSessionRosterEntry(
@@ -30,8 +35,8 @@ final case class BattleSessionRosterEntry(
   handle: PlayerHandle,
   joinedAt: EpochMillis,
   rating: Option[Rating],
-  avatar: Option[String],
-  skin: Option[String]
+  avatar: Option[BattleAvatarKey],
+  skin: Option[BattleSkinKey]
 )
 
 final case class BattleSessionBootstrapSeat(
@@ -44,8 +49,8 @@ final case class BattleSessionBootstrapSeat(
   participantKind: BattleParticipantKind,
   spawnPointIndex: SpawnPointIndex,
   rating: Option[Rating],
-  avatar: Option[String],
-  skin: Option[String]
+  avatar: Option[BattleAvatarKey],
+  skin: Option[BattleSkinKey]
 ) {
   /**
    * 中文名：是否机器人（isBot）。

@@ -1,18 +1,18 @@
 package services
 
 import services.battle.objects.DurationMillis
-import services.battle.application.{
-  BattleQueueJoinAuthorizationService,
-  BattleQueueService,
-  BattleResultService,
+import services.battle.database.session.{
   BattleStateService,
-  DefaultBattleFinishProjector,
-  DefaultBattleQueueJoinAuthorizationService,
-  DefaultBattleResultService,
-  InMemoryBattleQueueService,
   InMemoryBattleStateService
 }
-import services.battle.ports.{BattleMailPublisherPort, BattleReplayWriterPort}
+import services.battle.database.projections.{BattleMailPublisherPort, BattleReplayWriterPort, DefaultBattleFinishProjector}
+import services.battle.database.queue.{
+  BattleQueueJoinAuthorizationService,
+  BattleQueueService,
+  DefaultBattleQueueJoinAuthorizationService,
+  InMemoryBattleQueueService
+}
+import services.battle.database.results.BattleResultRepository
 import services.bots.services.{BotProfileService, DefaultBotProfileService}
 import services.forum.services.{DefaultForumService, ForumService}
 import services.governance.services.{
@@ -33,7 +33,7 @@ final case class BackendRuntime(
   healthService: HealthService,
   battleQueueService: BattleQueueService,
   battleJoinAuthorizationService: BattleQueueJoinAuthorizationService,
-  battleResultService: BattleResultService,
+  battleResultRepository: BattleResultRepository,
   battleStateService: BattleStateService,
   identityService: IdentityService,
   replayService: ReplayService,
@@ -58,7 +58,6 @@ object BackendRuntime {
     )
     val battleQueueService = InMemoryBattleQueueService()
     val battleJoinAuthorizationService = DefaultBattleQueueJoinAuthorizationService(identityService)
-    val battleResultService = DefaultBattleResultService(repositories.battleResults)
     val replayService = DefaultReplayService(repositories.replay, () => System.currentTimeMillis())
     val mailService = DefaultMailService(repositories.mail, () => System.currentTimeMillis())
     val battleReplayWriter = new BattleReplayWriterPort {
@@ -94,7 +93,7 @@ object BackendRuntime {
       healthService = healthService,
       battleQueueService = battleQueueService,
       battleJoinAuthorizationService = battleJoinAuthorizationService,
-      battleResultService = battleResultService,
+      battleResultRepository = repositories.battleResults,
       battleStateService = battleStateService,
       identityService = identityService,
       replayService = replayService,

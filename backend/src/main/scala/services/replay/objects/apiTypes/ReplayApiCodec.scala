@@ -214,7 +214,7 @@ object ReplayCatalogAPIMessage {
     RegisteredAPIMessage(
       apiName = APIMessage.apiNameFromClassName(getClass.getSimpleName),
       requiresUserToken = false,
-      planJson = payload => plan(service, payload)
+      planJson = (payload, _) => plan(service, payload)
     )
 
   private def plan(service: ReplayService, payload: Json): IO[Json] =

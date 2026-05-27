@@ -22,7 +22,7 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
-import services.battle.persistence.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
+import services.battle.database.results.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -40,27 +40,28 @@ import services.replay.database.{FileReplayRepository, InMemoryReplayRepository,
 import services.replay.objects.*
 import services.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 import services.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
-import services.battle.application.{
+import services.battle.database.session.{
   BattleCommandOwnership,
   BattleCommandSubmitError,
+  BattleSessionLookup,
+  BattleSessionSeed,
+  BattleRoomLifecycleSink,
+  BattleStateReadError,
+  BattleStateService,
+  InMemoryBattleStateService
+}
+import services.battle.database.queue.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleQueueStatusError,
-  BattleRoomError,
-  BattleResultRecordError,
-  BattleResultService,
-  BattleFinishProjector,
-  BattleRoomLifecycleSink,
-  BattleSessionLookup,
-  BattleSessionSeed,
-  BattleStateReadError,
-  BattleStateService,
-  BattleFinishProjectionFailureReporter,
-  BattleFinishProjectionOutcome,
-  DefaultBattleFinishProjector,
-  InMemoryBattleStateService
+  BattleRoomError
 }
+import services.battle.database.projections.{
+  BattleFinishProjectionFailureReporter,
+  DefaultBattleFinishProjector
+}
+import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,

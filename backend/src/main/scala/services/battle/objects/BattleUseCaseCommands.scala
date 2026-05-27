@@ -8,15 +8,23 @@ final case class BattleQueueJoinCommand(
   battleMode: BattleMode,
   queueRequestId: Option[QueueRequestId],
   rating: Option[Rating],
-  avatar: Option[String],
-  skin: Option[String]
+  avatar: Option[BattleAvatarKey],
+  skin: Option[BattleSkinKey]
 )
+
+final case class BattleQueueStatusQuery(ticketId: TicketId)
+
+final case class BattleQueueLeaveCommand(ticketId: TicketId)
 
 final case class RealtimeRoomHeartbeatCommand(
   roomId: Option[RoomId],
   ticketId: Option[TicketId],
   handle: Option[PlayerHandle]
 )
+
+final case class BattleRoomSnapshotQuery(roomId: RoomId)
+
+final case class BattleStateReadQuery(battleId: BattleId)
 
 enum BattleQueueLeaveOutcome {
   case LeftQueue
@@ -37,11 +45,17 @@ final case class BattleResultRecordCommand(
   ratingBefore: Rating,
   ratingDelta: RatingDelta,
   ratingAfter: Rating,
-  resultLabel: String,
-  modeLabel: String,
-  mapLabel: String,
-  highlightLine: String,
-  playersLine: String,
-  timelineHint: String,
+  resultLabel: BattleResultLabel,
+  modeLabel: BattleModeLabel,
+  mapLabel: BattleMapLabel,
+  highlightLine: BattleHighlightLine,
+  playersLine: BattlePlayersLine,
+  timelineHint: BattleTimelineHint,
   currentLoadout: Option[String]
+)
+
+final case class BattleResultListQuery(
+  handle: Option[PlayerHandle],
+  battleId: Option[BattleId],
+  limit: BattleResultListLimit
 )

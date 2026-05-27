@@ -22,7 +22,7 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
-import services.battle.persistence.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
+import services.battle.database.results.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -40,29 +40,31 @@ import services.replay.database.{FileReplayRepository, InMemoryReplayRepository,
 import services.replay.objects.*
 import services.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 import services.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
-import services.battle.application.{
+import services.battle.database.session.{
   BattleCommandOwnership,
   BattleCommandSubmitError,
+  BattleSessionLookup,
+  BattleSessionSeed,
+  BattleRoomLifecycleSink,
+  BattleStateReadError,
+  BattleStateService,
+  InMemoryBattleStateService
+}
+import services.battle.database.queue.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleQueueStatusError,
-  BattleRoomError,
-  BattleResultRecordError,
-  BattleResultService,
-  BattleFinishProjector,
-  BattleRoomLifecycleSink,
-  BattleSessionLookup,
-  BattleSessionSeed,
-  BattleStateReadError,
-  BattleStateService,
-  BattleFinishProjectionFailureReporter,
-  BattleFinishProjectionOutcome,
-  ConsoleBattleFinishProjectionFailureReporter,
-  DefaultBattleFinishProjector,
-  InMemoryBattleStateService
+  BattleRoomError
 }
-import services.battle.ports.{BattleMailPublisherPort, BattleReplayWriterPort}
+import services.battle.database.projections.{
+  BattleFinishProjectionFailureReporter,
+  BattleMailPublisherPort,
+  BattleReplayWriterPort,
+  ConsoleBattleFinishProjectionFailureReporter,
+  DefaultBattleFinishProjector
+}
+import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,
@@ -1016,7 +1018,7 @@ private[contract] object BattleStateRuntimeContractTest:
     val gatlingWeapon = gatlingAlice.weapons(gatlingAlice.currentWeaponIndex)
     val gatlingProjectile = afterGatlingFire.projectiles.lastOption.getOrElse(fail("missing gatling projectile"))
     ContractAssertions.assertEquals("runtime gatling current kind", gatlingAlice.currentWeaponKind, WeaponKind.Gatling)
-    ContractAssertions.assertEquals("runtime gatling adds heat", gatlingWeapon.heat, 8)
+    ContractAssertions.assertEquals("runtime gatling adds heat", gatlingWeapon.heat, BattleWeaponHeat(8))
     ContractAssertions.assertEquals("runtime gatling reserve is zero", gatlingWeapon.reserveAmmo, Some(AmmoCount(0)))
     ContractAssertions.assertEquals("runtime gatling cooldown", gatlingWeapon.fireCooldownMs, CooldownMillis(72))
     ContractAssertions.assertEquals("runtime gatling projectile kind", gatlingProjectile.projectileKind, ProjectileKind.GatlingBullet)
@@ -1050,7 +1052,7 @@ private[contract] object BattleStateRuntimeContractTest:
     val gatlingHeldProjectiles = afterGatlingHeld.projectiles.filter(_.projectileKind == ProjectileKind.GatlingBullet)
     assert(gatlingHeldProjectiles.length >= 2, s"runtime expected held Gatling to create more projectiles, got ${gatlingHeldProjectiles.length}")
     ContractAssertions.assertEquals("runtime gatling held projectile ids are unique", gatlingHeldProjectiles.map(_.projectileId).distinct.length, gatlingHeldProjectiles.length)
-    assert(gatlingHeldWeapon.heat >= 8, s"runtime expected held Gatling heat to include runtime shot, got ${gatlingHeldWeapon.heat}")
+    assert(gatlingHeldWeapon.heat.value >= 8, s"runtime expected held Gatling heat to include runtime shot, got ${gatlingHeldWeapon.heat}")
 
     val holsteredHeatBefore = gatlingHeldWeapon.heat
     gatlingService.acceptCommand(
@@ -1069,10 +1071,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val holsteredGatling = holsteredAlice.weapons.find(_.weaponKind == WeaponKind.Gatling).getOrElse(fail("missing holstered Gatling"))
     ContractAssertions.assertEquals("runtime gatling switched back to pistol", holsteredAlice.currentWeaponKind, WeaponKind.Pistol)
     assert(
-      holsteredGatling.heat < holsteredHeatBefore,
+      holsteredGatling.heat.value < holsteredHeatBefore.value,
       s"runtime expected holstered Gatling heat to cool, before=$holsteredHeatBefore, after=${holsteredGatling.heat}"
     )
-    ContractAssertions.assertEquals("runtime holstered Gatling cools to zero", holsteredGatling.heat, 0)
+    ContractAssertions.assertEquals("runtime holstered Gatling cools to zero", holsteredGatling.heat, BattleWeaponHeat(0))
 
     val rocketClock = TestClock(1_000L)
     val rocketService = battleStateService(
@@ -2547,9 +2549,9 @@ private[contract] object BattleFinishProjectionContractTest:
     )
 
   private def finishedBattleState(): BattleAggregateState =
-    val bot = player("bot-zero", "BotZero", "Bot Zero", 1, isBot = true, alive = true, 90, 1, WeaponKind.Gatling)
-    val alice = player("alice", "Alice", "Alice", 2, isBot = false, alive = true, 70, 3, WeaponKind.RocketLauncher)
-    val bob = player("bob", "Bob", "Bob", 0, isBot = false, alive = false, 999, 8, WeaponKind.Shotgun)
+    val bot = player("bot-zero", "BotZero", "Bot Zero", 1, isBot = true, alive = true, 90, KillCount(1), WeaponKind.Gatling)
+    val alice = player("alice", "Alice", "Alice", 2, isBot = false, alive = true, 70, KillCount(3), WeaponKind.RocketLauncher)
+    val bob = player("bob", "Bob", "Bob", 0, isBot = false, alive = false, 999, KillCount(8), WeaponKind.Shotgun)
     val replayPickup = pickup("pickup-finish-write", PickupKind.Medkit, None, BattleVector2(96.0, 128.0))
     val replayFrames = Vector(
       replayFrame(0L, Vector(bob, alice, bot), pickups = Vector(replayPickup)),
@@ -2598,7 +2600,7 @@ private[contract] object BattleFinishProjectionContractTest:
     isBot: Boolean,
     alive: Boolean,
     score: Int,
-    kills: Int,
+    kills: KillCount,
     weaponKind: WeaponKind
   ): BattlePlayerState =
     BattlePlayerState(
@@ -2641,7 +2643,7 @@ private[contract] object BattleFinishProjectionContractTest:
       reserveAmmo = Some(AmmoCount(20)),
       fireCooldownMs = CooldownMillis(0),
       reloadRemainingMs = CooldownMillis(0),
-      heat = 0,
+      heat = BattleWeaponHeat(0),
       thermalState = BattleWeaponThermalState.Ready
     )
 

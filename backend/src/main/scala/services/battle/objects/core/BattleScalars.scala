@@ -1,17 +1,5 @@
 package services.battle.objects.core
 
-import services.battle.objects.*
-import services.battle.objects.core.*
-import services.battle.objects.event.*
-import services.battle.objects.pickup.*
-import services.battle.objects.player.*
-import services.battle.objects.projectile.*
-import services.battle.objects.queue.*
-import services.battle.objects.replay.*
-import services.battle.objects.result.*
-import services.battle.objects.skill.*
-import services.battle.objects.weapon.*
-
 final case class EpochMillis(value: Long) extends AnyVal
 final case class DurationMillis(value: Long) extends AnyVal
 final case class ElapsedMillis(value: Long) extends AnyVal
@@ -22,7 +10,10 @@ final case class SpawnPointIndex(value: Int) extends AnyVal
 final case class BattleCapacity(value: Int) extends AnyVal
 final case class Rating(value: Int) extends AnyVal
 final case class RatingDelta(value: Int) extends AnyVal
+final case class BattleResultListLimit(value: Int) extends AnyVal
 final case class BattleMapId(value: String) extends AnyVal
+final case class BattleAvatarKey private (value: String) extends AnyVal
+final case class BattleSkinKey private (value: String) extends AnyVal
 final case class BattleResultLabel private (value: String) extends AnyVal
 final case class BattleModeLabel private (value: String) extends AnyVal
 final case class BattleMapLabel private (value: String) extends AnyVal
@@ -31,6 +22,7 @@ final case class BattlePlayersLine private (value: String) extends AnyVal
 final case class BattleTimelineHint private (value: String) extends AnyVal
 final case class BattlePlacement private (value: Int) extends AnyVal
 final case class Score(value: Int) extends AnyVal
+final case class KillCount(value: Int) extends AnyVal
 final case class HitPoints(value: Int) extends AnyVal
 final case class Stamina(value: Double) extends AnyVal
 final case class AmmoCount(value: Int) extends AnyVal
@@ -38,8 +30,20 @@ final case class CooldownMillis(value: Int) extends AnyVal
 final case class FacingRadians(value: Double) extends AnyVal
 final case class Radius(value: Double) extends AnyVal
 final case class Damage(value: Int) extends AnyVal
+final case class BattleWeaponHeat(value: Int) extends AnyVal
+final case class BattleWeaponHeatRatePerSecond(value: Int) extends AnyVal
 
 final case class BattleVector2(x: Double, y: Double)
+
+object BattleAvatarKey {
+  def fromWire(value: String): Option[BattleAvatarKey] =
+    Option(value).map(_.trim).filter(_.nonEmpty).map(new BattleAvatarKey(_))
+}
+
+object BattleSkinKey {
+  def fromWire(value: String): Option[BattleSkinKey] =
+    Option(value).map(_.trim).filter(_.nonEmpty).map(new BattleSkinKey(_))
+}
 
 object BattlePlacement {
   /**

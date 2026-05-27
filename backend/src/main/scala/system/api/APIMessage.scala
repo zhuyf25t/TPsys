@@ -1,22 +1,31 @@
 package system.api
 
 import cats.effect.IO
-import io.circe.{Decoder, Encoder, Json}
+import io.circe.{Decoder, Encoder, Error, Json}
 import io.circe.syntax.*
+import system.objects.UserId
 
+import java.sql.Connection
 import scala.reflect.ClassTag
 
 trait APIMessage[Response]:
-  def plan: IO[Response]
+  def plan(connection: Connection): IO[Response]
 
 trait APIWithTokenMessage[Response] extends APIMessage[Response]
 
+trait APIMessageWithContext[Context, Response]:
+  def plan(context: Context, connection: Connection): IO[Response]
+
+trait APIWithTokenContextMessage[Context, Response] extends APIMessageWithContext[Context, Response]
+
 trait NoRequestMessage[Response] extends APIMessage[Response]
 
+final case class APIName(value: String) extends AnyVal
+
 final case class RegisteredAPIMessage(
-  apiName: String,
+  apiName: APIName,
   requiresUserToken: Boolean,
-  planJson: Json => IO[Json]
+  planJson: (Json, Connection) => IO[Json]
 )
 
 sealed abstract class APIMessageError(message: String) extends RuntimeException(message)
@@ -29,10 +38,29 @@ object APIMessageError:
   final case class NotFound(message: String) extends APIMessageError(message)
 
 object APIMessage:
-  def apiNameFromClassName(className: String): String =
+  def apiNameFromClassName(className: String): APIName =
     val objectName = className.stripSuffix("$")
     val baseName = objectName.stripSuffix("APIMessage")
-    baseName.toLowerCase
+    APIName(baseName.toLowerCase)
+
+  def apiNameFromClass[Message](using classTag: ClassTag[Message]): APIName =
+    apiNameFromClassName(classTag.runtimeClass.getSimpleName)
+
+  def injectedUserId(payload: Json): IO[UserId] =
+    injectedUserIdValue(payload) match {
+      case Right(userId) =>
+        IO.pure(userId)
+      case Left(message) =>
+        IO.raiseError(APIMessageError.Unauthorized(message))
+    }
+
+  def injectedUserIdValue(payload: Json): Either[String, UserId] =
+    payload.hcursor.get[String]("userId") match {
+      case Right(value) if value.trim.nonEmpty =>
+        Right(UserId(value.trim))
+      case _ =>
+        Left("Login is required.")
+    }
 
 object RegisteredAPIMessage:
   def api[Message <: APIMessage[Response], Response](using
@@ -49,6 +77,49 @@ object RegisteredAPIMessage:
   ): RegisteredAPIMessage =
     build[Message, Response](requiresUserToken = true)
 
+  def apiWithTokenFromJson[Message <: APIWithTokenMessage[Response], Response](
+    buildMessage: Json => IO[Message]
+  )(using
+    Encoder[Response],
+    ClassTag[Message]
+  ): RegisteredAPIMessage =
+    buildFromJson[Message, Response](requiresUserToken = true, buildMessage)
+
+  def apiWithTokenAndContext[
+    Context,
+    Message <: APIWithTokenContextMessage[Context, Response],
+    Response
+  ](
+    context: Context,
+    decodeFailure: Error => APIMessageError = defaultDecodeFailure
+  )(using
+    Decoder[Message],
+    Encoder[Response],
+    ClassTag[Message]
+  ): RegisteredAPIMessage =
+    apiWithTokenAndContextFromClass[Context, Message, Response](
+      context = context,
+      decodeFailure = decodeFailure
+    )
+
+  def apiWithTokenAndContextFromClass[
+    Context,
+    Message <: APIWithTokenContextMessage[Context, Response],
+    Response
+  ](
+    context: Context,
+    decodeFailure: Error => APIMessageError = defaultDecodeFailure
+  )(using
+    Decoder[Message],
+    Encoder[Response],
+    ClassTag[Message]
+  ): RegisteredAPIMessage =
+    buildWithContext[Context, Message, Response](
+      context = context,
+      requiresUserToken = true,
+      decodeFailure = decodeFailure
+    )
+
   def noRequest[Message <: NoRequestMessage[Response], Response](message: => Message)(using
     Encoder[Response],
     ClassTag[Message]
@@ -56,7 +127,7 @@ object RegisteredAPIMessage:
     RegisteredAPIMessage(
       apiName = nameOf[Message],
       requiresUserToken = false,
-      planJson = _ => message.plan.map(_.asJson)
+      planJson = (_, connection) => message.plan(connection).map(_.asJson)
     )
 
   private def build[Message <: APIMessage[Response], Response](requiresUserToken: Boolean)(using
@@ -67,14 +138,57 @@ object RegisteredAPIMessage:
     RegisteredAPIMessage(
       apiName = nameOf[Message],
       requiresUserToken = requiresUserToken,
-      planJson = payload =>
+      planJson = (payload, connection) =>
         for
           message <- IO.fromEither(
             payload.as[Message].left.map(error => APIMessageError.BadRequest(s"Invalid request body: ${error.getMessage}"))
           )
-          response <- message.plan
+          response <- message.plan(connection)
         yield response.asJson
     )
 
-  private def nameOf[Message](using classTag: ClassTag[Message]): String =
-    APIMessage.apiNameFromClassName(classTag.runtimeClass.getSimpleName)
+  private def buildFromJson[Message <: APIMessage[Response], Response](
+    requiresUserToken: Boolean,
+    buildMessage: Json => IO[Message]
+  )(using
+    Encoder[Response],
+    ClassTag[Message]
+  ): RegisteredAPIMessage =
+    RegisteredAPIMessage(
+      apiName = nameOf[Message],
+      requiresUserToken = requiresUserToken,
+      planJson = (payload, connection) =>
+        for
+          message <- buildMessage(payload)
+          response <- message.plan(connection)
+        yield response.asJson
+    )
+
+  private def buildWithContext[
+    Context,
+    Message <: APIMessageWithContext[Context, Response],
+    Response
+  ](
+    context: Context,
+    requiresUserToken: Boolean,
+    decodeFailure: Error => APIMessageError
+  )(using
+    Decoder[Message],
+    Encoder[Response],
+    ClassTag[Message]
+  ): RegisteredAPIMessage =
+    RegisteredAPIMessage(
+      apiName = nameOf[Message],
+      requiresUserToken = requiresUserToken,
+      planJson = (payload, connection) =>
+        for
+          message <- IO.fromEither(payload.as[Message].left.map(decodeFailure))
+          response <- message.plan(context, connection)
+        yield response.asJson
+    )
+
+  private def defaultDecodeFailure(error: Error): APIMessageError =
+    APIMessageError.BadRequest(s"Invalid request body: ${error.getMessage}")
+
+  private def nameOf[Message](using ClassTag[Message]): APIName =
+    APIMessage.apiNameFromClass[Message]

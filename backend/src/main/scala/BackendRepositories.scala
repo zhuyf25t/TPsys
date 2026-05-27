@@ -2,7 +2,7 @@ package services
 
 import java.nio.file.{Path, Paths}
 
-import services.battle.persistence.BattleResultRepository
+import services.battle.database.results.BattleResultRepository
 import services.bots.database.BotProfileRepository
 import services.forum.database.ForumRepository
 import services.governance.database.GovernanceRepository

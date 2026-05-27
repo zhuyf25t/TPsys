@@ -1,17 +1,21 @@
 package services.battle.objects.replay
 
-import services.battle.objects.*
-import services.battle.objects.core.*
-import services.battle.objects.event.*
-import services.battle.objects.pickup.*
-import services.battle.objects.player.*
-import services.battle.objects.projectile.*
-import services.battle.objects.queue.*
-import services.battle.objects.replay.*
-import services.battle.objects.result.*
-import services.battle.objects.skill.*
-import services.battle.objects.weapon.*
-
+import services.battle.objects.{PickupKind, ProjectileKind, WeaponKind}
+import services.battle.objects.core.{
+  BattleVector2,
+  DurationMillis,
+  ElapsedMillis,
+  FacingRadians,
+  HeroId,
+  HitPoints,
+  PickupId,
+  PlayerId,
+  ProjectileId,
+  Radius,
+  Score,
+  SeatIndex
+}
+import services.battle.objects.pickup.BattlePickupAvailability
 import services.identity.objects.{DisplayName, PlayerHandle}
 
 final case class BattleReplayHeroFrameState(

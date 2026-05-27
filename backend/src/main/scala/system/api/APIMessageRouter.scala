@@ -1,6 +1,6 @@
 package system.api
 
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import io.circe.Json
 import io.circe.syntax.*
 import org.http4s.{HttpRoutes, InvalidMessageBodyFailure, Response, Status}
@@ -8,42 +8,50 @@ import org.http4s.circe.CirceEntityCodec.*
 import org.http4s.dsl.io.*
 import system.objects.ErrorResponse
 
+import java.lang.reflect.{InvocationHandler, Method, Proxy}
+import java.sql.Connection
+
 object APIMessageRouter:
   def routes(
     apiMessages: List[RegisteredAPIMessage],
-    resolveUserToken: String => IO[Json] = unsupportedTokenResolver
+    resolveUserToken: (String, Connection) => IO[Json] = unsupportedTokenResolver,
+    connectionResource: Resource[IO, Connection] = UnsupportedConnectionResource.resource
   ): HttpRoutes[IO] =
-    val apiMessagesByName = apiMessages.map(apiMessage => apiMessage.apiName -> apiMessage).toMap
+    val apiMessagesByName = apiMessages.map(apiMessage => apiMessage.apiName.value -> apiMessage).toMap
 
     HttpRoutes.of[IO] {
       case req @ POST -> Root / "api" / apiName if apiMessagesByName.contains(apiName) =>
         val apiMessage = apiMessagesByName(apiName)
         handleErrors {
-          runAPIMessage(req, apiMessage, resolveUserToken)
+          runAPIMessage(req, apiMessage, resolveUserToken, connectionResource)
         }
     }
 
   private def runAPIMessage(
     req: org.http4s.Request[IO],
     apiMessage: RegisteredAPIMessage,
-    resolveUserToken: String => IO[Json]
+    resolveUserToken: (String, Connection) => IO[Json],
+    connectionResource: Resource[IO, Connection]
   ): IO[Response[IO]] =
-    for
-      payload <- req.as[Json]
-      backendPayload <- preparePayload(apiMessage, payload, resolveUserToken)
-      response <- apiMessage.planJson(backendPayload)
-      httpResponse <- Ok(response)
-    yield httpResponse
+    connectionResource.use { connection =>
+      for
+        payload <- req.as[Json]
+        backendPayload <- preparePayload(apiMessage, payload, connection, resolveUserToken)
+        response <- apiMessage.planJson(backendPayload, connection)
+        httpResponse <- Ok(response)
+      yield httpResponse
+    }
 
   private def preparePayload(
     apiMessage: RegisteredAPIMessage,
     payload: Json,
-    resolveUserToken: String => IO[Json]
+    connection: Connection,
+    resolveUserToken: (String, Connection) => IO[Json]
   ): IO[Json] =
     if apiMessage.requiresUserToken then
       for
         userToken <- extractUserToken(payload)
-        userIdJson <- resolveUserToken(userToken)
+        userIdJson <- resolveUserToken(userToken, connection)
         backendPayload <- replaceUserTokenWithUserId(payload, userIdJson)
       yield backendPayload
     else IO.pure(payload)
@@ -60,7 +68,7 @@ object APIMessageRouter:
       case None =>
         IO.raiseError(APIMessageError.BadRequest("Request body must be a JSON object."))
 
-  private def unsupportedTokenResolver(userToken: String): IO[Json] =
+  private def unsupportedTokenResolver(userToken: String, connection: Connection): IO[Json] =
     IO.raiseError(APIMessageError.Unauthorized("Login is required."))
 
   private def handleErrors(action: IO[Response[IO]]): IO[Response[IO]] =
@@ -80,3 +88,33 @@ object APIMessageRouter:
       case error =>
         InternalServerError(ErrorResponse(error.getMessage).asJson)
     }
+
+private object UnsupportedConnectionResource:
+  val resource: Resource[IO, Connection] =
+    Resource.pure(UnsupportedConnectionProxy.create)
+
+private object UnsupportedConnectionProxy:
+  def create: Connection =
+    Proxy
+      .newProxyInstance(
+        classOf[Connection].getClassLoader,
+        Array(classOf[Connection]),
+        handler
+      )
+      .asInstanceOf[Connection]
+
+  private val handler: InvocationHandler =
+    (_: AnyRef, method: Method, _: Array[AnyRef]) =>
+      method.getName match
+        case "close" =>
+          ()
+        case "isClosed" =>
+          java.lang.Boolean.TRUE
+        case "toString" =>
+          "UnsupportedConnection(APIMessageRouter default)"
+        case "isWrapperFor" =>
+          java.lang.Boolean.FALSE
+        case "unwrap" =>
+          throw UnsupportedOperationException("No JDBC connection is configured for this API route.")
+        case _ =>
+          throw UnsupportedOperationException("No JDBC connection is configured for this API route.")

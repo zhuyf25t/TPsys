@@ -4,7 +4,7 @@ import java.nio.file.Files
 
 import io.circe.parser.parse
 
-import services.battle.persistence.FileBattleResultRepository
+import services.battle.database.results.FileBattleResultRepository
 import services.battle.objects.*
 import services.identity.objects.{DisplayName, PlayerHandle}
 

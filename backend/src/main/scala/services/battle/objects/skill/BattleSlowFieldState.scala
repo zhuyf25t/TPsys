@@ -1,16 +1,6 @@
 package services.battle.objects.skill
 
-import services.battle.objects.*
-import services.battle.objects.core.*
-import services.battle.objects.event.*
-import services.battle.objects.pickup.*
-import services.battle.objects.player.*
-import services.battle.objects.projectile.*
-import services.battle.objects.queue.*
-import services.battle.objects.replay.*
-import services.battle.objects.result.*
-import services.battle.objects.skill.*
-import services.battle.objects.weapon.*
+import services.battle.objects.core.{BattleVector2, DurationMillis, HeroId, PlayerId, Radius, SlowFieldId}
 
 final case class BattleSlowFieldState(
   fieldId: SlowFieldId,

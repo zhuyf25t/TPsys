@@ -6,9 +6,11 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import services.{BackendConfig, BackendEnvironment, BackendRuntime}
-import services.battle.routes.BattleAPIMessageServices
+import services.battle.routes.BattleAPIRuntimeContext
+import route.battle.BattleHttp4sResultBackend
 import route.governance.GovernanceHttpServices
 import system.database.PostgresSupport
+import system.storage.StorageConfig
 
 object BackendHttp4sApp extends IOApp.Simple {
   private val logger = Slf4jLogger.getLogger[IO]
@@ -41,12 +43,12 @@ object BackendHttp4sApp extends IOApp.Simple {
     HttpApiServices(
       healthService = runtime.healthService,
       replayService = runtime.replayService,
-      battleServices = BattleAPIMessageServices(
+      battleRuntimeContext = BattleAPIRuntimeContext(
         queueService = runtime.battleQueueService,
         joinAuthorizationService = runtime.battleJoinAuthorizationService,
-        resultService = runtime.battleResultService,
         stateService = runtime.battleStateService
       ),
+      battleResultBackend = battleResultBackend(runtime),
       botProfileService = runtime.botProfileService,
       identityService = runtime.identityService,
       mailService = runtime.mailService,
@@ -62,4 +64,12 @@ object BackendHttp4sApp extends IOApp.Simple {
     IO.fromOption(Port.fromInt(config.port.value))(
       IllegalArgumentException(s"Invalid backend port: ${config.port.value}")
     )
+
+  private def battleResultBackend(runtime: BackendRuntime): BattleHttp4sResultBackend =
+    runtime.config.storage match {
+      case StorageConfig.Postgres(connection) =>
+        BattleHttp4sResultBackend.ConnectionBacked(PostgresSupport.connectionResource(connection))
+      case StorageConfig.InMemory | StorageConfig.File(_) =>
+        BattleHttp4sResultBackend.RepositoryBacked(runtime.battleResultRepository)
+    }
 }

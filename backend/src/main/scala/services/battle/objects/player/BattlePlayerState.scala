@@ -1,17 +1,22 @@
 package services.battle.objects.player
 
-import services.battle.objects.*
-import services.battle.objects.core.*
-import services.battle.objects.event.*
-import services.battle.objects.pickup.*
-import services.battle.objects.player.*
-import services.battle.objects.projectile.*
-import services.battle.objects.queue.*
-import services.battle.objects.replay.*
-import services.battle.objects.result.*
-import services.battle.objects.skill.*
-import services.battle.objects.weapon.*
-
+import services.battle.objects.{SkillKind, WeaponKind}
+import services.battle.objects.core.{
+  BattleVector2,
+  ClientCommandSeq,
+  CooldownMillis,
+  DurationMillis,
+  ElapsedMillis,
+  FacingRadians,
+  HeroId,
+  HitPoints,
+  KillCount,
+  PlayerId,
+  Score,
+  SeatIndex,
+  Stamina
+}
+import services.battle.objects.weapon.BattleWeaponState
 import services.identity.objects.{DisplayName, PlayerHandle}
 
 final case class BattlePlayerSkillState(
@@ -43,7 +48,7 @@ final case class BattlePlayerState(
   stamina: Stamina,
   maxStamina: Stamina,
   score: Score,
-  kills: Int,
+  kills: KillCount,
   skills: Vector[BattlePlayerSkillState],
   lifeState: BattlePlayerLifeState
 ) {

@@ -3,81 +3,77 @@ import path from "node:path";
 import process from "node:process";
 
 const repoRoot = process.cwd();
-const frontendSrc = path.join(repoRoot, "frontend", "src");
 const failures = [];
 
-const expectedDomains = ["battle", "bots", "forum", "governance", "identity", "mail", "replay", "social"];
-const requiredDomainDirs = ["api", "objects", "pages", "components", "hooks", "lib"];
-const allowedDomainExtras = {
-  battle: ["contracts", "game", "runtime"],
-  bots: ["runtime"],
-  forum: [],
-  governance: [],
-  identity: [],
-  mail: [],
-  replay: [],
-  social: []
-};
-
-const expectedPages = {
-  battle: ["battle", "loadout"],
-  bots: [],
-  forum: ["discussion-detail", "discussion-list"],
-  governance: ["admin-notifications", "contribution", "rating"],
-  identity: ["profile", "session"],
-  mail: ["inbox"],
-  replay: ["replay-detail", "replay-list"],
-  social: []
-};
+const expectedServices = ["battle", "bots", "forum", "governance", "identity", "mail", "replay", "social"];
+const expectedRootDirs = ["api", "app", "assets", "components", "hooks", "lib", "objects", "pages", "runtime", "shared"];
+const expectedPages = [
+  "battle",
+  "contribution",
+  "discussion",
+  "discussion-detail",
+  "home",
+  "loadout",
+  "mails",
+  "profile",
+  "rating",
+  "replay",
+  "replay-detail"
+];
 
 function fail(message) {
   failures.push(message);
 }
 
+function absolute(target) {
+  return path.join(repoRoot, target);
+}
+
 function exists(target) {
-  return fs.existsSync(path.join(repoRoot, target));
+  return fs.existsSync(absolute(target));
 }
 
 function isDirectory(target) {
   try {
-    return fs.statSync(path.join(repoRoot, target)).isDirectory();
+    return fs.statSync(absolute(target)).isDirectory();
   } catch {
     return false;
   }
 }
 
 function listDirectoryNames(target) {
-  const absolute = path.join(repoRoot, target);
-  if (!fs.existsSync(absolute)) {
+  const fullPath = absolute(target);
+  if (!fs.existsSync(fullPath)) {
     return [];
   }
 
   return fs
-    .readdirSync(absolute, { withFileTypes: true })
+    .readdirSync(fullPath, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
 }
 
 function listCodeFiles(target) {
-  const absolute = path.join(repoRoot, target);
-  if (!fs.existsSync(absolute)) {
+  const fullPath = absolute(target);
+  if (!fs.existsSync(fullPath)) {
     return [];
   }
 
   const results = [];
-  const stack = [absolute];
+  const stack = [fullPath];
   while (stack.length > 0) {
     const current = stack.pop();
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const fullPath = path.join(current, entry.name);
+      const nestedPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
-        stack.push(fullPath);
+        stack.push(nestedPath);
       } else if (/\.tsx?$/.test(entry.name)) {
-        results.push(fullPath);
+        results.push(nestedPath);
       }
     }
   }
+
   return results;
 }
 
@@ -95,20 +91,31 @@ function assertDir(target) {
 
 function assertNoPath(target) {
   if (exists(target)) {
-    fail(`Forbidden legacy path still exists: ${target}`);
+    fail(`Forbidden path still exists: ${target}`);
   }
 }
 
 function assertCodeFiles(target) {
-  const files = listCodeFiles(target);
-  if (files.length === 0) {
+  if (listCodeFiles(target).length === 0) {
     fail(`Expected code files under: ${target}`);
+  }
+}
+
+function assertFileDoesNotMatch(target, pattern, label) {
+  if (!exists(target)) {
+    return;
+  }
+
+  const content = fs.readFileSync(absolute(target), "utf8");
+  if (pattern.test(content)) {
+    fail(`${target} must not contain ${label}`);
   }
 }
 
 function compareSets(label, expected, actual) {
   const missing = expected.filter((entry) => !actual.includes(entry));
   const extra = actual.filter((entry) => !expected.includes(entry));
+
   for (const entry of missing) {
     fail(`${label} missing: ${entry}`);
   }
@@ -122,9 +129,11 @@ function assertNoLegacyImports() {
   const legacyPatterns = [
     /(?:^|["'])\.\.?\/.*features\//,
     /features\//,
+    /domains\//,
+    /domains\\/,
     /domain\/types/,
     /contracts\/battle/,
-    /frontend\/src\/(?:features|pages|game|domain|contracts|scenes|ui)\//
+    /frontend\/src\/(?:features|domains|game|domain|contracts|scenes|ui)\//
   ];
 
   for (const file of codeFiles) {
@@ -138,25 +147,49 @@ function assertNoLegacyImports() {
   }
 }
 
-assertDir("frontend/src/app");
-assertDir("frontend/src/assets");
-assertDir("frontend/src/domains");
-assertDir("frontend/src/shared");
+function assertNoPageApiImports() {
+  for (const file of listCodeFiles("frontend/src/pages")) {
+    const content = fs.readFileSync(file, "utf8");
+    if (/from\s+["'][^"']*\/api\//.test(content)) {
+      fail(`Page file must not import api modules directly: ${path.relative(repoRoot, file)}`);
+    }
+  }
+}
+
+function assertNoDynamicImportsInFrontend() {
+  for (const file of listCodeFiles("frontend/src")) {
+    const content = fs.readFileSync(file, "utf8");
+    if (/\bimport\s*\(/.test(content)) {
+      fail(`Dynamic import is not allowed in frontend source: ${path.relative(repoRoot, file)}`);
+    }
+  }
+}
+
+compareSets("frontend root directory", expectedRootDirs, listDirectoryNames("frontend/src"));
 assertPath("frontend/src/main.tsx");
 assertPath("frontend/src/vite-env.d.ts");
 
-for (const legacyRoot of ["features", "pages", "game", "domain", "contracts", "scenes", "ui"]) {
+for (const legacyRoot of ["domains", "features", "game", "domain", "contracts", "scenes", "ui"]) {
   assertNoPath(`frontend/src/${legacyRoot}`);
 }
+
+compareSets("frontend api service", expectedServices, listDirectoryNames("frontend/src/api"));
+compareSets("frontend object service", expectedServices, listDirectoryNames("frontend/src/objects"));
+for (const service of expectedServices) {
+  assertCodeFiles(`frontend/src/api/${service}`);
+  assertDir(`frontend/src/objects/${service}`);
+}
+assertDir("frontend/src/objects/battle/contracts");
+assertPath("frontend/src/objects/battle/types.ts");
+assertPath("frontend/src/objects/battle/battleRules.ts");
+assertPath("frontend/src/objects/identity/identityHandlePolicy.ts");
+assertPath("frontend/src/objects/replay/replayTypes.ts");
 
 assertPath("frontend/src/app/App.tsx");
 assertPath("frontend/src/app/routes.tsx");
 assertDir("frontend/src/app/providers");
 assertDir("frontend/src/app/storage");
-assertDir("frontend/src/app/styles");
-for (const styleFile of ["base.css", "app-shell.css", "domain-overrides.css"]) {
-  assertPath(`frontend/src/app/styles/${styleFile}`);
-}
+assertPath("frontend/src/app/tailwind.css");
 
 for (const sharedDir of ["api", "objects", "ui", "hooks", "lib", "storage", "types"]) {
   assertDir(`frontend/src/shared/${sharedDir}`);
@@ -164,36 +197,78 @@ for (const sharedDir of ["api", "objects", "ui", "hooks", "lib", "storage", "typ
 assertPath("frontend/src/shared/api/apiUrl.ts");
 assertPath("frontend/src/shared/api/httpClient.ts");
 
-compareSets("frontend domain", expectedDomains, listDirectoryNames("frontend/src/domains"));
+compareSets("frontend page", expectedPages, listDirectoryNames("frontend/src/pages"));
+assertPath("frontend/src/pages/home/HomePage.tsx");
+assertPath("frontend/src/pages/loadout/LoadoutPage.tsx");
+assertPath("frontend/src/pages/battle/BattlePage.tsx");
+assertDir("frontend/src/pages/battle/game-screen");
+assertDir("frontend/src/pages/battle/non-game");
+assertPath("frontend/src/pages/battle/game-screen/BattleGameScreen.tsx");
+assertPath("frontend/src/pages/battle/non-game/BattleEntryBlockedOverlay.tsx");
+assertPath("frontend/src/pages/battle/non-game/BattleSettlementOverlay.tsx");
+assertPath("frontend/src/pages/battle/non-game/MatchingOverlay.tsx");
+assertPath("frontend/src/pages/battle/non-game/battleDrawerPresenter.ts");
 
-for (const domain of expectedDomains) {
-  const domainRoot = `frontend/src/domains/${domain}`;
-  assertPath(`${domainRoot}/index.ts`);
+assertDir("frontend/src/components");
+assertPath("frontend/src/components/auth/AuthOverlay.tsx");
+assertPath("frontend/src/components/auth/AuthSessionBootstrap.tsx");
+assertPath("frontend/src/components/battle/BattleChrome.tsx");
+assertPath("frontend/src/components/contribution/ContributionPageView.tsx");
+assertPath("frontend/src/components/discussion/DiscussionPageView.tsx");
+assertPath("frontend/src/components/discussion-detail/DiscussionDetailPageView.tsx");
+assertPath("frontend/src/components/friend-requests/friendRequestPreviewPresenter.ts");
+assertPath("frontend/src/components/home/HomePageView.tsx");
+assertPath("frontend/src/components/loadout/LoadoutPageView.tsx");
+assertPath("frontend/src/components/mails/MailsPageView.tsx");
+assertPath("frontend/src/components/profile/ProfilePageView.tsx");
+assertPath("frontend/src/components/rating/RatingPageView.tsx");
+assertPath("frontend/src/components/replay-detail/ReplayDetailPageView.tsx");
+assertPath("frontend/src/components/replay/ReplayPageView.tsx");
+assertPath("frontend/src/components/replay/ReplayViewer.tsx");
+assertPath("frontend/src/components/user-action-dot/UserActionDot.tsx");
 
-  const allowedChildren = [...requiredDomainDirs, ...allowedDomainExtras[domain]].sort();
-  compareSets(`${domain} top-level directory`, allowedChildren, listDirectoryNames(domainRoot));
+assertDir("frontend/src/hooks/battle-page");
+assertPath("frontend/src/hooks/battle-page/useBattlePageRuntime.ts");
+assertPath("frontend/src/hooks/battle-page/useBattlePageData.ts");
+assertPath("frontend/src/hooks/battle-page/useBattlePageTimers.ts");
+assertCodeFiles("frontend/src/hooks/battle-page");
+assertPath("frontend/src/hooks/contribution-page/useContributionPage.ts");
+assertPath("frontend/src/hooks/discussion-detail-page/useDiscussionDetailPage.ts");
+assertPath("frontend/src/hooks/discussion-page/useDiscussionPage.ts");
+assertPath("frontend/src/hooks/home-page/useHomePage.ts");
+assertPath("frontend/src/hooks/loadout-page/useLoadoutPage.ts");
+assertPath("frontend/src/hooks/mails-page/useMailsPage.ts");
+assertPath("frontend/src/hooks/profile-page/useProfilePage.ts");
+assertPath("frontend/src/hooks/rating-page/useRatingPage.ts");
+assertPath("frontend/src/hooks/replay-detail-page/useReplayDetailPage.ts");
+assertPath("frontend/src/hooks/replay-page/useReplayPage.ts");
+assertFileDoesNotMatch("frontend/src/pages/contribution/ContributionPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/discussion-detail/DiscussionDetailPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/discussion/DiscussionPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/home/HomePage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/loadout/LoadoutPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/mails/MailsPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/profile/ProfilePage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/rating/RatingPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/replay-detail/ReplayDetailPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertFileDoesNotMatch("frontend/src/pages/replay/ReplayPage.tsx", /\.\.\/\.\.\/api\//, "direct api imports");
+assertNoPageApiImports();
+assertNoDynamicImportsInFrontend();
 
-  for (const requiredDir of requiredDomainDirs) {
-    assertDir(`${domainRoot}/${requiredDir}`);
-  }
-
-  for (const page of expectedPages[domain]) {
-    assertDir(`${domainRoot}/pages/${page}`);
-  }
-}
+assertDir("frontend/src/lib");
+assertPath("frontend/src/lib/localDiscussionStore.ts");
+assertPath("frontend/src/lib/localReplayStore.ts");
+assertCodeFiles("frontend/src/lib");
 
 for (const runtimeDir of ["authoritative", "local", "matchmaking"]) {
-  assertDir(`frontend/src/domains/battle/runtime/${runtimeDir}`);
-  assertCodeFiles(`frontend/src/domains/battle/runtime/${runtimeDir}`);
+  assertDir(`frontend/src/runtime/battle/${runtimeDir}`);
+  assertCodeFiles(`frontend/src/runtime/battle/${runtimeDir}`);
 }
-for (const gameDir of ["assets", "maps", "weapons", "skills", "renderer"]) {
-  assertDir(`frontend/src/domains/battle/game/${gameDir}`);
-  assertCodeFiles(`frontend/src/domains/battle/game/${gameDir}`);
-}
-for (const runtimeDir of ["controller", "registry", "strategies"]) {
-  assertDir(`frontend/src/domains/bots/runtime/${runtimeDir}`);
-  assertCodeFiles(`frontend/src/domains/bots/runtime/${runtimeDir}`);
-}
+assertPath("frontend/src/runtime/battle/game/renderer/createBattleRuntime.ts");
+assertPath("frontend/src/runtime/battle/game/scenes/GameScene.ts");
+assertPath("frontend/src/runtime/battle/game/ui/Hud.ts");
+assertDir("frontend/src/runtime/bots");
+assertCodeFiles("frontend/src/runtime/bots");
 
 assertNoLegacyImports();
 

@@ -2,7 +2,6 @@ package services
 
 import java.nio.file.{Path, Paths}
 
-import services.battle.database.results.BattleResultRepository
 import services.bots.database.BotProfileRepository
 import services.forum.database.ForumRepository
 import services.governance.database.GovernanceRepository
@@ -14,7 +13,6 @@ import services.social.database.FriendRequestRepository
 
 final case class BackendRepositories(
   identity: IdentityAccountRepository,
-  battleResults: BattleResultRepository,
   mail: MailRepository,
   botProfiles: BotProfileRepository,
   replay: ReplayRepository,
@@ -27,9 +25,6 @@ final case class BackendRepositoryFactories(
   inMemoryIdentity: () => IdentityAccountRepository,
   fileIdentity: Path => IdentityAccountRepository,
   postgresIdentity: PostgresConnectionSettings => IdentityAccountRepository,
-  inMemoryBattleResults: () => BattleResultRepository,
-  fileBattleResults: Path => BattleResultRepository,
-  postgresBattleResults: PostgresConnectionSettings => BattleResultRepository,
   inMemoryMail: () => MailRepository,
   fileMail: Path => MailRepository,
   postgresMail: PostgresConnectionSettings => MailRepository,
@@ -64,7 +59,6 @@ object BackendRepositories {
       case StorageConfig.InMemory =>
         BackendRepositories(
           identity = factories.inMemoryIdentity(),
-          battleResults = factories.inMemoryBattleResults(),
           mail = factories.inMemoryMail(),
           botProfiles = factories.inMemoryBotProfiles(),
           replay = factories.inMemoryReplay(),
@@ -76,7 +70,6 @@ object BackendRepositories {
         val rootPath = Paths.get(root.value)
         BackendRepositories(
           identity = factories.fileIdentity(rootPath),
-          battleResults = factories.fileBattleResults(rootPath),
           mail = factories.fileMail(rootPath),
           botProfiles = factories.fileBotProfiles(rootPath),
           replay = factories.fileReplay(rootPath),
@@ -87,7 +80,6 @@ object BackendRepositories {
       case StorageConfig.Postgres(connection) =>
         BackendRepositories(
           identity = factories.postgresIdentity(connection),
-          battleResults = factories.postgresBattleResults(connection),
           mail = factories.postgresMail(connection),
           botProfiles = factories.postgresBotProfiles(connection),
           replay = factories.postgresReplay(connection),

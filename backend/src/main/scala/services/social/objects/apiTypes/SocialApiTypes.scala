@@ -3,119 +3,16 @@ package services.social.objects.apiTypes
 import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
 import io.circe.generic.semiauto.deriveEncoder
 
-import services.identity.objects.PlayerHandle
 import services.mail.objects.apiTypes.MailItemResponse
 import services.social.objects.{FriendRequestRecord, FriendRequestStatus}
-import services.social.services.{
-  FriendRequestCreateError,
-  FriendRequestRespondError,
-  FriendRequestResponseResult,
-  FriendRequestSubmissionResult
-}
+import services.social.services.{FriendRequestResponseResult, FriendRequestSubmissionResult}
 
-object SocialRequestTarget {
-  private val FriendRequestPaths: Set[String] =
-    Set("/social/friend-requests", "/api/social/friend-requests")
-  private val FriendRequestRespondPaths: Set[String] =
-    Set("/social/friend-requests/respond", "/api/social/friend-requests/respond")
-
-  def isFriendRequestPath(path: String): Boolean =
-    FriendRequestPaths.contains(path)
-
-  def isFriendRequestRespondPath(path: String): Boolean =
-    FriendRequestRespondPaths.contains(path)
-}
-
-enum SocialApiRequestDecodeError {
-  case InvalidJsonObject
-}
-
-enum SocialApiErrorCode {
-  case MethodNotAllowed
-  case InvalidJsonObject
-  case MissingOwner
-  case VisitorNotAllowed
-  case InvalidOwner
-  case InvalidHandles
-  case RequestNotFound
-  case Forbidden
-  case InvalidDecision
-  case MissingFields
-  case InvalidActor
-}
-
-object SocialApiErrorCode {
-  def fromOwnerError(error: SocialRouteHandleError): SocialApiErrorCode =
-    error match {
-      case SocialRouteHandleError.Missing             => SocialApiErrorCode.MissingOwner
-      case SocialRouteHandleError.VisitorNotAllowed   => SocialApiErrorCode.VisitorNotAllowed
-      case SocialRouteHandleError.Invalid             => SocialApiErrorCode.InvalidOwner
-    }
-
-  def fromCreateRouteError(error: SocialRouteCreateError): SocialApiErrorCode =
-    error match {
-      case SocialRouteCreateError.InvalidHandles      => SocialApiErrorCode.InvalidHandles
-      case SocialRouteCreateError.VisitorNotAllowed   => SocialApiErrorCode.VisitorNotAllowed
-    }
-
-  def fromCreateServiceError(error: FriendRequestCreateError): SocialApiErrorCode =
-    error match {
-      case FriendRequestCreateError.InvalidHandles => SocialApiErrorCode.InvalidHandles
-    }
-
-  def fromRespondRouteError(error: SocialRouteRespondError): SocialApiErrorCode =
-    error match {
-      case SocialRouteRespondError.InvalidDecision     => SocialApiErrorCode.InvalidDecision
-      case SocialRouteRespondError.MissingFields       => SocialApiErrorCode.MissingFields
-      case SocialRouteRespondError.InvalidActorHandle  => SocialApiErrorCode.InvalidActor
-      case SocialRouteRespondError.VisitorNotAllowed   => SocialApiErrorCode.VisitorNotAllowed
-    }
-
-  def fromRespondServiceError(error: FriendRequestRespondError): SocialApiErrorCode =
-    error match {
-      case FriendRequestRespondError.RequestNotFound => SocialApiErrorCode.RequestNotFound
-      case FriendRequestRespondError.Forbidden       => SocialApiErrorCode.Forbidden
-    }
-
-  def wireValue(code: SocialApiErrorCode): String =
-    code match {
-      case SocialApiErrorCode.MethodNotAllowed   => "method_not_allowed"
-      case SocialApiErrorCode.InvalidJsonObject  => "bad_request"
-      case SocialApiErrorCode.MissingOwner       => "missing_owner"
-      case SocialApiErrorCode.VisitorNotAllowed  => "visitor_not_allowed"
-      case SocialApiErrorCode.InvalidOwner       => "invalid_owner"
-      case SocialApiErrorCode.InvalidHandles     => "invalid_handles"
-      case SocialApiErrorCode.RequestNotFound    => "request_not_found"
-      case SocialApiErrorCode.Forbidden          => "forbidden"
-      case SocialApiErrorCode.InvalidDecision    => "invalid_decision"
-      case SocialApiErrorCode.MissingFields      => "missing_fields"
-      case SocialApiErrorCode.InvalidActor       => "invalid_actor"
-    }
-
-  def message(code: SocialApiErrorCode): String =
-    code match {
-      case SocialApiErrorCode.MethodNotAllowed  => "Method is not allowed."
-      case SocialApiErrorCode.InvalidJsonObject => "Request body must be a JSON object with string fields."
-      case _                                    => wireValue(code)
-    }
-
-  def statusCode(code: SocialApiErrorCode): Int =
-    code match {
-      case SocialApiErrorCode.MethodNotAllowed   => 405
-      case SocialApiErrorCode.VisitorNotAllowed  => 403
-      case SocialApiErrorCode.RequestNotFound    => 404
-      case SocialApiErrorCode.Forbidden          => 403
-      case _                                     => 400
-    }
-}
+final case class FriendRequestListApiRequest(ownerHandle: Option[String])
 
 final case class FriendRequestCreateApiRequest(
   sourceHandle: Option[String],
   targetHandle: Option[String]
-) {
-  def toCreateHandles: Either[SocialRouteCreateError, SocialCreateHandles] =
-    SocialCommandParsers.parseCreateHandles(this)
-}
+)
 
 object FriendRequestCreateApiRequest {
   given Decoder[FriendRequestCreateApiRequest] = (cursor: HCursor) =>
@@ -127,22 +24,18 @@ object FriendRequestCreateApiRequest {
     }
 }
 
+object FriendRequestListApiRequest {
+  given Decoder[FriendRequestListApiRequest] = (cursor: HCursor) =>
+    requireObject(cursor).flatMap { _ =>
+      optionalString(cursor, "ownerHandle").map(FriendRequestListApiRequest.apply)
+    }
+}
+
 final case class FriendRequestRespondApiRequest(
   requestId: Option[String],
   actorHandle: Option[String],
   decision: Option[String]
-) {
-  def toRespondCommand: Either[SocialRouteRespondError, SocialRespondCommand] =
-    SocialCommandParsers.parseRespondCommand(this)
-}
-
-object FriendRequestOwnerQuery {
-  def parseFromQuery(query: Map[String, String]): Either[SocialRouteHandleError, PlayerHandle] =
-    parse(query.get("ownerHandle"))
-
-  def parse(ownerHandle: Option[String]): Either[SocialRouteHandleError, PlayerHandle] =
-    SocialCommandParsers.parseOwner(ownerHandle)
-}
+)
 
 object FriendRequestRespondApiRequest {
   given Decoder[FriendRequestRespondApiRequest] = (cursor: HCursor) =>

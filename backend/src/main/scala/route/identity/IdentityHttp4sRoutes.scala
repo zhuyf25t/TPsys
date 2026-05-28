@@ -14,16 +14,19 @@ import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
 import services.identity.api.{
+  IdentityCommandParsers,
   IdentityApiErrorCode,
   IdentityApiRequestDecodeError,
-  IdentityAccountsResponse,
-  IdentityAuthResponse,
-  IdentityRegistrationApiRequest,
   IdentityRequestTarget,
-  IdentitySessionApiRequest,
   IdentitySessionTokenParser
 }
 import services.identity.objects.SessionToken
+import services.identity.objects.apiTypes.{
+  IdentityAccountsResponse,
+  IdentityAuthResponse,
+  IdentityRegistrationApiRequest,
+  IdentitySessionApiRequest
+}
 import services.identity.services.IdentityService
 
 private[route] object IdentityHttp4sRoutes {
@@ -76,7 +79,7 @@ private[route] object IdentityHttp4sRoutes {
       case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
         errorResponse(identityApiError(IdentityApiErrorCode.InvalidJsonObject))
       case Right(registrationRequest) =>
-        registrationRequest.toCommand match {
+        IdentityCommandParsers.parseRegistrationCommand(registrationRequest) match {
           case Left(error) =>
             errorResponse(identityApiError(IdentityApiErrorCode.fromRegistrationParseError(error)))
           case Right(command) =>
@@ -94,7 +97,7 @@ private[route] object IdentityHttp4sRoutes {
       case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
         errorResponse(identityApiError(IdentityApiErrorCode.InvalidJsonObject))
       case Right(sessionRequest) =>
-        sessionRequest.toCommand match {
+        IdentityCommandParsers.parseSessionCommand(sessionRequest) match {
           case Left(error) =>
             errorResponse(identityApiError(IdentityApiErrorCode.fromSessionParseError(error)))
           case Right(command) =>

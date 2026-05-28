@@ -3,7 +3,7 @@ import {
   postBattleQueueLeaveAPIMessage,
   postBattleQueueStatusAPIMessage,
   type BattleQueueJoinAPIMessageRequest
-} from "../../../api/battle/battleApiMessageClient";
+} from "../../../apis/battle/battleApiMessageClient";
 import {
   sendRealtimeRoomHeartbeat,
   type RealtimeBattleSessionBootstrap,
@@ -22,21 +22,27 @@ import type {
   MatchmakingQueueState
 } from "./matchmakingQueueTypes";
 import { isBattleVisitorHandle } from "../../../objects/battle/battleRules";
+import type {
+  BattleModeIdDto,
+  BattleQueueLeaveResponseDto,
+  BattleQueueSnapshotResponseDto
+} from "../../../objects/battle/contracts/apiMessages";
 
 const QUEUE_REQUEST_TIMEOUT_MS = 1_250;
 
 export async function joinMatchmakingQueue(input: {
   handle: string;
   sessionToken: string | null;
-  modeId: string;
+  modeId: BattleModeIdDto;
   queueRequestId?: string;
   rating?: number;
+  avatar?: string;
   skin?: string;
 }): Promise<MatchmakingQueueState | null> {
   const normalizedHandle = input.handle.trim();
   const normalizedSessionToken = input.sessionToken?.trim() ?? "";
   const normalizedQueueRequestId = input.queueRequestId?.trim() ?? "";
-  const normalizedModeId = input.modeId.trim() || "default";
+  const normalizedModeId = normalizeBattleModeId(input.modeId);
   if (!normalizedHandle || !normalizedSessionToken || isBattleVisitorHandle(normalizedHandle)) {
     return null;
   }
@@ -47,8 +53,9 @@ export async function joinMatchmakingQueue(input: {
     modeId: normalizedModeId,
     ...(normalizedQueueRequestId ? { queueRequestId: normalizedQueueRequestId } : {}),
     ...(typeof input.rating === "number" && Number.isFinite(input.rating)
-      ? { rating: String(Math.trunc(input.rating)) }
+      ? { rating: Math.trunc(input.rating) }
       : {}),
+    ...(typeof input.avatar === "string" && input.avatar.trim() ? { avatar: input.avatar.trim() } : {}),
     ...(typeof input.skin === "string" && input.skin.trim() ? { skin: input.skin.trim() } : {})
   };
   const response = await postBattleQueueJoinAPIMessage(request, normalizeQueueState, {
@@ -71,16 +78,29 @@ export async function loadMatchmakingQueueStatus(ticketId: string): Promise<Matc
   return response?.ok ? response.payload : null;
 }
 
-/** 中文名：离开matchmaking队列（leaveMatchmakingQueue）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** 中文名：离开matchmaking队列（leaveMatchmakingQueue）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致?*/
 export function leaveMatchmakingQueue(ticketId: string): void {
   const normalizedTicket = ticketId.trim();
   if (!normalizedTicket) {
     return;
   }
 
-  void postBattleQueueLeaveAPIMessage({ ticketId: normalizedTicket }, () => true, { keepalive: true }).catch(() => {
+  void postBattleQueueLeaveAPIMessage(
+    { ticketId: normalizedTicket },
+    normalizeQueueLeaveResponse,
+    { keepalive: true }
+  ).catch(() => {
     // Queue leave is best effort; stale in-memory tickets expire on the backend.
   });
+}
+
+function normalizeQueueLeaveResponse(payload: unknown): BattleQueueLeaveResponseDto | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const left = (payload as Partial<BattleQueueLeaveResponseDto>).left;
+  return typeof left === "boolean" ? { left } : null;
 }
 
 export async function refreshMatchmakingRoomPresence(
@@ -112,31 +132,45 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
   const capacity = readNumber(value.capacity);
   const durationMs = readNumber(value.durationMs);
   const serverTime = readNumber(value.serverTime);
-  const modeId = readString(value.modeId) ?? "default";
-  const modeLabel = readString(value.modeLabel) ?? "默认模式";
-  const mapId = readString(value.mapId) ?? "default-industrial-arena";
-  const mapLabel = readString(value.mapLabel) ?? "默认地图";
+  const modeId = readBattleModeId(value.modeId);
+  const modeLabel = readString(value.modeLabel);
+  const mapId = readString(value.mapId);
+  const mapLabel = readString(value.mapLabel);
+  const phase = readMatchmakingRoomPhase(value.phase);
+  const hasFinishedAt = Object.prototype.hasOwnProperty.call(value, "finishedAt");
+  const hasBattleSession = Object.prototype.hasOwnProperty.call(value, "battleSession");
 
   if (
     !ticketId ||
     !playerId ||
     !roomId ||
+    !modeId ||
+    !modeLabel ||
+    !mapId ||
+    !mapLabel ||
     startsAt === null ||
     deadline === null ||
     createdAt === null ||
     capacity === null ||
     durationMs === null ||
+    serverTime === null ||
+    phase === null ||
     !Array.isArray(value.participants)
   ) {
     return null;
   }
 
-  const participants = value.participants
-    .map((participant) => normalizeParticipant(participant))
-    .filter((participant): participant is MatchmakingQueueParticipant => participant !== null);
+  const participants = normalizeRequiredArray(value.participants, normalizeParticipant);
   const battleSession = normalizeBattleSessionDescriptor(value.battleSession);
-  const queuedHandles = resolveQueuedHandles(participants, battleSession);
   const finishedAt = readNumber(value.finishedAt);
+  if (
+    participants === null ||
+    (hasFinishedAt && finishedAt === null) ||
+    (hasBattleSession && battleSession === null)
+  ) {
+    return null;
+  }
+  const queuedHandles = resolveQueuedHandles(participants, battleSession);
 
   return {
     ticketId,
@@ -150,13 +184,14 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
     createdAt,
     startsAt,
     deadline,
-    ...(serverTime !== null ? { serverTime, syncedAt } : {}),
+    serverTime,
+    syncedAt,
     participants,
     players: participants,
     queuedHandles,
     capacity: Math.max(1, capacity),
     durationMs: Math.max(0, durationMs),
-    phase: normalizePhase(value.phase),
+    phase,
     ...(finishedAt !== null ? { finishedAt } : {}),
     ...(battleSession ? { battleSession } : {}),
     source: "backend"
@@ -228,9 +263,15 @@ function normalizeParticipant(payload: unknown): MatchmakingQueueParticipant | n
     return null;
   }
 
+  const hasRating = Object.prototype.hasOwnProperty.call(value, "rating");
+  const hasAvatar = Object.prototype.hasOwnProperty.call(value, "avatar");
+  const hasSkin = Object.prototype.hasOwnProperty.call(value, "skin");
   const rating = readNumber(value.rating);
   const avatar = readString(value.avatar);
   const skin = readString(value.skin);
+  if ((hasRating && rating === null) || (hasAvatar && avatar === null) || (hasSkin && skin === null)) {
+    return null;
+  }
 
   return {
     playerId,
@@ -243,25 +284,9 @@ function normalizeParticipant(payload: unknown): MatchmakingQueueParticipant | n
   };
 }
 
-interface RemoteMatchmakingQueueStateDto {
-  ticketId?: unknown;
-  playerId?: unknown;
-  roomId?: unknown;
-  createdAt?: unknown;
-  startsAt?: unknown;
-  deadline?: unknown;
-  serverTime?: unknown;
-  participants?: unknown;
-  capacity?: unknown;
-  durationMs?: unknown;
-  phase?: unknown;
-  modeId?: unknown;
-  modeLabel?: unknown;
-  mapId?: unknown;
-  mapLabel?: unknown;
-  finishedAt?: unknown;
-  battleSession?: unknown;
-}
+type RemoteMatchmakingQueueStateDto = {
+  [Field in keyof BattleQueueSnapshotResponseDto]?: unknown;
+};
 
 function normalizeBattleSessionDescriptor(payload: unknown): MatchmakingBattleSessionDescriptor | null {
   if (!payload || typeof payload !== "object") {
@@ -270,29 +295,42 @@ function normalizeBattleSessionDescriptor(payload: unknown): MatchmakingBattleSe
 
   const value = payload as Partial<MatchmakingBattleSessionDescriptor> & Record<string, unknown>;
   const battleId = readString(value.battleId);
-  const modeId = readString(value.modeId);
+  const modeId = readBattleModeId(value.modeId);
   const modeLabel = readString(value.modeLabel);
   const mapId = readString(value.mapId);
   const mapLabel = readString(value.mapLabel);
   const startedAt = readNumber(value.startedAt);
   const serverTime = readNumber(value.serverTime);
   const capacity = readNumber(value.capacity);
-  if (!battleId || startedAt === null || serverTime === null || capacity === null || !Array.isArray(value.roster)) {
+  const hasBootstrap = Object.prototype.hasOwnProperty.call(value, "bootstrap");
+  if (
+    !battleId ||
+    !modeId ||
+    !modeLabel ||
+    !mapId ||
+    !mapLabel ||
+    startedAt === null ||
+    serverTime === null ||
+    capacity === null ||
+    !Array.isArray(value.roster)
+  ) {
     return null;
   }
 
-  const roster = value.roster
-    .map((entry) => normalizeBattleSessionRosterEntry(entry))
-    .filter((entry): entry is MatchmakingBattleSessionRosterEntry => entry !== null)
-    .sort((left, right) => left.seat - right.seat);
+  const roster = normalizeRequiredArray(value.roster, normalizeBattleSessionRosterEntry)?.sort(
+    (left, right) => left.seat - right.seat
+  );
   const bootstrap = normalizeBattleSessionBootstrap(value.bootstrap);
+  if (typeof roster === "undefined" || roster === null || (hasBootstrap && bootstrap === null)) {
+    return null;
+  }
 
   return {
     battleId,
-    ...(modeId ? { modeId } : {}),
-    ...(modeLabel ? { modeLabel } : {}),
-    ...(mapId ? { mapId } : {}),
-    ...(mapLabel ? { mapLabel } : {}),
+    modeId,
+    modeLabel,
+    mapId,
+    mapLabel,
     startedAt,
     serverTime,
     roster,
@@ -311,12 +349,14 @@ function normalizeBattleSessionBootstrap(payload: unknown): MatchmakingBattleSes
     return null;
   }
 
-  const seats = value.seats
-    .map((entry) => normalizeBattleSessionBootstrapSeat(entry))
-    .filter((entry): entry is MatchmakingBattleSessionBootstrapSeat => entry !== null)
-    .sort((left, right) => left.seat - right.seat);
+  const seats = normalizeRequiredArray(value.seats, normalizeBattleSessionBootstrapSeat)?.sort(
+    (left, right) => left.seat - right.seat
+  );
+  if (typeof seats === "undefined" || seats === null) {
+    return null;
+  }
 
-  return seats.length > 0 ? { seats } : null;
+  return { seats };
 }
 
 function normalizeBattleSessionRosterEntry(payload: unknown): MatchmakingBattleSessionRosterEntry | null {
@@ -336,6 +376,12 @@ function normalizeBattleSessionRosterEntry(payload: unknown): MatchmakingBattleS
   const rating = readNumber(value.rating);
   const avatar = readString(value.avatar);
   const skin = readString(value.skin);
+  const hasRating = Object.prototype.hasOwnProperty.call(value, "rating");
+  const hasAvatar = Object.prototype.hasOwnProperty.call(value, "avatar");
+  const hasSkin = Object.prototype.hasOwnProperty.call(value, "skin");
+  if ((hasRating && rating === null) || (hasAvatar && avatar === null) || (hasSkin && skin === null)) {
+    return null;
+  }
 
   return {
     seat: Math.max(0, Math.trunc(seat)),
@@ -377,6 +423,12 @@ function normalizeBattleSessionBootstrapSeat(payload: unknown): MatchmakingBattl
   const rating = readNumber(value.rating);
   const avatar = readString(value.avatar);
   const skin = readString(value.skin);
+  const hasRating = Object.prototype.hasOwnProperty.call(value, "rating");
+  const hasAvatar = Object.prototype.hasOwnProperty.call(value, "avatar");
+  const hasSkin = Object.prototype.hasOwnProperty.call(value, "skin");
+  if ((hasRating && rating === null) || (hasAvatar && avatar === null) || (hasSkin && skin === null)) {
+    return null;
+  }
 
   return {
     seat: Math.max(0, Math.trunc(seat)),
@@ -402,10 +454,10 @@ function toMatchmakingBattleSessionDescriptor(
 
   return {
     battleId: battleSession.battleId,
-    ...(battleSession.modeId ? { modeId: battleSession.modeId } : {}),
-    ...(battleSession.modeLabel ? { modeLabel: battleSession.modeLabel } : {}),
-    ...(battleSession.mapId ? { mapId: battleSession.mapId } : {}),
-    ...(battleSession.mapLabel ? { mapLabel: battleSession.mapLabel } : {}),
+    modeId: battleSession.modeId,
+    modeLabel: battleSession.modeLabel,
+    mapId: battleSession.mapId,
+    mapLabel: battleSession.mapLabel,
     startedAt: battleSession.startedAt,
     serverTime: battleSession.serverTime,
     roster: battleSession.roster
@@ -473,12 +525,41 @@ function resolveQueuedHandles(
   return participants.map((participant) => participant.handle);
 }
 
-function normalizePhase(value: unknown): MatchmakingQueueState["phase"] {
-  return value === "waiting" || value === "active" || value === "finished" ? value : "unknown";
+function readMatchmakingRoomPhase(value: unknown): MatchmakingQueueState["phase"] | null {
+  return value === "waiting" || value === "active" || value === "finished" || value === "unknown" ? value : null;
+}
+
+function normalizeRequiredArray<T>(
+  values: unknown[],
+  normalize: (value: unknown) => T | null
+): T[] | null {
+  const normalized: T[] = [];
+  for (const value of values) {
+    const item = normalize(value);
+    if (item === null) {
+      return null;
+    }
+
+    normalized.push(item);
+  }
+
+  return normalized;
+}
+
+function normalizeBattleModeId(value: string): BattleModeIdDto {
+  const modeId = value.trim();
+  return modeId === "default" || modeId === "autumn" || modeId === "winter" || modeId === "normal"
+    ? modeId
+    : "default";
 }
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readBattleModeId(value: unknown): BattleModeIdDto | null {
+  const modeId = readString(value);
+  return modeId === "default" || modeId === "autumn" || modeId === "winter" || modeId === "normal" ? modeId : null;
 }
 
 function readNumber(value: unknown): number | null {

@@ -5,16 +5,20 @@ import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
+import services.governance.api.{
+  ContributionAdjustmentCommandParseError,
+  GovernanceApiErrorCode,
+  GovernanceCommandParsers,
+  GovernanceNotificationListQueryParseResult,
+  GovernanceQueryParsers,
+  GovernanceRequestTarget,
+  GovernanceReviewNotificationCommandParseError
+}
 import services.governance.objects.apiTypes.{
   ContributionAdjustmentApiRequest,
-  ContributionAdjustmentCommandParseError,
   ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListResponse,
-  GovernanceApiErrorCode,
-  GovernanceNotificationListQueryParseResult,
-  GovernanceRequestTarget,
   GovernanceReviewNotificationApiRequest,
-  GovernanceReviewNotificationCommandParseError,
   GovernanceReviewNotificationCreateResponse,
   GovernanceReviewNotificationListResponse
 }
@@ -80,7 +84,7 @@ private[route] object GovernanceHttp4sRoutes {
       case Left(errorCode) =>
         errorResponse(governanceApiError(errorCode))
       case Right(parsedRequest) =>
-        parsedRequest.toCommand match {
+        GovernanceCommandParsers.parseContributionAdjustmentApiRequest(parsedRequest) match {
           case Left(error) =>
             errorResponse(contributionAdjustmentApiError(error))
           case Right(command) =>
@@ -118,7 +122,7 @@ private[route] object GovernanceHttp4sRoutes {
       case Left(errorCode) =>
         errorResponse(governanceApiError(errorCode))
       case Right(parsedRequest) =>
-        parsedRequest.toCommand match {
+        GovernanceCommandParsers.parseReviewNotificationApiRequest(parsedRequest) match {
           case Left(error) =>
             errorResponse(reviewNotificationApiError(error))
           case Right(command) =>

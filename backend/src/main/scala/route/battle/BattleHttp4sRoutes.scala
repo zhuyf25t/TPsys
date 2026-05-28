@@ -1,11 +1,11 @@
 package route.battle
 
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import io.circe.Json
 import org.http4s.HttpRoutes
 import services.identity.objects.SessionToken
 import services.identity.services.{IdentityCurrentSessionError, IdentityService}
-import services.battle.routes.{BattleAPIRuntimeContext, BattleResultAPIRegistration, BattleRoutes}
+import services.battle.routes.{BattleAPIRuntimeContext, BattleRoutes}
 import system.api.{APIMessageError, APIMessageRouter}
 
 import java.sql.Connection
@@ -14,21 +14,13 @@ object BattleHttp4sRoutes {
   def routes(
     context: BattleAPIRuntimeContext,
     identityService: IdentityService,
-    resultBackend: BattleHttp4sResultBackend
+    connectionResource: Resource[IO, Connection]
   ): HttpRoutes[IO] =
-    resultBackend match {
-      case BattleHttp4sResultBackend.ConnectionBacked(connectionResource) =>
-        APIMessageRouter.routes(
-          apiMessages = BattleRoutes.apiMessages(context, BattleResultAPIRegistration.ConnectionBacked),
-          resolveUserToken = resolveUserToken(identityService),
-          connectionResource = connectionResource
-        )
-      case BattleHttp4sResultBackend.RepositoryBacked(resultRepository) =>
-        APIMessageRouter.routes(
-          apiMessages = BattleRoutes.apiMessages(context, BattleResultAPIRegistration.RepositoryBacked(resultRepository)),
-          resolveUserToken = resolveUserToken(identityService)
-        )
-    }
+    APIMessageRouter.routes(
+      apiMessages = BattleRoutes.apiMessages(context),
+      resolveUserToken = resolveUserToken(identityService),
+      connectionResource = connectionResource
+    )
 
   private def resolveUserToken(identityService: IdentityService)(
     userToken: String,

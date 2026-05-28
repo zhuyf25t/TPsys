@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
-import { AppErrorBoundary } from "../../shared/ui/AppErrorBoundary";
+import { AppErrorBoundary } from "../../components/ui/AppErrorBoundary";
 
 export interface AppProvidersProps {
   children: ReactNode;

@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import type { ItemPickup, Vec2, WeaponKind, WeaponPickup } from "../../../../../objects/battle/types";
 import { CRATE_TEXTURE_KEY } from "../../constants";
-import { getItemPickupDisplayLabel, getWeaponDisplayLabel } from "../../../../../components/battle/presenters/battleDisplayCatalog";
+import { getItemPickupDisplayLabel, getWeaponDisplayLabel } from "../../presenters/battleDisplayCatalog";
 import { getWeaponPickupTextureRef, type WeaponTextureRef } from "../weaponRasterAtlas";
 
 const PICKUP_HALO_DEPTH = 61;

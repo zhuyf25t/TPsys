@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import type { BattlePageTransientNotice } from "../../../hooks/battle-page/useBattlePageRuntime";
+import type { BattlePageTransientNotice } from "../hooks/useBattlePageRuntime";
 
 interface BattleGameScreenProps {
   entryBlockNotice: string | null;

@@ -2,13 +2,7 @@ package services.forum.objects.apiTypes
 
 import io.circe.{Decoder, Encoder}
 
-import services.forum.objects.{ForumReplyId, ForumReplyView, ForumTopicId, ForumTopicView, ForumVoteChoice}
-import services.forum.services.{
-  AddForumReplyCommand,
-  CreateForumTopicCommand,
-  SetForumReplyVoteCommand,
-  SetForumTopicVoteCommand
-}
+import services.forum.objects.{ForumReplyView, ForumTopicView, ForumVoteChoice}
 
 enum ForumApiRequestDecodeError {
   case InvalidJsonObject
@@ -19,10 +13,7 @@ enum ForumVoteFieldPresence {
   case Present
 }
 
-final case class ForumApiRequestFields(fields: Map[String, String], votePresence: ForumVoteFieldPresence) {
-  def toCommandFields: ForumRequestFields =
-    ForumRequestFields(fields, votePresence)
-}
+final case class ForumApiRequestFields(fields: Map[String, String], votePresence: ForumVoteFieldPresence)
 
 object ForumApiRequestFields {
   given Decoder[ForumApiRequestFields] =
@@ -37,39 +28,6 @@ object ForumApiRequestFields {
           ForumApiRequestFields(stringFields, ForumVoteFieldPresence.Missing)
       }
     }
-}
-
-final case class ForumRequestFields(fields: Map[String, String], votePresence: ForumVoteFieldPresence) {
-  def stringValue(name: String): String =
-    fields.getOrElse(name, "")
-
-  def toCreateTopicCommand: Either[ForumCreateTopicParseError, CreateForumTopicCommand] =
-    ForumCommandParsers.parseCreateTopicCommand(this)
-
-  def toAddReplyCommand(topicId: ForumTopicId): Either[ForumTopicMutationParseError, AddForumReplyCommand] =
-    ForumCommandParsers.parseAddReplyCommand(topicId, this)
-
-  def toSetTopicVoteCommand(topicId: ForumTopicId): Either[ForumVoteCommandParseError, SetForumTopicVoteCommand] =
-    ForumCommandParsers.parseVote(this).left.map(voteParseApiError).flatMap { vote =>
-      ForumCommandParsers.parseSetTopicVoteCommand(topicId, this, vote)
-        .left.map(ForumVoteCommandParseError.Mutation.apply)
-    }
-
-  def toSetReplyVoteCommand(topicId: ForumTopicId, replyId: ForumReplyId): Either[ForumVoteCommandParseError, SetForumReplyVoteCommand] =
-    ForumCommandParsers.parseVote(this).left.map(voteParseApiError).flatMap { vote =>
-      ForumCommandParsers.parseSetReplyVoteCommand(topicId, replyId, this, vote)
-        .left.map(ForumVoteCommandParseError.Mutation.apply)
-    }
-
-  private def voteParseApiError(error: ForumVoteParseError): ForumVoteCommandParseError =
-    error match {
-      case ForumVoteParseError.InvalidVote => ForumVoteCommandParseError.InvalidVote
-    }
-}
-
-enum ForumVoteCommandParseError {
-  case InvalidVote
-  case Mutation(error: ForumTopicMutationParseError)
 }
 
 final case class ForumReplyResponse(

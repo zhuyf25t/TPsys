@@ -1,6 +1,6 @@
 import type { Hero, ItemPickup, WeaponPickup } from "../../../../objects/battle/types";
 import { createWeaponState, findWeaponIndex, refillWeaponState } from "../../game/weapons";
-import { getWeaponDisplayLabel } from "../../../../components/battle/presenters/battleDisplayCatalog";
+import { getWeaponDisplayLabel } from "../../game/presenters/battleDisplayCatalog";
 
 export interface AutomaticPickupControllerInput {
   player: Hero;

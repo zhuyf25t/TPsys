@@ -1,6 +1,6 @@
-import type { FriendRequestPreviewModel } from "../../../components/friend-requests/friendRequestPreviewPresenter";
-import type { BattleDrawerId } from "../../../hooks/battle-page/battlePageTypes";
-import type { QuickPreviewOverlayProps } from "../../../shared/ui/QuickPreviewOverlay";
+import type { FriendRequestPreviewModel } from "../../friend-requests/components/friendRequestPreviewPresenter";
+import type { BattleDrawerId } from "../hooks/battlePageTypes";
+import type { QuickPreviewOverlayProps } from "../../../components/ui/QuickPreviewOverlay";
 
 interface BattleDrawerReplaySummary {
   finishedAtLabel: string;

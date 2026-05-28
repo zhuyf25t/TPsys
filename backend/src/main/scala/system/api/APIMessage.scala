@@ -40,7 +40,9 @@ object APIMessageError:
 object APIMessage:
   def apiNameFromClassName(className: String): APIName =
     val objectName = className.stripSuffix("$")
-    val baseName = objectName.stripSuffix("APIMessage")
+    val baseName =
+      if objectName.endsWith("APIMessagePlanner") then objectName.stripSuffix("APIMessagePlanner")
+      else objectName.stripSuffix("APIMessage")
     APIName(baseName.toLowerCase)
 
   def apiNameFromClass[Message](using classTag: ClassTag[Message]): APIName =
@@ -117,6 +119,24 @@ object RegisteredAPIMessage:
     buildWithContext[Context, Message, Response](
       context = context,
       requiresUserToken = true,
+      decodeFailure = decodeFailure
+    )
+
+  def apiWithContext[
+    Context,
+    Message <: APIMessageWithContext[Context, Response],
+    Response
+  ](
+    context: Context,
+    decodeFailure: Error => APIMessageError = defaultDecodeFailure
+  )(using
+    Decoder[Message],
+    Encoder[Response],
+    ClassTag[Message]
+  ): RegisteredAPIMessage =
+    buildWithContext[Context, Message, Response](
+      context = context,
+      requiresUserToken = false,
       decodeFailure = decodeFailure
     )
 

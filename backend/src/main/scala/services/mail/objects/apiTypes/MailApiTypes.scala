@@ -2,86 +2,14 @@ package services.mail.objects.apiTypes
 
 import io.circe.{Decoder, DecodingFailure, Encoder, HCursor}
 
-import services.identity.objects.PlayerHandle
 import services.mail.objects.{MailFriendRequestStatus, MailKind, MailRecord}
-
-object MailRequestTarget {
-  private val MailListPaths: Set[String] =
-    Set("/mails", "/api/mails")
-  private val MailReadPaths: Set[String] =
-    Set("/mails/read", "/api/mails/read")
-
-  def isListPath(path: String): Boolean =
-    MailListPaths.contains(path)
-
-  def isReadPath(path: String): Boolean =
-    MailReadPaths.contains(path)
-}
 
 final case class MailReadApiRequest(
   ownerHandle: Option[String],
   mailId: Option[String]
-) {
-  def toCommand: Either[MailRouteReadError, MailReadCommand] =
-    MailCommandParsers.parseReadCommand(this)
-}
+)
 
-enum MailReadApiRequestDecodeError {
-  case InvalidJsonObject
-}
-
-enum MailApiErrorCode {
-  case MethodNotAllowed
-  case InvalidJsonObject
-  case MissingOwner
-  case VisitorNotAllowed
-  case InvalidOwner
-  case MissingMailId
-  case MailNotFound
-}
-
-object MailApiErrorCode {
-  def fromOwnerError(error: MailRouteOwnerError): MailApiErrorCode =
-    error match {
-      case MailRouteOwnerError.MissingOwner       => MailApiErrorCode.MissingOwner
-      case MailRouteOwnerError.VisitorNotAllowed  => MailApiErrorCode.VisitorNotAllowed
-      case MailRouteOwnerError.InvalidOwner       => MailApiErrorCode.InvalidOwner
-    }
-
-  def fromReadError(error: MailRouteReadError): MailApiErrorCode =
-    error match {
-      case MailRouteReadError.MissingOwner       => MailApiErrorCode.MissingOwner
-      case MailRouteReadError.VisitorNotAllowed  => MailApiErrorCode.VisitorNotAllowed
-      case MailRouteReadError.InvalidOwner       => MailApiErrorCode.InvalidOwner
-      case MailRouteReadError.MissingMailId      => MailApiErrorCode.MissingMailId
-    }
-
-  def wireValue(code: MailApiErrorCode): String =
-    code match {
-      case MailApiErrorCode.MethodNotAllowed    => "method_not_allowed"
-      case MailApiErrorCode.InvalidJsonObject   => "bad_request"
-      case MailApiErrorCode.MissingOwner        => "missing_owner"
-      case MailApiErrorCode.VisitorNotAllowed   => "visitor_not_allowed"
-      case MailApiErrorCode.InvalidOwner        => "invalid_owner"
-      case MailApiErrorCode.MissingMailId       => "missing_mail_id"
-      case MailApiErrorCode.MailNotFound        => "mail_not_found"
-    }
-
-  def message(code: MailApiErrorCode): String =
-    code match {
-      case MailApiErrorCode.MethodNotAllowed   => "Method is not allowed."
-      case MailApiErrorCode.InvalidJsonObject  => "Request body must be a JSON object with string fields."
-      case _                                   => wireValue(code)
-    }
-
-  def statusCode(code: MailApiErrorCode): Int =
-    code match {
-      case MailApiErrorCode.MethodNotAllowed    => 405
-      case MailApiErrorCode.VisitorNotAllowed   => 403
-      case MailApiErrorCode.MailNotFound        => 404
-      case _                                    => 400
-    }
-}
+final case class MailListApiRequest(ownerHandle: Option[String])
 
 object MailReadApiRequest {
   given Decoder[MailReadApiRequest] = (cursor: HCursor) =>
@@ -106,12 +34,14 @@ object MailReadApiRequest {
     }
 }
 
-object MailOwnerQuery {
-  def parseFromQuery(query: Map[String, String]): Either[MailRouteOwnerError, PlayerHandle] =
-    parse(query.get("ownerHandle"))
-
-  def parse(ownerHandle: Option[String]): Either[MailRouteOwnerError, PlayerHandle] =
-    MailCommandParsers.parseOwner(ownerHandle)
+object MailListApiRequest {
+  given Decoder[MailListApiRequest] = (cursor: HCursor) =>
+    cursor.value.asObject match {
+      case None =>
+        Left(DecodingFailure("mail list request must be a JSON object.", cursor.history))
+      case Some(_) =>
+        cursor.get[Option[String]]("ownerHandle").map(MailListApiRequest.apply)
+    }
 }
 
 final case class MailItemResponse(

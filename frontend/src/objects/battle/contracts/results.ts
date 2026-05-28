@@ -1,13 +1,16 @@
-import type { BattleReplayId, BattleSessionId, HeroId } from "./commands";
+import type { BattleResultListResponseDto, BattleResultRecordResponseDto } from "./apiMessages";
+import type { LocalBattleReplayId, LocalBattleSessionId, LocalHeroId } from "./commands";
 
-export type BattleSessionResultOutcomeDto = "finished" | "abandoned";
+export type BattleResultDto = BattleResultRecordResponseDto;
+export type BattleResultsDto = BattleResultListResponseDto;
 
-// Local session result emitted by the frontend adapter; not the backend persisted battle result record.
-export interface BattleSessionResultDto {
-  sessionId: BattleSessionId;
-  replayId: BattleReplayId | null;
-  outcome: BattleSessionResultOutcomeDto;
-  playerHeroId: HeroId;
+export type LocalBattleSessionResultOutcomeDto = "finished" | "abandoned";
+
+export interface LocalBattleSessionResultDto {
+  sessionId: LocalBattleSessionId;
+  replayId: LocalBattleReplayId | null;
+  outcome: LocalBattleSessionResultOutcomeDto;
+  playerHeroId: LocalHeroId;
   score: number;
   kills: number;
   deaths: number;

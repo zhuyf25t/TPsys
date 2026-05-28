@@ -107,6 +107,12 @@ final case class IdentityAccount(
   status: AccountStatus
 )
 
+final case class IdentityAccountSummary(
+  handle: PlayerHandle,
+  displayName: DisplayName,
+  skinId: SkinId
+)
+
 object IdentityAccount {
   def active(
     userId: UserId,

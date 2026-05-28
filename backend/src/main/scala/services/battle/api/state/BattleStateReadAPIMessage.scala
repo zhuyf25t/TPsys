@@ -5,7 +5,7 @@ import io.circe.{Decoder, DecodingFailure, Error, Json}
 
 import java.sql.Connection
 
-import services.battle.database.session.{BattleStateReadError, BattleStateService}
+import services.battle.microservices.session.services.{BattleStateReadError, BattleStateService}
 import services.battle.objects.{
   BattleAPIRequestError as BattleStateReadRequestError,
   BattleStateReadQuery

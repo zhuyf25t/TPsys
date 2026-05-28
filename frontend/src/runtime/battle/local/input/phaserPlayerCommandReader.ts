@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { PlayerCommand, Vec2 } from "../../../../objects/battle/types";
-import { getSelectedSkillBindings } from "../../../../api/battle/loadoutGateway";
+import { getSelectedSkillBindings } from "../../../../apis/battle/loadoutGateway";
 import { createPlayerCommand } from "../../authoritative/inputCommandMapper";
 import type { ControlKeys } from "./controlKeys";
 import { readSkillBindingPresses } from "./skillBindingInputAdapter";

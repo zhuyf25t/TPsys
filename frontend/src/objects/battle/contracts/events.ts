@@ -1,12 +1,14 @@
-import type { HeroId } from "./commands";
+import type { BattleEventKindDto, BattleStateEventResponseDto } from "./apiMessages";
+import type { LocalHeroId } from "./commands";
 
-export type BattleEventKindDto = "kill" | "heal" | "pickup" | "respawn" | "jump" | "switch" | "system";
+export type BattleEventDto = BattleStateEventResponseDto;
+export type LocalBattleEventKindDto = BattleEventKindDto | "jump" | "switch";
 
-export interface BattleEventDto {
+export interface LocalBattleEventDto {
   eventId: string;
-  kind: BattleEventKindDto;
+  kind: LocalBattleEventKindDto;
   message: string;
   createdAtMs: number;
-  sourceHeroId?: HeroId;
-  targetHeroId?: HeroId;
+  sourceHeroId?: LocalHeroId;
+  targetHeroId?: LocalHeroId;
 }

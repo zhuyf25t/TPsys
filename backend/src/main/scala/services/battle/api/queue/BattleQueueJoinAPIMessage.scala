@@ -5,7 +5,7 @@ import io.circe.{Decoder, DecodingFailure, Error, Json}
 
 import java.sql.Connection
 
-import services.battle.database.queue.{
+import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueService

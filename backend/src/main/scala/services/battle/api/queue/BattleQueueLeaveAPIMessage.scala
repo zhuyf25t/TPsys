@@ -5,7 +5,7 @@ import io.circe.{Decoder, DecodingFailure, Error, Json}
 
 import java.sql.Connection
 
-import services.battle.database.queue.BattleQueueService
+import services.battle.microservices.queue.services.BattleQueueService
 import services.battle.objects.{
   BattleAPIRequestError as BattleQueueLeaveRequestDecodeError,
   BattleQueueLeaveCommand,

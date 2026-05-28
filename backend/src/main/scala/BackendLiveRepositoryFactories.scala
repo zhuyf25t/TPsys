@@ -1,6 +1,5 @@
 package services
 
-import services.battle.database.results.{FileBattleResultRepository, InMemoryBattleResultRepository, PostgresBattleResultRepository}
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository, PostgresBotProfileRepository}
 import services.bots.objects.DemoBotProfiles
 import services.forum.database.{FileForumRepository, InMemoryForumRepository, PostgresForumRepository}
@@ -24,9 +23,6 @@ private[services] object BackendLiveRepositoryFactories {
       inMemoryIdentity = () => new InMemoryIdentityAccountRepository(),
       fileIdentity = root => FileIdentityAccountRepository(root.resolve("identity-accounts.json")),
       postgresIdentity = connection => PostgresIdentityAccountRepository(connection),
-      inMemoryBattleResults = () => InMemoryBattleResultRepository(),
-      fileBattleResults = root => FileBattleResultRepository(root.resolve("battle-results.json")),
-      postgresBattleResults = connection => PostgresBattleResultRepository(connection),
       inMemoryMail = () => InMemoryMailRepository(),
       fileMail = root => FileMailRepository(root.resolve("mails.json")),
       postgresMail = connection => PostgresMailRepository(connection),

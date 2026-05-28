@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
-import { ProfilePageView } from "../../components/profile/ProfilePageView";
-import { useProfilePage } from "../../hooks/profile-page/useProfilePage";
+import { ProfilePageView } from "./components/ProfilePageView";
+import { useProfilePage } from "./hooks/useProfilePage";
 
 /** 中文名称：玩家档案页。游戏职责：展示玩家身份、真实战局、评分变化和近期表现。 */
 export function ProfilePage() {

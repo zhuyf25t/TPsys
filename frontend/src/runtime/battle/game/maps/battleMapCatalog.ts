@@ -1,6 +1,7 @@
 import fallHuntMapSpecJson from "../../../../../../shared/battle/maps/fall-hunt-v1.json";
 import normalHuntMapSpecJson from "../../../../../../shared/battle/maps/normal-hunt-v1.json";
 import winterHuntMapSpecJson from "../../../../../../shared/battle/maps/winter-hunt-v1.json";
+import type { BattleModeIdDto } from "../../../../objects/battle/contracts/apiMessages";
 import type { ItemPickup, PickupSpawnPoint, Vec2, WeaponPickup } from "../../../../objects/battle/types";
 
 export type ArenaObstacleKind = "wall" | "crate" | "tree-trunk" | "building-wall" | "rock" | "logs" | "hay" | "stump";
@@ -405,7 +406,7 @@ export const BATTLE_MAPS = {
   [NORMAL_HUNT_BATTLE_MAP.mapId]: NORMAL_HUNT_BATTLE_MAP
 } as const satisfies Readonly<Record<string, BattleMapConfig>>;
 
-export type BattlePlayModeId = "default" | "autumn" | "winter" | "normal";
+export type BattlePlayModeId = BattleModeIdDto;
 
 export interface BattlePlayModeOption {
   modeId: BattlePlayModeId;

@@ -1,22 +1,22 @@
 import type {
-  BattleCommandDto,
-  BattleEventDto,
-  BattleEventKindDto,
-  BattlePhaseDto,
-  BattlePickupViewDto,
-  BattleProjectileViewDto,
-  BattleSessionResultDto,
-  BattleSessionResultOutcomeDto,
-  BattleSessionId,
-  BattleSnapshotDto,
-  BattleTeamDto,
   BattleWeaponKindDto,
-  BattleWeaponViewDto,
-  BattleWorldObstacleDto,
   BattleHudViewDto,
   BattleHudMinimapDto,
   BattleHudMinimapDotDto,
-  BattleHudMinimapRectDto
+  BattleHudMinimapRectDto,
+  LocalBattleCommandDto,
+  LocalBattleEventDto,
+  LocalBattleEventKindDto,
+  LocalBattlePhaseDto,
+  LocalBattlePickupViewDto,
+  LocalBattleProjectileViewDto,
+  LocalBattleSessionId,
+  LocalBattleSessionResultDto,
+  LocalBattleSessionResultOutcomeDto,
+  LocalBattleSnapshotDto,
+  LocalBattleTeamDto,
+  LocalBattleWeaponViewDto,
+  LocalBattleWorldObstacleDto
 } from "../../../objects/battle/contracts";
 import type {
   GameEvent,
@@ -31,10 +31,10 @@ import type {
   WeaponState
 } from "../../../objects/battle/types";
 import type { HudState } from "../game/ui/Hud";
-import { getItemPickupDisplayLabel, getWeaponDisplayLabel } from "../../../components/battle/presenters/battleDisplayCatalog";
+import { getItemPickupDisplayLabel, getWeaponDisplayLabel } from "../game/presenters/battleDisplayCatalog";
 
 export interface LocalBattleCommandAdapterInput {
-  sessionId: BattleSessionId;
+  sessionId: LocalBattleSessionId;
   playerId: string;
   tick: number;
   command: PlayerCommand;
@@ -42,15 +42,15 @@ export interface LocalBattleCommandAdapterInput {
 }
 
 export interface LocalBattleSnapshotAdapterInput {
-  sessionId: BattleSessionId;
-  phase: BattlePhaseDto;
+  sessionId: LocalBattleSessionId;
+  phase: LocalBattlePhaseDto;
   snapshot: GameSnapshot;
-  worldObstacles?: BattleWorldObstacleDto[];
+  worldObstacles?: LocalBattleWorldObstacleDto[];
   eventLifetimeMs?: number;
 }
 
 export interface LocalBattleResultAdapterInput {
-  sessionId: BattleSessionId;
+  sessionId: LocalBattleSessionId;
   playerHeroId: string;
   score: number;
   kills: number;
@@ -60,11 +60,11 @@ export interface LocalBattleResultAdapterInput {
   earnedMailIds: string[];
   finishedAtMs: number;
   replayId?: string | null;
-  outcome?: BattleSessionResultOutcomeDto;
+  outcome?: LocalBattleSessionResultOutcomeDto;
 }
 
 /** 中文名：转为战斗命令dto（toBattleCommandDto）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
-export function toBattleCommandDto(input: LocalBattleCommandAdapterInput): BattleCommandDto {
+export function toBattleCommandDto(input: LocalBattleCommandAdapterInput): LocalBattleCommandDto {
   return {
     sessionId: input.sessionId,
     playerId: input.playerId,
@@ -86,7 +86,7 @@ export function toBattleCommandDto(input: LocalBattleCommandAdapterInput): Battl
 }
 
 /** 中文名：转为战斗快照dto（toBattleSnapshotDto）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
-export function toBattleSnapshotDto(input: LocalBattleSnapshotAdapterInput): BattleSnapshotDto {
+export function toBattleSnapshotDto(input: LocalBattleSnapshotAdapterInput): LocalBattleSnapshotDto {
   return {
     sessionId: input.sessionId,
     phase: input.phase,
@@ -152,7 +152,7 @@ export function toBattleHudViewDto(state: HudState): BattleHudViewDto {
 }
 
 /** 中文名：转为战斗会话结果dto（toBattleSessionResultDto）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
-export function toBattleSessionResultDto(input: LocalBattleResultAdapterInput): BattleSessionResultDto {
+export function toBattleSessionResultDto(input: LocalBattleResultAdapterInput): LocalBattleSessionResultDto {
   return {
     sessionId: input.sessionId,
     replayId: input.replayId ?? null,
@@ -192,7 +192,7 @@ function toBattleHeroViewDto(hero: Hero) {
   };
 }
 
-function toBattleWeaponViewDto(weapon: WeaponState): BattleWeaponViewDto {
+function toBattleWeaponViewDto(weapon: WeaponState): LocalBattleWeaponViewDto {
   const usesHeat = weapon.weaponKind === "Gatling";
 
   return {
@@ -214,7 +214,7 @@ function toBattleSkillViewDto(skill: SkillState) {
   };
 }
 
-function toBattleProjectileViewDto(projectile: Projectile): BattleProjectileViewDto {
+function toBattleProjectileViewDto(projectile: Projectile): LocalBattleProjectileViewDto {
   return {
     projectileId: projectile.projectileId,
     kind: projectile.kind,
@@ -228,7 +228,7 @@ function toBattleProjectileViewDto(projectile: Projectile): BattleProjectileView
   };
 }
 
-function toBattlePickupViewDto(pickup: WeaponPickup): BattlePickupViewDto {
+function toBattlePickupViewDto(pickup: WeaponPickup): LocalBattlePickupViewDto {
   return {
     pickupId: pickup.weaponId,
     kind: "weapon",
@@ -238,7 +238,7 @@ function toBattlePickupViewDto(pickup: WeaponPickup): BattlePickupViewDto {
   };
 }
 
-function toBattleItemPickupViewDto(pickup: ItemPickup): BattlePickupViewDto {
+function toBattleItemPickupViewDto(pickup: ItemPickup): LocalBattlePickupViewDto {
   return {
     pickupId: pickup.pickupId,
     kind: "medkit",
@@ -248,7 +248,7 @@ function toBattleItemPickupViewDto(pickup: ItemPickup): BattlePickupViewDto {
   };
 }
 
-function toBattleEventDto(event: GameEvent, elapsedMs: number, eventLifetimeMs: number | undefined): BattleEventDto {
+function toBattleEventDto(event: GameEvent, elapsedMs: number, eventLifetimeMs: number | undefined): LocalBattleEventDto {
   const ttl = eventLifetimeMs ?? 3000;
   return {
     eventId: event.eventId,
@@ -294,7 +294,7 @@ function toVec2Dto(vec: Vec2) {
   };
 }
 
-function toBattleTeamDto(team: Hero["team"]): BattleTeamDto {
+function toBattleTeamDto(team: Hero["team"]): LocalBattleTeamDto {
   return team;
 }
 
@@ -302,7 +302,7 @@ function toBattleWeaponKindDto(kind: WeaponState["weaponKind"]): BattleWeaponKin
   return kind;
 }
 
-function mapEventKind(kind: GameEvent["type"]): BattleEventKindDto {
+function mapEventKind(kind: GameEvent["type"]): LocalBattleEventKindDto {
   return kind;
 }
 

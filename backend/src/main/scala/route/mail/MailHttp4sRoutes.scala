@@ -12,17 +12,16 @@ import route.Http4sEffects.blocking
 import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
-import services.mail.objects.apiTypes.{
+import services.mail.api.{
   MailApiErrorCode,
-  MailListResponse,
+  MailCommandParsers,
   MailOwnerQuery,
-  MailReadApiRequest,
   MailReadApiRequestDecodeError,
-  MailReadResponse,
   MailRequestTarget,
   MailRouteOwnerError,
   MailRouteReadError
 }
+import services.mail.objects.apiTypes.{MailListResponse, MailReadApiRequest, MailReadResponse}
 import services.mail.services.{MailReadError, MailService}
 
 private[route] object MailHttp4sRoutes {
@@ -65,7 +64,7 @@ private[route] object MailHttp4sRoutes {
       case Left(MailReadApiRequestDecodeError.InvalidJsonObject) =>
         errorResponse(mailApiError(MailApiErrorCode.InvalidJsonObject))
       case Right(readRequest) =>
-        readRequest.toCommand match {
+        MailCommandParsers.parseReadCommand(readRequest) match {
           case Left(error) =>
             errorResponse(readApiError(error))
           case Right(command) =>

@@ -1,54 +1,26 @@
 import { getBotProfileBySlot } from "../../bots/registry/botRegistry";
 import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCHMAKING_DURATION_MS } from "../../../objects/battle/battleRules";
+import type {
+  BattleModeIdDto,
+  BattleQueueParticipantResponseDto,
+  BattleSessionBootstrapResponseDto,
+  BattleSessionBootstrapSeatResponseDto,
+  BattleSessionDescriptorResponseDto,
+  BattleSessionRosterEntryResponseDto
+} from "../../../objects/battle/contracts/apiMessages";
 
-export interface MatchmakingQueueParticipant {
-  playerId: string;
-  handle: string;
-  joinedAt: number;
-  lastSeen: number;
-  rating?: number;
-  avatar?: string;
-  skin?: string;
-}
+export interface MatchmakingQueueParticipant extends BattleQueueParticipantResponseDto {}
 
-export interface MatchmakingBattleSessionRosterEntry {
-  seat: number;
-  playerId: string;
-  handle: string;
-  joinedAt: number;
-  rating?: number;
-  avatar?: string;
-  skin?: string;
-}
+export interface MatchmakingBattleSessionRosterEntry extends BattleSessionRosterEntryResponseDto {}
 
-export interface MatchmakingBattleSessionBootstrapSeat {
-  seat: number;
-  playerId: string;
-  heroId: string;
-  handle: string;
-  displayName: string;
-  joinedAt: number;
-  isBot: boolean;
-  spawnPointIndex: number;
-  rating?: number;
-  avatar?: string;
-  skin?: string;
-}
+export interface MatchmakingBattleSessionBootstrapSeat extends BattleSessionBootstrapSeatResponseDto {}
 
-export interface MatchmakingBattleSessionBootstrap {
+export interface MatchmakingBattleSessionBootstrap extends BattleSessionBootstrapResponseDto {
   seats: MatchmakingBattleSessionBootstrapSeat[];
 }
 
-export interface MatchmakingBattleSessionDescriptor {
-  battleId: string;
-  modeId?: string;
-  modeLabel?: string;
-  mapId?: string;
-  mapLabel?: string;
-  startedAt: number;
-  serverTime: number;
+export interface MatchmakingBattleSessionDescriptor extends BattleSessionDescriptorResponseDto {
   roster: MatchmakingBattleSessionRosterEntry[];
-  capacity: number;
   bootstrap?: MatchmakingBattleSessionBootstrap;
 }
 
@@ -61,7 +33,7 @@ export interface MatchmakingQueueState {
   playerId: string;
   roomId: string;
   matchId: string;
-  modeId: string;
+  modeId: BattleModeIdDto;
   modeLabel: string;
   mapId: string;
   mapLabel: string;

@@ -13,19 +13,21 @@ import route.Http4sEffects.blocking
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonCreated, jsonOk}
 import services.replay.objects.ReplayId
-import services.replay.objects.apiTypes.{
+import services.replay.api.{
   ReplayApiCodec,
   ReplayApiErrorCode,
   ReplayApiErrorMapper,
-  ReplayCatalogResponse,
   ReplayCatalogTarget,
   ReplayCommentDecodeError,
+  ReplayRecordDecodeError
+}
+import services.replay.objects.apiTypes.{
+  ReplayCatalogResponse,
   ReplayCommentResponse,
   ReplayCommentWrapperResponse,
   ReplayCommentsResponse,
   ReplayDetailRecordResponse,
-  ReplayDetailResponse,
-  ReplayRecordDecodeError
+  ReplayDetailResponse
 }
 import services.replay.services.{
   ReplayCommentCommand,

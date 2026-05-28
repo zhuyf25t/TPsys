@@ -1,45 +1,27 @@
 package services.battle.api.results
 
 import cats.effect.IO
-import io.circe.{Decoder, DecodingFailure, Error, Json}
+import io.circe.{Decoder, DecodingFailure, Json}
 
 import java.sql.Connection
 
-import services.battle.database.results.{BattleResultRepository, BattleResultStorage, BattleResultTable}
-import services.battle.objects.{BattleResultList, BattleResultListQuery, BattleResultRecord}
+import services.battle.database.results.BattleResultTable
+import services.battle.objects.{BattleResultListQuery, BattleResultRecord}
 import services.battle.objects.BattleResultListLimit
+import services.battle.objects.apiTypes.results.BattleResultListResponse
 import services.battle.objects.apiTypes.results.BattleResultListRequest.given
-import system.api.{APIMessage, APIMessageError, APIWithTokenContextMessage, APIWithTokenMessage}
+import system.api.{APIMessage, APIWithTokenMessage}
 import system.objects.UserId
 import system.policies.HandlePolicy
 
 final case class BattleResultListAPIMessage(
   userId: UserId,
   query: BattleResultListQuery
-) extends APIWithTokenMessage[BattleResultList],
-      APIWithTokenContextMessage[BattleResultStorage, BattleResultList] {
-  override def plan(connection: Connection): IO[BattleResultList] =
+) extends APIWithTokenMessage[BattleResultListResponse] {
+  override def plan(connection: Connection): IO[BattleResultListResponse] =
     for
       records <- IO.blocking(BattleResultListAPIMessage.listFromTable(connection, query))
-    yield BattleResultList(records)
-
-  override def plan(storage: BattleResultStorage, connection: Connection): IO[BattleResultList] =
-    for
-      records <- listRecords(storage, connection, query)
-    yield BattleResultList(records)
-
-  private def listRecords(
-    storage: BattleResultStorage,
-    connection: Connection,
-    query: BattleResultListQuery
-  ): IO[Vector[BattleResultRecord]] =
-    storage match {
-      case BattleResultStorage.ConnectionTable =>
-        IO.blocking(BattleResultListAPIMessage.listFromTable(connection, query))
-      case BattleResultStorage.Repository(resultRepository) =>
-        BattleResultListAPIMessage.listFromRepository(resultRepository, query)
-    }
-
+    yield BattleResultListResponse.fromRecords(records)
 }
 
 object BattleResultListAPIMessage {
@@ -55,16 +37,6 @@ object BattleResultListAPIMessage {
   private def listFromTable(connection: Connection, query: BattleResultListQuery): Vector[BattleResultRecord] =
     listRecords(query) { limit =>
       BattleResultTable.list(connection, query.handle, query.battleId, limit)
-    }
-
-  private def listFromRepository(
-    resultRepository: BattleResultRepository,
-    query: BattleResultListQuery
-  ): IO[Vector[BattleResultRecord]] =
-    IO.blocking {
-      listRecords(query) { limit =>
-        resultRepository.list(query.handle, query.battleId, limit)
-      }
     }
 
   private def listRecords(
@@ -83,13 +55,5 @@ object BattleResultListAPIMessage {
 
   private def decodeRequest(payload: Json): BattleResultListQuery =
     payload.as[BattleResultListQuery].getOrElse(BattleResultListQuery(None, None, BattleResultListLimit(25)))
-
-  private[battle] def requestDecodeFailure(error: Error): APIMessageError =
-    error match {
-      case failure: DecodingFailure if failure.message == "Login is required." =>
-        APIMessageError.Unauthorized("Login is required.")
-      case _ =>
-        APIMessageError.BadRequest("Invalid battle result list request.")
-    }
 
 }

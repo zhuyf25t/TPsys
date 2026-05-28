@@ -1,4 +1,4 @@
-import { fetchBotProfiles, type RemoteBotProfile } from "../../../api/bots/botProfileApi";
+import { fetchBotProfiles, type RemoteBotProfile } from "../../../apis/bots/botProfileApi";
 import { findBotPluginManifestByBotId, type BotPluginManifest } from "./botPluginManifest";
 
 export interface BotSkinMetadata {

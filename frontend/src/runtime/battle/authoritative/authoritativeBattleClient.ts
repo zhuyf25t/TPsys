@@ -2,40 +2,59 @@ import {
   postBattleCommandAPIMessage,
   postBattleStateReadAPIMessage,
   type BattleCommandAPIMessageRequest
-} from "../../../api/battle/battleApiMessageClient";
+} from "../../../apis/battle/battleApiMessageClient";
+import type {
+  AuthoritativeBattlePhaseDto,
+  BattleApiVectorDto,
+  BattleCommandAcceptedResponseDto,
+  BattleCommandReasonDto,
+  BattleCommandSkillOutcomeResponseDto,
+  BattleCommandStatusDto,
+  BattleEventKindDto,
+  BattlePickupKindDto,
+  BattleProjectileKindDto,
+  BattleProjectileTerminalReasonDto,
+  BattleSkillKindDto,
+  BattleSkillOutcomeReasonDto,
+  BattleSkillOutcomeStatusDto,
+  BattleStateEventParticipantResponseDto,
+  BattleStateEventResponseDto,
+  BattleStatePickupResponseDto,
+  BattleStatePlayerResponseDto,
+  BattleStateProjectileResponseDto,
+  BattleStateProjectileTerminalResponseDto,
+  BattleStateResponseDto,
+  BattleStateSkillResponseDto,
+  BattleStateSlowFieldResponseDto,
+  BattleStateWeaponResponseDto,
+  BattleWeaponKindDto
+} from "../../../objects/battle/contracts/apiMessages";
 
-export interface AuthoritativeBattleVector {
-  x: number;
-  y: number;
-}
+export interface AuthoritativeBattleVector extends BattleApiVectorDto {}
 
-export type AuthoritativeBattleWeaponKind = "Pistol" | "RocketLauncher" | "Gatling" | "Shotgun";
-export type AuthoritativeBattleSkillKind = "Blink" | "Dash" | "Freeze";
-export type AuthoritativeBattleCommandStatus = "applied" | "ignored";
-export type AuthoritativeBattleCommandReason = "battle_finished" | "battle_inactive" | "player_dead";
-export type AuthoritativeBattleSkillOutcomeStatus = "applied" | "noop";
-export type AuthoritativeBattleSkillOutcomeReason =
-  | "skill_not_owned"
-  | "cooldown"
-  | "missing_target"
-  | "out_of_range"
-  | "invalid_target"
-  | "no_direction"
-  | "blocked";
+export type AuthoritativeBattleWeaponKind = BattleWeaponKindDto;
+export type AuthoritativeBattleProjectileKind = BattleProjectileKindDto;
+export type AuthoritativeBattleSkillKind = BattleSkillKindDto;
+export type AuthoritativeBattlePhase = AuthoritativeBattlePhaseDto;
+export type AuthoritativeBattleCommandStatus = BattleCommandStatusDto;
+export type AuthoritativeBattleCommandReason = BattleCommandReasonDto;
+export type AuthoritativeBattleSkillOutcomeStatus = BattleSkillOutcomeStatusDto;
+export type AuthoritativeBattleProjectileTerminalReason = BattleProjectileTerminalReasonDto;
+export type AuthoritativeBattleSkillOutcomeReason = BattleSkillOutcomeReasonDto;
 
-export interface AuthoritativeBattleSkillOutcome {
+export interface AuthoritativeBattleSkillOutcome extends BattleCommandSkillOutcomeResponseDto {
   action: AuthoritativeBattleSkillKind;
   status: AuthoritativeBattleSkillOutcomeStatus;
   reason?: AuthoritativeBattleSkillOutcomeReason;
 }
 
-export interface AuthoritativeBattleSkillState {
+export interface AuthoritativeBattleSkillState extends BattleStateSkillResponseDto {
   kind: AuthoritativeBattleSkillKind;
   cooldownMs: number;
   activeMs: number;
 }
 
-export interface AuthoritativeBattleWeaponState {
+export interface AuthoritativeBattleWeaponState extends BattleStateWeaponResponseDto {
   weaponKind: AuthoritativeBattleWeaponKind;
   ammoInMagazine: number;
   magazineSize: number;
@@ -47,7 +66,7 @@ export interface AuthoritativeBattleWeaponState {
   overheatRemainingMs: number;
 }
 
-export interface AuthoritativeBattlePlayerState {
+export interface AuthoritativeBattlePlayerState extends BattleStatePlayerResponseDto {
   playerId: string;
   heroId: string;
   handle: string;
@@ -57,6 +76,8 @@ export interface AuthoritativeBattlePlayerState {
   position: AuthoritativeBattleVector;
   aim: AuthoritativeBattleVector;
   facing: number;
+  movement: AuthoritativeBattleVector;
+  sprint: boolean;
   primaryHeld: boolean;
   reloadPressed: boolean;
   lastClientCommandSeq: number;
@@ -83,10 +104,10 @@ export interface AuthoritativeBattlePlayerState {
   respawnMs: number;
 }
 
-export interface AuthoritativeBattleProjectileState {
+export interface AuthoritativeBattleProjectileState extends BattleStateProjectileResponseDto {
   projectileId: string;
   ownerHeroId: string;
-  kind: string;
+  kind: AuthoritativeBattleProjectileKind;
   position: AuthoritativeBattleVector;
   velocity: AuthoritativeBattleVector;
   facing: number;
@@ -97,12 +118,12 @@ export interface AuthoritativeBattleProjectileState {
   splashRadius: number;
 }
 
-export interface AuthoritativeBattleProjectileTerminalState {
+export interface AuthoritativeBattleProjectileTerminalState extends BattleStateProjectileTerminalResponseDto {
   projectileId: string;
-  kind: string;
+  kind: AuthoritativeBattleProjectileKind;
   ownerPlayerId: string;
   ownerHeroId: string;
-  reason: string;
+  reason: AuthoritativeBattleProjectileTerminalReason;
   start: AuthoritativeBattleVector;
   end: AuthoritativeBattleVector;
   terminalPosition: AuthoritativeBattleVector;
@@ -116,7 +137,7 @@ export interface AuthoritativeBattleProjectileTerminalState {
   damage: number | null;
 }
 
-export interface AuthoritativeBattleSlowFieldState {
+export interface AuthoritativeBattleSlowFieldState extends BattleStateSlowFieldResponseDto {
   fieldId: string;
   ownerPlayerId: string;
   ownerHeroId: string;
@@ -126,9 +147,9 @@ export interface AuthoritativeBattleSlowFieldState {
   durationMs: number;
 }
 
-export type AuthoritativeBattlePickupKind = "Medkit" | "Weapon";
+export type AuthoritativeBattlePickupKind = BattlePickupKindDto;
 
-export interface AuthoritativeBattlePickupState {
+export interface AuthoritativeBattlePickupState extends BattleStatePickupResponseDto {
   pickupId: string;
   kind: AuthoritativeBattlePickupKind;
   weaponKind?: AuthoritativeBattleWeaponKind;
@@ -137,27 +158,27 @@ export interface AuthoritativeBattlePickupState {
   respawnMs: number;
 }
 
-export interface AuthoritativeBattleEventParticipant {
+export interface AuthoritativeBattleEventParticipant extends BattleStateEventParticipantResponseDto {
   playerId: string;
   heroId: string;
   displayName: string;
 }
 
-export interface AuthoritativeBattleEventState {
+export interface AuthoritativeBattleEventState extends BattleStateEventResponseDto {
   eventId: string;
-  type: "kill" | "heal" | "pickup" | "respawn";
-  kind: "kill" | "heal" | "pickup" | "respawn";
+  type: BattleEventKindDto;
+  kind: BattleEventKindDto;
   elapsedMs: number;
   message: string;
   source: AuthoritativeBattleEventParticipant;
   target: AuthoritativeBattleEventParticipant;
 }
 
-export interface AuthoritativeBattleState {
+export interface AuthoritativeBattleState extends BattleStateResponseDto {
   battleId: string;
   roomId: string;
   mapId: string;
-  phase: string;
+  phase: AuthoritativeBattlePhase;
   serverTime: number;
   startedAt: number;
   durationMs: number;
@@ -173,8 +194,8 @@ export interface AuthoritativeBattleState {
   slowFields: AuthoritativeBattleSlowFieldState[];
   pickups: AuthoritativeBattlePickupState[];
   events: AuthoritativeBattleEventState[];
-  winnerPlayerId?: string | null;
-  winnerHeroId?: string | null;
+  winnerPlayerId?: string;
+  winnerHeroId?: string;
 }
 
 export interface AuthoritativeBattleCommand {
@@ -196,7 +217,7 @@ export interface AuthoritativeBattleCommand {
   switchWeaponIndex: number | null;
 }
 
-export interface AuthoritativeBattleCommandAccepted {
+export interface AuthoritativeBattleCommandAccepted extends BattleCommandAcceptedResponseDto {
   battleId: string;
   acceptedTick: number;
   acceptedCommandSeq: number;
@@ -241,7 +262,7 @@ export async function loadAuthoritativeBattleState(battleId: string): Promise<Au
   return response?.ok ? response.payload : null;
 }
 
-/** 中文名：openauthoritative战斗状态stream（openAuthoritativeBattleStateStream）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** 中文名：openauthoritative战斗状态stream（openAuthoritativeBattleStateStream）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致?*/
 export function openAuthoritativeBattleStateStream(
   battleId: string,
   options: AuthoritativeBattleStateStreamOptions
@@ -318,7 +339,7 @@ function normalizeAuthoritativeBattleState(payload: unknown): AuthoritativeBattl
   const battleId = readString(value.battleId);
   const roomId = readString(value.roomId);
   const mapId = readString(value.mapId);
-  const phase = readString(value.phase);
+  const phase = normalizeAuthoritativeBattlePhase(value.phase);
   const serverTime = readNumber(value.serverTime);
   const startedAt = readNumber(value.startedAt);
   const durationMs = readNumber(value.durationMs);
@@ -326,12 +347,14 @@ function normalizeAuthoritativeBattleState(payload: unknown): AuthoritativeBattl
   const endsAt = readNumber(value.endsAt);
   const worldSize = normalizeVectorPayload(value.worldSize);
   const tick = readNumber(value.tick);
+  const resultReady = typeof value.resultReady === "boolean" ? value.resultReady : null;
+  const replayReady = typeof value.replayReady === "boolean" ? value.replayReady : null;
 
   if (
     !battleId ||
     !roomId ||
     !mapId ||
-    !phase ||
+    phase === null ||
     serverTime === null ||
     startedAt === null ||
     durationMs === null ||
@@ -339,32 +362,50 @@ function normalizeAuthoritativeBattleState(payload: unknown): AuthoritativeBattl
     endsAt === null ||
     worldSize === null ||
     tick === null ||
+    resultReady === null ||
+    replayReady === null ||
     !Array.isArray(value.players) ||
     !Array.isArray(value.projectiles) ||
+    !Array.isArray(value.projectileTerminals) ||
+    !Array.isArray(value.slowFields) ||
+    !Array.isArray(value.pickups) ||
     !Array.isArray(value.events)
   ) {
     return null;
   }
 
-  const players = value.players
-    .map((entry) => normalizeAuthoritativeBattlePlayerState(entry))
-    .filter((entry): entry is AuthoritativeBattlePlayerState => entry !== null)
-    .sort((left, right) => left.seat - right.seat);
-  const projectiles = value.projectiles
-    .map((entry) => normalizeAuthoritativeBattleProjectileState(entry))
-    .filter((entry): entry is AuthoritativeBattleProjectileState => entry !== null);
-  const projectileTerminals = (Array.isArray(value.projectileTerminals) ? value.projectileTerminals : [])
-    .map((entry) => normalizeAuthoritativeBattleProjectileTerminalState(entry))
-    .filter((entry): entry is AuthoritativeBattleProjectileTerminalState => entry !== null);
-  const slowFields = (Array.isArray(value.slowFields) ? value.slowFields : [])
-    .map((entry) => normalizeAuthoritativeBattleSlowFieldState(entry))
-    .filter((entry): entry is AuthoritativeBattleSlowFieldState => entry !== null);
-  const pickups = (Array.isArray(value.pickups) ? value.pickups : [])
-    .map((entry) => normalizeAuthoritativeBattlePickupState(entry))
-    .filter((entry): entry is AuthoritativeBattlePickupState => entry !== null);
-  const events = value.events
-    .map((entry) => normalizeAuthoritativeBattleEventState(entry))
-    .filter((entry): entry is AuthoritativeBattleEventState => entry !== null);
+  const players = normalizeRequiredArray(value.players, normalizeAuthoritativeBattlePlayerState)?.sort(
+    (left, right) => left.seat - right.seat
+  );
+  const projectiles = normalizeRequiredArray(value.projectiles, normalizeAuthoritativeBattleProjectileState);
+  const projectileTerminals = normalizeRequiredArray(
+    value.projectileTerminals,
+    normalizeAuthoritativeBattleProjectileTerminalState
+  );
+  const slowFields = normalizeRequiredArray(value.slowFields, normalizeAuthoritativeBattleSlowFieldState);
+  const pickups = normalizeRequiredArray(value.pickups, normalizeAuthoritativeBattlePickupState);
+  const events = normalizeRequiredArray(value.events, normalizeAuthoritativeBattleEventState);
+
+  if (
+    players === null ||
+    typeof players === "undefined" ||
+    projectiles === null ||
+    projectileTerminals === null ||
+    slowFields === null ||
+    pickups === null ||
+    events === null
+  ) {
+    return null;
+  }
+
+  const hasWinnerPlayerId = Object.prototype.hasOwnProperty.call(value, "winnerPlayerId");
+  const hasWinnerHeroId = Object.prototype.hasOwnProperty.call(value, "winnerHeroId");
+  const winnerPlayerId = readDroppedOptionalString(value.winnerPlayerId);
+  const winnerHeroId = readDroppedOptionalString(value.winnerHeroId);
+
+  if ((hasWinnerPlayerId && winnerPlayerId === null) || (hasWinnerHeroId && winnerHeroId === null)) {
+    return null;
+  }
 
   return {
     battleId,
@@ -378,16 +419,16 @@ function normalizeAuthoritativeBattleState(payload: unknown): AuthoritativeBattl
     endsAt,
     worldSize,
     tick,
-    resultReady: value.resultReady === true,
-    replayReady: value.replayReady === true,
+    resultReady,
+    replayReady,
     players,
     projectiles,
     projectileTerminals,
     slowFields,
     pickups,
     events,
-    winnerPlayerId: readOptionalString(value.winnerPlayerId),
-    winnerHeroId: readOptionalString(value.winnerHeroId)
+    ...(winnerPlayerId ? { winnerPlayerId } : {}),
+    ...(winnerHeroId ? { winnerHeroId } : {})
   };
 }
 
@@ -399,6 +440,7 @@ function normalizeAuthoritativeBattlePickupState(payload: unknown): Authoritativ
   const value = payload as Partial<AuthoritativeBattlePickupState> & Record<string, unknown>;
   const pickupId = readString(value.pickupId);
   const kind = normalizeAuthoritativeBattlePickupKind(value.kind);
+  const hasWeaponKind = Object.prototype.hasOwnProperty.call(value, "weaponKind");
   const weaponKind = normalizeAuthoritativeBattleWeaponKind(value.weaponKind);
   const position = normalizeVectorPayload(value.position);
   const respawnMs = readNumber(value.respawnMs);
@@ -409,16 +451,17 @@ function normalizeAuthoritativeBattlePickupState(payload: unknown): Authoritativ
     position === null ||
     typeof value.available !== "boolean" ||
     respawnMs === null ||
-    (kind === "Weapon" && weaponKind === null)
+    (kind === "Weapon" && weaponKind === null) ||
+    (kind !== "Weapon" && hasWeaponKind)
   ) {
     return null;
   }
 
-  if (kind === "Weapon") {
+  if (kind === "Weapon" && weaponKind !== null) {
     return {
       pickupId,
       kind,
-      weaponKind: weaponKind ?? "Pistol",
+      weaponKind,
       position,
       available: value.available,
       respawnMs: Math.max(0, Math.round(respawnMs))
@@ -438,6 +481,10 @@ function normalizeAuthoritativeBattlePickupKind(payload: unknown): Authoritative
   return payload === "Medkit" || payload === "Weapon" ? payload : null;
 }
 
+function normalizeAuthoritativeBattlePhase(payload: unknown): AuthoritativeBattlePhase | null {
+  return payload === "waiting" || payload === "active" || payload === "finished" ? payload : null;
+}
+
 function normalizeAuthoritativeBattlePlayerState(payload: unknown): AuthoritativeBattlePlayerState | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -452,8 +499,10 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
   const position = normalizeVectorPayload(value.position);
   const aim = normalizeVectorPayload(value.aim);
   const facing = readNumber(value.facing);
+  const movement = normalizeVectorPayload(value.movement);
+  const sprint = typeof value.sprint === "boolean" ? value.sprint : null;
   const currentWeaponIndex = readNumber(value.currentWeaponIndex);
-  const lastClientCommandSeq = readOptionalNumber(value.lastClientCommandSeq);
+  const lastClientCommandSeq = readNumber(value.lastClientCommandSeq);
   const currentWeaponKind = normalizeAuthoritativeBattleWeaponKind(value.currentWeaponKind);
   const ammoInMagazine = readNumber(value.ammoInMagazine);
   const magazineSize = readNumber(value.magazineSize);
@@ -461,22 +510,21 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
   const reserveAmmo = readOptionalNumber(value.reserveAmmo);
   const fireCooldownMs = readNumber(value.fireCooldownMs);
   const reloadRemainingMs = readNumber(value.reloadRemainingMs);
-  const heat = readOptionalNumber(value.heat);
-  const overheated = typeof value.overheated === "boolean" ? value.overheated : false;
-  const overheatRemainingMs = readOptionalNumber(value.overheatRemainingMs);
-  const weapons = (Array.isArray(value.weapons) ? value.weapons : [])
-    .map((entry) => normalizeAuthoritativeBattleWeaponState(entry))
-    .filter((entry): entry is AuthoritativeBattleWeaponState => entry !== null);
+  const heat = readNumber(value.heat);
+  const overheated = typeof value.overheated === "boolean" ? value.overheated : null;
+  const overheatRemainingMs = readNumber(value.overheatRemainingMs);
+  const weaponsPayload = Array.isArray(value.weapons) ? value.weapons : null;
+  const skillsPayload = Array.isArray(value.skills) ? value.skills : null;
+  const weapons = weaponsPayload === null ? null : normalizeRequiredArray(weaponsPayload, normalizeAuthoritativeBattleWeaponState);
   const hp = readNumber(value.hp);
   const maxHp = readNumber(value.maxHp);
   const stamina = readNumber(value.stamina);
   const maxStamina = readNumber(value.maxStamina);
   const score = readNumber(value.score);
   const kills = readNumber(value.kills);
-  const skills = (Array.isArray(value.skills) ? value.skills : [])
-    .map((entry) => normalizeAuthoritativeBattleSkillState(entry))
-    .filter((entry): entry is AuthoritativeBattleSkillState => entry !== null);
-  const eliminatedAtMs = readOptionalNumber(value.eliminatedAtMs);
+  const skills = skillsPayload === null ? null : normalizeRequiredArray(skillsPayload, normalizeAuthoritativeBattleSkillState);
+  const hasEliminatedAtMs = Object.prototype.hasOwnProperty.call(value, "eliminatedAtMs");
+  const eliminatedAtMs = readNullableNumberField(value.eliminatedAtMs);
   const respawnMs = readNumber(value.respawnMs);
 
   if (
@@ -488,6 +536,9 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
     position === null ||
     aim === null ||
     facing === null ||
+    movement === null ||
+    sprint === null ||
+    lastClientCommandSeq === null ||
     currentWeaponIndex === null ||
     currentWeaponKind === null ||
     ammoInMagazine === null ||
@@ -495,10 +546,20 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
     !hasReserveAmmo ||
     fireCooldownMs === null ||
     reloadRemainingMs === null ||
+    heat === null ||
+    overheated === null ||
+    overheatRemainingMs === null ||
     hp === null ||
     maxHp === null ||
     stamina === null ||
     maxStamina === null ||
+    score === null ||
+    kills === null ||
+    weaponsPayload === null ||
+    skillsPayload === null ||
+    weapons === null ||
+    skills === null ||
+    (hasEliminatedAtMs && typeof eliminatedAtMs === "undefined") ||
     respawnMs === null ||
     typeof value.isBot !== "boolean" ||
     typeof value.primaryHeld !== "boolean" ||
@@ -508,18 +569,6 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
     return null;
   }
 
-  const scalarWeapon: AuthoritativeBattleWeaponState = {
-    weaponKind: currentWeaponKind,
-    ammoInMagazine: Math.max(0, Math.round(ammoInMagazine)),
-    magazineSize: Math.max(0, Math.round(magazineSize)),
-    reserveAmmo: reserveAmmo === null ? null : Math.max(0, Math.round(reserveAmmo)),
-    fireCooldownMs: Math.max(0, Math.round(fireCooldownMs)),
-    reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs)),
-    heat: Math.max(0, heat ?? 0),
-    overheated,
-    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs ?? 0))
-  };
-  const normalizedWeapons = weapons.length > 0 ? weapons : [scalarWeapon];
   const safeMaxStamina = Math.max(1, maxStamina);
 
   return {
@@ -532,29 +581,33 @@ function normalizeAuthoritativeBattlePlayerState(payload: unknown): Authoritativ
     position,
     aim,
     facing,
+    movement,
+    sprint,
     primaryHeld: value.primaryHeld,
     reloadPressed: value.reloadPressed,
-    lastClientCommandSeq: Math.max(0, Math.trunc(lastClientCommandSeq ?? 0)),
+    lastClientCommandSeq: Math.max(0, Math.trunc(lastClientCommandSeq)),
     currentWeaponIndex: Math.max(0, Math.trunc(currentWeaponIndex)),
-    weapons: normalizedWeapons,
+    weapons,
     currentWeaponKind,
     ammoInMagazine: Math.max(0, Math.round(ammoInMagazine)),
     magazineSize: Math.max(0, Math.round(magazineSize)),
     reserveAmmo: reserveAmmo === null ? null : Math.max(0, Math.round(reserveAmmo)),
     fireCooldownMs: Math.max(0, Math.round(fireCooldownMs)),
     reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs)),
-    heat: Math.max(0, heat ?? 0),
+    heat: Math.max(0, heat),
     overheated,
-    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs ?? 0)),
+    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs)),
     hp: Math.max(0, hp),
     maxHp: Math.max(1, maxHp),
     stamina: Math.max(0, Math.min(stamina, safeMaxStamina)),
     maxStamina: safeMaxStamina,
-    score: Math.max(0, Math.round(score ?? 0)),
-    kills: Math.max(0, Math.round(kills ?? 0)),
+    score: Math.max(0, Math.round(score)),
+    kills: Math.max(0, Math.round(kills)),
     skills,
     alive: value.alive,
-    eliminatedAtMs: eliminatedAtMs === null ? null : Math.max(0, Math.round(eliminatedAtMs)),
+    eliminatedAtMs: typeof eliminatedAtMs === "undefined" || eliminatedAtMs === null
+      ? null
+      : Math.max(0, Math.round(eliminatedAtMs)),
     respawnMs: Math.max(0, Math.round(respawnMs))
   };
 }
@@ -572,9 +625,9 @@ function normalizeAuthoritativeBattleWeaponState(payload: unknown): Authoritativ
   const reserveAmmo = readOptionalNumber(value.reserveAmmo);
   const fireCooldownMs = readNumber(value.fireCooldownMs);
   const reloadRemainingMs = readNumber(value.reloadRemainingMs);
-  const heat = readOptionalNumber(value.heat);
-  const overheated = typeof value.overheated === "boolean" ? value.overheated : false;
-  const overheatRemainingMs = readOptionalNumber(value.overheatRemainingMs);
+  const heat = readNumber(value.heat);
+  const overheated = typeof value.overheated === "boolean" ? value.overheated : null;
+  const overheatRemainingMs = readNumber(value.overheatRemainingMs);
 
   if (
     weaponKind === null ||
@@ -582,7 +635,10 @@ function normalizeAuthoritativeBattleWeaponState(payload: unknown): Authoritativ
     magazineSize === null ||
     !hasReserveAmmo ||
     fireCooldownMs === null ||
-    reloadRemainingMs === null
+    reloadRemainingMs === null ||
+    heat === null ||
+    overheated === null ||
+    overheatRemainingMs === null
   ) {
     return null;
   }
@@ -594,9 +650,9 @@ function normalizeAuthoritativeBattleWeaponState(payload: unknown): Authoritativ
     reserveAmmo: reserveAmmo === null ? null : Math.max(0, Math.round(reserveAmmo)),
     fireCooldownMs: Math.max(0, Math.round(fireCooldownMs)),
     reloadRemainingMs: Math.max(0, Math.round(reloadRemainingMs)),
-    heat: Math.max(0, heat ?? 0),
+    heat: Math.max(0, heat),
     overheated,
-    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs ?? 0))
+    overheatRemainingMs: Math.max(0, Math.round(overheatRemainingMs))
   };
 }
 
@@ -641,7 +697,7 @@ function normalizeAuthoritativeBattleProjectileState(payload: unknown): Authorit
   const value = payload as Partial<AuthoritativeBattleProjectileState> & Record<string, unknown>;
   const projectileId = readString(value.projectileId);
   const ownerHeroId = readString(value.ownerHeroId);
-  const kind = readString(value.kind);
+  const kind = normalizeAuthoritativeBattleProjectileKind(value.kind);
   const position = normalizeVectorPayload(value.position);
   const velocity = normalizeVectorPayload(value.velocity);
   const facing = readNumber(value.facing);
@@ -654,7 +710,7 @@ function normalizeAuthoritativeBattleProjectileState(payload: unknown): Authorit
   if (
     !projectileId ||
     !ownerHeroId ||
-    !kind ||
+    kind === null ||
     position === null ||
     velocity === null ||
     facing === null ||
@@ -691,29 +747,49 @@ function normalizeAuthoritativeBattleProjectileTerminalState(
 
   const value = payload as Partial<AuthoritativeBattleProjectileTerminalState> & Record<string, unknown>;
   const projectileId = readString(value.projectileId);
-  const kind = readString(value.kind);
+  const kind = normalizeAuthoritativeBattleProjectileKind(value.kind);
   const ownerPlayerId = readString(value.ownerPlayerId);
   const ownerHeroId = readString(value.ownerHeroId);
-  const reason = readString(value.reason);
+  const reason = normalizeAuthoritativeBattleProjectileTerminalReason(value.reason);
   const start = normalizeVectorPayload(value.start);
   const end = normalizeVectorPayload(value.end);
   const terminalPosition = normalizeVectorPayload(value.terminalPosition);
   const ttlBefore = readNumber(value.ttlBefore);
   const ttlAfter = readNumber(value.ttlAfter);
   const elapsedMs = readNumber(value.elapsedMs);
+  const hasTargetPlayerId = Object.prototype.hasOwnProperty.call(value, "targetPlayerId");
+  const hasTargetHeroId = Object.prototype.hasOwnProperty.call(value, "targetHeroId");
+  const hasHpBefore = Object.prototype.hasOwnProperty.call(value, "hpBefore");
+  const hasHpAfter = Object.prototype.hasOwnProperty.call(value, "hpAfter");
+  const hasDamage = Object.prototype.hasOwnProperty.call(value, "damage");
+  const targetPlayerId = readNullableStringField(value.targetPlayerId);
+  const targetHeroId = readNullableStringField(value.targetHeroId);
+  const hpBefore = readNullableNumberField(value.hpBefore);
+  const hpAfter = readNullableNumberField(value.hpAfter);
+  const damageValue = readNullableNumberField(value.damage);
 
   if (
     !projectileId ||
-    !kind ||
+    kind === null ||
     !ownerPlayerId ||
     !ownerHeroId ||
-    !reason ||
+    reason === null ||
     start === null ||
     end === null ||
     terminalPosition === null ||
     ttlBefore === null ||
     ttlAfter === null ||
-    elapsedMs === null
+    elapsedMs === null ||
+    !hasTargetPlayerId ||
+    !hasTargetHeroId ||
+    !hasHpBefore ||
+    !hasHpAfter ||
+    !hasDamage ||
+    typeof targetPlayerId === "undefined" ||
+    typeof targetHeroId === "undefined" ||
+    typeof hpBefore === "undefined" ||
+    typeof hpAfter === "undefined" ||
+    typeof damageValue === "undefined"
   ) {
     return null;
   }
@@ -730,11 +806,11 @@ function normalizeAuthoritativeBattleProjectileTerminalState(
     ttlBefore: Math.max(0, Math.round(ttlBefore)),
     ttlAfter: Math.max(0, Math.round(ttlAfter)),
     elapsedMs: Math.max(0, Math.round(elapsedMs)),
-    targetPlayerId: readOptionalString(value.targetPlayerId),
-    targetHeroId: readOptionalString(value.targetHeroId),
-    hpBefore: normalizeOptionalNonNegativeInteger(value.hpBefore),
-    hpAfter: normalizeOptionalNonNegativeInteger(value.hpAfter),
-    damage: normalizeOptionalNonNegativeInteger(value.damage)
+    targetPlayerId,
+    targetHeroId,
+    hpBefore: normalizeNullableNonNegativeInteger(hpBefore),
+    hpAfter: normalizeNullableNonNegativeInteger(hpAfter),
+    damage: normalizeNullableNonNegativeInteger(damageValue)
   };
 }
 
@@ -775,6 +851,21 @@ function normalizeAuthoritativeBattleSlowFieldState(payload: unknown): Authorita
   };
 }
 
+function normalizeAuthoritativeBattleProjectileKind(payload: unknown): AuthoritativeBattleProjectileKind | null {
+  return payload === "pistol-bullet" ||
+    payload === "rocket" ||
+    payload === "gatling-bullet" ||
+    payload === "shotgun-pellet"
+    ? payload
+    : null;
+}
+
+function normalizeAuthoritativeBattleProjectileTerminalReason(
+  payload: unknown
+): AuthoritativeBattleProjectileTerminalReason | null {
+  return payload === "hit" || payload === "ttl" || payload === "obstacle" || payload === "world" ? payload : null;
+}
+
 function normalizeAuthoritativeBattleEventState(payload: unknown): AuthoritativeBattleEventState | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -793,6 +884,7 @@ function normalizeAuthoritativeBattleEventState(payload: unknown): Authoritative
     !eventId ||
     !isAuthoritativeBattleEventKind(type) ||
     !isAuthoritativeBattleEventKind(kind) ||
+    type !== kind ||
     elapsedMs === null ||
     !message ||
     source === null ||
@@ -841,22 +933,31 @@ function normalizeBattleCommandAccepted(payload: unknown): AuthoritativeBattleCo
   const value = payload as Partial<AuthoritativeBattleCommandAccepted> & Record<string, unknown>;
   const battleId = readString(value.battleId);
   const acceptedTick = readNumber(value.acceptedTick);
-  const acceptedCommandSeq = readOptionalNumber(value.acceptedCommandSeq);
+  const acceptedCommandSeq = readNumber(value.acceptedCommandSeq);
   const serverTime = readNumber(value.serverTime);
-  const commandStatus = normalizeBattleCommandStatus(value.commandStatus) ?? "applied";
+  const commandStatus = normalizeBattleCommandStatus(value.commandStatus);
+  const hasCommandReason = Object.prototype.hasOwnProperty.call(value, "commandReason");
   const commandReason = normalizeBattleCommandReason(value.commandReason);
-  const outcomes = (Array.isArray(value.outcomes) ? value.outcomes : [])
-    .map(normalizeBattleSkillOutcome)
-    .filter((outcome): outcome is AuthoritativeBattleSkillOutcome => outcome !== null);
+  const outcomesPayload = Array.isArray(value.outcomes) ? value.outcomes : null;
+  const outcomes = outcomesPayload === null ? null : normalizeRequiredArray(outcomesPayload, normalizeBattleSkillOutcome);
 
-  if (!battleId || acceptedTick === null || serverTime === null) {
+  if (
+    !battleId ||
+    acceptedTick === null ||
+    acceptedCommandSeq === null ||
+    serverTime === null ||
+    commandStatus === null ||
+    outcomesPayload === null ||
+    outcomes === null ||
+    (hasCommandReason && commandReason === null)
+  ) {
     return null;
   }
 
   return {
     battleId,
     acceptedTick: Math.max(0, Math.trunc(acceptedTick)),
-    acceptedCommandSeq: Math.max(0, Math.trunc(acceptedCommandSeq ?? 0)),
+    acceptedCommandSeq: Math.max(0, Math.trunc(acceptedCommandSeq)),
     serverTime,
     commandStatus,
     ...(commandReason ? { commandReason } : {}),
@@ -890,8 +991,9 @@ function normalizeBattleSkillOutcome(payload: unknown): AuthoritativeBattleSkill
   const value = payload as Partial<AuthoritativeBattleSkillOutcome> & Record<string, unknown>;
   const action = normalizeAuthoritativeBattleSkillKind(value.action);
   const status = normalizeBattleSkillOutcomeStatus(value.status);
+  const hasReason = Object.prototype.hasOwnProperty.call(value, "reason");
   const reason = normalizeBattleSkillOutcomeReason(value.reason);
-  if (action === null || status === null) {
+  if (action === null || status === null || (hasReason && reason === null)) {
     return null;
   }
 
@@ -981,12 +1083,37 @@ function normalizeSwitchWeaponIndex(index: number | null): number | null {
   return index === null || !Number.isFinite(index) ? null : Math.max(0, Math.trunc(index));
 }
 
+function normalizeRequiredArray<T>(
+  values: unknown[],
+  normalize: (value: unknown) => T | null
+): T[] | null {
+  const normalized: T[] = [];
+  for (const value of values) {
+    const item = normalize(value);
+    if (item === null) {
+      return null;
+    }
+
+    normalized.push(item);
+  }
+
+  return normalized;
+}
+
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function readOptionalString(value: unknown): string | null {
+function readDroppedOptionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readNullableStringField(value: unknown): string | null | undefined {
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 function readNumber(value: unknown): number | null {
@@ -997,7 +1124,14 @@ function readOptionalNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function normalizeOptionalNonNegativeInteger(value: unknown): number | null {
-  const numberValue = readOptionalNumber(value);
-  return numberValue === null ? null : Math.max(0, Math.round(numberValue));
+function readNullableNumberField(value: unknown): number | null | undefined {
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeNullableNonNegativeInteger(value: number | null): number | null {
+  return value === null ? null : Math.max(0, Math.round(value));
 }

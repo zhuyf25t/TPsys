@@ -5,12 +5,13 @@ import io.circe.{Decoder, DecodingFailure, Error, Json}
 
 import java.sql.Connection
 
-import services.battle.database.results.{BattleResultRepository, BattleResultStorage, BattleResultTable}
+import services.battle.database.results.BattleResultTable
 import services.battle.objects.{BattleAPIRequestError as BattleResultRecordDecodeError, BattleResultRecordCommand}
 import services.battle.objects.apiTypes.results.BattleResultRecordRequest.given
+import services.battle.objects.apiTypes.results.BattleResultRecordResponse
 import services.battle.objects.result.BattleResultRecord
 import services.identity.objects.PlayerHandle
-import system.api.{APIMessage, APIMessageError, APIWithTokenContextMessage, APIWithTokenMessage}
+import system.api.{APIMessage, APIMessageError, APIWithTokenMessage}
 import system.database.PostgresSupport
 import system.objects.UserId
 import system.policies.HandlePolicy
@@ -18,31 +19,12 @@ import system.policies.HandlePolicy
 final case class BattleResultRecordAPIMessage(
   userId: UserId,
   command: BattleResultRecordCommand
-) extends APIWithTokenMessage[BattleResultRecord],
-      APIWithTokenContextMessage[BattleResultStorage, BattleResultRecord] {
-  override def plan(connection: Connection): IO[BattleResultRecord] =
+) extends APIWithTokenMessage[BattleResultRecordResponse] {
+  override def plan(connection: Connection): IO[BattleResultRecordResponse] =
     for
       record <- BattleResultRecordAPIMessage.buildValidatedRecord(command)
       saved <- BattleResultRecordAPIMessage.saveToTable(connection, record)
-    yield saved
-
-  override def plan(storage: BattleResultStorage, connection: Connection): IO[BattleResultRecord] =
-    for
-      record <- BattleResultRecordAPIMessage.buildValidatedRecord(command)
-      saved <- saveRecord(storage, connection, record)
-    yield saved
-
-  private def saveRecord(
-    storage: BattleResultStorage,
-    connection: Connection,
-    record: BattleResultRecord
-  ): IO[BattleResultRecord] =
-    storage match {
-      case BattleResultStorage.ConnectionTable =>
-        BattleResultRecordAPIMessage.saveToTable(connection, record)
-      case BattleResultStorage.Repository(resultRepository) =>
-        BattleResultRecordAPIMessage.saveToRepository(resultRepository, record)
-    }
+    yield BattleResultRecordResponse.fromRecord(saved)
 }
 
 object BattleResultRecordAPIMessage {
@@ -100,12 +82,6 @@ object BattleResultRecordAPIMessage {
       IO.blocking(BattleResultTable.save(connection, record))
     }
 
-  private def saveToRepository(
-    resultRepository: BattleResultRepository,
-    record: BattleResultRecord
-  ): IO[BattleResultRecord] =
-    IO.blocking(resultRepository.save(record))
-
   private def nonEmpty(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
 
@@ -123,25 +99,5 @@ object BattleResultRecordAPIMessage {
       case _ =>
         BattleResultRecordDecodeError.BadJson
     }
-
-  private[battle] def requestDecodeFailure(error: Error): APIMessageError =
-    error match {
-      case failure: DecodingFailure if failure.message == "Login is required." =>
-        APIMessageError.Unauthorized("Login is required.")
-      case failure: DecodingFailure =>
-        decodeErrorFromMessage(failure.message)
-      case _ =>
-        APIMessageError.BadRequest("Request body must be a JSON object.")
-    }
-
-  private def decodeErrorFromMessage(message: String): APIMessageError =
-    if message == BattleResultRecordDecodeError.message(BattleResultRecordDecodeError.VisitorNotAllowed) then
-      APIMessageError.Forbidden("visitor_not_allowed")
-    else if message == BattleResultRecordDecodeError.message(BattleResultRecordDecodeError.InvalidBattleId) then
-      APIMessageError.BadRequest("invalid_battle_id")
-    else if message == BattleResultRecordDecodeError.message(BattleResultRecordDecodeError.InvalidHandle) then
-      APIMessageError.BadRequest("invalid_handle")
-    else
-      APIMessageError.BadRequest("Request body must be a JSON object.")
 
 }

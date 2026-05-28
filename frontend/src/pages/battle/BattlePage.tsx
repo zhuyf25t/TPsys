@@ -1,12 +1,12 @@
-import { QuickPreviewOverlay } from "../../shared/ui/QuickPreviewOverlay";
-import { BattleChrome } from "../../components/battle/BattleChrome";
+import { QuickPreviewOverlay } from "../../components/ui/QuickPreviewOverlay";
+import { BattleChrome } from "./components/BattleChrome";
 import { buildBattleDrawer } from "./non-game/battleDrawerPresenter";
-import { QUICK_LEFT, QUICK_RIGHT } from "../../hooks/battle-page/battlePageTypes";
+import { QUICK_LEFT, QUICK_RIGHT } from "./hooks/battlePageTypes";
 import { BattleGameScreen } from "./game-screen/BattleGameScreen";
 import { BattleEntryBlockedOverlay } from "./non-game/BattleEntryBlockedOverlay";
 import { BattleSettlementOverlay } from "./non-game/BattleSettlementOverlay";
 import { MatchingOverlay } from "./non-game/MatchingOverlay";
-import { useBattlePageRuntime } from "../../hooks/battle-page/useBattlePageRuntime";
+import { useBattlePageRuntime } from "./hooks/useBattlePageRuntime";
 
 /** 中文名：战斗页面（BattlePage）。游戏职责：连接匹配、Phaser runtime、HUD、抽屉和结算层。 */
 export function BattlePage() {

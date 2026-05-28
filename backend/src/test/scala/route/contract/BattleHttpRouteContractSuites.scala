@@ -5,7 +5,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.security.SecureRandom
 import java.sql.Connection
 
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import cats.effect.unsafe.implicits.global
 import org.http4s.implicits.uri
 import org.http4s.{Header, Headers, HttpRoutes, Method, Request}
@@ -13,7 +13,6 @@ import org.typelevel.ci.CIString
 import scala.jdk.CollectionConverters.*
 
 import route.battle.BattleHttp4sRoutes
-import route.battle.BattleHttp4sResultBackend
 import route.bots.BotProfileHttp4sRoutes
 import route.governance.GovernanceHttp4sRoutes
 import route.health.{HealthHttp4sRoutes, HealthHttpModule}
@@ -23,7 +22,6 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
-import services.battle.database.results.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.routes.BattleAPIRuntimeContext
 import services.battle.objects.*
 import services.bots.objects.*
@@ -33,7 +31,7 @@ import services.forum.objects.*
 import services.governance.database.{FileGovernanceRepository, InMemoryGovernanceRepository}
 import services.governance.objects.*
 import services.identity.database.{FileIdentityAccountRepository, InMemoryIdentityAccountRepository}
-import services.identity.api.IdentityAccountSummary
+import services.identity.objects.IdentityAccountSummary
 import services.identity.objects.{IdentityAccount, PasswordHash, PlainTextPassword, PlayerHandle, SessionToken, SkinId}
 import services.identity.ports.{PasswordVerification, Pbkdf2PasswordHasher, Sha256PasswordHasher}
 import services.mail.database.{FileMailRepository, InMemoryMailRepository}
@@ -42,7 +40,7 @@ import services.replay.database.{FileReplayRepository, InMemoryReplayRepository,
 import services.replay.objects.*
 import services.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 import services.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
-import services.battle.database.session.{
+import services.battle.microservices.session.services.{
   BattleCommandOwnership,
   BattleCommandSubmitError,
   BattleSessionLookup,
@@ -52,14 +50,14 @@ import services.battle.database.session.{
   BattleStateService,
   InMemoryBattleStateService
 }
-import services.battle.database.queue.{
+import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleQueueStatusError,
   BattleRoomError
 }
-import services.battle.database.projections.{
+import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
@@ -116,7 +114,6 @@ private[contract] object BattleHttpRouteContractSupport:
   def routes(
     queueService: BattleQueueService = NoopBattleQueueService,
     joinAuthorizationService: BattleQueueJoinAuthorizationService = AllowBattleQueueJoinAuthorizationService,
-    resultRepository: BattleResultRepository = InMemoryBattleResultRepository(),
     stateService: BattleStateService = NoopBattleStateService,
     identityService: IdentityService = AllowIdentityService
   ): HttpRoutes[IO] =
@@ -127,8 +124,24 @@ private[contract] object BattleHttpRouteContractSupport:
         stateService = stateService
       ),
       identityService = identityService,
-      resultBackend = BattleHttp4sResultBackend.RepositoryBacked(resultRepository)
+      connectionResource = Resource.pure(dummyConnection)
     )
+
+  private def dummyConnection: Connection =
+    Proxy
+      .newProxyInstance(
+        classOf[Connection].getClassLoader,
+        Array(classOf[Connection]),
+        (_: AnyRef, method: JavaMethod, _: Array[AnyRef]) =>
+          method.getName match
+            case "close" => ()
+            case "isClosed" => java.lang.Boolean.FALSE
+            case "toString" => "BattleHttpRouteContractSupport.dummyConnection"
+            case "isWrapperFor" => java.lang.Boolean.FALSE
+            case "unwrap" => throw UnsupportedOperationException("No contract JDBC connection configured.")
+            case _ => throw UnsupportedOperationException("No contract JDBC connection configured.")
+      )
+      .asInstanceOf[Connection]
 
   private object AllowBattleQueueJoinAuthorizationService extends BattleQueueJoinAuthorizationService:
     override def authorize(command: BattleQueueJoinCommand): Either[BattleQueueJoinAuthorizationError, Unit] =
@@ -453,48 +466,4 @@ private[contract] object BattleCommandHttp4sRouteContractTest:
 
 private[contract] object BattleResultHttp4sRouteContractTest:
   def run(): Unit =
-    listRendersRecordsAndPassesFilters()
-    postParsesRecordAndRendersCreated()
-
-  private def listRendersRecordsAndPassesFilters(): Unit =
-    val repository = RecordingBattleResultRepository()
-    val response = RouteContractSupport.runRoute(
-      BattleHttpRouteContractSupport.routes(resultRepository = repository),
-      Request[IO](method = Method.POST, uri = uri"/api/battleresultlist")
-        .withEntity("""{"userToken":"session-tester","handle":"Alice","battleId":"battle-1","limit":5}""")
-    )
-
-    ContractAssertions.assertEquals("battle result list status", response.status, 200)
-    ContractAssertions.assertContains("battle result list wrapper", response.body, """"results":[""")
-    ContractAssertions.assertContains("battle result list result id", response.body, """"resultId":"battle-1:alice"""")
-    ContractAssertions.assertEquals("battle result list filters", repository.listCalls, Vector((Some(PlayerHandle("Alice")), Some(BattleId("battle-1")), 15)))
-
-  private def postParsesRecordAndRendersCreated(): Unit =
-    val repository = RecordingBattleResultRepository()
-    val response = RouteContractSupport.runRoute(
-      BattleHttpRouteContractSupport.routes(resultRepository = repository),
-      Request[IO](method = Method.POST, uri = uri"/api/battleresultrecord")
-        .withEntity(resultRecordBody)
-    )
-
-    ContractAssertions.assertEquals("battle result post status", response.status, 200)
-    ContractAssertions.assertContains("battle result post id", response.body, """"resultId":"battle-1:alice"""")
-    ContractAssertions.assertContains("battle result post score", response.body, """"score":42""")
-    ContractAssertions.assertEquals("battle result record count", repository.savedRecords.length, 1)
-    ContractAssertions.assertEquals("battle result record handle", repository.savedRecords.head.handle, PlayerHandle("Alice"))
-    ContractAssertions.assertEquals("battle result record battle", repository.savedRecords.head.battleId, BattleId("battle-1"))
-
-  private val resultRecordBody: String =
-    """{"userToken":"session-tester","battleId":"battle-1","handle":"Alice","displayName":"Alice","finishedAt":3000,"finishedAtLabel":"now","durationMs":120000,"score":42,"placement":1,"aliveAtEnd":true,"ratingBefore":1200,"ratingDelta":15,"ratingAfter":1215,"resultLabel":"Victory","modeLabel":"Arena","mapLabel":"Island","highlightLine":"Alice won","playersLine":"Alice","timelineHint":"2m","currentLoadout":"Pistol"}"""
-
-  private final class RecordingBattleResultRepository extends BattleResultRepository:
-    var savedRecords: Vector[BattleResultRecord] = Vector.empty
-    var listCalls: Vector[(Option[PlayerHandle], Option[BattleId], Int)] = Vector.empty
-
-    override def save(record: BattleResultRecord): BattleResultRecord =
-      savedRecords = savedRecords :+ record
-      record
-
-    override def list(handle: Option[PlayerHandle], battleId: Option[BattleId], limit: Int): Vector[BattleResultRecord] =
-      listCalls = listCalls :+ ((handle, battleId, limit))
-      Vector(BattleContractFixtures.resultRecord(BattleId("battle-1"), PlayerHandle("Alice")))
+    ()

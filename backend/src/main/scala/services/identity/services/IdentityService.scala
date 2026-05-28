@@ -2,10 +2,10 @@ package services.identity.services
 
 import scala.collection.concurrent.TrieMap
 
-import services.identity.api.IdentityAccountSummary
 import services.identity.database.{IdentityAccountCreateResult, IdentityAccountRepository}
 import services.identity.objects.{
   IdentityAccount,
+  IdentityAccountSummary,
   PlainTextPassword,
   PlayerHandle,
   SessionToken,
@@ -112,9 +112,9 @@ final class DefaultIdentityService(
 
   private def toSummary(account: IdentityAccount): IdentityAccountSummary =
     IdentityAccountSummary(
-      handle = account.handle.value,
-      displayName = account.displayName.value,
-      skinId = SkinId.wireValue(account.skinId)
+      handle = account.handle,
+      displayName = account.displayName,
+      skinId = account.skinId
     )
 
   private def isPlayableStoredAccount(account: IdentityAccount): Boolean =

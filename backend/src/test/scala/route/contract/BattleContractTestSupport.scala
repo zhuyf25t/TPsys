@@ -22,7 +22,6 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
-import services.battle.database.results.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -31,7 +30,7 @@ import services.forum.objects.*
 import services.governance.database.{FileGovernanceRepository, InMemoryGovernanceRepository}
 import services.governance.objects.*
 import services.identity.database.{FileIdentityAccountRepository, InMemoryIdentityAccountRepository}
-import services.identity.api.IdentityAccountSummary
+import services.identity.objects.IdentityAccountSummary
 import services.identity.objects.{IdentityAccount, PasswordHash, PlainTextPassword, PlayerHandle, SessionToken, SkinId}
 import services.identity.ports.{PasswordVerification, Pbkdf2PasswordHasher, Sha256PasswordHasher}
 import services.mail.database.{FileMailRepository, InMemoryMailRepository}
@@ -40,7 +39,7 @@ import services.replay.database.{FileReplayRepository, InMemoryReplayRepository,
 import services.replay.objects.*
 import services.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 import services.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
-import services.battle.database.session.{
+import services.battle.microservices.session.services.{
   BattleCommandOwnership,
   BattleCommandSubmitError,
   BattleSessionLookup,
@@ -50,14 +49,14 @@ import services.battle.database.session.{
   BattleStateService,
   InMemoryBattleStateService
 }
-import services.battle.database.queue.{
+import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleQueueStatusError,
   BattleRoomError
 }
-import services.battle.database.projections.{
+import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }

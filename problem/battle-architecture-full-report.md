@@ -1,554 +1,389 @@
 # Battle architecture full report
 
-## Scope
+Updated: 2026-05-28
 
-This report summarizes the current battle backend implementation before the next refactor decision.
+This report reflects the current worktree, not the older committed layout.
 
-It covers:
+The purpose is to decide whether the requested route is reasonable before continuing the `services/battle` refactor.
 
-- module implementation logic;
-- type-safe ADT/value-object structure;
-- Circe codec boundaries;
-- Cats Effect/http4s boundaries;
-- render/projection technology;
-- current dependency direction;
-- mismatches against the requested `api / objects / routes / database` target.
+## 1. Current Shape
 
-No Scala code was changed for this report.
-
-## Current package shape
-
-Current `services/battle` top-level folders:
+Current `backend/src/main/scala/services/battle` top-level folders:
 
 | Folder | Scala files | Current meaning |
 | --- | ---: | --- |
-| `api` | 9 | APIMessage planners grouped by endpoint/domain |
-| `database` | 89 | mixed persistence, runtime services, engine rules, projections |
-| `objects` | 47 | authoritative battle ADTs/value objects plus API codecs |
+| `api` | 9 | `XXXAPIMessage.scala` endpoint planners |
+| `objects` | 71 | ADTs, value objects, API codecs, and some pure rule modules |
 | `routes` | 2 | battle API registry and runtime context |
+| `database` | 18 | PostgreSQL table access plus temporary rule books |
+| `microservices` | 53 | remaining queue/session/runtime/world/combat/actors/projections services |
 
-Current shape already matches the outer four-folder direction, except the requested singular `object` is better represented as `objects` in Scala code because `object` is a Scala keyword and the repository already uses `objects`.
+Current status:
 
-## Runtime request flow
+- The outer shape is moving toward `api / objects / routes / database`.
+- The migration is not complete because `microservices` still owns most runtime behavior.
+- `abilities` and `results` have effectively been moved out of `microservices`, but queue/session/runtime/world/combat/actors/projections are still active there.
+- The code compiles in the current state based on the latest verified `sbt compile` and contract test run before this report.
 
-The current battle request flow is:
+## 2. Runtime Request Flow
+
+Current request flow:
 
 ```text
 HTTP POST /api/{apiName}
   -> route/battle/BattleHttp4sRoutes
   -> system/api/APIMessageRouter
-  -> services/battle/routes/BattleRoutes
+  -> services/battle/routes/BattleRoutes.apiMessages(context)
   -> services/battle/api/**/XXXAPIMessage.plan(...)
-  -> battle service/repository implementation
-  -> objects/apiTypes Encoder
+  -> queue/session/result service or table
+  -> objects/apiTypes Circe Encoder
   -> JSON response
 ```
 
-Key properties:
+Important details:
+
+- API paths are already derived by `APIMessage.apiNameFromClassName`.
+- `BattleRoutes` no longer needs rewrite logic.
+- `BattleHttp4sRoutes` is thin and delegates to `APIMessageRouter`.
+- Token resolution is handled before `plan` by replacing `userToken` with typed backend `userId`.
+- Most runtime APIs still use `APIWithTokenContextMessage`, meaning they need injected queue/session services.
+- Results APIs use `APIWithTokenMessage` and directly use JDBC `Connection`.
+
+## 3. Module Logic
+
+| Business area | Current files | What it manages | Current problem |
+| --- | --- | --- | --- |
+| Queue | `api/queue`, `objects/queue`, `microservices/queue` | matchmaking, ticket, room waiting, heartbeat, join/leave snapshot | service is still mutable in-memory state with `AtomicReference` and `synchronized` |
+| Room | `api/room`, shared queue objects | waiting-room snapshot and heartbeat | API is thin, but implementation is still queue service |
+| Session | `microservices/session`, `objects/core`, `objects/result` | battle session lookup, state read, command acceptance, finish projection state | has `var battles` and lock-based state machine |
+| Runtime | `microservices/runtime`, `objects/runtime` | tick advancement, command application, finalization, replay-frame retention | orchestration still imports actors/combat/world/abilities |
+| World | `objects/world`, `database/world`, `microservices/world` | map rules, collision, spawn, motion, map spec loading | rule tables exist, but catalog/motion/collision still live in `microservices` |
+| Combat | `objects/combat`, `database/combat`, `microservices/combat` | weapon config, fire, projectile creation, projectile motion/impact | pure projectile helpers partly moved; weapon runtime still service-side |
+| Actors | `objects/actors`, `database/actors`, `microservices/actors` | player lifecycle, input, bot movement/fire behavior | bot/player runtime still imports world and combat services |
+| Abilities | `objects/abilities`, `database/abilities` | skill rules, pickups, slow field | closest to target shape; remaining issue is rule book cache in database |
+| Results | `api/results`, `objects/result`, `database/results` | battle result list/record in PostgreSQL | closest to requested `APIMessage + Table` shape |
+| Projections | `microservices/projections` | finish settlement, replay JSON, mail/replay publication | still a separate service block; contains render logic |
+
+## 4. Type-Safety Structure
+
+Current type-safety evidence from the battle package:
 
-- Route matching is generic in `APIMessageRouter`.
-- API names are derived from APIMessage class names by `APIMessage.apiNameFromClassName`.
-- `BattleRoutes` registers typed API messages instead of manually rewriting paths.
-- Identity token resolution is handled at the route/router boundary.
-- API planners return `IO[Response]`.
-- Synchronous service and persistence calls are wrapped with `IO.blocking`.
+| Construct | Approximate count |
+| --- | ---: |
+| `enum` | 38 |
+| `final case class` | 178 |
+| `given Encoder` | 30 |
+| `given Decoder` | 28 |
+| `cats.effect.IO` usage | 19 files/lines matched |
+| `IO.blocking` usage | 35 matches |
+| `AtomicReference` usage | 15 matches |
+| `var` usage | 2 matches |
+| `synchronized` usage | 10 matches |
 
-## Routes layer
+Positive modeling:
 
-Files:
+- Core identifiers and scalars are value objects: `BattleId`, `PlayerId`, `TicketId`, `RoomId`, `DurationMillis`, `CooldownMillis`, `HitPoints`, `Score`, `Radius`, etc.
+- Finite game states are modeled as enums/ADTs: `BattlePhase`, `MatchmakingRoomPhase`, `BattleArtifactStatus`, `WeaponKind`, `ProjectileKind`, `SkillKind`, `PickupKind`, `ProjectileTerminalReason`, `BattleEventKind`.
+- Queue lifecycle is already an ADT:
 
-- `services/battle/routes/BattleRoutes.scala`
-- `services/battle/routes/BattleAPIRuntimeContext.scala`
-- `route/battle/BattleHttp4sRoutes.scala`
+```scala
+private[battle] enum QueueRoomLifecycle {
+  case Waiting
+  case Active(session: BattleSessionDescriptor)
+  case Finished(completedAt: EpochMillis, session: Option[BattleSessionDescriptor])
+}
+```
 
-Implementation logic:
+- Queue start decision is also explicit:
 
-- `BattleHttp4sRoutes` is the http4s integration adapter. It selects the result backend, resolves `userToken` through `IdentityService`, and delegates to `APIMessageRouter`.
-- `BattleRoutes` is the battle API registry. It combines queue, room, state, command, and result API messages.
-- `BattleAPIRuntimeContext` carries runtime services required by battle APIs.
+```scala
+private[battle] enum QueueRoomStartDecision {
+  case Start
+  case Keep
+}
+```
 
-Type-safety structure:
+Remaining modeling gaps:
 
-- Registered endpoints are `RegisteredAPIMessage`, not raw strings.
-- Result backend selection uses `BattleResultAPIRegistration` enum.
-- Service injection uses typed context values.
+- `BattleAPIRequestError` is a broad shared enum. It is convenient, but it mixes queue, room, command, result, and generic parse errors.
+- Some response encoders still expose Boolean projections, for example `resultReady`, `replayReady`, `alive`, and `isBot`. This is acceptable at the JSON boundary, but the authoritative model should remain enum/value-object based.
+- Mutable service state still exists in queue/session implementation, so illegal runtime transitions are not fully prevented by ADTs.
+- `objects` currently contains pure rule modules, not only passive case classes/enums/codecs. This conflicts with the strict interpretation of "objects only has final case class + object encoder/decoder + enum".
+
+## 5. Circe Boundary
 
-Cats Effect/http4s:
+Current good points:
 
-- http4s route returns `HttpRoutes[IO]`.
-- Token resolution is `String, Connection => IO[Json]`.
-- API execution is delegated to `APIMessageRouter.routes`.
+- `objects/apiTypes` owns most request decoders and response encoders.
+- APIMessage files import `given Decoder` from `objects/apiTypes`, instead of duplicating field parsing in routes.
+- Response JSON is mostly produced through Circe `Encoder`, `Encoder.forProductN`, `deriveEncoder`, `Json.obj`, or `.asJson`.
+- Map spec JSON in `database/world/BattleWorldRuleTable.scala` is decoded using Circe decoders rather than regex/string parsing.
+- Replay-frame rendering uses Circe payload encoders and `.asJson.noSpaces`.
 
-Current issues:
+Current problems:
 
-- `BattleRoutes` imports many codec givens. This is acceptable for a registry, but it makes codec availability implicit.
-- Result APIs have both connection-backed and repository-backed registration paths, which is useful but increases registry complexity.
+- Some `apiTypes` files contain substantial decode helpers, not just `final case class + object Encoder/Decoder`.
+- `BattleCommandRequestApiTypes.scala` is especially heavy because command payload validation is complex.
+- State response encoders manually build large `Json.obj` payloads. This is still typed Circe, but it is render/presenter logic, not plain DTO declaration.
+- `database/world/BattleWorldRuleTable.scala` contains private JSON DTOs and conversion logic inside a table file. That makes the database layer more than "Table + TableInitializer".
 
-## API layer
+Recommendation:
 
-Current APIMessage files:
+- `objects/apiTypes` should contain request/response DTOs and Circe codecs, but not APIMessage planners.
+- It is too strict to say apiTypes can only contain `XXXResponse`; request DTO/decoder is also part of the API contract.
+- It is reasonable to forbid business planning and service calls inside `apiTypes`.
+- Heavy decoders can be split into small `RequestCodec` helpers only if the user allows more than two file shapes in apiTypes. If not, keep helpers private in the companion object.
+
+## 6. Cats Effect and Side-Effect Boundary
 
-| Domain | APIMessage files |
-| --- | --- |
-| `command` | `BattleCommandAPIMessage.scala` |
-| `queue` | `BattleQueueJoinAPIMessage.scala`, `BattleQueueStatusAPIMessage.scala`, `BattleQueueLeaveAPIMessage.scala` |
-| `room` | `BattleRoomSnapshotAPIMessage.scala`, `BattleRoomHeartbeatAPIMessage.scala` |
-| `state` | `BattleStateReadAPIMessage.scala` |
-| `results` | `BattleResultListAPIMessage.scala`, `BattleResultRecordAPIMessage.scala` |
+Current good points:
 
-Implementation logic:
+- APIMessage `plan` returns `IO[Response]`.
+- Blocking service/database calls are generally lifted with `IO.blocking`.
+- `route/battle/BattleHttp4sRoutes.scala` uses http4s `HttpRoutes[IO]`.
+- `APIMessageRouter` centralizes JSON decoding, token injection, and error conversion.
 
-- Queue join authorizes a typed `BattleQueueJoinCommand`, then calls `BattleQueueService.join`.
-- Queue status decodes `BattleQueueStatusQuery`, then reads a ticket snapshot.
-- Queue leave decodes `BattleQueueLeaveCommand`, then calls `BattleQueueService.leave`.
-- Room snapshot decodes `BattleRoomSnapshotQuery`, then calls `BattleQueueService.roomSnapshot`.
-- Room heartbeat decodes `RealtimeRoomHeartbeatCommand`, then updates room heartbeat through queue service.
-- State read decodes `BattleStateReadQuery`, then calls `BattleStateService.currentState`.
-- Command decodes `BattleCommandRequest`, then calls `BattleStateService.acceptCommand`.
-- Result list decodes `BattleResultListQuery`, then reads table or repository records and returns `BattleResultList`.
-- Result record decodes `BattleResultRecordCommand`, validates handle, builds `BattleResultRecord`, and saves through table or repository.
+Current problems:
 
-Type-safety structure:
+- Queue/session are still in-memory services with lock/mutable state, not PostgreSQL-backed state.
+- `BattleStateService` mutates `private var battles`.
+- `InMemoryBattleQueueService` uses `AtomicReference` plus `synchronized`.
+- Rule books in `database/*/Battle*RuleBook.scala` use `AtomicReference` as process-local caches.
+- Several `plan` functions call injected services, so `Connection` is not yet the single effect boundary for all battle APIs.
 
-- API messages now hold object-layer command/query ADTs directly.
-- Duplicate API request wrapper case classes have been removed.
-- Service errors are finite enums such as `BattleCommandSubmitError`, `BattleQueueStatusError`, and `BattleRoomError`.
-- API decode errors use `BattleAPIRequestError`.
+Implication:
 
-Circe:
+- Results APIs are closest to the sample style.
+- Queue/session/state/command are still transitional because they depend on runtime services.
+- Fully migrating them to `plan(connection: Connection)` requires deciding where live battle session state belongs: PostgreSQL tables, an in-memory runtime port, or a typed process runtime that is explicitly outside database.
 
-- Each APIMessage companion provides a `Decoder[XXXAPIMessage]`.
-- APIMessage decoders inject `UserId` from the router-prepared JSON payload.
-- Request shape decoding is delegated to `objects/apiTypes`.
+## 7. Render Technology
 
-Cats Effect:
+There are two backend "render" surfaces:
 
-- `plan(...)` returns `IO[Response]`.
-- Blocking service/repository calls are wrapped in `IO.blocking`.
-- Error mapping raises typed `APIMessageError`.
-
-Current issues:
-
-- API planners still know detailed service error enums. This is acceptable now, but local error mappers per API domain would make planners thinner.
-- Result record API still contains validation/build/save orchestration. It is controlled, but it is the thickest planner.
-
-## Objects layer
-
-Key files and groups:
-
-- `BattleEnums.scala`
-- `BattleUseCaseCommands.scala`
-- `BattleAPIRequestError.scala`
-- `core`
-- `command`
-- `queue`
-- `player`
-- `weapon`
-- `projectile`
-- `pickup`
-- `skill`
-- `event`
-- `replay`
-- `result`
-- `apiTypes`
-
-Implementation logic:
-
-- `objects` owns immutable battle data models and explicit command/query ADTs.
-- `objects/apiTypes` owns wire encoding/decoding for those ADTs.
-- `objects/package.scala` exports frequently used types for shorter imports.
-
-Type-safe ADT/value-object structure:
-
-- Identity/value objects: `TicketId`, `QueueRequestId`, `RoomId`, `BattleId`, `PlayerId`, `HeroId`, `ProjectileId`, `SlowFieldId`, `PickupId`, `BattleEventId`, `BattleResultId`.
-- Time/tick/value objects: `EpochMillis`, `DurationMillis`, `ElapsedMillis`, `BattleTick`, `ClientCommandSeq`, `CooldownMillis`.
-- Numeric gameplay wrappers: `BattleCapacity`, `Rating`, `RatingDelta`, `Score`, `KillCount`, `HitPoints`, `Stamina`, `AmmoCount`, `Radius`, `Damage`.
-- Labels and UI-facing value objects: `BattleResultLabel`, `BattleModeLabel`, `BattleMapLabel`, `BattleHighlightLine`, `BattlePlayersLine`, `BattleTimelineHint`.
-- Finite state enums: `BattleMode`, `BattlePhase`, `BattleArtifactStatus`, `MatchmakingRoomPhase`, `WeaponKind`, `ProjectileKind`, `SkillKind`, `PickupKind`, `BattleCommandStatus`, `BattleCommandReason`, `SkillOutcomeStatus`, `SkillOutcomeReason`, `ProjectileTerminalReason`, `BattleEventKind`.
-- API/request error ADTs: `BattleAPIRequestError`, `BattleCommandRequestField`.
-- Use-case command/query ADTs: `BattleQueueJoinCommand`, `BattleQueueStatusQuery`, `BattleQueueLeaveCommand`, `RealtimeRoomHeartbeatCommand`, `BattleRoomSnapshotQuery`, `BattleStateReadQuery`, `BattleResultListQuery`, `BattleResultRecordCommand`.
-
-Current good state:
-
-- Business concepts are mostly not raw strings/ints.
-- Finite states are enum-based.
-- API messages use object-layer commands/queries directly.
-- `objects/apiTypes` does not declare duplicate battle request/response wrapper case classes for the API boundary.
-
-Current issues:
-
-- Some object companion methods still own wire conversion helpers such as `wireValue` and `fromWire`. This is useful, but it should stay pure and should not pull in Circe/http/database dependencies.
-- Comment quality is inconsistent in some files, and some comments appear mojibake.
-
-## API codecs in objects/apiTypes
-
-Implementation logic:
-
-- Request decoder namespaces decode JSON into authoritative command/query ADTs.
-- Response encoder namespaces encode authoritative state/result ADTs to frontend JSON shape.
-
-Examples:
-
-- `BattleCommandRequestApiTypes` decodes legacy command JSON into `BattleCommandRequest`.
-- `BattleQueueJoinRequest` decodes queue join JSON into `BattleQueueJoinCommand`.
-- `BattleStateRootResponse` encodes `BattleAggregateState`.
-- `BattleStatePlayerResponse` encodes `BattlePlayerState` and weapon/player UI fields.
-- `BattleResultRecordResponse` and `BattleResultListResponse` encode result records and result list.
-
-Circe:
-
-- Uses `Decoder.instance` for custom validation and legacy compatibility.
-- Uses `Encoder.forProductN` where stable field lists are simple.
-- Uses `Encoder.instance` where nested optional or computed fields are needed.
-- Uses `.asJson` and `.dropNullValues` for response shaping.
-
-Current good state:
-
-- Wire JSON mapping is isolated from domain objects.
-- Decoders produce typed ADTs, not duplicate wrappers.
-- Enum wire values are centralized through enum companion methods.
-
-Current issues:
-
-- `apiTypes` is under `objects`, which is acceptable as boundary code, but it should remain explicitly wire-only.
-- Some response encoders include computed convenience fields for frontend compatibility. That is practical, but should be documented as wire contract, not domain state.
-
-## Database/results persistence
-
-Files:
-
-- `BattleResultTable.scala`
-- `BattleResultTableInitializer.scala`
-- `BattleResultRepository.scala`
-- `BattleResultStorage.scala`
-- `PostgresBattleResultRepository.scala`
-- `FileBattleResultRepository.scala`
-- `InMemoryBattleResultRepository.scala`
-- `BattleResultFileJsonParser.scala`
-- `BattleResultFileJsonRenderer.scala`
-- `BattleResultRepositoryOrderingRules.scala`
-
-Implementation logic:
-
-- `BattleResultTableInitializer` creates and migrates the `battle_results` table.
-- `BattleResultTable` handles JDBC save/list operations.
-- `BattleResultRepository` abstracts result persistence.
-- `PostgresBattleResultRepository` delegates to table operations through `PostgresSupport`.
-- `FileBattleResultRepository` and `InMemoryBattleResultRepository` are alternate storage adapters.
-
-Type-safety structure:
-
-- Persistence records are mapped to/from `BattleResultRecord`.
-- IDs and labels use object-layer value objects.
-- Survival state uses `BattleSurvivalOutcome`.
-
-Side effects:
-
-- JDBC and file IO are correctly isolated here.
-- This is the only `database` subpackage that cleanly matches literal database semantics.
-
-Current issues:
-
-- File JSON parser/renderer is persistence compatibility logic, not core domain. It should remain isolated.
-
-## Queue implementation
-
-Files:
-
-- `database/queue/*`
-
-Implementation logic:
-
-- Handles matchmaking queue join/status/leave.
-- Manages waiting rooms, participants, heartbeats, queue request reuse, room lifecycle, and snapshots.
-- Produces session bootstrap data for battle start.
-
-Type-safety structure:
-
-- Uses `BattleQueueJoinCommand`, `BattleQueueStatusQuery`, `BattleQueueLeaveCommand`, `BattleQueueLeaveOutcome`.
-- Uses typed IDs and `BattleMode`, `MatchmakingRoomPhase`, `BattleCapacity`, `DurationMillis`, `EpochMillis`.
-
-Side effects and state:
-
-- `InMemoryBattleQueueService` uses `var` maps and `lock.synchronized`.
-- Uses `System.currentTimeMillis` through an injected time function.
-
-Current classification:
-
-- Application/runtime service.
-- Not literal database.
-
-Current issues:
-
-- Depends on session types for `BattleSessionSeed`.
-- Should not be described as database if strict persistence semantics are required.
-
-## Session implementation
-
-Files:
-
-- `database/session/*`
-
-Implementation logic:
-
-- Owns authoritative battle state service.
-- Reads current battle state.
-- Accepts player commands.
-- Initializes battle sessions from queue bootstrap data.
-- Advances stored battles through the engine.
-- Triggers finish projection lifecycle.
-
-Type-safety structure:
-
-- Uses `BattleStateReadError`, `BattleCommandSubmitError`, `BattleCommandOwnership`, `BattleSessionSeed`.
-- Uses `BattleAggregateState`, `BattleCommandRequest`, `BattleCommandAccepted`, `BattleFinishProjectionStatus`, and `BattleFinishProjectionOutcome`.
-
-Side effects and state:
-
-- `InMemoryBattleStateService` uses `var battles` and `lock.synchronized`.
-- Finish projection may call artifact writers through `BattleFinishProjector`.
-
-Current classification:
-
-- Application/runtime service.
-- Not literal database.
-
-Current issues:
-
-- Depends on `database/runtime.BattleEngine`.
-- The package name hides that this is the authoritative in-memory battle runtime, not persistence.
-
-## Runtime and engine implementation
-
-Files:
-
-- `database/runtime/*`
-
-Implementation logic:
-
-- `BattleEngine` is the engine facade.
-- Runtime step advances state through players, pickups, slow fields, held fire, projectiles, weapons, events, and replay frames.
-- Finalization determines finished state and room completion.
-- Replay frame recorder captures snapshots for later replay rendering.
-
-Type-safety structure:
-
-- Uses `BattleAggregateState`, `BattlePhase`, `BattleTick`, `ElapsedMillis`, `EpochMillis`, `DurationMillis`, and command/result ADTs.
-
-Current classification:
-
-- Engine orchestration.
-- Not literal database.
-
-Current issues:
-
-- Runtime imports abilities/actors/combat/world.
-- Those packages also import runtime helpers, so this is not a clean one-way microservice split yet.
-
-## World implementation
-
-Files:
-
-- `database/world/*`
-
-Implementation logic:
-
-- Defines arena catalog, map size, map-specific collision context, geometry helpers, motion rules, initial spawn layout, and map spec loading.
-
-Type-safety structure:
-
-- Uses `BattleMapId`, `BattleVector2`, `Radius`, `SpawnPointIndex`, and collision/movement domain values.
-
-Side effects:
-
-- `BattleMapSpecLoader` reads map spec files from disk.
-- Geometry/collision/movement rules are pure or mostly pure.
-
-Current classification:
-
-- Engine world rules plus asset/file adapter.
-- Not literal database.
-
-## Combat implementation
-
-Files:
-
-- `database/combat/*`
-
-Implementation logic:
-
-- Defines weapon catalog and weapon state creation.
-- Applies fire/reload/cooldown/heat rules.
-- Creates projectiles.
-- Advances projectile movement.
-- Checks collision/impact/targeting.
-- Produces terminal projectile records and damage effects.
-
-Type-safety structure:
-
-- Uses `WeaponKind`, `ProjectileKind`, `ProjectileTerminalReason`, `Damage`, `AmmoCount`, `CooldownMillis`, `BattleWeaponState`, `BattleProjectileState`.
-
-Current classification:
-
-- Engine combat rules.
-- Not literal database.
-
-Current issues:
-
-- Depends on world, actors, and runtime helpers.
-- This is normal for an engine rule graph, but not microservice-isolated.
-
-## Actors implementation
-
-Files:
-
-- `database/actors/*`
-
-Implementation logic:
-
-- Applies player input to runtime player state.
-- Updates player movement, sprint, aim, weapon input, and bot behavior.
-- Handles lifecycle state such as alive/dead/respawn-like data.
-
-Type-safety structure:
-
-- Uses `BattlePlayerState`, `BattlePlayerLifeState`, `BattleParticipantKind`, `BattleCommandRequest`, `BattleCommandVector`, `BattleWeaponState`.
-
-Current classification:
-
-- Engine actor/player/bot rules.
-- Not literal database.
-
-Current issues:
-
-- Bot/player runtime imports world and combat rules.
-- Should remain in engine cohesion boundary until a deliberate AI/bot contract exists.
-
-## Abilities implementation
-
-Files:
-
-- `database/abilities/*`
-
-Implementation logic:
-
-- Defines skill catalog and skill cooldown/duration rules.
-- Applies skill commands.
-- Handles pickup availability/effects.
-- Advances slow-field runtime effects.
-
-Type-safety structure:
-
-- Uses `SkillKind`, `SkillOutcomeStatus`, `SkillOutcomeReason`, `PickupKind`, `BattlePickupState`, `BattlePickupAvailability`, `BattleSlowFieldState`.
-
-Current classification:
-
-- Engine ability/pickup rules.
-- Not literal database.
-
-Current issues:
-
-- Depends on runtime, world, and combat helpers.
-- Not ready to become an independent microservice.
-
-## Projections and render implementation
-
-Files:
-
-- `database/projections/*`
-
-Implementation logic:
-
-- Converts finished battle state into persistent result records.
-- Computes settlement/rating/labels/timeline strings.
-- Writes result, replay, and mail artifacts through ports.
-- Renders replay frames into JSON payloads.
-
-Type-safety structure:
-
-- Uses `BattleFinishProjector`, `BattleFinishProjectionOutcome`, `BattleFinishProjectionStatus`.
-- Uses `BattleResultRecord`, `BattleReplayFrameState`, player/projectile/pickup state ADTs.
-
-Circe/render:
-
-- `BattleReplayFramesJsonRenderer` uses private wire payload case classes.
-- Uses Circe `deriveEncoder`, `.asJson`, and `.noSpaces`.
-- This is render/projection code, not gameplay mutation.
-
-Current classification:
-
-- Projection/render adapter.
-- Not literal database except where it calls `BattleResultRepository`.
-
-Current issues:
-
-- Replay JSON payloads live in projection implementation. If replay JSON becomes an external stable API contract, move payload contract/codecs toward `objects/apiTypes/replay`.
-
-## Dependency direction summary
-
-Good direction:
-
-- `routes -> api -> database services/repositories`.
-- `api -> objects/apiTypes -> objects`.
-- `database -> objects`.
-- `objects` mostly stays passive and does not depend on route/http/database.
-
-Problematic direction:
-
-- `runtime <-> abilities/actors/combat/world` forms an engine implementation graph, not service isolation.
-- `queue -> session`.
-- `session -> runtime`.
-- `projections -> results`.
-
-Interpretation:
-
-- This is acceptable as one cohesive battle runtime.
-- It is not acceptable to call these subpackages independent microservices yet.
-
-## Alignment against requested route
-
-Already aligned:
-
-- Four top-level folders exist.
-- API files are split by business domain.
-- API endpoints are `XXXAPIMessage.scala`.
-- API messages return `IO[Response]`.
-- API registry exists in `BattleRoutes.scala`.
-- API paths are class-name derived.
-- Object-layer ADTs are now reused by API messages.
-- Circe codecs are in `objects/apiTypes`.
-- `database/results` has table and initializer.
-
-Partially aligned:
-
-- `objects/apiTypes` is codec-only for battle API wrappers now, but response encoders still compute frontend-friendly wire fields.
-- `database` has relevant subblocks, but most are not actual database.
-- Business logic is split by concern, but engine packages call each other densely.
-
-Not aligned or requires decision:
-
-- Strict "database means Table/TableInitializer only" is not true today.
-- Strict "different business logic must not call each other" is not true inside the engine rule graph.
-- Strict `object` singular folder is not recommended in Scala; `objects` is the practical package.
-- Some generated comments are mojibake and should be cleaned in a later doc/comment ticket.
-
-## Recommended next step
-
-Do not move code until the architecture decision is made.
-
-Recommended near-term path:
-
-- Use Option A from `battle-refactor-decision-matrix.md` for one or two more stabilization tickets.
-- Keep the current four-folder top-level shape.
-- Add explicit boundary documentation if `database` remains a broad implementation bucket.
-- Continue type-safety cleanup and codec cleanup.
-
-If the team chooses persistence-only semantics for `database`, the next code ticket should not be a broad move. It should move one boundary at a time after agreeing on the new destination package for runtime/session/queue/rules/projections.
-
-## Decision required
-
-The required decision remains:
-
-- A. Keep `database` as broad implementation bucket for now.
-- B. Make `database` persistence-only and approve a new destination for runtime/session/engine/projection.
-- C. Start a staged `services/battle/microservices` migration, beginning with `results`, not engine.
+1. HTTP/API JSON rendering.
+2. Replay/projection JSON rendering.
+
+HTTP/API rendering:
+
+- `objects/apiTypes/*` provides Circe encoders for battle queue/status/room/state/command/result responses.
+- `APIMessageRouter` converts the typed response into JSON through `Encoder[Response]`.
+- This is the right direction because route files do not manually build response strings.
+
+Replay/projection rendering:
+
+- `microservices/projections/services/BattleReplayFramesJsonRenderer.scala` converts `BattleAggregateState` and replay frame state into replay-player JSON.
+- It uses typed payload case classes plus Circe encoders and `.asJson.noSpaces`.
+- It is still located in `microservices/projections`, so it violates the desired four-folder target.
+
+Recommended placement:
+
+- If "render" means wire response DTOs, keep it under `objects/apiTypes`.
+- If "render" means replay artifact generation, it should not be in `objects` if objects are passive. It should either:
+  - stay as projection/application logic under an allowed subfolder, or
+  - become part of `api/results` only if replay artifact creation is strictly tied to result API planning.
+
+## 8. Dependency Direction
+
+Current desired direction:
+
+```text
+route/battle
+  -> services/battle/routes
+  -> services/battle/api
+  -> services/battle/objects + services/battle/database
+  -> system/database, system/api
+```
+
+Current actual direction includes:
+
+```text
+api -> microservices queue/session
+routes -> microservices queue/session
+microservices/runtime -> microservices actors/combat/world
+microservices/actors -> microservices world/combat
+microservices/combat -> microservices world
+microservices/session -> microservices runtime
+microservices/queue -> microservices session
+microservices/projections -> database/results + replay/mail ports
+```
+
+Main risk:
+
+- The current `microservices` package is not a clean set of independent services. It is a graph of implementation helpers.
+- Moving these files mechanically under `api/object/route/database` without changing dependencies would only hide the dependency problem.
+
+## 9. Route Reasonability Analysis
+
+The requested route is partly reasonable:
+
+```text
+services/battle/
+  api/
+  objects/
+  routes/
+  database/
+```
+
+Reasonable parts:
+
+- `api` should contain only `XXXAPIMessage.scala` entry files.
+- `routes/BattleRoutes.scala` should only register API messages.
+- `objects` should own authoritative ADTs, value objects, enums, and API DTO/codec definitions.
+- `database` should own PostgreSQL table access and table initialization.
+- Business subdomains should be expressed inside each layer, for example `api/queue`, `objects/queue`, `database/queue`.
+- API paths should be class-name derived; no rewrite.
+
+Problematic parts:
+
+- The phrase "objects only final case class + object encoder decoder + unified enum" is too strict if all pure battle rules must also leave `microservices`.
+- If no `services`, no `application`, no `engine`, and no `runtime` package is allowed, then all orchestration has to move into `XXXAPIMessage.plan` private functions. That will create god APIMessage files.
+- `database` cannot be only `Table` and `TableInitializer` if runtime queue/session state remains in memory. Either queue/session state must be stored in PostgreSQL, or a non-database runtime boundary must remain.
+- A strict "database has only Table/Initializer" rule conflicts with the current rule-book caches. Those caches must either be removed after loading config into typed runtime dependencies, or explicitly moved out of database.
+
+## 10. Recommended Decision
+
+Recommended route:
+
+```text
+services/battle/
+  api/
+    queue/*APIMessage.scala
+    room/*APIMessage.scala
+    state/*APIMessage.scala
+    command/*APIMessage.scala
+    results/*APIMessage.scala
+  objects/
+    core/
+    queue/
+    room/
+    session/
+    runtime/
+    world/
+    combat/
+    actors/
+    abilities/
+    result/
+    replay/
+    apiTypes/
+    BattleEnums.scala
+  routes/
+    BattleRoutes.scala
+    BattleAPIRuntimeContext.scala
+  database/
+    queue/*Table.scala
+    queue/*TableInitializer.scala
+    session/*Table.scala
+    session/*TableInitializer.scala
+    runtime/*Table.scala
+    runtime/*TableInitializer.scala
+    world/*Table.scala
+    world/*TableInitializer.scala
+    combat/*Table.scala
+    combat/*TableInitializer.scala
+    actors/*Table.scala
+    actors/*TableInitializer.scala
+    abilities/*Table.scala
+    abilities/*TableInitializer.scala
+    results/*Table.scala
+    results/*TableInitializer.scala
+```
+
+But with one necessary clarification:
+
+- Either allow `objects` to include pure transition/rule objects, or allow one additional non-database application/runtime layer.
+- If both are forbidden, the refactor will make `api` too large and less type-safe.
+
+## 11. Suggested Migration Order
+
+1. Finish queue/session API shape.
+   - Goal: APIMessage files depend on typed objects and a clear runtime/table boundary.
+   - Do not first move all files; first model state transitions as ADTs.
+
+2. Split queue state.
+   - Move queue state ADTs into `objects/queue`.
+   - Replace free-form state checks with `QueueRoomLifecycle` transitions.
+   - Decide whether queue runtime state goes to PostgreSQL or remains a typed process runtime.
+
+3. Split session state.
+   - Move session state ADTs into `objects/session`.
+   - Replace `var battles` with a typed store boundary.
+   - Avoid direct queue/session mutual implementation imports.
+
+4. Move projection renderer.
+   - Keep replay JSON rendering typed with Circe.
+   - Place it in a layer explicitly allowed by the final decision.
+
+5. Reduce database.
+   - Leave only PostgreSQL tables and initializers in `database`.
+   - Remove rule books after config loading has a clean owner.
+
+6. Remove `microservices`.
+   - Only after all remaining files have a correct home and no package imports remain.
+
+## 12. Decision Needed Before More Code Movement
+
+I need one architecture decision before continuing broad migration:
+
+Option A: strict four-layer only.
+
+- `api`, `objects`, `routes`, `database` are the only battle top-level folders.
+- Pure rule/application logic must live either in `objects` or private functions inside APIMessage.
+- This matches the folder demand but risks fat API files or non-passive objects.
+
+Option B: four required layers plus one explicit runtime/application layer.
+
+- Keep `api`, `objects`, `routes`, `database`.
+- Add one narrow `runtime` or `application` folder for battle simulation orchestration.
+- This is cleaner architecturally, but it violates the strictest interpretation of "not under battle directly".
+
+Option C: strict four-layer, but allow pure rule objects inside `objects`.
+
+- `objects` contains ADTs/value objects plus pure transition modules like `BattleTimeRules`, `BattleGeometry`, `BattleProjectileMotionRules`.
+- Side effects stay out of `objects`.
+- This is the most practical route if no fifth folder is allowed.
+
+My recommendation is Option C.
+
+Reason:
+
+- It preserves the requested four-layer shape.
+- It avoids turning APIMessage files into huge service implementations.
+- It keeps domain transitions pure and testable.
+- It lets `database` shrink toward PostgreSQL `Table` and `TableInitializer`.
+
+## 13. Current Highest-Risk Items
+
+- `microservices/session/services/BattleStateService.scala`: mutable `var battles`, session lifecycle, command acceptance, and projection completion are all in one service.
+- `microservices/queue/services/BattleQueueService.scala`: queue runtime state is lock-based and stateful, even though queue lifecycle ADTs already exist.
+- `microservices/projections/services/BattleReplayFramesJsonRenderer.scala`: typed Circe rendering exists but is still in the wrong package.
+- `database/world/BattleWorldRuleTable.scala`: Table + JSON conversion + map manifest decoding are mixed in one file.
+- `database/*/Battle*RuleBook.scala`: process-local cache in database package; this should be removed or relocated after config ownership is decided.
+
+## 14. Conclusion
+
+The route is directionally correct, but the strict wording needs one adjustment.
+
+The safe target is:
+
+```text
+routes = registry only
+api = APIMessage planners only
+objects = ADTs/value objects/apiTypes/pure transition rules
+database = PostgreSQL table access and initialization only
+```
+
+Do not continue with mechanical file moves until the user confirms whether pure rules may live in `objects`.
+
+If confirmed, the next implementation ticket should be:
+
+```text
+BE-BATTLE-QUEUE-STATE-ADT-01
+```
+
+Goal:
+
+- Keep queue under the four-layer model.
+- Move remaining queue state/service contracts out of `microservices`.
+- Preserve `QueueRoomLifecycle` as the authoritative ADT.
+- Reduce mutable state surface without rewriting frontend/backend contract.

@@ -1,11 +1,11 @@
 import type { GameSnapshot, Vec2 } from "../../../../../objects/battle/types";
 import { WEAPON_PICKUP_RADIUS } from "../../constants";
-import { getSelectedSkillSlots } from "../../../../../api/battle/loadoutGateway";
+import { getSelectedSkillSlots } from "../../../../../apis/battle/loadoutGateway";
 import type { HudMinimapRect } from "../../ui/Hud";
-import { formatMatchTime } from "../../../../../components/battle/presenters/battleDisplayCatalog";
+import { formatMatchTime } from "../../../game/presenters/battleDisplayCatalog";
 import { findNearbyItemPickup, findNearbyPickup } from "../../../local/pickups/pickupLifecycle";
 import { Hud } from "../../ui/Hud";
-import { createHudState, type HudPresenterObstacleBounds } from "../../../../../components/battle/presenters/hudPresenter";
+import { createHudState, type HudPresenterObstacleBounds } from "../../presenters/hudPresenter";
 import { getCurrentWeapon } from "../../../local/weapons/weaponActionController";
 
 const HUD_UPDATE_INTERVAL_MS = 75;

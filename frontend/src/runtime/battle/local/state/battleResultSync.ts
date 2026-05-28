@@ -1,7 +1,7 @@
 import {
   postBattleResultRecordAPIMessage,
   type BattleResultRecordAPIMessageRequest
-} from "../../../../api/battle/battleApiMessageClient";
+} from "../../../../apis/battle/battleApiMessageClient";
 
 export type BattleResultSyncPayload = BattleResultRecordAPIMessageRequest;
 

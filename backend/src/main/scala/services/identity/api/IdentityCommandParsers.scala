@@ -1,6 +1,7 @@
 package services.identity.api
 
 import services.identity.objects.{PlainTextPassword, PlayerHandle, SkinId}
+import services.identity.objects.apiTypes.{IdentityRegistrationApiRequest, IdentitySessionApiRequest}
 import services.identity.services.{IdentityRegistrationCommand, IdentitySessionCommand}
 
 object IdentityCommandParsers {

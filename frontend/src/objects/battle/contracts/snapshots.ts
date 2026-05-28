@@ -1,33 +1,50 @@
 import type {
-  BattlePhaseDto,
-  BattlePickupKindDto,
+  BattleStatePickupResponseDto,
+  BattleStatePlayerResponseDto,
+  BattleStateProjectileResponseDto,
+  BattleStateResponseDto,
+  BattleStateSkillResponseDto,
+  BattleStateWeaponResponseDto,
+  BattlePickupKindDto as BackendBattlePickupKindDto,
   BattleProjectileKindDto,
   BattleSkillKindDto,
-  BattleTeamDto,
-  BattleWeaponKindDto,
-  BattleLifeStateDto,
-  BattleSessionId,
-  HeroId,
-  PickupId,
-  ProjectileId,
+  BattleWeaponKindDto
+} from "./apiMessages";
+import type {
+  LocalBattlePhaseDto,
+  LocalBattlePickupKindDto,
+  LocalBattleTeamDto,
+  LocalBattleLifeStateDto,
+  LocalBattleSessionId,
+  LocalHeroId,
+  LocalPickupId,
+  LocalProjectileId,
   Vec2Dto
 } from "./commands";
-import type { BattleEventDto } from "./events";
+import type { LocalBattleEventDto } from "./events";
 
-export interface BattleWorldObstacleDto {
+export type BattleSnapshotDto = BattleStateResponseDto;
+export type BattleHeroViewDto = BattleStatePlayerResponseDto;
+export type BattleProjectileViewDto = BattleStateProjectileResponseDto;
+export type BattlePickupViewDto = BattleStatePickupResponseDto;
+export type BattleWeaponViewDto = BattleStateWeaponResponseDto;
+export type BattleSkillViewDto = BattleStateSkillResponseDto;
+export type BattleBackendPickupKindDto = BackendBattlePickupKindDto;
+
+export interface LocalBattleWorldObstacleDto {
   obstacleId: string;
   position: Vec2Dto;
   size: Vec2Dto;
   occludable: boolean;
 }
 
-export interface BattleWorldViewDto {
+export interface LocalBattleWorldViewDto {
   width: number;
   height: number;
-  obstacles: BattleWorldObstacleDto[];
+  obstacles: LocalBattleWorldObstacleDto[];
 }
 
-export interface BattleWeaponViewDto {
+export interface LocalBattleWeaponViewDto {
   weaponKind: BattleWeaponKindDto;
   ammoInMagazine: number | null;
   reserveAmmo: number | null;
@@ -37,16 +54,16 @@ export interface BattleWeaponViewDto {
   reloadRemaining: number;
 }
 
-export interface BattleSkillViewDto {
+export interface LocalBattleSkillViewDto {
   kind: BattleSkillKindDto;
   cooldownMs: number;
   activeMs: number;
 }
 
-export interface BattleHeroViewDto {
-  heroId: HeroId;
+export interface LocalBattleHeroViewDto {
+  heroId: LocalHeroId;
   displayName: string;
-  team: BattleTeamDto;
+  team: LocalBattleTeamDto;
   hp: number;
   maxHp: number;
   stamina: number;
@@ -54,21 +71,21 @@ export interface BattleHeroViewDto {
   position: Vec2Dto;
   facing: number;
   radius: number;
-  lifeState: BattleLifeStateDto;
+  lifeState: LocalBattleLifeStateDto;
   score: number;
   currentWeaponIndex: number;
-  weapons: BattleWeaponViewDto[];
-  skills: BattleSkillViewDto[];
+  weapons: LocalBattleWeaponViewDto[];
+  skills: LocalBattleSkillViewDto[];
   preparedSkill: "Blink" | "Freeze" | null;
   velocity: Vec2Dto;
   respawnMs: number;
   jumpCooldownMs: number;
 }
 
-export interface BattleProjectileViewDto {
-  projectileId: ProjectileId;
+export interface LocalBattleProjectileViewDto {
+  projectileId: LocalProjectileId;
   kind: BattleProjectileKindDto;
-  ownerHeroId: HeroId;
+  ownerHeroId: LocalHeroId;
   position: Vec2Dto;
   velocity: Vec2Dto;
   facing: number;
@@ -77,22 +94,22 @@ export interface BattleProjectileViewDto {
   splashRadius: number;
 }
 
-export interface BattlePickupViewDto {
-  pickupId: PickupId;
-  kind: BattlePickupKindDto;
+export interface LocalBattlePickupViewDto {
+  pickupId: LocalPickupId;
+  kind: LocalBattlePickupKindDto;
   label: string;
   position: Vec2Dto;
   available: boolean;
 }
 
-export interface BattleSnapshotDto {
-  sessionId: BattleSessionId;
-  phase: BattlePhaseDto;
+export interface LocalBattleSnapshotDto {
+  sessionId: LocalBattleSessionId;
+  phase: LocalBattlePhaseDto;
   elapsedMs: number;
-  world: BattleWorldViewDto;
-  heroes: BattleHeroViewDto[];
-  projectiles: BattleProjectileViewDto[];
-  pickups: BattlePickupViewDto[];
-  events: BattleEventDto[];
-  localPlayerHeroId: HeroId;
+  world: LocalBattleWorldViewDto;
+  heroes: LocalBattleHeroViewDto[];
+  projectiles: LocalBattleProjectileViewDto[];
+  pickups: LocalBattlePickupViewDto[];
+  events: LocalBattleEventDto[];
+  localPlayerHeroId: LocalHeroId;
 }

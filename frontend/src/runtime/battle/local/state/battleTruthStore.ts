@@ -1,15 +1,15 @@
 import type { GameSnapshot, Hero } from "../../../../objects/battle/types";
 import type { ReplayFrame } from "../../../../objects/replay/replayTypes";
-import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../../../../lib/localReplayStore";
+import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../../../../apis/replay/local/localReplayStore";
 import { compactReplayFrames, hasMeaningfulReplayFrames } from "../../../../objects/replay/replayRecorder";
-import { getCurrentAuthHandle, getCurrentAuthUser } from "../../../../api/identity/authGateway";
+import { getCurrentAuthHandle, getCurrentAuthUser } from "../../../../apis/identity/authGateway";
 import {
   isPlayableIdentityHandle,
   normalizePlayableIdentityHandle,
   normalizePlayerHandleKey
 } from "../../../../objects/identity/identityHandlePolicy";
 import { syncBattleResultToBackend } from "./battleResultSync";
-import { syncReplayToBackend } from "../../../../api/replay/replaySyncApi";
+import { syncReplayToBackend } from "../../../../apis/replay/replaySyncApi";
 import { finalizeBattleReplayFrames } from "../session/battleFinalizationReplay";
 import {
   createBotOnlyBattleClosure,

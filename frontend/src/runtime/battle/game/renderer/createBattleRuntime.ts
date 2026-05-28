@@ -4,7 +4,7 @@ import type { GameSnapshot, PlayerCommand, PreparedSkill } from "../../../../obj
 import { installWheelSwitchBridge, type WheelSwitchBridge } from "../../local/input/wheelSwitchAdapter";
 import type { AuthoritativeBattleState } from "../../authoritative/authoritativeBattleClient";
 import { GameScene } from "../scenes/GameScene";
-import { getSelectedSkillBindings } from "../../../../api/battle/loadoutGateway";
+import { getSelectedSkillBindings } from "../../../../apis/battle/loadoutGateway";
 import { readSkillBindingPresses } from "../../local/input/skillBindingInputAdapter";
 import {
   createInitialBattleSnapshot,

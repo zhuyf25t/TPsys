@@ -1,10 +1,10 @@
 package services.battle.routes
 
-import services.battle.database.queue.{
+import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationService,
   BattleQueueService
 }
-import services.battle.database.session.BattleStateService
+import services.battle.microservices.session.services.BattleStateService
 
 final case class BattleAPIRuntimeContext(
   queueService: BattleQueueService,

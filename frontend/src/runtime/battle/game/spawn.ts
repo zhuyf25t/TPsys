@@ -1,5 +1,5 @@
 import type { Hero, ItemPickup, Vec2, WeaponPickup } from "../../../objects/battle/types";
-import { getCurrentAuthHandle, getCurrentAuthSkin } from "../../../api/identity/authGateway";
+import { getCurrentAuthHandle, getCurrentAuthSkin } from "../../../apis/identity/authGateway";
 import {
   HERO_DEFINITIONS,
   HERO_SPAWN_POINTS,

@@ -1,4 +1,4 @@
-import type { LoadoutSkillId, SkillSlotKey } from "../../../../api/battle/loadoutGateway";
+import type { LoadoutSkillId, SkillSlotKey } from "../../../../apis/battle/loadoutGateway";
 
 export type SkillBindingAction = "Blink" | "Dash" | "Freeze";
 

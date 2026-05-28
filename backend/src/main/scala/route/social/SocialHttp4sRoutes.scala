@@ -12,19 +12,22 @@ import route.Http4sEffects.blocking
 import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
-import services.social.objects.apiTypes.{
-  FriendRequestCreateApiRequest,
-  FriendRequestCreateResponse,
-  FriendRequestListResponse,
+import services.social.api.{
   FriendRequestOwnerQuery,
-  FriendRequestRespondApiRequest,
-  FriendRequestRespondResponse,
   SocialApiErrorCode,
   SocialApiRequestDecodeError,
+  SocialCommandParsers,
   SocialRequestTarget,
   SocialRouteCreateError,
   SocialRouteHandleError,
   SocialRouteRespondError
+}
+import services.social.objects.apiTypes.{
+  FriendRequestCreateApiRequest,
+  FriendRequestCreateResponse,
+  FriendRequestListResponse,
+  FriendRequestRespondApiRequest,
+  FriendRequestRespondResponse
 }
 import services.social.services.FriendRequestService
 
@@ -70,7 +73,7 @@ private[route] object SocialHttp4sRoutes {
       case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
         errorResponse(socialApiError(SocialApiErrorCode.InvalidJsonObject))
       case Right(createRequest) =>
-        createRequest.toCreateHandles match {
+        SocialCommandParsers.parseCreateHandles(createRequest) match {
           case Left(error) =>
             errorResponse(createApiError(error))
           case Right(command) =>
@@ -88,7 +91,7 @@ private[route] object SocialHttp4sRoutes {
       case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
         errorResponse(socialApiError(SocialApiErrorCode.InvalidJsonObject))
       case Right(respondRequest) =>
-        respondRequest.toRespondCommand match {
+        SocialCommandParsers.parseRespondCommand(respondRequest) match {
           case Left(error) =>
             errorResponse(respondParseApiError(error))
           case Right(command) =>

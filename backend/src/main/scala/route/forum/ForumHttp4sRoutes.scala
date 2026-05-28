@@ -5,19 +5,16 @@ import io.circe.syntax.*
 import org.http4s.circe.CirceEntityDecoder
 import org.http4s.{HttpRoutes, Method, Request, Response}
 
-import services.forum.objects.apiTypes.{
-  ForumApiRequestDecodeError,
+import services.forum.api.{
   ForumApiErrorCode,
-  ForumApiRequestFields,
   ForumApiErrorMapper,
   ForumApiTargetParsers,
   ForumCreateTopicParseError,
   ForumRequestFields,
   ForumTopicMutationParseError,
-  ForumTopicListResponse,
-  ForumTopicWrapperResponse,
   ForumVoteCommandParseError
 }
+import services.forum.objects.apiTypes.{ForumApiRequestDecodeError, ForumApiRequestFields, ForumTopicListResponse, ForumTopicWrapperResponse}
 import services.forum.services.ForumService
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
@@ -164,7 +161,7 @@ private[route] object ForumHttp4sRoutes {
     decodeEntityBody[ForumApiRequestDecodeError, ForumApiRequestFields](
       request,
       ForumApiRequestDecodeError.InvalidJsonObject
-    ).map(_.map(_.toCommandFields))
+    ).map(_.map(ForumRequestFields.fromApi))
 
   private def viewerHandle(request: Request[IO]) =
     ForumApiTargetParsers.resolveViewerHandle(request.params)

@@ -4,7 +4,8 @@ import cats.effect.IO
 import io.circe.syntax.*
 import org.http4s.{HttpRoutes, Method, Request}
 
-import services.bots.objects.apiTypes.{BotProfileApiErrorCode, BotProfileRequestTarget, BotProfilesResponse}
+import services.bots.api.{BotProfileApiErrorCode, BotProfileRequestTarget}
+import services.bots.objects.apiTypes.BotProfilesResponse
 import services.bots.services.BotProfileService
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError

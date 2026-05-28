@@ -27,7 +27,7 @@ object HttpApiModules {
       BattleHttp4sRoutes.routes(
         services.battleRuntimeContext,
         services.identityService,
-        services.battleResultBackend
+        services.battleConnectionResource
       )
 
 }

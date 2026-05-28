@@ -5,8 +5,8 @@ import {
   MATCHMAKING_SLOT_COUNT,
   type MatchmakingQueueState
 } from "../../../runtime/battle/matchmaking/matchmakingQueueTypes";
-import { cn } from "../../../shared/ui/classNames";
-import { formatMatchmakingTime } from "../../../hooks/battle-page/battlePageTypes";
+import { cn } from "../../../components/ui/classNames";
+import { formatMatchmakingTime } from "../hooks/battlePageTypes";
 
 interface MatchingLoadoutSummary {
   handle: string;

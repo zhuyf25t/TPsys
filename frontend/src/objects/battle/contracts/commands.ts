@@ -1,29 +1,31 @@
-export type BattleSessionId = string;
-export type BattleReplayId = string;
-export type HeroId = string;
-export type ProjectileId = string;
-export type PickupId = string;
-export type BattleTick = number;
+import type {
+  BattleApiVectorDto,
+  BattleCommandAPIMessageRequest,
+  BattleSkillKindDto
+} from "./apiMessages";
 
-export type BattlePhaseDto = "queue" | "loading" | "active" | "finished" | "disconnected";
+export type LocalBattleSessionId = string;
+export type LocalBattleReplayId = string;
+export type LocalHeroId = string;
+export type LocalProjectileId = string;
+export type LocalPickupId = string;
+export type LocalBattleTick = number;
 
-export interface Vec2Dto {
-  x: number;
-  y: number;
-}
+export type LocalBattlePhaseDto = "queue" | "loading" | "active" | "finished" | "disconnected";
 
-export type BattleTeamDto = "FreeForAll";
-export type BattleLifeStateDto = "alive" | "dead" | "respawning";
-export type BattleWeaponKindDto = "Pistol" | "RocketLauncher" | "Gatling" | "Shotgun";
-export type BattleProjectileKindDto = "pistol-bullet" | "rocket" | "gatling-bullet" | "shotgun-pellet";
-export type BattleSkillKindDto = "Blink" | "Dash" | "Freeze";
-export type BattlePickupKindDto = "weapon" | "medkit";
-export type BattlePreparedSkillDto = "Blink" | "Freeze" | null;
+export type Vec2Dto = BattleApiVectorDto;
 
-export interface BattleCommandDto {
-  sessionId: BattleSessionId;
-  playerId: HeroId;
-  tick: BattleTick;
+export type BattleCommandDto = BattleCommandAPIMessageRequest;
+
+export type LocalBattleTeamDto = "FreeForAll";
+export type LocalBattleLifeStateDto = "alive" | "dead" | "respawning";
+export type LocalBattlePickupKindDto = "weapon" | "medkit";
+export type LocalBattlePreparedSkillDto = Extract<BattleSkillKindDto, "Blink" | "Freeze"> | null;
+
+export interface LocalBattleCommandDto {
+  sessionId: LocalBattleSessionId;
+  playerId: LocalHeroId;
+  tick: LocalBattleTick;
   movement: Vec2Dto;
   aim: Vec2Dto;
   pointerWorld: Vec2Dto;
@@ -33,7 +35,7 @@ export interface BattleCommandDto {
   sprint: boolean;
   switchWeaponDirection: -1 | 0 | 1;
   switchWeaponIndex?: number | null;
-  preparedSkill: BattlePreparedSkillDto;
+  preparedSkill: LocalBattlePreparedSkillDto;
   castBlink: boolean;
   castDash: boolean;
   reloadPressed: boolean;

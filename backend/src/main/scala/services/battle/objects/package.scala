@@ -62,6 +62,12 @@ package object objects {
   export _root_.services.battle.objects.player.BattleSurvivalOutcome
   export _root_.services.battle.objects.projectile.BattleProjectileState
   export _root_.services.battle.objects.projectile.BattleProjectileTerminalState
+  export _root_.services.battle.objects.queue.BattleQueueJoinCommand
+  export _root_.services.battle.objects.queue.BattleQueueLeaveCommand
+  export _root_.services.battle.objects.queue.BattleQueueLeaveOutcome
+  export _root_.services.battle.objects.queue.BattleQueueStatusQuery
+  export _root_.services.battle.objects.queue.BattleRoomSnapshotQuery
+  export _root_.services.battle.objects.queue.RealtimeRoomHeartbeatCommand
   export _root_.services.battle.objects.queue.BattleQueueParticipant
   export _root_.services.battle.objects.queue.BattleQueueSnapshot
   export _root_.services.battle.objects.queue.BattleSessionBootstrap

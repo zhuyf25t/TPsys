@@ -22,7 +22,6 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
-import services.battle.database.results.{BattleResultRepository, FileBattleResultRepository, InMemoryBattleResultRepository}
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -31,7 +30,7 @@ import services.forum.objects.*
 import services.governance.database.{FileGovernanceRepository, InMemoryGovernanceRepository}
 import services.governance.objects.*
 import services.identity.database.{FileIdentityAccountRepository, InMemoryIdentityAccountRepository}
-import services.identity.api.IdentityAccountSummary
+import services.identity.objects.IdentityAccountSummary
 import services.identity.objects.{IdentityAccount, PasswordHash, PlainTextPassword, PlayerHandle, SessionToken, SkinId}
 import services.identity.ports.{PasswordVerification, Pbkdf2PasswordHasher, Sha256PasswordHasher}
 import services.mail.database.{FileMailRepository, InMemoryMailRepository}
@@ -40,7 +39,7 @@ import services.replay.database.{FileReplayRepository, InMemoryReplayRepository,
 import services.replay.objects.*
 import services.social.database.{FileFriendRequestRepository, InMemoryFriendRequestRepository}
 import services.social.objects.{FriendRequestDecision, FriendRequestId, FriendRequestRecord, FriendRequestStatus}
-import services.battle.database.session.{
+import services.battle.microservices.session.services.{
   BattleCommandOwnership,
   BattleCommandSubmitError,
   BattleSessionLookup,
@@ -50,14 +49,14 @@ import services.battle.database.session.{
   BattleStateService,
   InMemoryBattleStateService
 }
-import services.battle.database.queue.{
+import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationError,
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleQueueStatusError,
   BattleRoomError
 }
-import services.battle.database.projections.{
+import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
@@ -204,7 +203,6 @@ private[contract] object BackendRepositoryWiringContractTest:
     ContractAssertions.assertEquals("memory repositories are all constructed", log.memoryCalls, RepositoryNames)
     ContractAssertions.assertEquals("memory mode must not call postgres factories", log.postgresCalls, Vector.empty)
     assert(repositories.identity.isInstanceOf[InMemoryIdentityAccountRepository], "identity repository is in-memory")
-    assert(repositories.battleResults.isInstanceOf[InMemoryBattleResultRepository], "battle result repository is in-memory")
     assert(repositories.mail.isInstanceOf[InMemoryMailRepository], "mail repository is in-memory")
     assert(repositories.botProfiles.isInstanceOf[InMemoryBotProfileRepository], "bot profile repository is in-memory")
     assert(repositories.replay.isInstanceOf[InMemoryReplayRepository], "replay repository is in-memory")
@@ -250,7 +248,6 @@ private[contract] object BackendRepositoryWiringContractTest:
       val repositories = BackendRepositories.fromStorage(StorageConfig.File(StorageRoot(directory.toString)))
 
       assert(repositories.identity.isInstanceOf[FileIdentityAccountRepository], "identity repository is file-backed")
-      assert(repositories.battleResults.isInstanceOf[FileBattleResultRepository], "battle result repository is file-backed")
       assert(repositories.mail.isInstanceOf[FileMailRepository], "mail repository is file-backed")
       assert(repositories.botProfiles.isInstanceOf[FileBotProfileRepository], "bot profile repository is file-backed")
       assert(repositories.replay.isInstanceOf[FileReplayRepository], "replay repository is file-backed")
@@ -274,18 +271,6 @@ private[contract] object BackendRepositoryWiringContractTest:
       postgresIdentity = settings => {
         log.recordPostgres("identity", settings)
         new InMemoryIdentityAccountRepository()
-      },
-      inMemoryBattleResults = () => {
-        log.recordMemory("battle-results")
-        InMemoryBattleResultRepository()
-      },
-      fileBattleResults = root => {
-        log.recordFile("battle-results", root)
-        InMemoryBattleResultRepository()
-      },
-      postgresBattleResults = settings => {
-        log.recordPostgres("battle-results", settings)
-        InMemoryBattleResultRepository()
       },
       inMemoryMail = () => {
         log.recordMemory("mail")
@@ -413,7 +398,6 @@ private[contract] object BackendRepositoryWiringContractTest:
   private val RepositoryNames: Vector[String] =
     Vector(
       "identity",
-      "battle-results",
       "mail",
       "bot-profiles",
       "replay",

@@ -2,72 +2,36 @@ import {
   postBattleRoomHeartbeatAPIMessage,
   postBattleRoomSnapshotAPIMessage,
   type BattleRoomHeartbeatAPIMessageRequest
-} from "../../../api/battle/battleApiMessageClient";
+} from "../../../apis/battle/battleApiMessageClient";
+import type {
+  BattleModeIdDto,
+  BattleQueueParticipantResponseDto,
+  BattleSessionBootstrapResponseDto,
+  BattleSessionBootstrapSeatResponseDto,
+  BattleSessionDescriptorResponseDto,
+  BattleSessionRosterEntryResponseDto,
+  RealtimeRoomSnapshotResponseDto
+} from "../../../objects/battle/contracts/apiMessages";
 
 export type RealtimeRoomPhase = "waiting" | "active" | "finished" | "unknown";
 
-export interface RealtimeRoomParticipant {
-  playerId: string;
-  handle: string;
-  joinedAt: number;
-  lastSeen: number;
-  rating?: number;
-  avatar?: string;
-  skin?: string;
-}
+export interface RealtimeRoomParticipant extends BattleQueueParticipantResponseDto {}
 
-export interface RealtimeBattleSessionRosterEntry {
-  seat: number;
-  playerId: string;
-  handle: string;
-  joinedAt: number;
-  rating?: number;
-  avatar?: string;
-  skin?: string;
-}
+export interface RealtimeBattleSessionRosterEntry extends BattleSessionRosterEntryResponseDto {}
 
-export interface RealtimeBattleSessionBootstrapSeat {
-  seat: number;
-  playerId: string;
-  heroId: string;
-  handle: string;
-  displayName: string;
-  joinedAt: number;
-  isBot: boolean;
-  spawnPointIndex: number;
-  rating?: number;
-  avatar?: string;
-  skin?: string;
-}
+export interface RealtimeBattleSessionBootstrapSeat extends BattleSessionBootstrapSeatResponseDto {}
 
-export interface RealtimeBattleSessionBootstrap {
+export interface RealtimeBattleSessionBootstrap extends BattleSessionBootstrapResponseDto {
   seats: RealtimeBattleSessionBootstrapSeat[];
 }
 
-export interface RealtimeBattleSessionDescriptor {
-  battleId: string;
-  modeId?: string;
-  modeLabel?: string;
-  mapId?: string;
-  mapLabel?: string;
-  startedAt: number;
-  serverTime: number;
+export interface RealtimeBattleSessionDescriptor extends BattleSessionDescriptorResponseDto {
   roster: RealtimeBattleSessionRosterEntry[];
-  capacity: number;
   bootstrap?: RealtimeBattleSessionBootstrap;
 }
 
-export interface RealtimeRoomSnapshot {
-  roomId: string;
-  modeId?: string;
-  modeLabel?: string;
-  mapId?: string;
-  mapLabel?: string;
-  serverTime: number;
+export interface RealtimeRoomSnapshot extends RealtimeRoomSnapshotResponseDto {
   participants: RealtimeRoomParticipant[];
-  capacity: number;
-  phase: RealtimeRoomPhase;
-  finishedAt?: number;
   battleSession?: RealtimeBattleSessionDescriptor;
 }
 
@@ -120,33 +84,51 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
 
   const value = payload as Partial<RealtimeRoomSnapshot> & Record<string, unknown>;
   const roomId = readString(value.roomId);
-  const modeId = readString(value.modeId);
+  const modeId = readBattleModeId(value.modeId);
   const modeLabel = readString(value.modeLabel);
   const mapId = readString(value.mapId);
   const mapLabel = readString(value.mapLabel);
   const serverTime = readNumber(value.serverTime);
   const capacity = readNumber(value.capacity);
+  const phase = readRealtimeRoomPhase(value.phase);
+  const hasFinishedAt = Object.prototype.hasOwnProperty.call(value, "finishedAt");
+  const hasBattleSession = Object.prototype.hasOwnProperty.call(value, "battleSession");
 
-  if (!roomId || serverTime === null || capacity === null || !Array.isArray(value.participants)) {
+  if (
+    !roomId ||
+    !modeId ||
+    !modeLabel ||
+    !mapId ||
+    !mapLabel ||
+    serverTime === null ||
+    capacity === null ||
+    phase === null ||
+    !Array.isArray(value.participants)
+  ) {
     return null;
   }
 
-  const participants = value.participants
-    .map((participant) => normalizeParticipant(participant))
-    .filter((participant): participant is RealtimeRoomParticipant => participant !== null);
+  const participants = normalizeRequiredArray(value.participants, normalizeParticipant);
   const battleSession = normalizeBattleSessionDescriptor(value.battleSession);
   const finishedAt = readNumber(value.finishedAt);
+  if (
+    participants === null ||
+    (hasFinishedAt && finishedAt === null) ||
+    (hasBattleSession && battleSession === null)
+  ) {
+    return null;
+  }
 
   return {
     roomId,
-    ...(modeId ? { modeId } : {}),
-    ...(modeLabel ? { modeLabel } : {}),
-    ...(mapId ? { mapId } : {}),
-    ...(mapLabel ? { mapLabel } : {}),
+    modeId,
+    modeLabel,
+    mapId,
+    mapLabel,
     serverTime,
     participants,
     capacity: Math.max(1, capacity),
-    phase: normalizePhase(value.phase),
+    phase,
     ...(finishedAt !== null ? { finishedAt } : {}),
     ...(battleSession ? { battleSession } : {})
   };
@@ -159,29 +141,42 @@ function normalizeBattleSessionDescriptor(payload: unknown): RealtimeBattleSessi
 
   const value = payload as Partial<RealtimeBattleSessionDescriptor> & Record<string, unknown>;
   const battleId = readString(value.battleId);
-  const modeId = readString(value.modeId);
+  const modeId = readBattleModeId(value.modeId);
   const modeLabel = readString(value.modeLabel);
   const mapId = readString(value.mapId);
   const mapLabel = readString(value.mapLabel);
   const startedAt = readNumber(value.startedAt);
   const serverTime = readNumber(value.serverTime);
   const capacity = readNumber(value.capacity);
-  if (!battleId || startedAt === null || serverTime === null || capacity === null || !Array.isArray(value.roster)) {
+  const hasBootstrap = Object.prototype.hasOwnProperty.call(value, "bootstrap");
+  if (
+    !battleId ||
+    !modeId ||
+    !modeLabel ||
+    !mapId ||
+    !mapLabel ||
+    startedAt === null ||
+    serverTime === null ||
+    capacity === null ||
+    !Array.isArray(value.roster)
+  ) {
     return null;
   }
 
-  const roster = value.roster
-    .map((entry) => normalizeBattleSessionRosterEntry(entry))
-    .filter((entry): entry is RealtimeBattleSessionRosterEntry => entry !== null)
-    .sort((left, right) => left.seat - right.seat);
+  const roster = normalizeRequiredArray(value.roster, normalizeBattleSessionRosterEntry)?.sort(
+    (left, right) => left.seat - right.seat
+  );
   const bootstrap = normalizeBattleSessionBootstrap(value.bootstrap);
+  if (typeof roster === "undefined" || roster === null || (hasBootstrap && bootstrap === null)) {
+    return null;
+  }
 
   return {
     battleId,
-    ...(modeId ? { modeId } : {}),
-    ...(modeLabel ? { modeLabel } : {}),
-    ...(mapId ? { mapId } : {}),
-    ...(mapLabel ? { mapLabel } : {}),
+    modeId,
+    modeLabel,
+    mapId,
+    mapLabel,
     startedAt,
     serverTime,
     roster,
@@ -200,12 +195,14 @@ function normalizeBattleSessionBootstrap(payload: unknown): RealtimeBattleSessio
     return null;
   }
 
-  const seats = value.seats
-    .map((entry) => normalizeBattleSessionBootstrapSeat(entry))
-    .filter((entry): entry is RealtimeBattleSessionBootstrapSeat => entry !== null)
-    .sort((left, right) => left.seat - right.seat);
+  const seats = normalizeRequiredArray(value.seats, normalizeBattleSessionBootstrapSeat)?.sort(
+    (left, right) => left.seat - right.seat
+  );
+  if (typeof seats === "undefined" || seats === null) {
+    return null;
+  }
 
-  return seats.length > 0 ? { seats } : null;
+  return { seats };
 }
 
 function normalizeBattleSessionRosterEntry(payload: unknown): RealtimeBattleSessionRosterEntry | null {
@@ -225,6 +222,12 @@ function normalizeBattleSessionRosterEntry(payload: unknown): RealtimeBattleSess
   const rating = readNumber(value.rating);
   const avatar = readString(value.avatar);
   const skin = readString(value.skin);
+  const hasRating = Object.prototype.hasOwnProperty.call(value, "rating");
+  const hasAvatar = Object.prototype.hasOwnProperty.call(value, "avatar");
+  const hasSkin = Object.prototype.hasOwnProperty.call(value, "skin");
+  if ((hasRating && rating === null) || (hasAvatar && avatar === null) || (hasSkin && skin === null)) {
+    return null;
+  }
 
   return {
     seat: Math.max(0, Math.trunc(seat)),
@@ -266,6 +269,12 @@ function normalizeBattleSessionBootstrapSeat(payload: unknown): RealtimeBattleSe
   const rating = readNumber(value.rating);
   const avatar = readString(value.avatar);
   const skin = readString(value.skin);
+  const hasRating = Object.prototype.hasOwnProperty.call(value, "rating");
+  const hasAvatar = Object.prototype.hasOwnProperty.call(value, "avatar");
+  const hasSkin = Object.prototype.hasOwnProperty.call(value, "skin");
+  if ((hasRating && rating === null) || (hasAvatar && avatar === null) || (hasSkin && skin === null)) {
+    return null;
+  }
 
   return {
     seat: Math.max(0, Math.trunc(seat)),
@@ -300,9 +309,15 @@ function normalizeParticipant(payload: unknown): RealtimeRoomParticipant | null 
     return null;
   }
 
+  const hasRating = Object.prototype.hasOwnProperty.call(value, "rating");
+  const hasAvatar = Object.prototype.hasOwnProperty.call(value, "avatar");
+  const hasSkin = Object.prototype.hasOwnProperty.call(value, "skin");
   const rating = readNumber(value.rating);
   const avatar = readString(value.avatar);
   const skin = readString(value.skin);
+  if ((hasRating && rating === null) || (hasAvatar && avatar === null) || (hasSkin && skin === null)) {
+    return null;
+  }
 
   return {
     playerId,
@@ -315,12 +330,34 @@ function normalizeParticipant(payload: unknown): RealtimeRoomParticipant | null 
   };
 }
 
-function normalizePhase(value: unknown): RealtimeRoomPhase {
-  return value === "waiting" || value === "active" || value === "finished" ? value : "unknown";
+function readRealtimeRoomPhase(value: unknown): RealtimeRoomPhase | null {
+  return value === "waiting" || value === "active" || value === "finished" || value === "unknown" ? value : null;
+}
+
+function normalizeRequiredArray<T>(
+  values: unknown[],
+  normalize: (value: unknown) => T | null
+): T[] | null {
+  const normalized: T[] = [];
+  for (const value of values) {
+    const item = normalize(value);
+    if (item === null) {
+      return null;
+    }
+
+    normalized.push(item);
+  }
+
+  return normalized;
 }
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readBattleModeId(value: unknown): BattleModeIdDto | null {
+  const modeId = readString(value);
+  return modeId === "default" || modeId === "autumn" || modeId === "winter" || modeId === "normal" ? modeId : null;
 }
 
 function readNumber(value: unknown): number | null {

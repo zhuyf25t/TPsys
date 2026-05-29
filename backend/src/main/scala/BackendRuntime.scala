@@ -148,7 +148,7 @@ object BackendRuntime {
               _ <- BattleActorRuleTableInitializer.initialize(connection)
               botRules <- BattleActorRuleTable.loadActive(connection)
               _ <- IO.blocking(BattleBotRuleBook.replace(botRules))
-              _ <- IO.blocking(BattleResultTableInitializer.initialize(connection))
+              _ <- BattleResultTableInitializer.initialize(connection)
             } yield ()
           loadRules.unsafeRunSync()
         }

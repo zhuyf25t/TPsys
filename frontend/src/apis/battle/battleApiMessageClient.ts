@@ -1,4 +1,5 @@
 import { buildApiUrl, normalizeApiBase } from "../../system/api/apiUrl";
+import { getCurrentAuthSessionToken } from "../identity/authGateway";
 import type {
   BattleCommandAPIMessageRequest,
   BattleQueueJoinAPIMessageRequest,
@@ -62,6 +63,8 @@ type BattleApiMessageRequest =
   | BattleCommandAPIMessageRequest
   | BattleResultListAPIMessageRequest
   | BattleResultRecordAPIMessageRequest;
+
+type BattleApiMessageWireRequest = BattleApiMessageRequest & { userToken?: string };
 
 const BATTLE_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 
@@ -161,10 +164,11 @@ async function postBattleApiMessage<TPayload>(
       : null;
 
   try {
+    const wireRequest = withBattleUserToken(request);
     const response = await fetch(battleApiMessageUrl(apiName), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
+      body: JSON.stringify(wireRequest),
       cache: options?.cache,
       keepalive: options?.keepalive,
       signal: controller.signal
@@ -183,4 +187,19 @@ async function postBattleApiMessage<TPayload>(
       window.clearTimeout(timeout);
     }
   }
+}
+
+function withBattleUserToken(request: BattleApiMessageRequest): BattleApiMessageWireRequest {
+  const userToken =
+    readOptionalStringField(request, "userToken") ??
+    readOptionalStringField(request, "sessionToken") ??
+    getCurrentAuthSessionToken()?.trim() ??
+    "";
+
+  return userToken ? { ...request, userToken } : request;
+}
+
+function readOptionalStringField(request: BattleApiMessageRequest, field: string): string | null {
+  const value = (request as Record<string, unknown>)[field];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

@@ -2,10 +2,12 @@ package services.battle.microservices.results.database
 
 import java.sql.Connection
 
+import cats.effect.IO
+
 import system.database.PostgresSupport
 
 object BattleResultTableInitializer {
-  def initialize(connection: Connection): Unit = {
+  def initialize(connection: Connection): IO[Unit] = IO.blocking {
     PostgresSupport.withStatement(
       connection,
       """CREATE TABLE IF NOT EXISTS battle_results (

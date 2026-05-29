@@ -24,7 +24,11 @@ export type BattleSkillOutcomeReasonDto =
 export type BattleEventKindDto = "kill" | "heal" | "pickup" | "respawn";
 export type BattleProjectileTerminalReasonDto = "hit" | "ttl" | "obstacle" | "world";
 
-export interface BattleQueueJoinAPIMessageRequest {
+export interface BattleTokenizedAPIMessageRequestDto {
+  userToken?: string;
+}
+
+export interface BattleQueueJoinAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   handle: string;
   sessionToken: string;
   modeId?: BattleModeIdDto;
@@ -34,29 +38,29 @@ export interface BattleQueueJoinAPIMessageRequest {
   skin?: string;
 }
 
-export interface BattleQueueStatusAPIMessageRequest {
+export interface BattleQueueStatusAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   ticketId: string;
 }
 
-export interface BattleQueueLeaveAPIMessageRequest {
+export interface BattleQueueLeaveAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   ticketId: string;
 }
 
-export interface BattleRoomSnapshotAPIMessageRequest {
+export interface BattleRoomSnapshotAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   roomId: string;
 }
 
-export interface BattleRoomHeartbeatAPIMessageRequest {
+export interface BattleRoomHeartbeatAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   roomId?: string;
   ticketId?: string;
   handle?: string;
 }
 
-export interface BattleStateReadAPIMessageRequest {
+export interface BattleStateReadAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   battleId: string;
 }
 
-export interface BattleCommandAPIMessageRequest {
+export interface BattleCommandAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   battleId: string;
   playerId: string;
   ticketId: string;
@@ -75,13 +79,13 @@ export interface BattleCommandAPIMessageRequest {
   switchWeaponIndex?: number | null;
 }
 
-export interface BattleResultListAPIMessageRequest {
+export interface BattleResultListAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   handle?: string;
   battleId?: string;
   limit?: number;
 }
 
-export interface BattleResultRecordAPIMessageRequest {
+export interface BattleResultRecordAPIMessageRequest extends BattleTokenizedAPIMessageRequestDto {
   battleId: string;
   handle: string;
   displayName?: string;

@@ -147,15 +147,39 @@ final class InMemoryBattleQueueService(
     (room, stateAfterRoomId.withRoom(room))
   }
 
-  private def advanceRooms(state: QueueRuntimeState, now: EpochMillis): QueueRuntimeState =
-    state.withRooms(state.rooms.view.mapValues(room => advanceRoom(room, now)).toMap)
+  private def currentTime: IO[EpochMillis] =
+    IO.blocking(EpochMillis(currentTimeMillis()))
 
-  private def advanceRoom(room: QueueRoom, now: EpochMillis): QueueRoom =
+  private def updateState[A](transition: QueueRuntimeState => IO[(QueueRuntimeState, A)]): IO[A] =
+    IO.defer {
+      val currentState = runtimeState.get()
+      transition(currentState).flatMap { case (nextState, result) =>
+        if runtimeState.compareAndSet(currentState, nextState) then IO.pure(result)
+        else updateState(transition)
+      }
+    }
+
+  private def updateAdvancedState[A](
+    now: EpochMillis
+  )(transition: QueueRuntimeState => IO[(QueueRuntimeState, A)]): IO[A] =
+    updateState { currentState =>
+      advanceRooms(currentState, now).flatMap(transition)
+    }
+
+  private def advanceRooms(state: QueueRuntimeState, now: EpochMillis): IO[QueueRuntimeState] =
+    state.rooms.foldLeft(IO.pure(Map.empty[RoomId, QueueRoom])) { case (updatedRoomsIO, (roomId, room)) =>
+      for
+        updatedRooms <- updatedRoomsIO
+        updatedRoom <- advanceRoom(room, now)
+      yield updatedRooms.updated(roomId, updatedRoom)
+    }.map(state.withRooms)
+
+  private def advanceRoom(room: QueueRoom, now: EpochMillis): IO[QueueRoom] =
     BattleQueueRoomLifecycleRules.startDecision(room, now) match {
       case QueueRoomStartDecision.Start =>
-        BattleQueueRoomLifecycleRules.startRoom(room, newBattleId(), now)
+        newBattleId().map(battleId => BattleQueueRoomLifecycleRules.startRoom(room, battleId, now))
       case QueueRoomStartDecision.Keep =>
-        room
+        IO.pure(room)
     }
 
   private def reuseWaitingQueueRequestOrForgetStale(

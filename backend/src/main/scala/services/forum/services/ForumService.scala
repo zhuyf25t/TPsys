@@ -1,5 +1,7 @@
 package services.forum.services
 
+import cats.effect.IO
+
 import services.battle.objects.EpochMillis
 import services.forum.database.{ForumRepository, ForumVoteMutationError, InMemoryForumRepository}
 import services.forum.objects.{
@@ -56,54 +58,86 @@ final case class SetForumReplyVoteCommand(
 )
 
 trait ForumService {
-  def listTopics(viewerHandle: Option[PlayerHandle]): Vector[ForumTopicView]
-  def loadTopic(topicId: ForumTopicId, viewerHandle: Option[PlayerHandle]): Option[ForumTopicView]
-  def createTopic(command: CreateForumTopicCommand): Either[ForumCreateTopicError, ForumTopicView]
-  def addReply(command: AddForumReplyCommand): Either[ForumTopicMutationError, ForumTopicView]
-  def setTopicVote(command: SetForumTopicVoteCommand): Either[ForumTopicMutationError, ForumTopicView]
-  def setReplyVote(command: SetForumReplyVoteCommand): Either[ForumTopicMutationError, ForumTopicView]
+  def listTopics(viewerHandle: Option[PlayerHandle]): IO[Vector[ForumTopicView]]
+  def loadTopic(topicId: ForumTopicId, viewerHandle: Option[PlayerHandle]): IO[Option[ForumTopicView]]
+  def createTopic(command: CreateForumTopicCommand): IO[Either[ForumCreateTopicError, ForumTopicView]]
+  def addReply(command: AddForumReplyCommand): IO[Either[ForumTopicMutationError, ForumTopicView]]
+  def setTopicVote(command: SetForumTopicVoteCommand): IO[Either[ForumTopicMutationError, ForumTopicView]]
+  def setReplyVote(command: SetForumReplyVoteCommand): IO[Either[ForumTopicMutationError, ForumTopicView]]
 }
 
 final class DefaultForumService(repository: ForumRepository, currentTimeMillis: () => Long) extends ForumService {
-  override def listTopics(viewerHandle: Option[PlayerHandle]): Vector[ForumTopicView] =
-    repository.listTopics().map(ForumTopicRecord.toView(_, viewerHandle))
+  override def listTopics(viewerHandle: Option[PlayerHandle]): IO[Vector[ForumTopicView]] =
+    IO.blocking(repository.listTopics().map(ForumTopicRecord.toView(_, viewerHandle)))
 
-  override def loadTopic(topicId: ForumTopicId, viewerHandle: Option[PlayerHandle]): Option[ForumTopicView] =
-    repository.findTopic(topicId).map(ForumTopicRecord.toView(_, viewerHandle))
+  override def loadTopic(topicId: ForumTopicId, viewerHandle: Option[PlayerHandle]): IO[Option[ForumTopicView]] =
+    IO.blocking(repository.findTopic(topicId).map(ForumTopicRecord.toView(_, viewerHandle)))
 
-  override def createTopic(command: CreateForumTopicCommand): Either[ForumCreateTopicError, ForumTopicView] =
-    for {
-      title <- validateTitle(command.title)
-      body <- validateCreateBody(command.body)
-      tag <- validateTag(command.tag)
-      author <- validateCreateAuthor(command.authorHandle)
-    } yield createParsedTopic(title, body, tag, author)
+  override def createTopic(command: CreateForumTopicCommand): IO[Either[ForumCreateTopicError, ForumTopicView]] =
+    for
+      titleResult <- IO.pure(validateTitle(command.title))
+      result <- titleResult match {
+        case Left(error) =>
+          IO.pure(Left(error))
+        case Right(title) =>
+          for
+            bodyResult <- IO.pure(validateCreateBody(command.body))
+            result <- bodyResult match {
+              case Left(error) =>
+                IO.pure(Left(error))
+              case Right(body) =>
+                for
+                  tagResult <- IO.pure(validateTag(command.tag))
+                  result <- tagResult match {
+                    case Left(error) =>
+                      IO.pure(Left(error))
+                    case Right(tag) =>
+                      for
+                        authorResult <- IO.pure(validateCreateAuthor(command.authorHandle))
+                        result <- authorResult match {
+                          case Left(error) =>
+                            IO.pure(Left(error))
+                          case Right(author) =>
+                            for
+                              topic <- createParsedTopic(title, body, tag, author)
+                              result <- IO.pure(Right(topic))
+                            yield result
+                        }
+                      yield result
+                  }
+                yield result
+            }
+          yield result
+      }
+    yield result
 
-  override def addReply(command: AddForumReplyCommand): Either[ForumTopicMutationError, ForumTopicView] =
-    addParsedReply(command.topicId, command.body, command.authorHandle)
+  override def addReply(command: AddForumReplyCommand): IO[Either[ForumTopicMutationError, ForumTopicView]] =
+    IO.blocking(addParsedReply(command.topicId, command.body, command.authorHandle))
 
-  override def setTopicVote(command: SetForumTopicVoteCommand): Either[ForumTopicMutationError, ForumTopicView] =
-    setParsedTopicVote(command.topicId, command.authorHandle, command.vote)
+  override def setTopicVote(command: SetForumTopicVoteCommand): IO[Either[ForumTopicMutationError, ForumTopicView]] =
+    IO.blocking(setParsedTopicVote(command.topicId, command.authorHandle, command.vote))
 
-  override def setReplyVote(command: SetForumReplyVoteCommand): Either[ForumTopicMutationError, ForumTopicView] =
-    setParsedReplyVote(command.topicId, command.replyId, command.authorHandle, command.vote)
+  override def setReplyVote(command: SetForumReplyVoteCommand): IO[Either[ForumTopicMutationError, ForumTopicView]] =
+    IO.blocking(setParsedReplyVote(command.topicId, command.replyId, command.authorHandle, command.vote))
 
   private def createParsedTopic(
     title: ForumTitle,
     body: ForumBody,
     tag: ForumTag,
     author: PlayerHandle
-  ): ForumTopicView =
-    val now = EpochMillis(currentTimeMillis())
-    val topic = ForumTopicRecord.create(
-      id = repository.nextTopicId(),
-      title = title,
-      body = body,
-      tag = tag,
-      authorHandle = author,
-      createdAt = now
-    )
-    ForumTopicRecord.toView(repository.saveTopic(topic), Some(author))
+  ): IO[ForumTopicView] =
+    IO.blocking {
+      val now = EpochMillis(currentTimeMillis())
+      val topic = ForumTopicRecord.create(
+        id = repository.nextTopicId(),
+        title = title,
+        body = body,
+        tag = tag,
+        authorHandle = author,
+        createdAt = now
+      )
+      ForumTopicRecord.toView(repository.saveTopic(topic), Some(author))
+    }
 
   private def validateTitle(value: ForumTitle): Either[ForumCreateTopicError, ForumTitle] =
     Option(value.value).map(_.trim).filter(_.nonEmpty).map(ForumTitle.apply).toRight(ForumCreateTopicError.InvalidTitle)

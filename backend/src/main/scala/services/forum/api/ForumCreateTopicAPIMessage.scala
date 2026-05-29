@@ -19,7 +19,7 @@ final case class ForumCreateTopicAPIMessage(
           ForumAPIMessageSupport.error(ForumApiErrorMapper.createErrorCode(error))
         )
       )
-      topic <- IO.blocking(service.createTopic(command)).flatMap {
+      topic <- service.createTopic(command).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

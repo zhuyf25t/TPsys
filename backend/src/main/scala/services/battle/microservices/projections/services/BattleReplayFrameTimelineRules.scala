@@ -1,8 +1,8 @@
 package services.battle.microservices.projections.services
 
 import services.battle.objects.core.{DurationMillis, ElapsedMillis}
-import services.battle.objects.event.BattleEventState
-import services.battle.objects.replay.BattleReplayFrameState
+import services.battle.microservices.runtime.objects.event.BattleEventState
+import services.battle.microservices.projections.objects.replay.BattleReplayFrameState
 
 private[battle] final case class BattleReplayFallbackTimeline(
   frameElapsedMs: Vector[ElapsedMillis],

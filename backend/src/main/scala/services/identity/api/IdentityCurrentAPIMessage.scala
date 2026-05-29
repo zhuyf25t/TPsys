@@ -15,7 +15,7 @@ final case class IdentityCurrentAPIMessage(
 ) extends APIMessageWithContext[IdentityService, IdentityAuthResponse] {
   override def plan(service: IdentityService, connection: Connection): IO[IdentityAuthResponse] =
     for
-      account <- IO.blocking(service.current(sessionToken(request.session))).flatMap {
+      account <- service.current(sessionToken(request.session)).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

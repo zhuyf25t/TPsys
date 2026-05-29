@@ -1,10 +1,8 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import services.battle.microservices.queue.objects.queue.*
 
-import services.battle.objects.BattleQueueJoinCommand
-import services.battle.objects.core.{EpochMillis, PlayerId, QueueRequestId, TicketId}
-import services.battle.objects.queue.BattleQueueParticipant
+import services.battle.objects.core.{EpochMillis, PlayerId}
 
 private[battle] final case class BattleQueueJoinDraft(
   room: QueueRoom,

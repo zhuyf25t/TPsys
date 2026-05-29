@@ -1,6 +1,7 @@
 package services.battle.microservices.world.services
 
-import services.battle.objects.{BattlePickupState, BattleVector2, SpawnPointIndex}
+import services.battle.microservices.abilities.objects.pickup.BattlePickupState
+import services.battle.objects.{BattleVector2, SpawnPointIndex}
 
 private[battle] object BattleInitialLayout {
   def spawnPointFor(index: SpawnPointIndex): BattleVector2 =

@@ -1,7 +1,7 @@
 package services.battle.microservices.world.services
 
 import services.battle.microservices.world.services.BattleArenaCollision.*
-import services.battle.objects.world.BattleGeometry.*
+import services.battle.microservices.world.services.BattleGeometry.*
 import services.battle.objects.BattleVector2
 
 private[battle] object BattleMotionRules {

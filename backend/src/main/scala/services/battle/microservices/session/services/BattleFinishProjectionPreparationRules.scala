@@ -2,7 +2,7 @@ package services.battle.microservices.session.services
 
 import services.battle.objects.{BattleArtifactStatus, BattlePhase}
 import services.battle.objects.core.BattleAggregateState
-import services.battle.objects.result.BattleFinishProjectionStatus
+import services.battle.microservices.results.objects.result.BattleFinishProjectionStatus
 
 private[battle] final case class BattleFinishProjectionPreparation(
   storedBattle: StoredBattle,

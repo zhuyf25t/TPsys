@@ -1,15 +1,15 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import { BattlePage } from "../pages/battle/BattlePage";
-import { ContributionPage } from "../pages/contribution/ContributionPage";
-import { DiscussionDetailPage } from "../pages/discussion-detail/DiscussionDetailPage";
-import { DiscussionPage } from "../pages/discussion/DiscussionPage";
-import { HomePage } from "../pages/home/HomePage";
-import { LoadoutPage } from "../pages/loadout/LoadoutPage";
-import { MailsPage } from "../pages/mails/MailsPage";
-import { ProfilePage } from "../pages/profile/ProfilePage";
-import { RatingPage } from "../pages/rating/RatingPage";
-import { ReplayDetailPage } from "../pages/replay-detail/ReplayDetailPage";
-import { ReplayPage } from "../pages/replay/ReplayPage";
+import { BattlePage } from "../pages/battle";
+import { ContributionPage } from "../pages/contribution";
+import { DiscussionDetailPage } from "../pages/discussion-detail";
+import { DiscussionPage } from "../pages/discussion";
+import { HomePage } from "../pages/home";
+import { LoadoutPage } from "../pages/loadout";
+import { MailsPage } from "../pages/mails";
+import { ProfilePage } from "../pages/profile";
+import { RatingPage } from "../pages/rating";
+import { ReplayDetailPage } from "../pages/replay-detail";
+import { ReplayPage } from "../pages/replay";
 
 export function AppRoutes() {
   return (

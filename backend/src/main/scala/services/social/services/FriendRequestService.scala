@@ -1,5 +1,7 @@
 package services.social.services
 
+import cats.effect.IO
+
 import services.battle.objects.EpochMillis
 import services.identity.objects.PlayerHandle
 import services.mail.database.{InMemoryMailRepository, MailRepository}
@@ -63,14 +65,14 @@ trait FriendRequestService {
   def create(
     sourceHandle: PlayerHandle,
     targetHandle: PlayerHandle
-  ): Either[FriendRequestCreateError, FriendRequestSubmissionResult]
+  ): IO[Either[FriendRequestCreateError, FriendRequestSubmissionResult]]
   def respond(
     requestId: FriendRequestId,
     actorHandle: PlayerHandle,
     decision: FriendRequestDecision
-  ): Either[FriendRequestRespondError, FriendRequestResponseResult]
-  def list(ownerHandle: PlayerHandle): Vector[FriendRequestRecord]
-  def find(requestId: FriendRequestId): Option[FriendRequestRecord]
+  ): IO[Either[FriendRequestRespondError, FriendRequestResponseResult]]
+  def list(ownerHandle: PlayerHandle): IO[Vector[FriendRequestRecord]]
+  def find(requestId: FriendRequestId): IO[Option[FriendRequestRecord]]
 }
 
 final class DefaultFriendRequestService(
@@ -82,26 +84,28 @@ final class DefaultFriendRequestService(
   override def create(
     sourceHandle: PlayerHandle,
     targetHandle: PlayerHandle
-  ): Either[FriendRequestCreateError, FriendRequestSubmissionResult] =
-    createParsed(sourceHandle, targetHandle)
+  ): IO[Either[FriendRequestCreateError, FriendRequestSubmissionResult]] =
+    IO.blocking(createParsed(sourceHandle, targetHandle))
 
   override def respond(
     requestId: FriendRequestId,
     actorHandle: PlayerHandle,
     decision: FriendRequestDecision
-  ): Either[FriendRequestRespondError, FriendRequestResponseResult] =
-    respondParsed(requestId, actorHandle, decision)
+  ): IO[Either[FriendRequestRespondError, FriendRequestResponseResult]] =
+    IO.blocking(respondParsed(requestId, actorHandle, decision))
 
-  override def list(ownerHandle: PlayerHandle): Vector[FriendRequestRecord] =
-    normalizedHandle(ownerHandle) match {
-      case Some(owner) =>
-        repository.listByOwner(owner).filter(FriendRequestVisibilityRules.isVisible)
-      case None =>
-        Vector.empty
+  override def list(ownerHandle: PlayerHandle): IO[Vector[FriendRequestRecord]] =
+    IO.blocking {
+      normalizedHandle(ownerHandle) match {
+        case Some(owner) =>
+          repository.listByOwner(owner).filter(FriendRequestVisibilityRules.isVisible)
+        case None =>
+          Vector.empty
+      }
     }
 
-  override def find(requestId: FriendRequestId): Option[FriendRequestRecord] =
-    repository.findById(requestId).filter(FriendRequestVisibilityRules.isVisible)
+  override def find(requestId: FriendRequestId): IO[Option[FriendRequestRecord]] =
+    IO.blocking(repository.findById(requestId).filter(FriendRequestVisibilityRules.isVisible))
 
   private def createParsed(
     source: PlayerHandle,

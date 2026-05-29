@@ -15,7 +15,7 @@ final case class ForumTopicLoadAPIMessage(
   override def plan(service: ForumService, connection: Connection): IO[ForumTopicWrapperResponse] =
     for
       topicId <- IO.fromEither(ForumAPIMessageSupport.topicId(fields))
-      topic <- IO.blocking(service.loadTopic(topicId, ForumAPIMessageSupport.viewerHandle(fields))).flatMap {
+      topic <- service.loadTopic(topicId, ForumAPIMessageSupport.viewerHandle(fields)).flatMap {
         case Some(value) =>
           IO.pure(value)
         case None =>

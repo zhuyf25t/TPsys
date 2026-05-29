@@ -26,7 +26,7 @@ object BattleHttp4sRoutes {
     userToken: String,
     connection: Connection
   ): IO[Json] =
-    IO.blocking(identityService.current(SessionToken.fromString(userToken))).flatMap {
+    identityService.current(SessionToken.fromString(userToken)).flatMap {
       case Right(account) =>
         IO.pure(Json.fromString(account.userId.value))
       case Left(IdentityCurrentSessionError.MissingSession) =>

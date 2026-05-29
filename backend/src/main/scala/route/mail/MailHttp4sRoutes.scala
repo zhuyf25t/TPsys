@@ -8,7 +8,6 @@ import org.http4s.{HttpRoutes, Method, Request, Response}
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
 import route.Http4sCors.corsNoContent
-import route.Http4sEffects.blocking
 import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
@@ -54,7 +53,7 @@ private[route] object MailHttp4sRoutes {
       case Left(error) =>
         errorResponse(ownerApiError(error))
       case Right(ownerHandle) =>
-        blocking(service.list(ownerHandle)).flatMap(records =>
+        service.list(ownerHandle).flatMap(records =>
           jsonOk(MailListResponse.fromRecords(records).asJson)
         )
     }
@@ -68,7 +67,7 @@ private[route] object MailHttp4sRoutes {
           case Left(error) =>
             errorResponse(readApiError(error))
           case Right(command) =>
-            blocking(service.markRead(command.ownerHandle, command.mailId)).flatMap {
+            service.markRead(command.ownerHandle, command.mailId).flatMap {
               case Right(_) =>
                 jsonOk(MailReadResponse.Read.asJson)
               case Left(MailReadError.MailNotFound) =>

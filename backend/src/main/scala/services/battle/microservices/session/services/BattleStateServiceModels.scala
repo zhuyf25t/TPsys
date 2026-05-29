@@ -1,8 +1,9 @@
 package services.battle.microservices.session.services
 
-import services.battle.objects.command.BattleCommandAccepted
-import services.battle.objects.core.{BattleAggregateState, EpochMillis, PlayerId, TicketId}
-import services.battle.objects.result.BattleFinishProjectionStatus
+import services.battle.microservices.session.objects.command.BattleCommandAccepted
+import services.battle.microservices.queue.objects.queue.TicketId
+import services.battle.objects.core.{BattleAggregateState, EpochMillis, PlayerId}
+import services.battle.microservices.results.objects.result.BattleFinishProjectionStatus
 
 private[battle] final case class StoredBattle(
   state: BattleAggregateState,

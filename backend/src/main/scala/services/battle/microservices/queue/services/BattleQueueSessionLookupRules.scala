@@ -1,6 +1,6 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import services.battle.microservices.queue.objects.queue.*
 
 import services.battle.microservices.session.services.{BattleCommandOwnership, BattleSessionSeed}
 import services.battle.objects.core.{BattleId, EpochMillis}

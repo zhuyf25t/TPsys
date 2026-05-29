@@ -17,7 +17,7 @@ final case class ReplayCatalogAPIMessage(
 ) extends APIMessageWithContext[ReplayService, ReplayCatalogResponse] {
   override def plan(service: ReplayService, connection: Connection): IO[ReplayCatalogResponse] =
     for
-      records <- IO.blocking(service.list(limit.getOrElse(25)))
+      records <- service.list(limit.getOrElse(25))
     yield ReplayCatalogResponse.fromRecords(records, selectedHandle)
 
   private def selectedHandle: Option[PlayerHandle] =

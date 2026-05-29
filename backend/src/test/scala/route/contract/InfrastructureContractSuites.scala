@@ -60,7 +60,7 @@ import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
-import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
+import services.battle.microservices.results.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,

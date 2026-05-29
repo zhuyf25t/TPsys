@@ -27,6 +27,7 @@ import type {
   BattleQueueLeaveResponseDto,
   BattleQueueSnapshotResponseDto
 } from "../../../objects/battle/contracts/apiMessages";
+import { battleModeDisplayLabel } from "../battleModeDisplayLabels";
 
 const QUEUE_REQUEST_TIMEOUT_MS = 1_250;
 
@@ -172,13 +173,16 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
   }
   const queuedHandles = resolveQueuedHandles(participants, battleSession);
 
+  const resolvedModeId = battleSession?.modeId ?? modeId;
+  const resolvedModeLabel = battleModeDisplayLabel(resolvedModeId, battleSession?.modeLabel ?? modeLabel);
+
   return {
     ticketId,
     playerId,
     roomId,
     matchId: battleSession?.battleId ?? roomId,
-    modeId: battleSession?.modeId ?? modeId,
-    modeLabel: battleSession?.modeLabel ?? modeLabel,
+    modeId: resolvedModeId,
+    modeLabel: resolvedModeLabel,
     mapId: battleSession?.mapId ?? mapId,
     mapLabel: battleSession?.mapLabel ?? mapLabel,
     createdAt,
@@ -207,7 +211,7 @@ function mergeRealtimeRoomSnapshot(
   const battleSession = toMatchmakingBattleSessionDescriptor(snapshot.battleSession) ?? currentState.battleSession ?? null;
   const queuedHandles = resolveQueuedHandles(participants, battleSession);
   const modeId = battleSession?.modeId ?? snapshot.modeId ?? currentState.modeId;
-  const modeLabel = battleSession?.modeLabel ?? snapshot.modeLabel ?? currentState.modeLabel;
+  const modeLabel = battleModeDisplayLabel(modeId, battleSession?.modeLabel ?? snapshot.modeLabel ?? currentState.modeLabel);
   const mapId = battleSession?.mapId ?? snapshot.mapId ?? currentState.mapId;
   const mapLabel = battleSession?.mapLabel ?? snapshot.mapLabel ?? currentState.mapLabel;
 
@@ -328,7 +332,7 @@ function normalizeBattleSessionDescriptor(payload: unknown): MatchmakingBattleSe
   return {
     battleId,
     modeId,
-    modeLabel,
+    modeLabel: battleModeDisplayLabel(modeId, modeLabel),
     mapId,
     mapLabel,
     startedAt,
@@ -455,7 +459,7 @@ function toMatchmakingBattleSessionDescriptor(
   return {
     battleId: battleSession.battleId,
     modeId: battleSession.modeId,
-    modeLabel: battleSession.modeLabel,
+    modeLabel: battleModeDisplayLabel(battleSession.modeId, battleSession.modeLabel),
     mapId: battleSession.mapId,
     mapLabel: battleSession.mapLabel,
     startedAt: battleSession.startedAt,

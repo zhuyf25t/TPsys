@@ -19,7 +19,7 @@ final case class FriendRequestRespondAPIMessage(
           SocialAPIMessageSupport.error(SocialApiErrorCode.fromRespondRouteError(error))
         )
       )
-      result <- IO.blocking(service.respond(command.requestId, command.actorHandle, command.decision)).flatMap {
+      result <- service.respond(command.requestId, command.actorHandle, command.decision).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

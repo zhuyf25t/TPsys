@@ -10,7 +10,6 @@ import services.bots.services.BotProfileService
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
 import route.Http4sCors.{corsNoContent, corsOk}
-import route.Http4sEffects.blocking
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
 
@@ -24,7 +23,7 @@ private[route] object BotProfileHttp4sRoutes {
           case Method.HEAD =>
             corsOk
           case Method.GET =>
-            blocking(service.list()).flatMap(records => jsonOk(BotProfilesResponse.fromRecords(records).asJson))
+            service.list().flatMap(records => jsonOk(BotProfilesResponse.fromRecords(records).asJson))
           case _ =>
             errorResponse(botProfileApiError(BotProfileApiErrorCode.MethodNotAllowed))
         }

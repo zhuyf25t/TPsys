@@ -22,6 +22,8 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
+import services.battle.microservices.actors.objects.player.{BattleAvatarKey, BattleSkinKey, BattleSurvivalOutcome, Rating, Score}
+import services.battle.microservices.queue.objects.queue.*
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -60,7 +62,17 @@ import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
-import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
+import services.battle.microservices.results.objects.result.{
+  BattleFinishProjectionOutcome,
+  BattleFinishProjector,
+  BattleHighlightLine,
+  BattlePlacement,
+  BattlePlayersLine,
+  BattleResultLabel,
+  BattleResultRecord,
+  BattleTimelineHint,
+  RatingDelta
+}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,

@@ -4,7 +4,9 @@ import io.circe.Encoder
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax.*
 
-import services.battle.objects.{PickupKind, ProjectileKind, WeaponKind}
+import services.battle.microservices.combat.objects.projectile.ProjectileKind
+import services.battle.microservices.combat.objects.weapon.WeaponKind
+import services.battle.microservices.abilities.objects.pickup.{PickupId, PickupKind}
 import services.battle.objects.core.{
   BattleAggregateState,
   BattleVector2,
@@ -12,17 +14,14 @@ import services.battle.objects.core.{
   ElapsedMillis,
   FacingRadians,
   HeroId,
-  HitPoints,
-  PickupId,
   PlayerId,
   ProjectileId,
-  Radius,
-  Score
+  Radius
 }
-import services.battle.objects.pickup.BattlePickupState
-import services.battle.objects.player.BattlePlayerState
-import services.battle.objects.projectile.BattleProjectileState
-import services.battle.objects.replay.{
+import services.battle.microservices.abilities.objects.pickup.BattlePickupState
+import services.battle.microservices.actors.objects.player.{BattlePlayerState, HitPoints, Score}
+import services.battle.microservices.combat.objects.projectile.BattleProjectileState
+import services.battle.microservices.projections.objects.replay.{
   BattleReplayFrameState,
   BattleReplayHeroFrameState,
   BattleReplayPickupFrameState,

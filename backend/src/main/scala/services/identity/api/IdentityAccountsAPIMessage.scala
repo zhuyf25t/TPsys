@@ -11,7 +11,10 @@ import system.api.APIMessageWithContext
 
 final case class IdentityAccountsAPIMessage() extends APIMessageWithContext[IdentityService, IdentityAccountsResponse] {
   override def plan(service: IdentityService, connection: Connection): IO[IdentityAccountsResponse] =
-    IO.blocking(service.listActiveAccounts()).map(IdentityAccountsResponse.apply)
+    for
+      accounts <- service.listActiveAccounts()
+      response <- IO.pure(IdentityAccountsResponse(accounts))
+    yield response
 }
 
 object IdentityAccountsAPIMessage {

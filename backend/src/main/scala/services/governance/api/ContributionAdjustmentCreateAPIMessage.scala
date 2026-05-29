@@ -19,7 +19,7 @@ final case class ContributionAdjustmentCreateAPIMessage(
           GovernanceAPIMessageSupport.error(GovernanceApiErrorCode.fromContributionAdjustmentError(error))
         )
       )
-      result <- IO.blocking(service.create(command))
+      result <- service.create(command)
     yield ContributionAdjustmentCreateResponse.fromResult(result)
 }
 

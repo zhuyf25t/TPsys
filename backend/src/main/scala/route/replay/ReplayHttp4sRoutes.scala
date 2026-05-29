@@ -9,7 +9,6 @@ import org.http4s.{HttpRoutes, Method, Request, Response}
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
 import route.Http4sCors.{corsNoContent, corsOk}
-import route.Http4sEffects.blocking
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonCreated, jsonOk}
 import services.replay.objects.ReplayId
@@ -61,7 +60,7 @@ private[route] object ReplayHttp4sRoutes {
         corsOk
       case Method.GET =>
         val query = ReplayApiCodec.catalogQuery(request.params)
-        blocking(service.list(query.limit)).flatMap { records =>
+        service.list(query.limit).flatMap { records =>
           val response = ReplayCatalogResponse.fromRecords(
             records = records,
             selectedHandle = query.selectedHandle
@@ -73,7 +72,7 @@ private[route] object ReplayHttp4sRoutes {
           case Left(error) =>
             errorResponse(recordDecodeError(error))
           case Right(command) =>
-            blocking(service.record(command)).flatMap {
+            service.record(command).flatMap {
               case Right(record) =>
                 jsonCreated(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, None)).asJson)
               case Left(error) =>
@@ -92,7 +91,7 @@ private[route] object ReplayHttp4sRoutes {
         corsOk
       case Method.GET =>
         val query = ReplayApiCodec.catalogQuery(request.params)
-        blocking(service.load(replayId)).flatMap {
+        service.load(replayId).flatMap {
           case Some(record) =>
             jsonOk(ReplayDetailResponse(ReplayDetailRecordResponse.fromRecord(record, query.selectedHandle)).asJson)
           case None =>
@@ -110,16 +109,16 @@ private[route] object ReplayHttp4sRoutes {
         corsOk
       case Method.GET =>
         val query = ReplayApiCodec.catalogQuery(request.params)
-        blocking(service.load(replayId)).flatMap {
+        service.load(replayId).flatMap {
           case None =>
             errorResponse(replayApiError(ReplayApiErrorCode.ReplayNotFound))
           case Some(_) =>
-            blocking(service.listComments(replayId, query.limit)).flatMap { records =>
+            service.listComments(replayId, query.limit).flatMap { records =>
               jsonOk(ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord)).asJson)
             }
         }
       case Method.POST =>
-        blocking(service.load(replayId)).flatMap {
+        service.load(replayId).flatMap {
           case None =>
             errorResponse(replayApiError(ReplayApiErrorCode.ReplayNotFound))
           case Some(_) =>
@@ -127,7 +126,7 @@ private[route] object ReplayHttp4sRoutes {
               case Left(error) =>
                 errorResponse(commentDecodeError(error))
               case Right(command) =>
-                blocking(service.addComment(command)).flatMap {
+                service.addComment(command).flatMap {
                   case Right(comment) =>
                     jsonCreated(ReplayCommentWrapperResponse(ReplayCommentResponse.fromRecord(comment)).asJson)
                   case Left(error) =>

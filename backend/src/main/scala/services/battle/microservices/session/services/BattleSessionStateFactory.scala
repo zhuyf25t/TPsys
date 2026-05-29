@@ -1,8 +1,9 @@
 package services.battle.microservices.session.services
 
 import services.battle.microservices.runtime.services.BattleEngine
-import services.battle.database.runtime.BattleRuntimeRuleBook
-import services.battle.objects.{BattleArtifactStatus, BattleMode, BattlePhase, SkillKind}
+import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.objects.{BattleArtifactStatus, BattleMode, BattlePhase}
+import services.battle.microservices.abilities.objects.skill.SkillKind
 import services.battle.objects.core.{
   BattleAggregateState,
   BattleTick,
@@ -14,17 +15,17 @@ import services.battle.objects.core.{
   EpochMillis,
   FacingRadians,
   HeroId,
-  KillCount,
-  Score,
   SpawnPointIndex,
 }
-import services.battle.objects.player.{
+import services.battle.microservices.actors.objects.player.{
   BattleParticipantKind,
   BattlePlayerLifeState,
   BattlePlayerSkillState,
-  BattlePlayerState
+  BattlePlayerState,
+  KillCount,
+  Score
 }
-import services.battle.objects.queue.{BattleSessionBootstrapSeat, BattleSessionDescriptor}
+import services.battle.microservices.queue.objects.queue.{BattleSessionBootstrapSeat, BattleSessionDescriptor}
 import services.identity.objects.DisplayName
 
 private[battle] object BattleSessionStateFactory {

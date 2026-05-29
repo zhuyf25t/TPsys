@@ -4,6 +4,8 @@ import java.nio.file.Files
 
 import io.circe.parser.parse
 
+import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Rating, Score}
+import services.battle.microservices.results.objects.result.{BattlePlacement, RatingDelta}
 import services.battle.objects.*
 import services.identity.objects.{DisplayName, PlayerHandle}
 import services.replay.database.FileReplayRepository

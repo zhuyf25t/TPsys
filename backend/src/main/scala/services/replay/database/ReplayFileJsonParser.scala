@@ -4,7 +4,9 @@ import io.circe.{Decoder, Encoder, HCursor, Json}
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.parser.parse as parseJson
 
-import services.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Rating, RatingDelta, Score}
+import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Rating, Score}
+import services.battle.microservices.results.objects.result.{BattlePlacement, RatingDelta}
+import services.battle.objects.{BattleId, DurationMillis, EpochMillis}
 import services.identity.objects.{DisplayName, PlayerHandle}
 import services.replay.objects.{
   ReplayCommentId,

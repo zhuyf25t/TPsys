@@ -1,6 +1,7 @@
 package services.battle.microservices.projections.services
 
-import services.battle.objects.{BattlePlacement, BattleSurvivalOutcome, Rating, RatingDelta}
+import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Rating}
+import services.battle.microservices.results.objects.result.{BattlePlacement, RatingDelta}
 
 private[battle] object BattleSettlementScoringRules {
   val DefaultRating: Rating = Rating(1200)

@@ -16,7 +16,7 @@ final case class ForumAddReplyAPIMessage(
     for
       topicId <- IO.fromEither(ForumAPIMessageSupport.topicId(fields))
       command <- IO.fromEither(fields.toAddReplyCommand(topicId).left.map(ForumAPIMessageSupport.mutationParseError))
-      topic <- IO.blocking(service.addReply(command)).flatMap {
+      topic <- service.addReply(command).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

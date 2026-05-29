@@ -1,9 +1,8 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import services.battle.microservices.queue.objects.queue.*
 
 import services.battle.objects.BattleMode
-import services.battle.objects.core.QueueRequestId
 import services.identity.objects.PlayerHandle
 
 private[battle] object BattleQueueRoomSelectionRules {

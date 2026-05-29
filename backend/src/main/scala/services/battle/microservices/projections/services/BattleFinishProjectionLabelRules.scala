@@ -6,18 +6,20 @@ import java.time.format.DateTimeFormatter
 
 import services.battle.objects.core.{
   BattleAggregateState,
-  BattleHighlightLine,
   BattleId,
   BattleMapLabel,
   BattleModeLabel,
+  EpochMillis
+}
+import services.battle.microservices.actors.objects.player.BattlePlayerState
+import services.battle.microservices.results.objects.result.{
+  BattleHighlightLine,
   BattlePlacement,
   BattlePlayersLine,
   BattleResultLabel,
-  BattleTimelineHint,
-  EpochMillis
+  BattleResultRecord,
+  BattleTimelineHint
 }
-import services.battle.objects.player.BattlePlayerState
-import services.battle.objects.result.BattleResultRecord
 import services.identity.objects.DisplayName
 import services.replay.objects.ReplayTitle
 

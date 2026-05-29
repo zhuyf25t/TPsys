@@ -11,7 +11,10 @@ import system.api.APIMessageWithContext
 
 final case class BotProfilesAPIMessage() extends APIMessageWithContext[BotProfileService, BotProfilesResponse] {
   override def plan(service: BotProfileService, connection: Connection): IO[BotProfilesResponse] =
-    IO.blocking(service.list()).map(BotProfilesResponse.fromRecords)
+    for
+      records <- service.list()
+      response <- IO.pure(BotProfilesResponse.fromRecords(records))
+    yield response
 }
 
 object BotProfilesAPIMessage {

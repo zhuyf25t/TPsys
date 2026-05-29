@@ -14,7 +14,7 @@ final case class ContributionAdjustmentListAPIMessage(
 ) extends APIMessageWithContext[ContributionAdjustmentService, ContributionAdjustmentListResponse] {
   override def plan(service: ContributionAdjustmentService, connection: Connection): IO[ContributionAdjustmentListResponse] =
     for
-      records <- IO.blocking(service.list(GovernanceQueryParsers.parseContributionAdjustmentLimitRequest(request)))
+      records <- service.list(GovernanceQueryParsers.parseContributionAdjustmentLimitRequest(request))
     yield ContributionAdjustmentListResponse.fromRecords(records)
 }
 

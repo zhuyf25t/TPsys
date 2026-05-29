@@ -2,12 +2,14 @@ package services.battle.microservices.projections.services
 
 import scala.util.control.NonFatal
 
-import services.battle.database.results.BattleResultTable
+import cats.effect.IO
+
+import services.battle.microservices.results.database.BattleResultTable
 import services.battle.microservices.projections.services.{BattleMailPublisherPort, BattleReplayWriterPort}
 import services.battle.objects.{BattleArtifactStatus, BattlePhase}
-import services.battle.objects.core.{BattleAggregateState, BattleId, Rating}
-import services.battle.objects.player.BattlePlayerState
-import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
+import services.battle.objects.core.{BattleAggregateState, BattleId}
+import services.battle.microservices.actors.objects.player.{BattlePlayerState, Rating}
+import services.battle.microservices.results.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.objects.PlayerHandle
 import system.database.PostgresSupport
 import system.storage.PostgresConnectionSettings
@@ -23,28 +25,28 @@ final class DefaultBattleFinishProjector(
   private val replayArtifactWriter =
     BattleReplayProjectionArtifactWriter(replayWriter)
 
-  /** 中文名：project（project）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
-  override def project(state: BattleAggregateState): BattleFinishProjectionOutcome =
-    if state.phase != BattlePhase.Finished then BattleFinishProjectionOutcome.NotConfigured
+  override def project(state: BattleAggregateState): IO[BattleFinishProjectionOutcome] =
+    if state.phase != BattlePhase.Finished then IO.pure(BattleFinishProjectionOutcome.NotConfigured)
     else
-      try {
-        val previousRatings = previousRatingsFor(
+      (for
+        previousRatings <- previousRatingsFor(
           state.battleId,
           BattleFinishProjectionPlanner.humanPlayersByPlacement(state)
         )
-        val plan = BattleFinishProjectionPlanner.build(state, previousRatings)
-        val resultOutcome =
-          if BattleArtifactStatus.isResultReady(state.artifactStatus) then BattleProjectionArtifactWriteOutcome.Projected
+        plan <- IO.pure(BattleFinishProjectionPlanner.build(state, previousRatings))
+        resultOutcome <-
+          if BattleArtifactStatus.isResultReady(state.artifactStatus) then IO.pure(BattleProjectionArtifactWriteOutcome.Projected)
           else writeArtifact("result", state.battleId, plan, resultArtifactWriter)
-        val replayOutcome =
-          if BattleArtifactStatus.isReplayReady(state.artifactStatus) then BattleProjectionArtifactWriteOutcome.Projected
+        replayOutcome <-
+          if BattleArtifactStatus.isReplayReady(state.artifactStatus) then IO.pure(BattleProjectionArtifactWriteOutcome.Projected)
           else writeArtifact("replay", state.battleId, plan, replayArtifactWriter)
-        BattleProjectionArtifactWriteOutcome.combine(resultOutcome, replayOutcome)
-      } catch {
+        outcome <- IO.pure(BattleProjectionArtifactWriteOutcome.combine(resultOutcome, replayOutcome))
+      yield outcome).handleErrorWith {
         case NonFatal(error) =>
           val message = failureMessage(error)
-          failureReporter.reportFailure(state.battleId, message)
-          BattleFinishProjectionOutcome.Failed(message)
+          for
+            _ <- failureReporter.reportFailure(state.battleId, message)
+          yield BattleFinishProjectionOutcome.Failed(message)
       }
 
   private def writeArtifact(
@@ -52,38 +54,43 @@ final class DefaultBattleFinishProjector(
     battleId: BattleId,
     plan: BattleFinishProjectionPlan,
     writer: BattleFinishProjectionArtifactWriter
-  ): BattleProjectionArtifactWriteOutcome =
+  ): IO[BattleProjectionArtifactWriteOutcome] =
     catchArtifactWriteFailure(label, battleId)(writer.write(plan))
 
   private def catchArtifactWriteFailure(
     label: String,
     battleId: BattleId
-  )(write: => Unit): BattleProjectionArtifactWriteOutcome =
-    try {
-      write
-      BattleProjectionArtifactWriteOutcome.Projected
-    } catch {
+  )(write: IO[Unit]): IO[BattleProjectionArtifactWriteOutcome] =
+    (for
+      _ <- write
+    yield BattleProjectionArtifactWriteOutcome.Projected).handleErrorWith {
       case NonFatal(error) =>
         val message = failureMessage(error)
-        failureReporter.reportFailure(battleId, s"$label: $message")
-        BattleProjectionArtifactWriteOutcome.Failed(message)
+        for
+          _ <- failureReporter.reportFailure(battleId, s"$label: $message")
+        yield BattleProjectionArtifactWriteOutcome.Failed(message)
     }
 
   private def previousRatingsFor(
     battleId: BattleId,
     players: Vector[BattlePlayerState]
-  ): BattlePreviousRatings =
-    BattlePreviousRatings.fromRatings(
-      players.map(player => player.handle -> fetchPreviousRating(battleId, player.handle))
-    )
+  ): IO[BattlePreviousRatings] =
+    players.foldLeft(IO.pure(Vector.empty[(PlayerHandle, Rating)])) { case (previous, player) =>
+      for
+        ratings <- previous
+        rating <- fetchPreviousRating(battleId, player.handle)
+      yield ratings :+ (player.handle -> rating)
+    }.map(BattlePreviousRatings.fromRatings)
 
-  private def fetchPreviousRating(battleId: BattleId, handle: PlayerHandle): Rating =
-    PostgresSupport
-      .withConnection(connectionSettings)(connection => BattleResultTable.list(connection, Some(handle), None, 25))
-      .filterNot(_.battleId == battleId)
-      .headOption
-      .map(_.ratingAfter)
-      .getOrElse(BattleSettlementScoringRules.DefaultRating)
+  private def fetchPreviousRating(battleId: BattleId, handle: PlayerHandle): IO[Rating] =
+    IO.blocking {
+      PostgresSupport
+        .withConnection(connectionSettings)(connection => BattleResultTable.list(connection, Some(handle), None, 25))
+        .filterNot(_.battleId == battleId)
+        .headOption
+        .map(_.ratingAfter)
+        .getOrElse(BattleSettlementScoringRules.DefaultRating)
+    }
 
   private def failureMessage(error: Throwable): String = {
     val detail = Option(error.getMessage).map(_.trim).filter(_.nonEmpty).getOrElse(error.getClass.getSimpleName)
@@ -92,7 +99,6 @@ final class DefaultBattleFinishProjector(
 }
 
 object DefaultBattleFinishProjector {
-  /** 中文名：应用（apply）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   def apply(
     connectionSettings: PostgresConnectionSettings,
     replayWriter: BattleReplayWriterPort,
@@ -107,7 +113,6 @@ private[battle] enum BattleProjectionArtifactWriteOutcome {
 }
 
 private[battle] object BattleProjectionArtifactWriteOutcome {
-  /** 中文名：combine（combine）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   def combine(
     resultOutcome: BattleProjectionArtifactWriteOutcome,
     replayOutcome: BattleProjectionArtifactWriteOutcome

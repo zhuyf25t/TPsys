@@ -1,7 +1,7 @@
 package services.battle.microservices.runtime.services
 
-import services.battle.database.runtime.BattleRuntimeRuleBook
-import services.battle.objects.runtime.BattleReplayFrameRecorder
+import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.runtime.services.BattleReplayFrameRecorder
 import services.battle.objects.{BattleAggregateState, BattlePhase, BattleTick, ElapsedMillis, EpochMillis}
 
 private[battle] object BattleRuntimeFinalizationRules {

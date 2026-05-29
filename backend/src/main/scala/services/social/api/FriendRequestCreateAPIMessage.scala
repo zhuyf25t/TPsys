@@ -19,7 +19,7 @@ final case class FriendRequestCreateAPIMessage(
           SocialAPIMessageSupport.error(SocialApiErrorCode.fromCreateRouteError(error))
         )
       )
-      result <- IO.blocking(service.create(command.sourceHandle, command.targetHandle)).flatMap {
+      result <- service.create(command.sourceHandle, command.targetHandle).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

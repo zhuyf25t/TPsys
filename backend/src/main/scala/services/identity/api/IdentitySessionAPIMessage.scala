@@ -20,7 +20,7 @@ final case class IdentitySessionAPIMessage(
           .left
           .map(error => IdentityAPIMessageSupport.error(IdentityApiErrorCode.fromSessionParseError(error)))
       )
-      account <- IO.blocking(service.issueSession(command)).flatMap {
+      account <- service.issueSession(command).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

@@ -1,7 +1,7 @@
 package services.battle.microservices.session.services
 
 import services.battle.objects.BattleArtifactStatus
-import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjectionStatus}
+import services.battle.microservices.results.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjectionStatus}
 
 private[battle] object BattleFinishProjectionStatusRules {
   /** 中文名：投影后的产物状态（artifactStatusAfterProjection）。游戏职责：把本次投影结果合并进战斗状态里的战�?回放可用性�?*/

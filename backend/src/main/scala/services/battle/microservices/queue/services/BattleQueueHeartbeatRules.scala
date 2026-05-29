@@ -1,9 +1,8 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import services.battle.microservices.queue.objects.queue.*
 
-import services.battle.objects.RealtimeRoomHeartbeatCommand
-import services.battle.objects.core.{EpochMillis, RoomId, TicketId}
+import services.battle.objects.core.{EpochMillis, RoomId}
 
 private[battle] object BattleQueueHeartbeatRules {
   /** 中文名：房间标识for心跳（roomIdForHeartbeat）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */

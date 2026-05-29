@@ -1,18 +1,15 @@
 package services.battle.microservices.combat.services
 
 import services.battle.microservices.world.services.BattleArenaCatalog
-import services.battle.objects.world.BattleGeometry.*
+import services.battle.microservices.world.services.BattleGeometry.*
 import services.battle.microservices.world.services.BattleMotionRules.*
-import services.battle.objects.combat.{
-  BattleProjectileFactoryRules,
-  BattleWeaponFireDefinition,
-  BattleWeaponRecoilStrength
-}
+import services.battle.microservices.combat.objects.combat.{BattleWeaponFireDefinition, BattleWeaponRecoilStrength}
 import services.battle.microservices.combat.services.BattleWeaponRules.*
-import services.battle.objects.WeaponKind
-import services.battle.objects.core.{BattleAggregateState, BattleVector2, BattleWeaponHeat, ClientCommandSeq}
-import services.battle.objects.player.BattlePlayerState
-import services.battle.objects.weapon.{BattleWeaponState, BattleWeaponThermalState}
+import services.battle.microservices.combat.objects.weapon.WeaponKind
+import services.battle.microservices.combat.objects.weapon.BattleWeaponHeat
+import services.battle.objects.core.{BattleAggregateState, BattleVector2, ClientCommandSeq}
+import services.battle.microservices.actors.objects.player.BattlePlayerState
+import services.battle.microservices.combat.objects.weapon.{BattleWeaponState, BattleWeaponThermalState}
 
 private[battle] object BattleWeaponFireRules {
   /** 中文名：应用primary开火（applyPrimaryFire）。游戏职责：在后端战斗域中管理武器、投射物、命中、伤害和终止效果，支撑实时交火�?*/

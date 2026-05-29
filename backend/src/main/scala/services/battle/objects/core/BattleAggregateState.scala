@@ -1,12 +1,11 @@
 package services.battle.objects.core
 
-import services.battle.objects.{BattleArtifactStatus, BattlePhase}
-import services.battle.objects.event.BattleEventState
-import services.battle.objects.pickup.BattlePickupState
-import services.battle.objects.player.BattlePlayerState
-import services.battle.objects.projectile.{BattleProjectileState, BattleProjectileTerminalState}
-import services.battle.objects.replay.BattleReplayFrameState
-import services.battle.objects.skill.BattleSlowFieldState
+import services.battle.microservices.runtime.objects.event.BattleEventState
+import services.battle.microservices.abilities.objects.pickup.BattlePickupState
+import services.battle.microservices.actors.objects.player.BattlePlayerState
+import services.battle.microservices.combat.objects.projectile.{BattleProjectileState, BattleProjectileTerminalState}
+import services.battle.microservices.projections.objects.replay.BattleReplayFrameState
+import services.battle.microservices.abilities.objects.skill.BattleSlowFieldState
 
 final case class BattleAggregateState(
   battleId: BattleId,

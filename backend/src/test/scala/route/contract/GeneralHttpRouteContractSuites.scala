@@ -22,6 +22,7 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
+import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Rating, Score}
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -60,7 +61,7 @@ import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
-import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
+import services.battle.microservices.results.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector, BattlePlacement, RatingDelta}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,
@@ -253,25 +254,25 @@ private[contract] object IdentityHttp4sRouteContractTest:
     var currentCalls: Vector[Option[SessionToken]] = Vector.empty
     var listActiveAccountsCalls: Int = 0
 
-    override def register(command: IdentityRegistrationCommand): Either[IdentityRegistrationError, IdentityAccount] =
+    override def register(command: IdentityRegistrationCommand): IO[Either[IdentityRegistrationError, IdentityAccount]] =
       registerCommands = registerCommands :+ command
-      takeResult(
+      IO.pure(takeResult(
         registerResults,
         remaining => registerResults = remaining,
         Right(account(command.handle, command.skinId, Some(SessionToken(s"session-${command.handle.key}"))))
-      )
+      ))
 
-    override def issueSession(command: IdentitySessionCommand): Either[IdentitySessionError, IdentityAccount] =
+    override def issueSession(command: IdentitySessionCommand): IO[Either[IdentitySessionError, IdentityAccount]] =
       sessionCommands = sessionCommands :+ command
-      takeResult(
+      IO.pure(takeResult(
         sessionResults,
         remaining => sessionResults = remaining,
         Right(account(command.handle, SkinId.Blue, Some(SessionToken(s"session-${command.handle.key}"))))
-      )
+      ))
 
-    override def current(sessionToken: Option[SessionToken]): Either[IdentityCurrentSessionError, IdentityAccount] =
+    override def current(sessionToken: Option[SessionToken]): IO[Either[IdentityCurrentSessionError, IdentityAccount]] =
       currentCalls = currentCalls :+ sessionToken
-      takeResult(
+      IO.pure(takeResult(
         currentResults,
         remaining => currentResults = remaining,
         sessionToken match
@@ -279,11 +280,11 @@ private[contract] object IdentityHttp4sRouteContractTest:
             Right(account(PlayerHandle(token.value.stripPrefix("session-").capitalize), SkinId.Blue, Some(token)))
           case None =>
             Left(IdentityCurrentSessionError.MissingSession)
-      )
+      ))
 
-    override def listActiveAccounts(): Vector[IdentityAccountSummary] =
+    override def listActiveAccounts(): IO[Vector[IdentityAccountSummary]] =
       listActiveAccountsCalls += 1
-      accountSummaries
+      IO.pure(accountSummaries)
 
     private def takeResult[E, A](
       results: Vector[Either[E, A]],
@@ -384,13 +385,13 @@ private[contract] object MailHttp4sRouteContractTest:
     var markReadResult: Either[MailReadError, MailRecord] =
       Right(mailRecord(MailId("mail-1"), PlayerHandle("Alice"), MailReadState.Read))
 
-    override def list(ownerHandle: PlayerHandle): Vector[MailRecord] =
+    override def list(ownerHandle: PlayerHandle): IO[Vector[MailRecord]] =
       listOwnerHandles = listOwnerHandles :+ ownerHandle
-      listRecords
+      IO.pure(listRecords)
 
-    override def markRead(ownerHandle: PlayerHandle, mailId: MailId): Either[MailReadError, MailRecord] =
+    override def markRead(ownerHandle: PlayerHandle, mailId: MailId): IO[Either[MailReadError, MailRecord]] =
       markReadCalls = markReadCalls :+ ((ownerHandle, mailId))
-      markReadResult
+      IO.pure(markReadResult)
 
   private def mailRecord(id: MailId, ownerHandle: PlayerHandle, readState: MailReadState): MailRecord =
     MailRecord(
@@ -511,24 +512,24 @@ private[contract] object SocialHttp4sRouteContractTest:
     override def create(
       sourceHandle: PlayerHandle,
       targetHandle: PlayerHandle
-    ): Either[FriendRequestCreateError, FriendRequestSubmissionResult] =
+    ): IO[Either[FriendRequestCreateError, FriendRequestSubmissionResult]] =
       createCalls = createCalls :+ ((sourceHandle, targetHandle))
-      createResult
+      IO.pure(createResult)
 
     override def respond(
       requestId: FriendRequestId,
       actorHandle: PlayerHandle,
       decision: FriendRequestDecision
-    ): Either[FriendRequestRespondError, FriendRequestResponseResult] =
+    ): IO[Either[FriendRequestRespondError, FriendRequestResponseResult]] =
       respondCalls = respondCalls :+ ((requestId, actorHandle, decision))
-      respondResult
+      IO.pure(respondResult)
 
-    override def list(ownerHandle: PlayerHandle): Vector[FriendRequestRecord] =
+    override def list(ownerHandle: PlayerHandle): IO[Vector[FriendRequestRecord]] =
       listOwnerHandles = listOwnerHandles :+ ownerHandle
-      listRecords
+      IO.pure(listRecords)
 
-    override def find(requestId: FriendRequestId): Option[FriendRequestRecord] =
-      listRecords.find(_.id == requestId)
+    override def find(requestId: FriendRequestId): IO[Option[FriendRequestRecord]] =
+      IO.pure(listRecords.find(_.id == requestId))
 
   private def friendRequest(status: FriendRequestStatus): FriendRequestRecord =
     FriendRequestRecord(
@@ -682,29 +683,29 @@ private[contract] object ForumHttp4sRouteContractTest:
     var createResult: Either[ForumCreateTopicError, ForumTopicView] = Right(forumTopicView())
     var mutationResult: Either[ForumTopicMutationError, ForumTopicView] = Right(forumTopicView())
 
-    override def listTopics(viewerHandle: Option[PlayerHandle]): Vector[ForumTopicView] =
+    override def listTopics(viewerHandle: Option[PlayerHandle]): IO[Vector[ForumTopicView]] =
       listCalls = listCalls :+ viewerHandle
-      topics
+      IO.pure(topics)
 
-    override def loadTopic(topicId: ForumTopicId, viewerHandle: Option[PlayerHandle]): Option[ForumTopicView] =
+    override def loadTopic(topicId: ForumTopicId, viewerHandle: Option[PlayerHandle]): IO[Option[ForumTopicView]] =
       loadCalls = loadCalls :+ ((topicId, viewerHandle))
-      loadedTopic
+      IO.pure(loadedTopic)
 
-    override def createTopic(command: CreateForumTopicCommand): Either[ForumCreateTopicError, ForumTopicView] =
+    override def createTopic(command: CreateForumTopicCommand): IO[Either[ForumCreateTopicError, ForumTopicView]] =
       createCommands = createCommands :+ command
-      createResult
+      IO.pure(createResult)
 
-    override def addReply(command: AddForumReplyCommand): Either[ForumTopicMutationError, ForumTopicView] =
+    override def addReply(command: AddForumReplyCommand): IO[Either[ForumTopicMutationError, ForumTopicView]] =
       addReplyCommands = addReplyCommands :+ command
-      mutationResult
+      IO.pure(mutationResult)
 
-    override def setTopicVote(command: SetForumTopicVoteCommand): Either[ForumTopicMutationError, ForumTopicView] =
+    override def setTopicVote(command: SetForumTopicVoteCommand): IO[Either[ForumTopicMutationError, ForumTopicView]] =
       topicVoteCommands = topicVoteCommands :+ command
-      mutationResult
+      IO.pure(mutationResult)
 
-    override def setReplyVote(command: SetForumReplyVoteCommand): Either[ForumTopicMutationError, ForumTopicView] =
+    override def setReplyVote(command: SetForumReplyVoteCommand): IO[Either[ForumTopicMutationError, ForumTopicView]] =
       replyVoteCommands = replyVoteCommands :+ command
-      mutationResult
+      IO.pure(mutationResult)
 
   private def forumTopicView(): ForumTopicView =
     ForumTopicView(
@@ -861,27 +862,27 @@ private[contract] object GovernanceHttp4sRouteContractTest:
     var adjustments: Vector[ContributionAdjustmentRecord] = Vector(contributionAdjustmentRecord())
     var notifications: Vector[GovernanceReviewNotificationRecord] = Vector(reviewNotificationRecord())
 
-    override def list(limit: Int): Vector[ContributionAdjustmentRecord] =
+    override def list(limit: Int): IO[Vector[ContributionAdjustmentRecord]] =
       adjustmentListLimits = adjustmentListLimits :+ limit
-      adjustments
+      IO.pure(adjustments)
 
-    override def create(command: ContributionAdjustmentCommand): ContributionAdjustmentSubmissionResult =
+    override def create(command: ContributionAdjustmentCommand): IO[ContributionAdjustmentSubmissionResult] =
       adjustmentCommands = adjustmentCommands :+ command
-      ContributionAdjustmentSubmissionResult(contributionAdjustmentRecord(), governanceMailSnapshot())
+      IO.pure(ContributionAdjustmentSubmissionResult(contributionAdjustmentRecord(), governanceMailSnapshot()))
 
     override def listReviewNotifications(
       kind: Option[GovernanceReviewKind],
       targetType: Option[GovernanceReviewTargetType],
       limit: Int
-    ): Vector[GovernanceReviewNotificationRecord] =
+    ): IO[Vector[GovernanceReviewNotificationRecord]] =
       notificationListCalls = notificationListCalls :+ ((kind, targetType, limit))
-      notifications
+      IO.pure(notifications)
 
     override def createReviewNotification(
       command: GovernanceReviewNotificationCommand
-    ): GovernanceReviewNotificationSubmissionResult =
+    ): IO[GovernanceReviewNotificationSubmissionResult] =
       notificationCommands = notificationCommands :+ command
-      GovernanceReviewNotificationSubmissionResult(reviewNotificationRecord(), governanceMailSnapshot())
+      IO.pure(GovernanceReviewNotificationSubmissionResult(reviewNotificationRecord(), governanceMailSnapshot()))
 
   private def contributionAdjustmentRecord(): ContributionAdjustmentRecord =
     ContributionAdjustmentRecord(
@@ -1051,25 +1052,25 @@ private[contract] object ReplayHttp4sRouteContractTest:
     var commentResult: Either[ReplayCommentError, ReplayCommentRecord] = Right(replayComment())
     var comments: Vector[ReplayCommentRecord] = Vector(replayComment())
 
-    override def record(command: ReplayRecordCommand): Either[ReplayRecordError, ReplayRecord] =
+    override def record(command: ReplayRecordCommand): IO[Either[ReplayRecordError, ReplayRecord]] =
       recordCommands = recordCommands :+ command
-      recordResult
+      IO.pure(recordResult)
 
-    override def list(limit: Int): Vector[ReplayRecord] =
+    override def list(limit: Int): IO[Vector[ReplayRecord]] =
       listLimits = listLimits :+ limit
-      replays
+      IO.pure(replays)
 
-    override def load(replayId: ReplayId): Option[ReplayRecord] =
+    override def load(replayId: ReplayId): IO[Option[ReplayRecord]] =
       loadCalls = loadCalls :+ replayId
-      loadedReplay
+      IO.pure(loadedReplay)
 
-    override def addComment(command: ReplayCommentCommand): Either[ReplayCommentError, ReplayCommentRecord] =
+    override def addComment(command: ReplayCommentCommand): IO[Either[ReplayCommentError, ReplayCommentRecord]] =
       commentCommands = commentCommands :+ command
-      commentResult
+      IO.pure(commentResult)
 
-    override def listComments(replayId: ReplayId, limit: Int): Vector[ReplayCommentRecord] =
+    override def listComments(replayId: ReplayId, limit: Int): IO[Vector[ReplayCommentRecord]] =
       listCommentCalls = listCommentCalls :+ ((replayId, limit))
-      comments
+      IO.pure(comments)
 
   private def replayRecord(replayId: ReplayId, battleId: BattleId): ReplayRecord =
     ReplayRecord(
@@ -1148,9 +1149,9 @@ private[contract] object BotProfileHttp4sRouteContractTest:
     var listCalls: Int = 0
     var records: Vector[BotProfileRecord] = Vector(botProfileRecord())
 
-    override def list(): Vector[BotProfileRecord] =
+    override def list(): IO[Vector[BotProfileRecord]] =
       listCalls += 1
-      records
+      IO.pure(records)
 
   private def botProfileRecord(): BotProfileRecord =
     BotProfileRecord(

@@ -19,7 +19,7 @@ final case class FriendRequestListAPIMessage(
           SocialAPIMessageSupport.error(SocialApiErrorCode.fromOwnerError(error))
         )
       )
-      records <- IO.blocking(service.list(owner))
+      records <- service.list(owner)
     yield FriendRequestListResponse.fromRecords(records)
 }
 

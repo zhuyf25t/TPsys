@@ -22,7 +22,7 @@ final case class GovernanceReviewNotificationCreateAPIMessage(
           GovernanceAPIMessageSupport.error(GovernanceApiErrorCode.fromReviewNotificationError(error))
         )
       )
-      result <- IO.blocking(service.createReviewNotification(command))
+      result <- service.createReviewNotification(command)
     yield GovernanceReviewNotificationCreateResponse.fromResult(result)
 }
 

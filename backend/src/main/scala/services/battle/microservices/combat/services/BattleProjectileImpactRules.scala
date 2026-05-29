@@ -1,15 +1,16 @@
 package services.battle.microservices.combat.services
 
-import services.battle.objects.runtime.BattleEventFactory.*
+import services.battle.microservices.runtime.services.BattleEventFactory.*
 import services.battle.microservices.world.services.BattleArenaCatalog
-import services.battle.objects.world.BattleGeometry.*
-import services.battle.objects.actors.BattlePlayerLifecycleRules.*
-import services.battle.objects.combat.BattleProjectileTerminalRules.*
-import services.battle.objects.runtime.BattleHistoryCount
-import services.battle.objects.{BattleEventKind, ProjectileKind, ProjectileTerminalReason}
-import services.battle.objects.core.{BattleAggregateState, BattleVector2, DurationMillis, HitPoints, KillCount, Score}
-import services.battle.objects.player.{BattlePlayerLifeState, BattlePlayerState}
-import services.battle.objects.projectile.BattleProjectileState
+import services.battle.microservices.world.services.BattleGeometry.*
+import services.battle.microservices.actors.services.BattlePlayerLifecycleRules.*
+import services.battle.microservices.combat.services.BattleProjectileTerminalRules.*
+import services.battle.microservices.runtime.objects.runtime.BattleHistoryCount
+import services.battle.microservices.combat.objects.projectile.{ProjectileKind, ProjectileTerminalReason}
+import services.battle.microservices.runtime.objects.event.BattleEventKind
+import services.battle.objects.core.{BattleAggregateState, BattleVector2, DurationMillis}
+import services.battle.microservices.actors.objects.player.{BattlePlayerLifeState, BattlePlayerState, HitPoints, KillCount, Score}
+import services.battle.microservices.combat.objects.projectile.BattleProjectileState
 
 private[battle] object BattleProjectileImpactRules {
   /** 中文名：应用投射物impact（applyProjectileImpact）。游戏职责：在后端战斗域中管理武器、投射物、命中、伤害和终止效果，支撑实时交火�?*/
@@ -123,8 +124,8 @@ private[battle] object BattleProjectileImpactRules {
     }
 
   private def retainRecentEvents(
-    events: Vector[services.battle.objects.event.BattleEventState],
+    events: Vector[services.battle.microservices.runtime.objects.event.BattleEventState],
     retainedCount: BattleHistoryCount
-  ): Vector[services.battle.objects.event.BattleEventState] =
+  ): Vector[services.battle.microservices.runtime.objects.event.BattleEventState] =
     events.takeRight(retainedCount.value)
 }

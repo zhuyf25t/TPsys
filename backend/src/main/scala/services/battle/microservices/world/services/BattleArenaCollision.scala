@@ -1,6 +1,6 @@
 package services.battle.microservices.world.services
 
-import services.battle.objects.world.{ArenaObstacle, ArenaObstacleShape}
+import services.battle.microservices.world.objects.world.{ArenaObstacle, ArenaObstacleShape}
 import services.battle.objects.BattleVector2
 
 private[battle] object BattleArenaCollision {

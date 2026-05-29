@@ -1,6 +1,8 @@
 package services.replay.objects
 
-import services.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Rating, RatingDelta, Score}
+import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Rating, Score}
+import services.battle.microservices.results.objects.result.{BattlePlacement, RatingDelta}
+import services.battle.objects.{BattleId, DurationMillis, EpochMillis}
 import services.identity.objects.{DisplayName, PlayerHandle}
 
 final case class ReplayId(value: String) extends AnyVal

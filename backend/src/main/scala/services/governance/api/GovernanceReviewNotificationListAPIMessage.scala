@@ -32,12 +32,10 @@ final case class GovernanceReviewNotificationListAPIMessage(
       case GovernanceNotificationListQueryParseResult.EmptyResults =>
         IO.pure(Vector.empty)
       case GovernanceNotificationListQueryParseResult.Query(query) =>
-        IO.blocking(
-          service.listReviewNotifications(
-            kind = query.kind,
-            targetType = query.targetType,
-            limit = query.limit
-          )
+        service.listReviewNotifications(
+          kind = query.kind,
+          targetType = query.targetType,
+          limit = query.limit
         )
     }
 }

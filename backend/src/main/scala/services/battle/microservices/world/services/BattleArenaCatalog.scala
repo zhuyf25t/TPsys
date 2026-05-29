@@ -1,9 +1,9 @@
 package services.battle.microservices.world.services
 
-import services.battle.database.world.BattleWorldRuleBook
-import services.battle.objects.world.*
+import services.battle.microservices.world.database.BattleWorldRuleBook
+import services.battle.microservices.world.objects.world.*
 import services.battle.objects.core.{BattleMapId, BattleVector2}
-import services.battle.objects.pickup.BattlePickupDefinition
+import services.battle.microservices.abilities.objects.pickup.BattlePickupDefinition
 
 private[battle] object BattleArenaCatalog {
   private val activeMapId = ThreadLocal[BattleMapId]()

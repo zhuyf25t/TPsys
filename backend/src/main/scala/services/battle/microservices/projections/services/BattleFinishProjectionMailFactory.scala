@@ -3,7 +3,7 @@ package services.battle.microservices.projections.services
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-import services.battle.objects.BattleResultRecord
+import services.battle.microservices.results.objects.result.BattleResultRecord
 import services.mail.objects.{MailId, MailImportance, MailKind, MailReadState, MailRecord}
 
 private[battle] object BattleFinishProjectionMailFactory {

@@ -3,7 +3,9 @@ package services.replay.api
 import io.circe.{Decoder, Json}
 import io.circe.generic.semiauto.deriveDecoder
 
-import services.battle.objects.{BattleId, BattlePlacement, BattleSurvivalOutcome, DurationMillis, EpochMillis, Score}
+import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Score}
+import services.battle.microservices.results.objects.result.BattlePlacement
+import services.battle.objects.{BattleId, DurationMillis, EpochMillis}
 import services.identity.objects.{DisplayName, PlayerHandle}
 import services.replay.objects.{ReplayFrameCount, ReplayId, ReplayPlaybackAvailability}
 import services.replay.services.{ReplayCommentCommand, ReplayIdentifierPolicy, ReplayRecordCommand}

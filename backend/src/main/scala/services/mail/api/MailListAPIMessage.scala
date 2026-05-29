@@ -19,7 +19,7 @@ final case class MailListAPIMessage(
           MailAPIMessageSupport.error(MailApiErrorCode.fromOwnerError(error))
         )
       )
-      records <- IO.blocking(service.list(owner))
+      records <- service.list(owner)
     yield MailListResponse.fromRecords(records)
 }
 

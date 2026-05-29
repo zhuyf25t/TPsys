@@ -1,19 +1,22 @@
 package services.battle.microservices.runtime.services
 
-import services.battle.database.abilities.BattleSkillRuleBook
+import services.battle.microservices.abilities.database.BattleSkillRuleBook
 import services.battle.microservices.combat.services.BattleWeaponRules
 import services.battle.microservices.world.services.{BattleArenaCatalog, BattleArenaCollision, BattleMotionRules}
-import services.battle.objects.actors.BattleInputRules.{BattleInputEnvironment, applyCommandToPlayer}
-import services.battle.objects.abilities.BattleSkillCommandRules.{
+import services.battle.microservices.actors.services.BattleInputRules.{BattleInputEnvironment, applyCommandToPlayer}
+import services.battle.microservices.abilities.services.BattleSkillCommandRules.{
   BattleSkillCommandEnvironment,
   CommandApplication,
   applyBlinkCommand,
   applyDashCommand,
   applyFreezeCommand
 }
-import services.battle.objects.abilities.{BattleSkillRuleSet, SkillDistance}
-import services.battle.objects.{BattleAggregateState, BattleCommandRequest, BattlePlayerState, SkillKind}
+import services.battle.microservices.abilities.objects.abilities.{BattleSkillRuleSet, SkillDistance}
+import services.battle.microservices.actors.objects.player.BattlePlayerState
+import services.battle.objects.BattleAggregateState
 import services.battle.objects.core.{BattleVector2, Radius}
+import services.battle.microservices.abilities.objects.skill.SkillKind
+import services.battle.microservices.session.objects.command.BattleCommandRequest
 
 private[battle] object BattleCommandApplicationRules {
   def applyCommand(

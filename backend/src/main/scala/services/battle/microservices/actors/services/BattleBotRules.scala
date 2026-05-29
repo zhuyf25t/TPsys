@@ -2,16 +2,17 @@ package services.battle.microservices.actors.services
 
 import services.battle.microservices.world.services.BattleArenaCollision.*
 import services.battle.microservices.world.services.BattleArenaCatalog
-import services.battle.objects.world.BattleGeometry.*
+import services.battle.microservices.world.services.BattleGeometry.*
 import services.battle.microservices.world.services.BattleInitialLayout.*
-import services.battle.objects.actors.BattleInputRules.*
+import services.battle.microservices.actors.services.BattleInputRules.*
 import services.battle.microservices.world.services.BattleMotionRules.*
-import services.battle.database.actors.BattleBotRuleBook
+import services.battle.microservices.actors.database.BattleBotRuleBook
 import services.battle.microservices.combat.services.BattleWeaponRules.*
-import services.battle.objects.{PickupKind, WeaponKind}
+import services.battle.microservices.combat.objects.weapon.WeaponKind
+import services.battle.microservices.abilities.objects.pickup.PickupKind
 import services.battle.objects.core.{BattleAggregateState, BattleVector2, FacingRadians, SpawnPointIndex}
-import services.battle.objects.pickup.BattlePickupState
-import services.battle.objects.player.BattlePlayerState
+import services.battle.microservices.abilities.objects.pickup.BattlePickupState
+import services.battle.microservices.actors.objects.player.BattlePlayerState
 
 private[battle] object BattleBotRules {
   private final case class BotTarget(

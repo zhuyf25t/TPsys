@@ -1,28 +1,27 @@
 package services.battle.microservices.runtime.services
 
-import services.battle.objects.actors.BattleInputRules
+import services.battle.microservices.actors.services.BattleInputRules
+import services.battle.microservices.actors.objects.player.BattlePlayerState
+import services.battle.microservices.abilities.objects.pickup.BattlePickupState
+import services.battle.microservices.combat.objects.projectile.BattleProjectileState
+import services.battle.microservices.combat.objects.weapon.{BattleWeaponState, WeaponKind}
 import services.battle.microservices.combat.services.BattleWeaponRules
-import services.battle.database.runtime.BattleRuntimeRuleBook
+import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.projections.objects.replay.BattleReplayFrameState
 import services.battle.microservices.world.services.{BattleArenaCatalog, BattleInitialLayout}
-import services.battle.objects.abilities.BattleSkillCommandRules.CommandApplication
-import services.battle.objects.runtime.BattleReplayFrameRecorder
+import services.battle.microservices.abilities.services.BattleSkillCommandRules.CommandApplication
+import services.battle.microservices.runtime.services.BattleReplayFrameRecorder
+import services.battle.microservices.session.objects.command.BattleCommandRequest
 import services.battle.objects.{
   BattleAggregateState,
-  BattleCommandRequest,
   BattleMapId,
-  BattlePickupState,
-  BattlePlayerState,
-  BattleProjectileState,
-  BattleReplayFrameState,
   BattleVector2,
-  BattleWeaponState,
   ClientCommandSeq,
   DurationMillis,
   ElapsedMillis,
   EpochMillis,
   PlayerId,
-  SpawnPointIndex,
-  WeaponKind
+  SpawnPointIndex
 }
 
 object BattleEngine {

@@ -19,7 +19,7 @@ final case class MailReadAPIMessage(
           MailAPIMessageSupport.error(MailApiErrorCode.fromReadError(error))
         )
       )
-      response <- IO.blocking(service.markRead(command.ownerHandle, command.mailId)).flatMap {
+      response <- service.markRead(command.ownerHandle, command.mailId).flatMap {
         case Right(_) =>
           IO.pure(MailReadResponse.Read)
         case Left(MailReadError.MailNotFound) =>

@@ -15,7 +15,7 @@ final case class ReplayRecordAPIMessage(
   override def plan(service: ReplayService, connection: Connection): IO[ReplayDetailResponse] =
     for {
       command <- IO.fromEither(request.toCommand.left.map(ReplayAPIMessageSupport.recordDecodeError))
-      record <- IO.blocking(service.record(command)).flatMap {
+      record <- service.record(command).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

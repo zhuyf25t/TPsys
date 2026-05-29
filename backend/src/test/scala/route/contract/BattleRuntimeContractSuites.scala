@@ -22,6 +22,36 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
+import services.battle.microservices.session.objects.command.{
+  BattleCommandReason,
+  BattleCommandRequest,
+  BattleCommandStatus,
+  BattleCommandVector
+}
+import services.battle.microservices.abilities.objects.skill.{
+  BattleCommandSkillIntents,
+  SkillOutcomeReason,
+  SkillOutcomeStatus
+}
+import services.battle.microservices.abilities.objects.pickup.PickupId
+import services.battle.microservices.actors.objects.player.{BattleParticipantKind, BattlePlayerState, HitPoints, Rating, Stamina}
+import services.battle.microservices.runtime.objects.event.{BattleEventId, BattleEventKind}
+import services.battle.microservices.queue.objects.queue.*
+import services.battle.microservices.combat.objects.projectile.{
+  BattleProjectileState,
+  BattleProjectileTerminalState,
+  ProjectileKind,
+  ProjectileTerminalReason
+}
+import services.battle.microservices.combat.objects.combat.Damage
+import services.battle.microservices.combat.objects.weapon.{
+  AmmoCount,
+  BattleWeaponHeat,
+  BattleWeaponState,
+  BattleWeaponSwitchDirection,
+  BattleWeaponSwitchIndex,
+  WeaponKind
+}
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -63,7 +93,7 @@ import services.battle.microservices.projections.services.{
   ConsoleBattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
-import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
+import services.battle.microservices.results.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,
@@ -113,6 +143,10 @@ import system.services.HealthService
 import system.storage.*
 
 private[contract] object BattleStateRuntimeContractTest:
+  extension [E, A](ioEither: IO[Either[E, A]])
+    private def fold[B](ifLeft: E => B, ifRight: A => B): B =
+      ioEither.unsafeRunSync().fold(ifLeft, ifRight)
+
   def run(): Unit =
     currentStateLazilyBootstrapsFromSessionLookup()
     projectileTerminalReasonWireValuesMatchLegacy()
@@ -167,7 +201,7 @@ private[contract] object BattleStateRuntimeContractTest:
 
     ContractAssertions.assertEquals(
       "runtime unknown battle",
-      service.currentState(BattleId("missing")),
+      service.currentState(BattleId("missing")).unsafeRunSync(),
       Left(BattleStateReadError.BattleNotFound)
     )
 
@@ -211,12 +245,12 @@ private[contract] object BattleStateRuntimeContractTest:
 
     ContractAssertions.assertEquals(
       "runtime wrong ticket",
-      service.acceptCommand(command(PlayerId("alice"), TicketId("wrong-ticket"), 1L)),
+      service.acceptCommand(command(PlayerId("alice"), TicketId("wrong-ticket"), 1L)).unsafeRunSync(),
       Left(BattleCommandSubmitError.CommandNotAuthorized)
     )
     ContractAssertions.assertEquals(
       "runtime bot command",
-      service.acceptCommand(command(PlayerId("bot-one"), TicketId("ticket-bot"), 2L)),
+      service.acceptCommand(command(PlayerId("bot-one"), TicketId("ticket-bot"), 2L)).unsafeRunSync(),
       Left(BattleCommandSubmitError.BotCommandsNotSupported)
     )
 
@@ -1761,7 +1795,7 @@ private[contract] object BattleStateRuntimeContractTest:
     ContractAssertions.assertEquals("runtime bot does not reload until magazine is empty", firingBotWeapon.reloadRemainingMs, CooldownMillis(0))
     ContractAssertions.assertEquals(
       "runtime bot external commands remain rejected",
-      service.acceptCommand(command(PlayerId("bot-one"), TicketId("ticket-alice"), 98L)),
+      service.acceptCommand(command(PlayerId("bot-one"), TicketId("ticket-alice"), 98L)).unsafeRunSync(),
       Left(BattleCommandSubmitError.BotCommandsNotSupported)
     )
 
@@ -2202,29 +2236,30 @@ private[contract] object BattleStateRuntimeContractTest:
     def millis(): Long = now
 
   private final case class FixedBattleSessionLookup(seed: BattleSessionSeed) extends BattleSessionLookup:
-    override def activeBattleSession(battleId: BattleId): Option[BattleSessionSeed] =
-      Option.when(seed.descriptor.battleId == battleId)(seed)
+    override def activeBattleSession(battleId: BattleId): IO[Option[BattleSessionSeed]] =
+      IO.pure(Option.when(seed.descriptor.battleId == battleId)(seed))
 
   private final case class RecordingProjector(outcome: BattleFinishProjectionOutcome) extends BattleFinishProjector:
     var projectedStates: Vector[BattleAggregateState] = Vector.empty
 
-    override def project(state: BattleAggregateState): BattleFinishProjectionOutcome =
+    override def project(state: BattleAggregateState): IO[BattleFinishProjectionOutcome] =
       projectedStates = projectedStates :+ state
-      outcome
+      IO.pure(outcome)
 
   private final case class ThrowOnceThenProjector(outcome: BattleFinishProjectionOutcome) extends BattleFinishProjector:
     var attempts: Int = 0
 
-    override def project(state: BattleAggregateState): BattleFinishProjectionOutcome =
+    override def project(state: BattleAggregateState): IO[BattleFinishProjectionOutcome] =
       attempts += 1
-      if attempts == 1 then throw RuntimeException("projection boom")
-      else outcome
+      if attempts == 1 then IO.raiseError(RuntimeException("projection boom"))
+      else IO.pure(outcome)
 
   private final case class RecordingRoomLifecycleSink() extends BattleRoomLifecycleSink:
     var finishedRooms: Vector[(RoomId, EpochMillis)] = Vector.empty
 
-    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): Unit =
+    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] =
       if !finishedRooms.exists(_._1 == roomId) then finishedRooms = finishedRooms :+ (roomId -> finishedAt)
+      IO.unit
 
   private def fail(message: String): Nothing =
     throw AssertionError(message)

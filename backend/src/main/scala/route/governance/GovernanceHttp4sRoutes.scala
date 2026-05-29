@@ -26,7 +26,6 @@ import services.governance.services.{ContributionAdjustmentService, GovernanceNo
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
 import route.Http4sCors.corsNoContent
-import route.Http4sEffects.blocking
 import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
@@ -68,7 +67,7 @@ private[route] object GovernanceHttp4sRoutes {
     service: ContributionAdjustmentService
   ): IO[Response[IO]] = {
     val limit = GovernanceRequestTarget.contributionAdjustmentLimitFromQuery(request.params)
-    blocking(service.list(limit)).flatMap(records =>
+    service.list(limit).flatMap(records =>
       jsonOk(ContributionAdjustmentListResponse.fromRecords(records).asJson)
     )
   }
@@ -88,7 +87,7 @@ private[route] object GovernanceHttp4sRoutes {
           case Left(error) =>
             errorResponse(contributionAdjustmentApiError(error))
           case Right(command) =>
-            blocking(service.create(command)).flatMap(result =>
+            service.create(command).flatMap(result =>
               jsonOk(ContributionAdjustmentCreateResponse.fromResult(result).asJson)
             )
         }
@@ -102,13 +101,13 @@ private[route] object GovernanceHttp4sRoutes {
       case GovernanceNotificationListQueryParseResult.EmptyResults =>
         jsonOk(GovernanceReviewNotificationListResponse.fromRecords(Vector.empty).asJson)
       case GovernanceNotificationListQueryParseResult.Query(query) =>
-        blocking(
-          service.listReviewNotifications(
+        service
+          .listReviewNotifications(
             kind = query.kind,
             targetType = query.targetType,
             limit = query.limit
           )
-        ).flatMap(records => jsonOk(GovernanceReviewNotificationListResponse.fromRecords(records).asJson))
+          .flatMap(records => jsonOk(GovernanceReviewNotificationListResponse.fromRecords(records).asJson))
     }
 
   private def createAdminNotification(
@@ -126,7 +125,7 @@ private[route] object GovernanceHttp4sRoutes {
           case Left(error) =>
             errorResponse(reviewNotificationApiError(error))
           case Right(command) =>
-            blocking(service.createReviewNotification(command)).flatMap(result =>
+            service.createReviewNotification(command).flatMap(result =>
               jsonOk(GovernanceReviewNotificationCreateResponse.fromResult(result).asJson)
             )
         }

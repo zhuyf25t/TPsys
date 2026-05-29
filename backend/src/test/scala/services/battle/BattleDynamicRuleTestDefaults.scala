@@ -6,19 +6,23 @@ import io.circe.Decoder
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.parser.decode
 
-import services.battle.database.abilities.{BattlePickupRuleBook, BattleSkillRuleBook}
-import services.battle.objects.abilities.*
-import services.battle.database.actors.BattleBotRuleBook
-import services.battle.objects.actors.*
-import services.battle.database.combat.BattleCombatRuleBook
-import services.battle.objects.combat.*
-import services.battle.database.runtime.BattleRuntimeRuleBook
-import services.battle.objects.runtime.*
-import services.battle.database.world.BattleWorldRuleBook
-import services.battle.objects.world.*
-import services.battle.objects.{PickupKind, ProjectileKind, SkillKind, WeaponKind}
+import services.battle.microservices.abilities.database.{BattlePickupRuleBook, BattleSkillRuleBook}
+import services.battle.microservices.abilities.objects.abilities.*
+import services.battle.microservices.actors.database.BattleBotRuleBook
+import services.battle.microservices.actors.objects.actors.*
+import services.battle.microservices.actors.objects.player.{HitPoints, Stamina}
+import services.battle.microservices.combat.database.BattleCombatRuleBook
+import services.battle.microservices.combat.objects.combat.*
+import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.runtime.objects.runtime.*
+import services.battle.microservices.world.database.BattleWorldRuleBook
+import services.battle.microservices.world.objects.world.*
+import services.battle.microservices.combat.objects.projectile.ProjectileKind
+import services.battle.microservices.combat.objects.weapon.{BattleWeaponHeat, BattleWeaponHeatRatePerSecond, WeaponKind}
+import services.battle.microservices.abilities.objects.pickup.{PickupId, PickupKind}
+import services.battle.microservices.abilities.objects.skill.SkillKind
 import services.battle.objects.core.*
-import services.battle.objects.pickup.BattlePickupDefinition
+import services.battle.microservices.abilities.objects.pickup.BattlePickupDefinition
 
 object BattleDynamicRuleTestDefaults:
   def install(): Unit =

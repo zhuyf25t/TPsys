@@ -17,7 +17,7 @@ final case class ForumSetReplyVoteAPIMessage(
       topicId <- IO.fromEither(ForumAPIMessageSupport.topicId(fields))
       replyId <- IO.fromEither(ForumAPIMessageSupport.replyId(fields))
       command <- IO.fromEither(fields.toSetReplyVoteCommand(topicId, replyId).left.map(ForumAPIMessageSupport.voteCommandError))
-      topic <- IO.blocking(service.setReplyVote(command)).flatMap {
+      topic <- service.setReplyVote(command).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

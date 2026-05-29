@@ -14,7 +14,7 @@ final case class ForumTopicListAPIMessage(
 ) extends APIMessageWithContext[ForumService, ForumTopicListResponse] {
   override def plan(service: ForumService, connection: Connection): IO[ForumTopicListResponse] =
     for
-      topics <- IO.blocking(service.listTopics(ForumAPIMessageSupport.viewerHandle(fields)))
+      topics <- service.listTopics(ForumAPIMessageSupport.viewerHandle(fields))
     yield ForumTopicListResponse.fromViews(topics)
 }
 

@@ -1,5 +1,7 @@
 package services.mail.services
 
+import cats.effect.IO
+
 import services.battle.objects.EpochMillis
 import services.identity.objects.PlayerHandle
 import services.mail.database.{InMemoryMailRepository, MailRepository}
@@ -11,25 +13,29 @@ enum MailReadError {
 }
 
 trait MailService {
-  def list(ownerHandle: PlayerHandle): Vector[MailRecord]
-  def markRead(ownerHandle: PlayerHandle, mailId: MailId): Either[MailReadError, MailRecord]
+  def list(ownerHandle: PlayerHandle): IO[Vector[MailRecord]]
+  def markRead(ownerHandle: PlayerHandle, mailId: MailId): IO[Either[MailReadError, MailRecord]]
 }
 
 final class DefaultMailService(repository: MailRepository, currentTimeMillis: () => Long) extends MailService {
-  override def list(ownerHandle: PlayerHandle): Vector[MailRecord] =
-    normalizedOwner(ownerHandle) match {
-      case None =>
-        Vector.empty
-      case Some(owner) =>
-        val existing = repository.listByOwner(owner)
-        if existing.isEmpty then Vector(repository.save(welcomeMail(owner)))
-        else existing
+  override def list(ownerHandle: PlayerHandle): IO[Vector[MailRecord]] =
+    IO.blocking {
+      normalizedOwner(ownerHandle) match {
+        case None =>
+          Vector.empty
+        case Some(owner) =>
+          val existing = repository.listByOwner(owner)
+          if existing.isEmpty then Vector(repository.save(welcomeMail(owner)))
+          else existing
+      }
     }
 
-  override def markRead(ownerHandle: PlayerHandle, mailId: MailId): Either[MailReadError, MailRecord] =
-    normalizedOwner(ownerHandle) match {
-      case Some(owner) => markExistingRead(owner, mailId)
-      case None        => Left(MailReadError.MailNotFound)
+  override def markRead(ownerHandle: PlayerHandle, mailId: MailId): IO[Either[MailReadError, MailRecord]] =
+    IO.blocking {
+      normalizedOwner(ownerHandle) match {
+        case Some(owner) => markExistingRead(owner, mailId)
+        case None        => Left(MailReadError.MailNotFound)
+      }
     }
 
   private def markExistingRead(owner: PlayerHandle, mailId: MailId): Either[MailReadError, MailRecord] =

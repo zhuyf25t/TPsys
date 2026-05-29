@@ -1,10 +1,12 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import cats.effect.IO
 
-import services.battle.objects.queue.BattleQueueSnapshots.toQueueSnapshot
-import services.battle.objects.core.{EpochMillis, RoomId, TicketId}
-import services.battle.objects.queue.BattleQueueSnapshot
+import BattleQueueSnapshots.toQueueSnapshot
+import services.battle.microservices.queue.objects.queue.*
+
+import services.battle.objects.core.{EpochMillis, RoomId}
+import services.battle.microservices.queue.objects.queue.BattleQueueSnapshot
 
 private[battle] object BattleQueueTicketSnapshots {
   /** 中文名：快照forticket（snapshotForTicket）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
@@ -13,12 +15,27 @@ private[battle] object BattleQueueTicketSnapshots {
     rooms: Map[RoomId, QueueRoom],
     ticketId: TicketId,
     now: EpochMillis
-  ): Option[BattleQueueSnapshot] =
+  ): IO[Option[BattleQueueSnapshot]] =
     for
-      record <- tickets.get(ticketId)
-      room <- rooms.get(record.roomId)
-      entry <- room.participants.find(_.ticketId == ticketId)
-    yield toQueueSnapshot(room, entry, now)
+      maybeRecord <- IO.pure(tickets.get(ticketId))
+      maybeRoom <- IO.pure(
+        maybeRecord match {
+          case Some(record) => rooms.get(record.roomId)
+          case None         => None
+        }
+      )
+      maybeEntry <- IO.pure(
+        maybeRoom match {
+          case Some(room) => room.participants.find(_.ticketId == ticketId)
+          case None       => None
+        }
+      )
+    yield (maybeRoom, maybeEntry) match {
+      case (Some(room), Some(entry)) =>
+        Some(toQueueSnapshot(room, entry, now))
+      case _ =>
+        None
+    }
 
   /** 中文名：快照forwaitingticket（snapshotForWaitingTicket）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
   def snapshotForWaitingTicket(
@@ -26,11 +43,25 @@ private[battle] object BattleQueueTicketSnapshots {
     rooms: Map[RoomId, QueueRoom],
     ticketId: TicketId,
     now: EpochMillis
-  ): Option[BattleQueueSnapshot] =
+  ): IO[Option[BattleQueueSnapshot]] =
     for
-      record <- tickets.get(ticketId)
-      room <- rooms.get(record.roomId)
-      if room.isWaiting
-      entry <- room.participants.find(_.ticketId == ticketId)
-    yield toQueueSnapshot(room, entry, now)
+      maybeRecord <- IO.pure(tickets.get(ticketId))
+      maybeRoom <- IO.pure(
+        maybeRecord match {
+          case Some(record) => rooms.get(record.roomId).filter(_.isWaiting)
+          case None         => None
+        }
+      )
+      maybeEntry <- IO.pure(
+        maybeRoom match {
+          case Some(room) => room.participants.find(_.ticketId == ticketId)
+          case None       => None
+        }
+      )
+    yield (maybeRoom, maybeEntry) match {
+      case (Some(room), Some(entry)) =>
+        Some(toQueueSnapshot(room, entry, now))
+      case _ =>
+        None
+    }
 }

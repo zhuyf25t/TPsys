@@ -19,7 +19,6 @@ import services.forum.services.ForumService
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
 import route.Http4sCors.{corsNoContent, corsOk}
-import route.Http4sEffects.blocking
 import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonCreated, jsonOk}
@@ -36,7 +35,7 @@ private[route] object ForumHttp4sRoutes {
           case Method.HEAD =>
             corsOk
           case Method.GET if ForumApiTargetParsers.isTopicsCollection(requestPath(request)) =>
-            blocking(service.listTopics(viewerHandle(request))).flatMap(topics =>
+            service.listTopics(viewerHandle(request)).flatMap(topics =>
               jsonOk(ForumTopicListResponse.fromViews(topics).asJson)
             )
           case Method.GET =>
@@ -59,7 +58,7 @@ private[route] object ForumHttp4sRoutes {
       case None =>
         errorResponse(routeError(ForumApiErrorCode.TopicNotFound))
       case Some(topicId) =>
-        blocking(service.loadTopic(topicId, viewerHandle(request))).flatMap {
+        service.loadTopic(topicId, viewerHandle(request)).flatMap {
           case Some(topic) =>
             jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
           case None =>
@@ -74,7 +73,7 @@ private[route] object ForumHttp4sRoutes {
       case Right(fields) =>
         fields.toCreateTopicCommand match {
           case Right(command) =>
-            blocking(service.createTopic(command)).flatMap {
+            service.createTopic(command).flatMap {
               case Right(topic) =>
                 jsonCreated(ForumTopicWrapperResponse.fromView(topic).asJson)
               case Left(error) =>
@@ -98,7 +97,7 @@ private[route] object ForumHttp4sRoutes {
               case Left(error) =>
                 errorResponse(mutationApiError(error))
               case Right(command) =>
-                blocking(service.addReply(command)).flatMap {
+                service.addReply(command).flatMap {
                   case Right(topic) =>
                     jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
@@ -121,7 +120,7 @@ private[route] object ForumHttp4sRoutes {
               case Left(error) =>
                 errorResponse(voteCommandApiError(error))
               case Right(command) =>
-                blocking(service.setTopicVote(command)).flatMap {
+                service.setTopicVote(command).flatMap {
                   case Right(topic) =>
                     jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>
@@ -145,7 +144,7 @@ private[route] object ForumHttp4sRoutes {
               case Left(error) =>
                 errorResponse(voteCommandApiError(error))
               case Right(command) =>
-                blocking(service.setReplyVote(command)).flatMap {
+                service.setReplyVote(command).flatMap {
                   case Right(topic) =>
                     jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
                   case Left(error) =>

@@ -2,17 +2,12 @@ package services.battle.microservices.projections.services
 
 import services.battle.objects.core.{
   BattleAggregateState,
-  BattlePlacement,
-  BattlePlayersLine,
   DurationMillis,
   EpochMillis,
-  PlayerId,
-  Rating,
-  RatingDelta,
-  Score
+  PlayerId
 }
-import services.battle.objects.player.{BattlePlayerState, BattleSurvivalOutcome}
-import services.battle.objects.result.BattleResultRecord
+import services.battle.microservices.actors.objects.player.{BattlePlayerState, BattleSurvivalOutcome, Rating, Score}
+import services.battle.microservices.results.objects.result.{BattlePlacement, BattlePlayersLine, BattleResultRecord, RatingDelta}
 import services.identity.objects.PlayerHandle
 import services.replay.objects.ReplayRecord
 

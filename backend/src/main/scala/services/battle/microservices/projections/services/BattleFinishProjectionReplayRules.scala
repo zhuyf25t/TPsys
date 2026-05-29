@@ -1,7 +1,7 @@
 package services.battle.microservices.projections.services
 
 import services.battle.objects.core.BattleAggregateState
-import services.battle.objects.result.BattleResultRecord
+import services.battle.microservices.results.objects.result.BattleResultRecord
 import services.replay.objects.{ReplayFrameCount, ReplayFramesJson, ReplayId, ReplayPlaybackAvailability, ReplayRecord, ReplaySettlementRecord}
 
 private[battle] object BattleFinishProjectionReplayRules {

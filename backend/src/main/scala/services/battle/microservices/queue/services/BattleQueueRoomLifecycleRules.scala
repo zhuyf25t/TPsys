@@ -1,9 +1,9 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import services.battle.microservices.queue.objects.queue.*
 
 import services.battle.objects.BattleMode
-import services.battle.objects.core.{BattleCapacity, BattleId, DurationMillis, EpochMillis, RoomId}
+import services.battle.objects.core.{BattleId, DurationMillis, EpochMillis, RoomId}
 
 private[battle] object BattleQueueRoomLifecycleRules {
   /** 中文名：newwaiting房间（newWaitingRoom）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */

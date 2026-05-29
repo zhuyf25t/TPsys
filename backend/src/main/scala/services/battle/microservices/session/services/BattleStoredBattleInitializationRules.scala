@@ -1,7 +1,7 @@
 package services.battle.microservices.session.services
 
 import services.battle.objects.core.{DurationMillis, EpochMillis}
-import services.battle.objects.result.BattleFinishProjectionStatus
+import services.battle.microservices.results.objects.result.BattleFinishProjectionStatus
 
 private[battle] object BattleStoredBattleInitializationRules {
   /** 中文名：从seed（fromSeed）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/

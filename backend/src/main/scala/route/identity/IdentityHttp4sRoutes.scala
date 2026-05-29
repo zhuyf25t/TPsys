@@ -9,7 +9,6 @@ import org.typelevel.ci.CIString
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
 import route.Http4sCors.corsNoContent
-import route.Http4sEffects.blocking
 import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
@@ -66,7 +65,7 @@ private[route] object IdentityHttp4sRoutes {
           case Method.OPTIONS =>
             corsNoContent
           case Method.GET =>
-            blocking(service.listActiveAccounts()).flatMap(accounts =>
+            service.listActiveAccounts().flatMap(accounts =>
               jsonOk(IdentityAccountsResponse(accounts).asJson)
             )
           case _ =>
@@ -83,7 +82,7 @@ private[route] object IdentityHttp4sRoutes {
           case Left(error) =>
             errorResponse(identityApiError(IdentityApiErrorCode.fromRegistrationParseError(error)))
           case Right(command) =>
-            blocking(service.register(command)).flatMap {
+            service.register(command).flatMap {
               case Right(account) =>
                 jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
               case Left(error) =>
@@ -101,7 +100,7 @@ private[route] object IdentityHttp4sRoutes {
           case Left(error) =>
             errorResponse(identityApiError(IdentityApiErrorCode.fromSessionParseError(error)))
           case Right(command) =>
-            blocking(service.issueSession(command)).flatMap {
+            service.issueSession(command).flatMap {
               case Right(account) =>
                 jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
               case Left(error) =>
@@ -111,7 +110,7 @@ private[route] object IdentityHttp4sRoutes {
     }
 
   private def current(request: Request[IO], service: IdentityService): IO[Response[IO]] =
-    blocking(service.current(parseSessionToken(request))).flatMap {
+    service.current(parseSessionToken(request)).flatMap {
       case Right(account) =>
         jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
       case Left(error) =>

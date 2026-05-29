@@ -1,11 +1,13 @@
 package services.battle.microservices.combat.services
 
-import services.battle.database.combat.BattleCombatRuleBook
-import services.battle.objects.combat.*
-import services.battle.objects.WeaponKind
-import services.battle.objects.core.{AmmoCount, BattleWeaponHeat, CooldownMillis}
-import services.battle.objects.player.BattlePlayerState
-import services.battle.objects.weapon.{
+import services.battle.microservices.combat.database.BattleCombatRuleBook
+import services.battle.microservices.combat.objects.combat.*
+import services.battle.microservices.combat.objects.weapon.WeaponKind
+import services.battle.objects.core.CooldownMillis
+import services.battle.microservices.actors.objects.player.BattlePlayerState
+import services.battle.microservices.combat.objects.weapon.{
+  AmmoCount,
+  BattleWeaponHeat,
   BattleWeaponState,
   BattleWeaponSwitchDirection,
   BattleWeaponSwitchIndex,

@@ -12,6 +12,7 @@ import type {
   BattleSessionRosterEntryResponseDto,
   RealtimeRoomSnapshotResponseDto
 } from "../../../objects/battle/contracts/apiMessages";
+import { battleModeDisplayLabel } from "../battleModeDisplayLabels";
 
 export type RealtimeRoomPhase = "waiting" | "active" | "finished" | "unknown";
 
@@ -122,7 +123,7 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
   return {
     roomId,
     modeId,
-    modeLabel,
+    modeLabel: battleModeDisplayLabel(modeId, modeLabel),
     mapId,
     mapLabel,
     serverTime,
@@ -174,7 +175,7 @@ function normalizeBattleSessionDescriptor(payload: unknown): RealtimeBattleSessi
   return {
     battleId,
     modeId,
-    modeLabel,
+    modeLabel: battleModeDisplayLabel(modeId, modeLabel),
     mapId,
     mapLabel,
     startedAt,

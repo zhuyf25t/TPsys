@@ -1,23 +1,19 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import services.battle.microservices.queue.objects.queue.*
 
 import services.bots.objects.DemoBotProfiles
 import services.battle.objects.BattleMode
 import services.battle.objects.core.{
-  BattleAvatarKey,
-  BattleCapacity,
   BattleId,
   EpochMillis,
   HeroId,
   PlayerId,
-  Rating,
   SeatIndex,
-  BattleSkinKey,
   SpawnPointIndex
 }
-import services.battle.objects.player.BattleParticipantKind
-import services.battle.objects.queue.{
+import services.battle.microservices.actors.objects.player.{BattleAvatarKey, BattleParticipantKind, BattleSkinKey, Rating}
+import services.battle.microservices.queue.objects.queue.{
   BattleQueueParticipant,
   BattleSessionBootstrap,
   BattleSessionBootstrapSeat,

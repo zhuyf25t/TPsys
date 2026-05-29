@@ -1,5 +1,7 @@
 package services.governance.services
 
+import cats.effect.IO
+
 import services.battle.objects.EpochMillis
 import services.governance.database.{GovernanceRepository, InMemoryGovernanceRepository}
 import services.governance.objects.*
@@ -37,9 +39,9 @@ final case class GovernanceReviewNotificationCommand(
 )
 
 trait ContributionAdjustmentService {
-  def list(limit: Int): Vector[ContributionAdjustmentRecord]
+  def list(limit: Int): IO[Vector[ContributionAdjustmentRecord]]
 
-  def create(command: ContributionAdjustmentCommand): ContributionAdjustmentSubmissionResult
+  def create(command: ContributionAdjustmentCommand): IO[ContributionAdjustmentSubmissionResult]
 }
 
 trait GovernanceNotificationService {
@@ -47,11 +49,11 @@ trait GovernanceNotificationService {
     kind: Option[GovernanceReviewKind],
     targetType: Option[GovernanceReviewTargetType],
     limit: Int
-  ): Vector[GovernanceReviewNotificationRecord]
+  ): IO[Vector[GovernanceReviewNotificationRecord]]
 
   def createReviewNotification(
     command: GovernanceReviewNotificationCommand
-  ): GovernanceReviewNotificationSubmissionResult
+  ): IO[GovernanceReviewNotificationSubmissionResult]
 }
 
 final class DefaultGovernanceService(
@@ -61,56 +63,58 @@ final class DefaultGovernanceService(
 )
     extends ContributionAdjustmentService
     with GovernanceNotificationService {
-  override def list(limit: Int): Vector[ContributionAdjustmentRecord] =
-    repository.listAdjustments(clampLimit(limit, 1_000))
+  override def list(limit: Int): IO[Vector[ContributionAdjustmentRecord]] =
+    IO.blocking(repository.listAdjustments(clampLimit(limit, 1_000)))
 
   override def create(
     command: ContributionAdjustmentCommand
-  ): ContributionAdjustmentSubmissionResult = {
-    val adjustment = ContributionAdjustmentRecord(
-      id = repository.nextAdjustmentId(),
-      actorHandle = command.actorHandle,
-      targetHandle = command.targetHandle,
-      delta = command.delta,
-      reason = command.reason,
-      createdAt = EpochMillis(currentTimeMillis()),
-      sourceLabel = command.sourceLabel,
-      sourcePath = command.sourcePath
-    )
-    val saved = repository.saveAdjustment(adjustment)
-    val mail = GovernanceMailFactory.contributionMail(saved)
-    persistMail(mail)
-    ContributionAdjustmentSubmissionResult(saved, mail)
-  }
+  ): IO[ContributionAdjustmentSubmissionResult] =
+    IO.blocking {
+      val adjustment = ContributionAdjustmentRecord(
+        id = repository.nextAdjustmentId(),
+        actorHandle = command.actorHandle,
+        targetHandle = command.targetHandle,
+        delta = command.delta,
+        reason = command.reason,
+        createdAt = EpochMillis(currentTimeMillis()),
+        sourceLabel = command.sourceLabel,
+        sourcePath = command.sourcePath
+      )
+      val saved = repository.saveAdjustment(adjustment)
+      val mail = GovernanceMailFactory.contributionMail(saved)
+      persistMail(mail)
+      ContributionAdjustmentSubmissionResult(saved, mail)
+    }
 
   override def listReviewNotifications(
     kind: Option[GovernanceReviewKind],
     targetType: Option[GovernanceReviewTargetType],
     limit: Int
-  ): Vector[GovernanceReviewNotificationRecord] =
-    repository.listReviewNotifications(kind, targetType, clampLimit(limit, 1_000))
+  ): IO[Vector[GovernanceReviewNotificationRecord]] =
+    IO.blocking(repository.listReviewNotifications(kind, targetType, clampLimit(limit, 1_000)))
 
   override def createReviewNotification(
     command: GovernanceReviewNotificationCommand
-  ): GovernanceReviewNotificationSubmissionResult = {
-    val ids = repository.nextReviewIds()
-    val notification = GovernanceReviewNotificationRecord(
-      id = ids.notificationId,
-      actorHandle = command.actorHandle,
-      kind = command.kind,
-      targetType = command.targetType,
-      targetId = command.targetId,
-      targetTitle = command.targetTitle,
-      targetPath = command.targetPath,
-      body = command.body,
-      createdAt = EpochMillis(currentTimeMillis()),
-      mailId = ids.mailId
-    )
-    val saved = repository.saveReviewNotification(notification)
-    val mail = GovernanceMailFactory.reviewMail(saved)
-    persistMail(mail)
-    GovernanceReviewNotificationSubmissionResult(saved, mail)
-  }
+  ): IO[GovernanceReviewNotificationSubmissionResult] =
+    IO.blocking {
+      val ids = repository.nextReviewIds()
+      val notification = GovernanceReviewNotificationRecord(
+        id = ids.notificationId,
+        actorHandle = command.actorHandle,
+        kind = command.kind,
+        targetType = command.targetType,
+        targetId = command.targetId,
+        targetTitle = command.targetTitle,
+        targetPath = command.targetPath,
+        body = command.body,
+        createdAt = EpochMillis(currentTimeMillis()),
+        mailId = ids.mailId
+      )
+      val saved = repository.saveReviewNotification(notification)
+      val mail = GovernanceMailFactory.reviewMail(saved)
+      persistMail(mail)
+      GovernanceReviewNotificationSubmissionResult(saved, mail)
+    }
 
   private def persistMail(snapshot: GovernanceMailSnapshot): Unit =
     PlayerHandle.forLookup(snapshot.ownerHandle.value).foreach { ownerHandle =>

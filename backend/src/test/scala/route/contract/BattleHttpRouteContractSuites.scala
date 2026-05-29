@@ -23,6 +23,13 @@ import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
 import services.battle.routes.BattleAPIRuntimeContext
+import services.battle.microservices.actors.objects.player.{BattleAvatarKey, BattleSkinKey, Rating}
+import services.battle.microservices.session.objects.command.{
+  BattleCommandAccepted,
+  BattleCommandRequest,
+  BattleCommandStatus
+}
+import services.battle.microservices.queue.objects.queue.*
 import services.battle.objects.*
 import services.bots.objects.*
 import services.bots.database.{FileBotProfileRepository, InMemoryBotProfileRepository}
@@ -61,7 +68,7 @@ import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
-import services.battle.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
+import services.battle.microservices.results.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.services.{
   IdentityCurrentSessionError,
   IdentityRegistrationCommand,
@@ -144,54 +151,56 @@ private[contract] object BattleHttpRouteContractSupport:
       .asInstanceOf[Connection]
 
   private object AllowBattleQueueJoinAuthorizationService extends BattleQueueJoinAuthorizationService:
-    override def authorize(command: BattleQueueJoinCommand): Either[BattleQueueJoinAuthorizationError, Unit] =
-      Right(())
+    override def authorize(command: BattleQueueJoinCommand): IO[Either[BattleQueueJoinAuthorizationError, Unit]] =
+      IO.pure(Right(()))
 
   private object NoopBattleQueueService extends BattleQueueService:
-    override def join(command: BattleQueueJoinCommand): BattleQueueSnapshot =
-      BattleContractFixtures.queueSnapshot(command.handle, command.rating, command.avatar, command.skin)
+    override def join(command: BattleQueueJoinCommand): IO[BattleQueueSnapshot] =
+      IO.pure(BattleContractFixtures.queueSnapshot(command.handle, command.rating, command.avatar, command.skin))
 
-    override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] =
-      Left(BattleQueueStatusError.TicketNotFound)
+    override def status(ticketId: TicketId): IO[Either[BattleQueueStatusError, BattleQueueSnapshot]] =
+      IO.pure(Left(BattleQueueStatusError.TicketNotFound))
 
-    override def leave(ticketId: TicketId): BattleQueueLeaveOutcome =
-      BattleQueueLeaveOutcome.TicketNotFound
+    override def leave(ticketId: TicketId): IO[BattleQueueLeaveOutcome] =
+      IO.pure(BattleQueueLeaveOutcome.TicketNotFound)
 
-    override def roomSnapshot(roomId: RoomId): Either[BattleRoomError, RealtimeRoomSnapshot] =
-      Left(BattleRoomError.RoomNotFound)
+    override def roomSnapshot(roomId: RoomId): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
+      IO.pure(Left(BattleRoomError.RoomNotFound))
 
-    override def heartbeat(request: RealtimeRoomHeartbeatCommand): Either[BattleRoomError, RealtimeRoomSnapshot] =
-      Left(BattleRoomError.RoomNotFound)
+    override def heartbeat(request: RealtimeRoomHeartbeatCommand): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
+      IO.pure(Left(BattleRoomError.RoomNotFound))
 
-    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): Unit =
-      ()
+    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] =
+      IO.unit
 
-    override def activeBattleSession(battleId: BattleId): Option[BattleSessionSeed] =
-      None
+    override def activeBattleSession(battleId: BattleId): IO[Option[BattleSessionSeed]] =
+      IO.pure(None)
 
   private object NoopBattleStateService extends BattleStateService:
-    override def currentState(battleId: BattleId): Either[BattleStateReadError, BattleAggregateState] =
-      Left(BattleStateReadError.BattleNotFound)
+    override def currentState(battleId: BattleId): IO[Either[BattleStateReadError, BattleAggregateState]] =
+      IO.pure(Left(BattleStateReadError.BattleNotFound))
 
-    override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] =
-      Left(BattleCommandSubmitError.BattleNotFound)
+    override def acceptCommand(request: BattleCommandRequest): IO[Either[BattleCommandSubmitError, BattleCommandAccepted]] =
+      IO.pure(Left(BattleCommandSubmitError.BattleNotFound))
 
   private object AllowIdentityService extends IdentityService:
-    override def register(command: IdentityRegistrationCommand): Either[IdentityRegistrationError, IdentityAccount] =
-      Right(identityAccount(command.handle, command.skinId, None))
+    override def register(command: IdentityRegistrationCommand): IO[Either[IdentityRegistrationError, IdentityAccount]] =
+      IO.pure(Right(identityAccount(command.handle, command.skinId, None)))
 
-    override def issueSession(command: IdentitySessionCommand): Either[IdentitySessionError, IdentityAccount] =
-      Right(identityAccount(command.handle, SkinId.Blue, Some(SessionToken(s"session-${command.handle.key}"))))
+    override def issueSession(command: IdentitySessionCommand): IO[Either[IdentitySessionError, IdentityAccount]] =
+      IO.pure(Right(identityAccount(command.handle, SkinId.Blue, Some(SessionToken(s"session-${command.handle.key}")))))
 
-    override def current(sessionToken: Option[SessionToken]): Either[IdentityCurrentSessionError, IdentityAccount] =
-      sessionToken match
-        case Some(token) =>
-          Right(identityAccount(PlayerHandle("tester"), SkinId.Blue, Some(token)))
-        case None =>
-          Left(IdentityCurrentSessionError.MissingSession)
+    override def current(sessionToken: Option[SessionToken]): IO[Either[IdentityCurrentSessionError, IdentityAccount]] =
+      IO.pure(
+        sessionToken match
+          case Some(token) =>
+            Right(identityAccount(PlayerHandle("tester"), SkinId.Blue, Some(token)))
+          case None =>
+            Left(IdentityCurrentSessionError.MissingSession)
+      )
 
-    override def listActiveAccounts(): Vector[IdentityAccountSummary] =
-      Vector.empty
+    override def listActiveAccounts(): IO[Vector[IdentityAccountSummary]] =
+      IO.pure(Vector.empty)
 
   private def identityAccount(
     handle: PlayerHandle,
@@ -257,43 +266,43 @@ private[contract] object BattleQueueHttp4sRouteContractTest:
     var commands: Vector[BattleQueueJoinCommand] = Vector.empty
     var result: Either[BattleQueueJoinAuthorizationError, Unit] = Right(())
 
-    override def authorize(command: BattleQueueJoinCommand): Either[BattleQueueJoinAuthorizationError, Unit] =
+    override def authorize(command: BattleQueueJoinCommand): IO[Either[BattleQueueJoinAuthorizationError, Unit]] =
       commands = commands :+ command
-      result
+      IO.pure(result)
 
   private final class RecordingBattleQueueService extends BattleQueueService:
     var joinCommands: Vector[BattleQueueJoinCommand] = Vector.empty
     var statusTicketIds: Vector[TicketId] = Vector.empty
 
-    override def join(command: BattleQueueJoinCommand): BattleQueueSnapshot =
+    override def join(command: BattleQueueJoinCommand): IO[BattleQueueSnapshot] =
       joinCommands = joinCommands :+ command
-      BattleContractFixtures.queueSnapshot(command.handle, command.rating, command.avatar, command.skin)
+      IO.pure(BattleContractFixtures.queueSnapshot(command.handle, command.rating, command.avatar, command.skin))
 
-    override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] =
+    override def status(ticketId: TicketId): IO[Either[BattleQueueStatusError, BattleQueueSnapshot]] =
       statusTicketIds = statusTicketIds :+ ticketId
-      Right(
+      IO.pure(Right(
         BattleContractFixtures.queueSnapshot(
           PlayerHandle("Alice"),
           Some(Rating(1200)),
           BattleAvatarKey.fromWire("fox"),
           BattleSkinKey.fromWire("soldier")
         )
-      )
+      ))
 
-    override def leave(ticketId: TicketId): BattleQueueLeaveOutcome =
-      BattleQueueLeaveOutcome.LeftQueue
+    override def leave(ticketId: TicketId): IO[BattleQueueLeaveOutcome] =
+      IO.pure(BattleQueueLeaveOutcome.LeftQueue)
 
-    override def roomSnapshot(roomId: RoomId): Either[BattleRoomError, RealtimeRoomSnapshot] =
-      Left(BattleRoomError.RoomNotFound)
+    override def roomSnapshot(roomId: RoomId): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
+      IO.pure(Left(BattleRoomError.RoomNotFound))
 
-    override def heartbeat(request: RealtimeRoomHeartbeatCommand): Either[BattleRoomError, RealtimeRoomSnapshot] =
-      Left(BattleRoomError.RoomNotFound)
+    override def heartbeat(request: RealtimeRoomHeartbeatCommand): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
+      IO.pure(Left(BattleRoomError.RoomNotFound))
 
-    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): Unit =
-      ()
+    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] =
+      IO.unit
 
-    override def activeBattleSession(battleId: BattleId): Option[BattleSessionSeed] =
-      None
+    override def activeBattleSession(battleId: BattleId): IO[Option[BattleSessionSeed]] =
+      IO.pure(None)
 
 private[contract] object BattleRoomHttp4sRouteContractTest:
   def run(): Unit =
@@ -341,35 +350,35 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
     var snapshotRoomIds: Vector[RoomId] = Vector.empty
     var heartbeatCommands: Vector[RealtimeRoomHeartbeatCommand] = Vector.empty
 
-    override def join(command: BattleQueueJoinCommand): BattleQueueSnapshot =
-      BattleContractFixtures.queueSnapshot(command.handle, command.rating, command.avatar, command.skin)
+    override def join(command: BattleQueueJoinCommand): IO[BattleQueueSnapshot] =
+      IO.pure(BattleContractFixtures.queueSnapshot(command.handle, command.rating, command.avatar, command.skin))
 
-    override def status(ticketId: TicketId): Either[BattleQueueStatusError, BattleQueueSnapshot] =
-      Right(
+    override def status(ticketId: TicketId): IO[Either[BattleQueueStatusError, BattleQueueSnapshot]] =
+      IO.pure(Right(
         BattleContractFixtures.queueSnapshot(
           PlayerHandle("Alice"),
           Some(Rating(1200)),
           BattleAvatarKey.fromWire("fox"),
           BattleSkinKey.fromWire("soldier")
         )
-      )
+      ))
 
-    override def leave(ticketId: TicketId): BattleQueueLeaveOutcome =
-      BattleQueueLeaveOutcome.LeftQueue
+    override def leave(ticketId: TicketId): IO[BattleQueueLeaveOutcome] =
+      IO.pure(BattleQueueLeaveOutcome.LeftQueue)
 
-    override def roomSnapshot(roomId: RoomId): Either[BattleRoomError, RealtimeRoomSnapshot] =
+    override def roomSnapshot(roomId: RoomId): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
       snapshotRoomIds = snapshotRoomIds :+ roomId
-      Right(BattleContractFixtures.roomSnapshot(roomId))
+      IO.pure(Right(BattleContractFixtures.roomSnapshot(roomId)))
 
-    override def heartbeat(request: RealtimeRoomHeartbeatCommand): Either[BattleRoomError, RealtimeRoomSnapshot] =
+    override def heartbeat(request: RealtimeRoomHeartbeatCommand): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
       heartbeatCommands = heartbeatCommands :+ request
-      Right(BattleContractFixtures.roomSnapshot(request.roomId.getOrElse(RoomId("room-1"))))
+      IO.pure(Right(BattleContractFixtures.roomSnapshot(request.roomId.getOrElse(RoomId("room-1")))))
 
-    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): Unit =
-      ()
+    override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] =
+      IO.unit
 
-    override def activeBattleSession(battleId: BattleId): Option[BattleSessionSeed] =
-      None
+    override def activeBattleSession(battleId: BattleId): IO[Option[BattleSessionSeed]] =
+      IO.pure(None)
 
 private[contract] object BattleStateHttp4sRouteContractTest:
   def run(): Unit =
@@ -402,12 +411,12 @@ private[contract] object BattleStateHttp4sRouteContractTest:
   private final class RecordingBattleStateService extends BattleStateService:
     var requestedBattleIds: Vector[BattleId] = Vector.empty
 
-    override def currentState(battleId: BattleId): Either[BattleStateReadError, BattleAggregateState] =
+    override def currentState(battleId: BattleId): IO[Either[BattleStateReadError, BattleAggregateState]] =
       requestedBattleIds = requestedBattleIds :+ battleId
-      Right(BattleContractFixtures.aggregateState(battleId))
+      IO.pure(Right(BattleContractFixtures.aggregateState(battleId)))
 
-    override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] =
-      Left(BattleCommandSubmitError.BattleNotFound)
+    override def acceptCommand(request: BattleCommandRequest): IO[Either[BattleCommandSubmitError, BattleCommandAccepted]] =
+      IO.pure(Left(BattleCommandSubmitError.BattleNotFound))
 
 private[contract] object BattleCommandHttp4sRouteContractTest:
   def run(): Unit =
@@ -447,12 +456,12 @@ private[contract] object BattleCommandHttp4sRouteContractTest:
   private final class RecordingBattleCommandStateService extends BattleStateService:
     var acceptedRequests: Vector[BattleCommandRequest] = Vector.empty
 
-    override def currentState(battleId: BattleId): Either[BattleStateReadError, BattleAggregateState] =
-      Right(BattleContractFixtures.aggregateState(battleId))
+    override def currentState(battleId: BattleId): IO[Either[BattleStateReadError, BattleAggregateState]] =
+      IO.pure(Right(BattleContractFixtures.aggregateState(battleId)))
 
-    override def acceptCommand(request: BattleCommandRequest): Either[BattleCommandSubmitError, BattleCommandAccepted] =
+    override def acceptCommand(request: BattleCommandRequest): IO[Either[BattleCommandSubmitError, BattleCommandAccepted]] =
       acceptedRequests = acceptedRequests :+ request
-      Right(
+      IO.pure(Right(
         BattleCommandAccepted(
           battleId = request.battleId,
           acceptedTick = request.clientTick,
@@ -462,7 +471,7 @@ private[contract] object BattleCommandHttp4sRouteContractTest:
           commandReason = None,
           outcomes = Vector.empty
         )
-      )
+      ))
 
 private[contract] object BattleResultHttp4sRouteContractTest:
   def run(): Unit =

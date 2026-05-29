@@ -5,21 +5,21 @@ import cats.effect.unsafe.implicits.global
 import cats.syntax.all.*
 
 import services.battle.objects.DurationMillis
-import services.battle.database.abilities.{BattlePickupRuleBook, BattleSkillRuleBook}
-import services.battle.database.abilities.{BattleAbilityRuleTable, BattleAbilityRuleTableInitializer}
-import services.battle.database.actors.BattleBotRuleBook
-import services.battle.database.actors.{BattleActorRuleTable, BattleActorRuleTableInitializer}
-import services.battle.database.runtime.BattleRuntimeRuleBook
-import services.battle.database.runtime.{BattleRuntimeRuleTable, BattleRuntimeRuleTableInitializer}
-import services.battle.database.world.BattleWorldRuleBook
-import services.battle.database.world.{BattleWorldRuleTable, BattleWorldRuleTableInitializer}
-import services.battle.database.results.BattleResultTableInitializer
+import services.battle.microservices.abilities.database.{BattlePickupRuleBook, BattleSkillRuleBook}
+import services.battle.microservices.abilities.database.{BattleAbilityRuleTable, BattleAbilityRuleTableInitializer}
+import services.battle.microservices.actors.database.BattleBotRuleBook
+import services.battle.microservices.actors.database.{BattleActorRuleTable, BattleActorRuleTableInitializer}
+import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.runtime.database.{BattleRuntimeRuleTable, BattleRuntimeRuleTableInitializer}
+import services.battle.microservices.world.database.BattleWorldRuleBook
+import services.battle.microservices.world.database.{BattleWorldRuleTable, BattleWorldRuleTableInitializer}
+import services.battle.microservices.results.database.BattleResultTableInitializer
 import services.battle.microservices.session.services.{
   BattleStateService,
   InMemoryBattleStateService
 }
-import services.battle.database.combat.BattleCombatRuleBook
-import services.battle.database.combat.{BattleCombatRuleTable, BattleCombatRuleTableInitializer}
+import services.battle.microservices.combat.database.BattleCombatRuleBook
+import services.battle.microservices.combat.database.{BattleCombatRuleTable, BattleCombatRuleTableInitializer}
 import services.battle.microservices.projections.services.{BattleMailPublisherPort, BattleReplayWriterPort, DefaultBattleFinishProjector}
 import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationService,
@@ -78,12 +78,12 @@ object BackendRuntime {
     val replayService = DefaultReplayService(repositories.replay, () => System.currentTimeMillis())
     val mailService = DefaultMailService(repositories.mail, () => System.currentTimeMillis())
     val battleReplayWriter = new BattleReplayWriterPort {
-      override def saveReplay(record: services.replay.objects.ReplayRecord): Unit =
-        repositories.replay.saveReplay(record)
+      override def saveReplay(record: services.replay.objects.ReplayRecord): IO[Unit] =
+        IO.blocking(repositories.replay.saveReplay(record)).map(_ => ())
     }
     val battleMailPublisher = new BattleMailPublisherPort {
-      override def publish(mail: services.mail.objects.MailRecord): Unit =
-        repositories.mail.save(mail)
+      override def publish(mail: services.mail.objects.MailRecord): IO[Unit] =
+        IO.blocking(repositories.mail.save(mail)).map(_ => ())
     }
     val battleFinishProjector = DefaultBattleFinishProjector(
       connectionSettings = battleConnection,

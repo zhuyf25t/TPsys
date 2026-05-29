@@ -2,11 +2,11 @@ package services.battle.microservices.runtime.services
 
 import services.battle.microservices.actors.services.BattlePlayerRuntimeRules
 import services.battle.microservices.combat.services.{BattleHeldFireRuntimeRules, BattleProjectileRuntimeRules, BattleWeaponFireRules, BattleWeaponRules}
-import services.battle.database.abilities.BattlePickupRuleBook
-import services.battle.database.runtime.BattleRuntimeRuleBook
+import services.battle.microservices.abilities.database.BattlePickupRuleBook
+import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
 import services.battle.objects.{BattleAggregateState, BattlePhase, BattleTick, ElapsedMillis, EpochMillis}
-import services.battle.objects.abilities.{BattlePickupRules, BattleSlowFieldRuntimeRules}
-import services.battle.objects.runtime.BattleTimeRules
+import services.battle.microservices.abilities.services.{BattlePickupRules, BattleSlowFieldRuntimeRules}
+import services.battle.microservices.runtime.services.BattleTimeRules
 
 private[battle] object BattleRuntimeStepRules {
   /** advanceStateStep: advances one fixed authoritative battle tick. */

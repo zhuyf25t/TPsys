@@ -1,15 +1,17 @@
 package services.bots.services
 
+import cats.effect.IO
+
 import services.bots.database.{BotProfileRepository, InMemoryBotProfileRepository}
 import services.bots.objects.{BotProfileRecord, DemoBotProfiles}
 
 trait BotProfileService {
-  def list(): Vector[BotProfileRecord]
+  def list(): IO[Vector[BotProfileRecord]]
 }
 
 final class DefaultBotProfileService(repository: BotProfileRepository) extends BotProfileService {
-  override def list(): Vector[BotProfileRecord] =
-    repository.list()
+  override def list(): IO[Vector[BotProfileRecord]] =
+    IO.blocking(repository.list())
 }
 
 object DefaultBotProfileService {
@@ -20,8 +22,8 @@ object DefaultBotProfileService {
 final class StaticBotProfileService(profiles: Vector[BotProfileRecord]) extends BotProfileService {
   private val repository = InMemoryBotProfileRepository(profiles)
 
-  override def list(): Vector[BotProfileRecord] =
-    repository.list()
+  override def list(): IO[Vector[BotProfileRecord]] =
+    IO.blocking(repository.list())
 }
 
 object StaticBotProfileService {

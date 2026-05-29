@@ -18,7 +18,7 @@ final case class ReplayCommentCreateAPIMessage(
   override def plan(service: ReplayService, connection: Connection): IO[ReplayCommentWrapperResponse] =
     for {
       parsedReplayId <- IO.fromEither(ReplayApiCodec.parseReplayId(replayId).left.map(ReplayAPIMessageSupport.recordDecodeError))
-      _ <- IO.blocking(service.load(parsedReplayId)).flatMap {
+      _ <- service.load(parsedReplayId).flatMap {
         case Some(value) =>
           IO.pure(value)
         case None =>
@@ -30,7 +30,7 @@ final case class ReplayCommentCreateAPIMessage(
           .left
           .map(ReplayAPIMessageSupport.commentDecodeError)
       )
-      comment <- IO.blocking(service.addComment(command)).flatMap {
+      comment <- service.addComment(command).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

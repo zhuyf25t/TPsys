@@ -1,18 +1,20 @@
 package services.battle.microservices.actors.services
 
 import services.battle.microservices.actors.services.BattleBotRules.*
-import services.battle.objects.world.BattleGeometry.*
+import services.battle.microservices.world.services.BattleGeometry.*
 import services.battle.microservices.world.services.BattleMotionRules.*
-import services.battle.objects.actors.BattlePlayerLifecycleRules.*
-import services.battle.objects.runtime.BattleTimeRules.*
-import services.battle.database.actors.BattleBotRuleBook
+import services.battle.microservices.actors.services.BattlePlayerLifecycleRules.*
+import services.battle.microservices.runtime.services.BattleTimeRules.*
+import services.battle.microservices.actors.database.BattleBotRuleBook
 import services.battle.microservices.combat.services.BattleWeaponRules.*
-import services.battle.database.world.BattleWorldRuleBook
+import services.battle.microservices.world.database.BattleWorldRuleBook
 import services.battle.microservices.world.services.BattleArenaCatalog
-import services.battle.objects.core.{BattleAggregateState, BattleWeaponHeat, CooldownMillis, DurationMillis, Stamina}
-import services.battle.objects.player.BattlePlayerState
-import services.battle.objects.skill.BattleSlowFieldState
-import services.battle.objects.weapon.{BattleWeaponState, BattleWeaponThermalState}
+import services.battle.microservices.combat.objects.weapon.BattleWeaponHeat
+import services.battle.objects.core.{BattleAggregateState, CooldownMillis, DurationMillis}
+import services.battle.microservices.actors.objects.player.Stamina
+import services.battle.microservices.actors.objects.player.BattlePlayerState
+import services.battle.microservices.abilities.objects.skill.BattleSlowFieldState
+import services.battle.microservices.combat.objects.weapon.{BattleWeaponState, BattleWeaponThermalState}
 
 private[battle] object BattlePlayerRuntimeRules {
   /** 中文名：推进players（advancePlayers）。游戏职责：在后端角色域中管理玩家、bot、输入和生命周期，决定战场实体如何行动�?*/

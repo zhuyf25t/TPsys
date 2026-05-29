@@ -17,13 +17,13 @@ final case class ReplayCommentsAPIMessage(
   override def plan(service: ReplayService, connection: Connection): IO[ReplayCommentsResponse] =
     for {
       parsedReplayId <- IO.fromEither(ReplayApiCodec.parseReplayId(replayId).left.map(ReplayAPIMessageSupport.recordDecodeError))
-      _ <- IO.blocking(service.load(parsedReplayId)).flatMap {
+      _ <- service.load(parsedReplayId).flatMap {
         case Some(value) =>
           IO.pure(value)
         case None =>
           IO.raiseError(ReplayAPIMessageSupport.error(ReplayApiErrorCode.ReplayNotFound))
       }
-      records <- IO.blocking(service.listComments(parsedReplayId, limit.getOrElse(25)))
+      records <- service.listComments(parsedReplayId, limit.getOrElse(25))
     } yield ReplayCommentsResponse(records.map(ReplayCommentResponse.fromRecord))
 }
 

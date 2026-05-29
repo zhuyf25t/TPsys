@@ -1,8 +1,7 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import services.battle.microservices.queue.objects.queue.*
 
-import services.battle.objects.RealtimeRoomHeartbeatCommand
 import services.battle.objects.core.EpochMillis
 import services.identity.objects.PlayerHandle
 import system.policies.HandlePolicy

@@ -1,9 +1,7 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
-
-import services.battle.objects.BattleQueueLeaveOutcome
-import services.battle.objects.core.{QueueRequestId, RoomId, TicketId}
+import services.battle.microservices.queue.objects.queue.*
+import services.battle.objects.core.RoomId
 
 private[battle] final case class BattleQueueLeaveTransition(
   rooms: Map[RoomId, QueueRoom],

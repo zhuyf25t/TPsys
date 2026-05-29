@@ -1,17 +1,17 @@
 package services.battle.microservices.combat.services
 
-import services.battle.objects.world.BattleGeometry.*
+import services.battle.microservices.world.services.BattleGeometry.*
 import services.battle.microservices.combat.services.BattleProjectileImpactRules.*
 import services.battle.microservices.world.services.{BattleArenaCatalog, BattleArenaCollision}
 import services.battle.microservices.world.services.BattleMotionRules
-import services.battle.objects.combat.BattleProjectileMotionRules.*
-import services.battle.objects.combat.BattleProjectileTargetingRules.*
-import services.battle.objects.runtime.BattleTimeRules.*
-import services.battle.database.runtime.BattleRuntimeRuleBook
-import services.battle.database.world.BattleWorldRuleBook
-import services.battle.objects.ProjectileTerminalReason
+import services.battle.microservices.combat.services.BattleProjectileMotionRules.*
+import services.battle.microservices.combat.services.BattleProjectileTargetingRules.*
+import services.battle.microservices.runtime.services.BattleTimeRules.*
+import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.world.database.BattleWorldRuleBook
+import services.battle.microservices.combat.objects.projectile.ProjectileTerminalReason
 import services.battle.objects.core.{BattleAggregateState, DurationMillis, Radius}
-import services.battle.objects.projectile.BattleProjectileState
+import services.battle.microservices.combat.objects.projectile.BattleProjectileState
 
 private[battle] object BattleProjectileRuntimeRules {
   private final case class ProjectileAdvance(

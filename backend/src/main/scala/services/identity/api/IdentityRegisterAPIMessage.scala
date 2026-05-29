@@ -20,7 +20,7 @@ final case class IdentityRegisterAPIMessage(
           .left
           .map(error => IdentityAPIMessageSupport.error(IdentityApiErrorCode.fromRegistrationParseError(error)))
       )
-      account <- IO.blocking(service.register(command)).flatMap {
+      account <- service.register(command).flatMap {
         case Right(value) =>
           IO.pure(value)
         case Left(error) =>

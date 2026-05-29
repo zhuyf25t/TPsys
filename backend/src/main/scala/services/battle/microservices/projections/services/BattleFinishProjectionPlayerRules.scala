@@ -1,6 +1,6 @@
 package services.battle.microservices.projections.services
 
-import services.battle.objects.BattlePlayerState
+import services.battle.microservices.actors.objects.player.BattlePlayerState
 import system.policies.HandlePolicy
 
 private[battle] object BattleFinishProjectionPlayerRules {

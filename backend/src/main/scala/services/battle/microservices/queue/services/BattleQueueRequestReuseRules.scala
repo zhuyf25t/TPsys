@@ -1,10 +1,11 @@
 package services.battle.microservices.queue.services
 
-import services.battle.objects.queue.*
+import BattleQueueSnapshots.toQueueSnapshot
+import services.battle.microservices.queue.objects.queue.*
 
 import services.battle.objects.BattleMode
-import services.battle.objects.core.{EpochMillis, QueueRequestId, RoomId, TicketId}
-import services.battle.objects.queue.BattleQueueSnapshot
+import services.battle.objects.core.{EpochMillis, RoomId}
+import services.battle.microservices.queue.objects.queue.BattleQueueSnapshot
 
 private[battle] final case class BattleQueueRequestReuseResult(
   snapshot: Option[BattleQueueSnapshot],
@@ -25,12 +26,28 @@ private[battle] object BattleQueueRequestReuseRules {
       case None =>
         BattleQueueRequestReuseResult(snapshot = None, queueRequests = queueRequests)
       case Some(ticketId) =>
-        val snapshot = BattleQueueTicketSnapshots
-          .snapshotForWaitingTicket(tickets, rooms, ticketId, now)
-          .filter(_.battleMode == battleMode)
+        val snapshot = waitingSnapshot(tickets, rooms, ticketId, now).filter(_.battleMode == battleMode)
         val nextQueueRequests =
           if snapshot.isEmpty then queueRequests.removed(queueRequestId)
           else queueRequests
         BattleQueueRequestReuseResult(snapshot = snapshot, queueRequests = nextQueueRequests)
+    }
+
+  private def waitingSnapshot(
+    tickets: Map[TicketId, TicketRecord],
+    rooms: Map[RoomId, QueueRoom],
+    ticketId: TicketId,
+    now: EpochMillis
+  ): Option[BattleQueueSnapshot] =
+    tickets.get(ticketId) match {
+      case None =>
+        None
+      case Some(record) =>
+        rooms.get(record.roomId).filter(_.isWaiting) match {
+          case None =>
+            None
+          case Some(room) =>
+            room.participants.find(_.ticketId == ticketId).map(entry => toQueueSnapshot(room, entry, now))
+        }
     }
 }

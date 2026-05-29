@@ -3,6 +3,7 @@ import normalHuntMapSpecJson from "../../../../../../shared/battle/maps/normal-h
 import winterHuntMapSpecJson from "../../../../../../shared/battle/maps/winter-hunt-v1.json";
 import type { BattleModeIdDto } from "../../../../objects/battle/contracts/apiMessages";
 import type { ItemPickup, PickupSpawnPoint, Vec2, WeaponPickup } from "../../../../objects/battle/types";
+import { NORMAL_BATTLE_MODE_LABEL } from "../../battleModeDisplayLabels";
 
 export type ArenaObstacleKind = "wall" | "crate" | "tree-trunk" | "building-wall" | "rock" | "logs" | "hay" | "stump";
 
@@ -438,7 +439,7 @@ export const BATTLE_PLAY_MODE_OPTIONS = [
   },
   {
     modeId: "normal",
-    label: "\u666e\u901a\u6a21\u5f0f",
+    label: NORMAL_BATTLE_MODE_LABEL,
     mapId: NORMAL_HUNT_BATTLE_MAP.mapId,
     mapLabel: "\u666e\u901a\u5730\u56fe"
   }

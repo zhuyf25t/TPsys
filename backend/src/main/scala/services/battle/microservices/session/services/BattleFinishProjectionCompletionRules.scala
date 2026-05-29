@@ -1,6 +1,6 @@
 package services.battle.microservices.session.services
 
-import services.battle.objects.result.BattleFinishProjectionOutcome
+import services.battle.microservices.results.objects.result.BattleFinishProjectionOutcome
 
 private[battle] object BattleFinishProjectionCompletionRules {
   /** 中文名：完成结束投影（complete）。游戏职责：把战�?回放生成结果写回 session 中保存的权威战斗状态�?*/

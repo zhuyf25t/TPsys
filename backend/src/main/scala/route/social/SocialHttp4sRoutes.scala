@@ -8,7 +8,6 @@ import org.http4s.{HttpRoutes, Method, Request, Response}
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
 import route.Http4sCors.corsNoContent
-import route.Http4sEffects.blocking
 import route.Http4sRequestDecoders.decodeEntityBody
 import route.Http4sRequestPaths.requestPath
 import route.Http4sResponses.{errorResponse, jsonOk}
@@ -63,7 +62,7 @@ private[route] object SocialHttp4sRoutes {
       case Left(error) =>
         errorResponse(ownerApiError(error))
       case Right(ownerHandle) =>
-        blocking(service.list(ownerHandle)).flatMap(records =>
+        service.list(ownerHandle).flatMap(records =>
           jsonOk(FriendRequestListResponse.fromRecords(records).asJson)
         )
     }
@@ -77,7 +76,7 @@ private[route] object SocialHttp4sRoutes {
           case Left(error) =>
             errorResponse(createApiError(error))
           case Right(command) =>
-            blocking(service.create(command.sourceHandle, command.targetHandle)).flatMap {
+            service.create(command.sourceHandle, command.targetHandle).flatMap {
               case Right(result) =>
                 jsonOk(FriendRequestCreateResponse.fromResult(result).asJson)
               case Left(error) =>
@@ -95,7 +94,7 @@ private[route] object SocialHttp4sRoutes {
           case Left(error) =>
             errorResponse(respondParseApiError(error))
           case Right(command) =>
-            blocking(service.respond(command.requestId, command.actorHandle, command.decision)).flatMap {
+            service.respond(command.requestId, command.actorHandle, command.decision).flatMap {
               case Right(result) =>
                 jsonOk(FriendRequestRespondResponse.fromResult(result).asJson)
               case Left(error) =>

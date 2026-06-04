@@ -1,11 +1,16 @@
 package services.battle.microservices.session.services
 
+import cats.effect.IO
+import cats.syntax.all.*
+
 import services.battle.microservices.runtime.services.BattleEngine
-import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.runtime.services.BattleDynamicRuleBook
+import services.battle.microservices.extraction.services.BattleExtractionInitialState
 import services.battle.objects.{BattleArtifactStatus, BattleMode, BattlePhase}
 import services.battle.microservices.abilities.objects.skill.SkillKind
 import services.battle.objects.core.{
   BattleAggregateState,
+  BattleMapId,
   BattleTick,
   BattleVector2,
   ClientCommandSeq,
@@ -22,24 +27,39 @@ import services.battle.microservices.actors.objects.player.{
   BattlePlayerLifeState,
   BattlePlayerSkillState,
   BattlePlayerState,
+  HitPoints,
   KillCount,
   Score
 }
+import services.battle.microservices.combat.objects.weapon.{BattleWeaponState, WeaponKind}
 import services.battle.microservices.queue.objects.queue.{BattleSessionBootstrapSeat, BattleSessionDescriptor}
 import services.identity.objects.DisplayName
 
 private[battle] object BattleSessionStateFactory {
+  private val WinterMapId = BattleMapId("winter-hunt-v1")
+  private val BossZombieHeroIds =
+    Set("bot-1", "bot-2", "bot-3").map(HeroId.apply)
+  private val BossZombieHpMultiplier = 3
+
   /** 中文名：创建initial状态（createInitialState）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   def createInitialState(
     seed: BattleSessionSeed,
     battleDuration: DurationMillis,
-    now: EpochMillis
-  ): BattleAggregateState = {
-    val mapId = BattleMode.mapId(seed.descriptor.battleMode)
-    BattleEngine.withMap(mapId) {
-      val startedAt = if seed.descriptor.startedAt.value > 0L then seed.descriptor.startedAt else now
-      val players = bootstrapSeats(seed.descriptor).map(toPlayerState)
-      val pickups = BattleEngine.initialPickups
+    now: EpochMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] = {
+    for
+      mapId <- battleMapId(seed.descriptor)
+      startedAt <- startedAtFor(seed.descriptor, now)
+      seats <- bootstrapSeats(seed.descriptor)
+      players <- seats.traverse(seat => toPlayerState(mapId, seat, battleRules))
+      pickups <- BattleEngine.initialPickups(mapId, battleRules)
+      worldSize <- BattleEngine.worldSize(mapId, battleRules)
+      gasZone <- BattleExtractionInitialState.gasZone(mapId, battleRules)
+      extraction <- BattleExtractionInitialState.extraction(mapId, battleRules)
+      lootCaches <- BattleExtractionInitialState.lootCaches(mapId, battleRules)
+      replayFrame <- BattleEngine.captureReplayFrame(ElapsedMillis(0L), players, Vector.empty, pickups)
+    yield
       BattleAggregateState(
         battleId = seed.descriptor.battleId,
         roomId = seed.roomId,
@@ -50,7 +70,7 @@ private[battle] object BattleSessionStateFactory {
         durationMs = battleDuration,
         elapsedMs = ElapsedMillis(0L),
         endsAt = EpochMillis(startedAt.value + battleDuration.value),
-        worldSize = BattleEngine.WorldSize,
+        worldSize = worldSize,
         tick = BattleTick(0L),
         artifactStatus = BattleArtifactStatus.Pending,
         players = players,
@@ -58,16 +78,24 @@ private[battle] object BattleSessionStateFactory {
         projectileTerminals = Vector.empty,
         slowFields = Vector.empty,
         pickups = pickups,
-        replayFrames = Vector(BattleEngine.captureReplayFrame(ElapsedMillis(0L), players, Vector.empty, pickups)),
+        gasZone = gasZone,
+        extraction = extraction,
+        lootCaches = lootCaches,
+        replayFrames = Vector(replayFrame),
         events = Vector.empty,
         winnerPlayerId = None,
         winnerHeroId = None
       )
-    }
   }
 
-  private def bootstrapSeats(descriptor: BattleSessionDescriptor): Vector[BattleSessionBootstrapSeat] =
-    descriptor.bootstrap.map(_.seats).getOrElse {
+  private def battleMapId(descriptor: BattleSessionDescriptor): IO[BattleMapId] =
+    IO.pure(BattleMode.mapId(descriptor.battleMode))
+
+  private def startedAtFor(descriptor: BattleSessionDescriptor, now: EpochMillis): IO[EpochMillis] =
+    IO.pure(if descriptor.startedAt.value > 0L then descriptor.startedAt else now)
+
+  private def bootstrapSeats(descriptor: BattleSessionDescriptor): IO[Vector[BattleSessionBootstrapSeat]] =
+    IO.pure(descriptor.bootstrap.map(_.seats).getOrElse {
       descriptor.roster.map { entry =>
         BattleSessionBootstrapSeat(
           seat = entry.seat,
@@ -83,20 +111,27 @@ private[battle] object BattleSessionStateFactory {
           skin = entry.skin
         )
       }
-    }.sortBy(_.seat.value)
+    }.sortBy(_.seat.value))
 
-  private def toPlayerState(seat: BattleSessionBootstrapSeat): BattlePlayerState = {
-    val playerRules = BattleRuntimeRuleBook.sessionPlayer
-    val weapon = BattleEngine.createWeaponState(playerRules.defaultWeaponKind)
-
-    BattlePlayerState(
+  private def toPlayerState(
+    mapId: BattleMapId,
+    seat: BattleSessionBootstrapSeat,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattlePlayerState] = {
+    for
+      playerRules <- battleRules.sessionPlayer
+      weapons <- initialWeaponLoadout(mapId, seat, playerRules.defaultWeaponKind, battleRules)
+      position <- BattleEngine.spawnPointFor(mapId, seat.spawnPointIndex, battleRules)
+      maxHp = maxHpForSeat(mapId, seat, playerRules.maxHp)
+      hp = if maxHp.value > playerRules.initialHp.value then maxHp else playerRules.initialHp
+    yield BattlePlayerState(
       playerId = seat.playerId,
       heroId = seat.heroId,
       handle = seat.handle,
       displayName = seat.displayName,
       seat = seat.seat,
       participantKind = seat.participantKind,
-      position = BattleEngine.spawnPointFor(seat.spawnPointIndex),
+      position = position,
       aim = BattleVector2(1.0, 0.0),
       facing = FacingRadians(0.0),
       movement = BattleEngine.ZeroVector,
@@ -105,10 +140,10 @@ private[battle] object BattleSessionStateFactory {
       reloadPressed = false,
       lastClientCommandSeq = ClientCommandSeq(0L),
       currentWeaponIndex = 0,
-      weapons = Vector(weapon),
-      currentWeaponKind = playerRules.defaultWeaponKind,
-      hp = playerRules.initialHp,
-      maxHp = playerRules.maxHp,
+      weapons = weapons,
+      currentWeaponKind = weapons.headOption.map(_.weaponKind).getOrElse(playerRules.defaultWeaponKind),
+      hp = hp,
+      maxHp = maxHp,
       stamina = playerRules.initialStamina,
       maxStamina = playerRules.maxStamina,
       score = Score(0),
@@ -116,9 +151,44 @@ private[battle] object BattleSessionStateFactory {
       skills = Vector(
         BattlePlayerSkillState(SkillKind.Blink, CooldownMillis(0), DurationMillis(0L)),
         BattlePlayerSkillState(SkillKind.Dash, CooldownMillis(0), DurationMillis(0L)),
-        BattlePlayerSkillState(SkillKind.Freeze, CooldownMillis(0), DurationMillis(0L))
+        BattlePlayerSkillState(SkillKind.Freeze, CooldownMillis(0), DurationMillis(0L)),
+        BattlePlayerSkillState(SkillKind.Critical, CooldownMillis(0), DurationMillis(0L))
       ),
       lifeState = BattlePlayerLifeState.Alive
     )
   }
+
+  private def maxHpForSeat(
+    mapId: BattleMapId,
+    seat: BattleSessionBootstrapSeat,
+    baseMaxHp: HitPoints
+  ): HitPoints =
+    if isWinterBossZombie(mapId, seat) then
+      HitPoints(baseMaxHp.value * BossZombieHpMultiplier)
+    else baseMaxHp
+
+  private def initialWeaponLoadout(
+    mapId: BattleMapId,
+    seat: BattleSessionBootstrapSeat,
+    defaultWeaponKind: WeaponKind,
+    battleRules: BattleDynamicRuleBook
+  ): IO[Vector[BattleWeaponState]] =
+    if isPlainWinterZombie(mapId, seat) then IO.pure(Vector.empty)
+    else BattleEngine.createWeaponState(defaultWeaponKind, battleRules).map(Vector(_))
+
+  private def isWinterBossZombie(
+    mapId: BattleMapId,
+    seat: BattleSessionBootstrapSeat
+  ): Boolean =
+    mapId == WinterMapId &&
+      seat.participantKind == BattleParticipantKind.Bot &&
+      BossZombieHeroIds.contains(seat.heroId)
+
+  private def isPlainWinterZombie(
+    mapId: BattleMapId,
+    seat: BattleSessionBootstrapSeat
+  ): Boolean =
+    mapId == WinterMapId &&
+      seat.participantKind == BattleParticipantKind.Bot &&
+      !BossZombieHeroIds.contains(seat.heroId)
 }

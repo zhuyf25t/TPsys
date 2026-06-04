@@ -1,18 +1,16 @@
-import type { GameSnapshot, Vec2 } from "../../../../../objects/battle/types";
-import { advanceCombatProjectiles, type CombatProjectileEffect } from "../../../local/combat/combatFrameController";
+import { advanceCombatProjectiles } from "../../../microservices/combat/functions/BattleProjectileImpactRules";
 import { createObstacleCollisionAdapter } from "../../../local/geometry/sceneGeometry";
-import type { ObstacleBounds } from "../arena/arenaBuilder";
-import { getFreezeSpeedMultiplier } from "../../../local/skills/freezeFieldController";
-
-export interface ProjectileFrameSceneBridgeOptions {
-  getSnapshot(): GameSnapshot;
-  getObstacleBounds(): readonly ObstacleBounds[];
-  presentEffect(effect: CombatProjectileEffect): void;
-}
+import { getFreezeSpeedMultiplier } from "../../../microservices/abilities/functions/BattleSlowFieldRuntimeRules";
+import { shouldRefreshProjectileFrameObstacleCollision } from "./functions/ProjectileFrameSceneBridgeRules";
+import type {
+  ProjectileFrameObstacleBounds,
+  ProjectileFrameObstacleCollision,
+  ProjectileFrameSceneBridgeOptions
+} from "./objects/ProjectileFrameSceneBridgeObjects";
 
 export class ProjectileFrameSceneBridge {
-  private obstacleBoundsRef: readonly ObstacleBounds[] | null = null;
-  private obstacleCollision: ((position: Vec2, radius: number) => boolean) | null = null;
+  private obstacleBoundsRef: ProjectileFrameObstacleBounds | null = null;
+  private obstacleCollision: ProjectileFrameObstacleCollision | null = null;
 
   public constructor(private readonly options: ProjectileFrameSceneBridgeOptions) {}
 
@@ -33,13 +31,21 @@ export class ProjectileFrameSceneBridge {
     snapshot.projectiles = result.nextProjectiles;
   }
 
-  private getObstacleCollision(): (position: Vec2, radius: number) => boolean {
+  private getObstacleCollision(): ProjectileFrameObstacleCollision {
     const obstacleBounds = this.options.getObstacleBounds();
-    if (this.obstacleCollision === null || this.obstacleBoundsRef !== obstacleBounds) {
-      this.obstacleBoundsRef = obstacleBounds;
-      this.obstacleCollision = createObstacleCollisionAdapter(obstacleBounds);
+    const cachedObstacleCollision = this.obstacleCollision;
+    const shouldRefresh = shouldRefreshProjectileFrameObstacleCollision({
+      cachedObstacleBounds: this.obstacleBoundsRef,
+      nextObstacleBounds: obstacleBounds,
+      cachedObstacleCollision
+    });
+    if (!shouldRefresh && cachedObstacleCollision) {
+      return cachedObstacleCollision;
     }
 
-    return this.obstacleCollision;
+    this.obstacleBoundsRef = obstacleBounds;
+    const obstacleCollision = createObstacleCollisionAdapter(obstacleBounds);
+    this.obstacleCollision = obstacleCollision;
+    return obstacleCollision;
   }
 }

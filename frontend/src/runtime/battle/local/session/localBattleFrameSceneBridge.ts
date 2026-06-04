@@ -1,20 +1,23 @@
-import type { GameSnapshot, Hero, PlayerCommand, Vec2 } from "../../../../objects/battle/types";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import type { BattlePlayerCommand as PlayerCommand } from "../../../../objects/battle/microservices/session/objects/command/BattlePlayerCommand";
 import {
   BASE_MOVE_SPEED,
   SPRINT_MULTIPLIER,
   STAMINA_DRAIN_PER_SECOND,
   STAMINA_RECOVER_PER_SECOND
-} from "../../game/constants";
+} from "../../game/objects/BattleGameConstants";
 import type { PlayerAbilitySceneBridge } from "../../game/renderer/effects/playerAbilitySceneBridge";
 import type { ProjectileFrameSceneBridge } from "../../game/renderer/effects/projectileFrameSceneBridge";
 import type { WeaponActionSceneBridge } from "../../game/renderer/effects/weaponActionSceneBridge";
 import type { BotFrameBridge } from "../../../bots/controller/botFrameBridge";
-import { advanceMovement } from "../movement/movementController";
+import { advanceMovement } from "../../microservices/actors/functions/BattlePlayerMovementRules";
 import type { PickupFrameBridge } from "../pickups/pickupFrameBridge";
-import { getFreezeSpeedMultiplier } from "../skills/freezeFieldController";
+import { getFreezeSpeedMultiplier } from "../../microservices/abilities/functions/BattleSlowFieldRuntimeRules";
 import { advanceHeroWeaponSkillTimers } from "../timers/heroWeaponSkillTimers";
 import type { WeaponSwitchStateBridge } from "../weapons/weaponSwitchStateBridge";
-import type { RespawnSceneBridge } from "./respawnSceneBridge";
+import { resolveBattlePlayerCommandAfterSkillInput } from "../../microservices/actors/functions/BattlePlayerInputRules";
 
 type FloatingTone = "success" | "neutral" | "warning" | "error";
 
@@ -26,7 +29,6 @@ export interface LocalBattleFrameSceneBridgeOptions {
   isPlayerMotionActive(): boolean;
   showFloatingText(position: Vec2, text: string, tone: FloatingTone): void;
   pickupFrameBridge: PickupFrameBridge;
-  respawnBridge: RespawnSceneBridge;
   playerAbilityBridge: PlayerAbilitySceneBridge;
   weaponActionBridge: WeaponActionSceneBridge;
   botFrameBridge: BotFrameBridge;
@@ -42,7 +44,6 @@ export class LocalBattleFrameSceneBridge {
 
   public update(command: PlayerCommand, deltaMs: number): void {
     this.options.pickupFrameBridge.updatePickupLifecycle(deltaMs);
-    this.options.respawnBridge.updateRespawnTimers(deltaMs);
     this.updateHeroStateTimers(deltaMs);
     this.options.syncPlayerHeroFromPhysics();
     this.updatePlayerMovement(command, deltaMs);
@@ -52,9 +53,7 @@ export class LocalBattleFrameSceneBridge {
     this.options.playerAbilityBridge.handleJumpAction(command, this.lastMoveDirection);
     this.handleWeaponSwitchAction(command);
     this.options.weaponActionBridge.handleWeaponFireAction(
-      !shouldSuppressPrimaryFireForSkill(command, preparedSkillBeforeSkillInputs)
-        ? command
-        : suppressPrimaryFire(command)
+      resolveBattlePlayerCommandAfterSkillInput(command, preparedSkillBeforeSkillInputs)
     );
     this.options.botFrameBridge.updateBotActions(deltaMs);
     this.options.projectileFrameBridge.updateProjectiles(deltaMs);
@@ -125,25 +124,4 @@ export class LocalBattleFrameSceneBridge {
       this.options.showFloatingText(player.position, "\u6b63\u5728\u5207\u67aa", "neutral");
     }
   }
-}
-
-function shouldSuppressPrimaryFireForSkill(command: PlayerCommand, preparedSkillBeforeSkillInputs: Hero["preparedSkill"]): boolean {
-  return (
-    preparedSkillBeforeSkillInputs !== null ||
-    command.castDash ||
-    command.toggleBlink ||
-    command.toggleFreeze
-  );
-}
-
-function suppressPrimaryFire(command: PlayerCommand): PlayerCommand {
-  if (!command.primaryHeld && !command.primaryJustPressed) {
-    return command;
-  }
-
-  return {
-    ...command,
-    primaryHeld: false,
-    primaryJustPressed: false
-  };
 }

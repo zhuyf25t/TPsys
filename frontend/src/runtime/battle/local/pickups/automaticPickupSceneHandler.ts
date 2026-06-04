@@ -1,5 +1,13 @@
-import type { Hero, ItemPickup, Vec2, WeaponPickup } from "../../../../objects/battle/types";
-import { applyAutomaticItemPickup, applyAutomaticWeaponPickup } from "./pickupController";
+import type { BattleItemPickupState as ItemPickup, BattleWeaponPickupState as WeaponPickup } from "../../../../objects/battle/microservices/abilities/objects/pickup/BattlePickupState";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import {
+  applyAutomaticItemPickup,
+  applyAutomaticWeaponPickup,
+  type AutomaticItemPickupResult,
+  type AutomaticWeaponPickupResult
+} from "../../microservices/abilities/functions/BattlePickupRules";
+import { getItemPickupDisplayLabel, getWeaponDisplayLabel } from "../../game/presenters/battleDisplayCatalog";
 
 export interface AutomaticPickupSceneCallbacks {
   showFloatingText(position: Vec2, text: string, tone: "success"): void;
@@ -25,7 +33,7 @@ export function handleAutomaticPickupScene(input: AutomaticPickupSceneInput): vo
   });
 
   if (weaponResult) {
-    presentWeaponPickupResult(input.player.position, weaponResult, input.callbacks);
+    presentWeaponPickupResult(input.player.position, weaponResult, input.player.displayName, input.callbacks);
   }
 
   const itemResult = applyAutomaticItemPickup({
@@ -36,25 +44,34 @@ export function handleAutomaticPickupScene(input: AutomaticPickupSceneInput): vo
   });
 
   if (itemResult) {
-    presentItemPickupResult(input.player.position, itemResult, input.callbacks);
+    presentItemPickupResult(input.player.position, itemResult, input.player.displayName, input.callbacks);
   }
 }
 
 function presentWeaponPickupResult(
   position: Vec2,
-  result: NonNullable<ReturnType<typeof applyAutomaticWeaponPickup>>,
+  result: AutomaticWeaponPickupResult,
+  playerDisplayName: string,
   callbacks: AutomaticPickupSceneCallbacks
 ): void {
-  callbacks.showFloatingText(position, result.presentation.floatingText, result.presentation.tone);
-  callbacks.pushEvent(result.event.type, result.event.message);
+  const weaponLabel = getWeaponDisplayLabel(result.weaponKind);
+  const floatingText = result.action === "refill" ? "\u83b7\u5f97\u6b66\u5668\u8865\u7ed9" : `\u83b7\u5f97 ${weaponLabel}`;
+
+  callbacks.showFloatingText(position, floatingText, "success");
+  callbacks.pushEvent("pickup", `${playerDisplayName} \u83b7\u5f97\u4e86${weaponLabel}`);
 }
 
 function presentItemPickupResult(
   position: Vec2,
-  result: NonNullable<ReturnType<typeof applyAutomaticItemPickup>>,
+  result: AutomaticItemPickupResult,
+  playerDisplayName: string,
   callbacks: AutomaticPickupSceneCallbacks
 ): void {
-  callbacks.createPulse(position, result.pulse.radius, result.pulse.color);
-  callbacks.showFloatingText(position, result.presentation.floatingText, result.presentation.tone);
-  callbacks.pushEvent(result.event.type, result.event.message);
+  const pickupLabel = getItemPickupDisplayLabel(result.kind);
+  const floatingText = result.wasFullHp ? "\u62a2\u5360\u533b\u7597\u5305" : "\u83b7\u5f97\u533b\u7597\u5305";
+  const actionText = result.wasFullHp ? "\u62a2\u5360\u4e86" : "\u62fe\u53d6\u4e86";
+
+  callbacks.createPulse(position, 40, 0x7bff9b);
+  callbacks.showFloatingText(position, floatingText, "success");
+  callbacks.pushEvent("heal", `${playerDisplayName} ${actionText}${pickupLabel}`);
 }

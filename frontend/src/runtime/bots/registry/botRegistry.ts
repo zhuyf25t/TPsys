@@ -17,71 +17,57 @@ export interface BotProfile {
   skin: BotSkinMetadata;
 }
 
+const ZOMBIE_BOT_SKIN: BotSkinMetadata = {
+  avatarKey: "zombie",
+  textureKey: "hero-zombie",
+  label: "Zombie"
+};
+
 const LOCAL_BOT_REGISTRY: readonly BotProfile[] = [
   {
     botId: "bot-1",
-    handle: "cpu-sable",
-    displayName: "Sable",
+    handle: "cpu-zombie-1",
+    displayName: "Zombie 1",
     initialRating: 1010,
     profileTone: "steady",
-    strategyLabel: "Anchor skirmisher",
-    skin: {
-      avatarKey: "survivor",
-      textureKey: "hero-survivor",
-      label: "Survivor"
-    }
+    strategyLabel: "Infected anchor",
+    skin: ZOMBIE_BOT_SKIN
   },
   {
     botId: "bot-2",
-    handle: "cpu-rivet",
-    displayName: "Rivet",
+    handle: "cpu-zombie-2",
+    displayName: "Zombie 2",
     initialRating: 990,
     profileTone: "scrappy",
-    strategyLabel: "Close-range looter",
-    skin: {
-      avatarKey: "soldier",
-      textureKey: "hero-soldier",
-      label: "Soldier"
-    }
+    strategyLabel: "Infected rush",
+    skin: ZOMBIE_BOT_SKIN
   },
   {
     botId: "bot-3",
-    handle: "cpu-ember",
-    displayName: "Ember",
+    handle: "cpu-zombie-3",
+    displayName: "Zombie 3",
     initialRating: 1040,
     profileTone: "aggressive",
-    strategyLabel: "Pressure duelist",
-    skin: {
-      avatarKey: "brown",
-      textureKey: "hero-brown",
-      label: "Brown jacket"
-    }
+    strategyLabel: "Infected pressure",
+    skin: ZOMBIE_BOT_SKIN
   },
   {
     botId: "bot-4",
-    handle: "cpu-orbit",
-    displayName: "Orbit",
+    handle: "cpu-zombie-4",
+    displayName: "Zombie 4",
     initialRating: 1025,
     profileTone: "patient",
-    strategyLabel: "Mid-range kiter",
-    skin: {
-      avatarKey: "old",
-      textureKey: "hero-old",
-      label: "Veteran"
-    }
+    strategyLabel: "Infected stalker",
+    skin: ZOMBIE_BOT_SKIN
   },
   {
     botId: "bot-5",
-    handle: "cpu-nova",
-    displayName: "Nova",
+    handle: "cpu-zombie-5",
+    displayName: "Zombie 5",
     initialRating: 980,
     profileTone: "opportunist",
-    strategyLabel: "Pickup chaser",
-    skin: {
-      avatarKey: "woman",
-      textureKey: "hero-woman",
-      label: "Runner"
-    }
+    strategyLabel: "Infected scavenger",
+    skin: ZOMBIE_BOT_SKIN
   }
 ] as const;
 
@@ -137,10 +123,6 @@ function toBotProfile(profile: RemoteBotProfile): BotProfile {
     initialRating: profile.initialRating,
     profileTone: profile.profileTone,
     strategyLabel: profile.strategyLabel,
-    skin: {
-      avatarKey: profile.skin.avatarKey,
-      textureKey: profile.skin.textureKey,
-      label: profile.skin.label
-    }
+    skin: ZOMBIE_BOT_SKIN
   };
 }

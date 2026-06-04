@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FLOOR_TILE_SIZE, INNER_OBSTACLES, WORLD_SIZE } from "../../../../runtime/battle/game/constants";
-import { ITEM_PICKUP_SPAWN_POINTS, WEAPON_PICKUP_SPAWN_POINTS } from "../../../../runtime/battle/game/spawn";
+import { FLOOR_TILE_SIZE, INNER_OBSTACLES, WORLD_SIZE } from "../../../../runtime/battle/game/objects/BattleGameConstants";
+import { ITEM_PICKUP_SPAWN_POINTS, WEAPON_PICKUP_SPAWN_POINTS } from "../../../../runtime/battle/game/functions/BattleSpawnFactory";
 import { buildReplayLiveTimeline, buildReplayRoomInsights, getReplayDisplayFrames } from "../../../../apis/replay/replayGateway";
 import { analyzeReplayFrameContinuity, hasMeaningfulReplayFrames } from "../../../../objects/replay/replayRecorder";
 import type { ReplayFrame, ReplayHeroFrame, ReplayPickupFrame, ReplayPlayback, ReplayProjectileFrame } from "../../../../objects/replay/replayTypes";
@@ -27,7 +27,7 @@ interface ReplayViewport {
   offsetY: number;
 }
 
-/** 中文名：回放viewer（ReplayViewer）。游戏职责：在前端回放域中组织回放帧、时间线和导出数据，复现战斗过程。 */
+/** Replay viewer. */
 export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const posterRef = useRef<HTMLImageElement | null>(null);
@@ -170,8 +170,8 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
               </div>
 
               <div className="replay-viewer__fallback-copy">
-                <div className="replay-viewer__eyebrow">{capturedFrameCount > 0 ? "仅摘要 / 关键帧" : "战报封面"}</div>
-                <p>{capturedFrameCount > 0 ? "当前只有少量关键帧，保留结算结果，不会伪装成完整逐帧回放。" : "当前没有逐帧数据，仅保留战报信息与封面。"}</p>
+                <div className="replay-viewer__eyebrow">{capturedFrameCount > 0 ? "\u4ec5\u6458\u8981 / \u5173\u952e\u5e27" : "\u6218\u62a5\u5c01\u9762"}</div>
+                <p>{capturedFrameCount > 0 ? "\u5f53\u524d\u53ea\u6709\u5c11\u91cf\u5173\u952e\u5e27\uff0c\u4fdd\u7559\u7ed3\u7b97\u7ed3\u679c\uff0c\u4e0d\u4f1a\u4f2a\u88c5\u6210\u5b8c\u6574\u9010\u5e27\u56de\u653e\u3002" : "\u5f53\u524d\u6ca1\u6709\u9010\u5e27\u6570\u636e\uff0c\u4ec5\u4fdd\u7559\u6218\u62a5\u4fe1\u606f\u4e0e\u5c01\u9762\u3002"}</p>
                 <div className="replay-viewer__chips">
                   <span className="pill">{replay.mapLabel}</span>
                   <span className="pill">{replay.modeLabel}</span>
@@ -190,8 +190,8 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
 
         {hasVisualReplay && sparseReplay ? (
           <div className="replay-viewer__sparse-banner">
-            <strong>关键帧模式</strong>
-            <span>帧数较少，画面会按现有帧插值播放。</span>
+            <strong>{"\u5173\u952e\u5e27\u6a21\u5f0f"}</strong>
+            <span>{"\u5e27\u6570\u8f83\u5c11\uff0c\u753b\u9762\u4f1a\u6309\u73b0\u6709\u5e27\u63d2\u503c\u64ad\u653e\u3002"}</span>
           </div>
         ) : null}
       </div>
@@ -200,16 +200,16 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
         <div className="replay-viewer__controls">
           {animatedReplay ? (
             <button type="button" className="button-link button-link--primary" onClick={togglePlayback}>
-              {playing ? "暂停" : "播放"}
+              {playing ? "\u6682\u505c" : "\u64ad\u653e"}
             </button>
           ) : (
-            <span className="pill">{playableReplay ? "关键帧预览" : "仅摘要"}</span>
+            <span className="pill">{playableReplay ? "\u5173\u952e\u5e27\u9884\u89c8" : "\u4ec5\u6458\u8981"}</span>
           )}
           <button type="button" className="button-link" onClick={resetPlayback}>
-            重播
+            {"\u91cd\u64ad"}
           </button>
           <label className="replay-viewer__seek">
-            <span>进度</span>
+            <span>{"\u8fdb\u5ea6"}</span>
             <input
               type="range"
               min={0}
@@ -225,17 +225,17 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
           <span className="replay-viewer__time">
             {formatTime(playheadMs)} / {formatTime(totalMs)}
           </span>
-          <span className="pill">关键帧 {displayFrames.length}</span>
+          <span className="pill">{"\u5173\u952e\u5e27 "}{displayFrames.length}</span>
         </div>
       ) : hasReplayFrames ? (
         <div className="replay-viewer__controls replay-viewer__controls--fallback">
-          <span className="pill">服务端关键帧 {displayFrames.length}</span>
-          <span className="pill">仅关键帧预览，不假装完整回放</span>
+          <span className="pill">{"\u670d\u52a1\u7aef\u5173\u952e\u5e27 "}{displayFrames.length}</span>
+          <span className="pill">{"\u4ec5\u5173\u952e\u5e27\u9884\u89c8\uff0c\u4e0d\u5047\u88c5\u5b8c\u6574\u56de\u653e"}</span>
         </div>
       ) : (
         <div className="replay-viewer__controls replay-viewer__controls--fallback">
-          <span className="pill">{capturedFrameCount > 0 ? `仅摘要 · ${capturedFrameCount} 帧` : "暂无可播放时间轴"}</span>
-          <span className="pill">请查看战报结算与评论</span>
+          <span className="pill">{capturedFrameCount > 0 ? `\u4ec5\u6458\u8981 \u00b7 ${capturedFrameCount} \u5e27` : "\u6682\u65e0\u53ef\u64ad\u653e\u65f6\u95f4\u8f74"}</span>
+          <span className="pill">{"\u8bf7\u67e5\u770b\u6218\u62a5\u7ed3\u7b97\u4e0e\u8bc4\u8bba"}</span>
         </div>
       )}
     </div>
@@ -798,10 +798,10 @@ function drawEmptyReplayState(context: CanvasRenderingContext2D, width: number, 
   context.fillRect(0, 0, width, height);
   context.fillStyle = "#f5e3b3";
   context.font = "700 16px ui-sans-serif, system-ui";
-  context.fillText("暂无逐帧画面", 28, height - 58);
+  context.fillText("\u6682\u65e0\u9010\u5e27\u753b\u9762", 28, height - 58);
   context.font = "12px ui-sans-serif, system-ui";
   context.fillStyle = "rgba(244, 231, 193, 0.78)";
-  context.fillText("保留战报结果、评论和本地反馈。", 28, height - 34);
+  context.fillText("\u4fdd\u7559\u6218\u62a5\u7ed3\u679c\u3001\u8bc4\u8bba\u548c\u672c\u5730\u53cd\u9988\u3002", 28, height - 34);
   context.restore();
 }
 

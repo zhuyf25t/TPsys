@@ -1,10 +1,10 @@
-import type { Hero } from "../../../../objects/battle/types";
-import { WEAPON_SWITCH_MS } from "../../game/constants";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import { WEAPON_SWITCH_MS } from "../../game/objects/BattleGameConstants";
 import {
   beginWeaponSwitchIndexTransaction,
   beginWeaponSwitchTransaction,
   type WeaponSwitchTransactionResult
-} from "./weaponController";
+} from "../../microservices/combat/functions/BattleWeaponSwitchRules";
 
 export interface WeaponSwitchStateSnapshot {
   pendingWeaponIndex: number | null;

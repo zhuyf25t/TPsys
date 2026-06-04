@@ -2,6 +2,8 @@ package services.battle.microservices.results.database
 
 import java.sql.{Connection, PreparedStatement, ResultSet, Types}
 
+import cats.effect.IO
+
 import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Rating, Score}
 import services.battle.objects.{
   BattleId,
@@ -23,6 +25,13 @@ import services.identity.objects.{DisplayName, PlayerHandle}
 import system.database.PostgresSupport
 
 object BattleResultTable {
+  private enum SqlBindingValue {
+    case Text(value: String)
+    case IntValue(value: Int)
+  }
+
+  private final case class IndexedSqlBinding(index: Int, value: SqlBindingValue)
+
   private val upsertSql: String =
     """INSERT INTO battle_results (
       |  result_id, battle_id, handle, display_name, finished_at, finished_at_label,
@@ -51,7 +60,7 @@ object BattleResultTable {
       |  timeline_hint = EXCLUDED.timeline_hint,
       |  current_loadout = EXCLUDED.current_loadout""".stripMargin
 
-  def save(connection: Connection, record: BattleResultRecord): BattleResultRecord = {
+  def save(connection: Connection, record: BattleResultRecord): IO[BattleResultRecord] = IO.blocking {
     PostgresSupport.withStatement(connection, upsertSql) { statement =>
       bindRecord(statement, record)
       statement.executeUpdate()
@@ -64,7 +73,7 @@ object BattleResultTable {
     handle: Option[PlayerHandle],
     battleId: Option[BattleId],
     limit: Int
-  ): Vector[BattleResultRecord] = {
+  ): IO[Vector[BattleResultRecord]] = IO.blocking {
     val conditions = Vector(
       handle.map(_ => "lower(handle) = lower(?)"),
       battleId.map(_ => "battle_id = ?")
@@ -82,18 +91,7 @@ object BattleResultTable {
     queryMany(
       connection,
       sql,
-      statement => {
-        var index = 1
-        handle.foreach { value =>
-          statement.setString(index, value.value.trim)
-          index += 1
-        }
-        battleId.foreach { value =>
-          statement.setString(index, value.value)
-          index += 1
-        }
-        statement.setInt(index, math.max(0, limit))
-      }
+      statement => bindListParameters(statement, handle, battleId, limit)
     )
   }
 
@@ -111,6 +109,41 @@ object BattleResultTable {
         }
         records.result()
       }
+    }
+
+  private def bindListParameters(
+    statement: PreparedStatement,
+    handle: Option[PlayerHandle],
+    battleId: Option[BattleId],
+    limit: Int
+  ): Unit =
+    listParameterBindings(handle, battleId, limit).foreach(bindSqlValue(statement, _))
+
+  private def listParameterBindings(
+    handle: Option[PlayerHandle],
+    battleId: Option[BattleId],
+    limit: Int
+  ): Vector[IndexedSqlBinding] =
+    listParameterValues(handle, battleId, limit).zipWithIndex.map { case (value, offset) =>
+      IndexedSqlBinding(index = offset + 1, value = value)
+    }
+
+  private def listParameterValues(
+    handle: Option[PlayerHandle],
+    battleId: Option[BattleId],
+    limit: Int
+  ): Vector[SqlBindingValue] =
+    Vector(
+      handle.map(value => SqlBindingValue.Text(value.value.trim)),
+      battleId.map(value => SqlBindingValue.Text(value.value))
+    ).flatten :+ SqlBindingValue.IntValue(math.max(0, limit))
+
+  private def bindSqlValue(statement: PreparedStatement, binding: IndexedSqlBinding): Unit =
+    binding.value match {
+      case SqlBindingValue.Text(value) =>
+        statement.setString(binding.index, value)
+      case SqlBindingValue.IntValue(value) =>
+        statement.setInt(binding.index, value)
     }
 
   private def bindRecord(statement: PreparedStatement, record: BattleResultRecord): Unit = {

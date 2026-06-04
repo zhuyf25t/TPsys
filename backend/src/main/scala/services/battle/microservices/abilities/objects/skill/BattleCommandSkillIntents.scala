@@ -24,13 +24,15 @@ object BattleCommandSkillIntents {
   def fromLegacyFlags(
     castDash: Boolean,
     castBlink: Boolean,
-    castFreeze: Boolean
+    castFreeze: Boolean,
+    castCritical: Boolean = false
   ): BattleCommandSkillIntents =
     BattleCommandSkillIntents(
       Vector(
         Option.when(castBlink)(SkillKind.Blink),
         Option.when(castDash)(SkillKind.Dash),
-        Option.when(castFreeze)(SkillKind.Freeze)
+        Option.when(castFreeze)(SkillKind.Freeze),
+        Option.when(castCritical)(SkillKind.Critical)
       ).flatten
     )
 }

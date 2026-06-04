@@ -1,35 +1,35 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT_DIR = join(fileURLToPath(new URL("..", import.meta.url)));
 const PATHS = {
-  frontendMap: join(ROOT_DIR, "frontend", "src", "game", "battleMapCatalog.ts"),
-  frontendContent: join(ROOT_DIR, "frontend", "src", "game", "battleContentCatalog.ts"),
-  backendRuntime: join(
+  frontendWeapons: join(
     ROOT_DIR,
-    "backend",
+    "frontend",
     "src",
-    "main",
-    "scala",
-    "slaydemo",
-    "backend",
+    "objects",
     "battle",
-    "services",
-    "BattleStateService.scala"
+    "microservices",
+    "combat",
+    "objects",
+    "combat",
+    "BattleCombatRuleDefinitions.ts"
   ),
-  backendCatalog: join(
+  frontendSkills: join(
     ROOT_DIR,
-    "backend",
+    "frontend",
     "src",
-    "main",
-    "scala",
-    "slaydemo",
-    "backend",
+    "objects",
     "battle",
-    "services",
-    "InMemoryBattleStateCatalog.scala"
+    "microservices",
+    "abilities",
+    "objects",
+    "abilities",
+    "BattleAbilityRuleDefinitions.ts"
   ),
+  backendDefaults: join(ROOT_DIR, "backend", "src", "test", "scala", "services", "battle", "BattleDynamicRuleTestDefaults.scala"),
+  sharedMaps: join(ROOT_DIR, "shared", "battle", "maps")
 };
 
 const WEAPON_FIELDS = [
@@ -41,7 +41,7 @@ const WEAPON_FIELDS = [
   "projectileLifetimeMs",
   "projectileRadius",
   "splashRadius",
-  "pellets",
+  "projectileCount",
   "spreadRadians",
   "magazineSize",
   "reserveAmmo",
@@ -51,8 +51,9 @@ const WEAPON_FIELDS = [
   "maxHeat",
   "heatPerShot",
   "coolRatePerSecond",
-  "overheatLockMs",
+  "overheatLockMs"
 ];
+
 const SKILL_FIELDS = [
   "skillKind",
   "activationKind",
@@ -63,31 +64,47 @@ const SKILL_FIELDS = [
   "radius",
   "durationMs",
   "distance",
-  "speedMultiplier",
+  "speedMultiplier"
 ];
 
-const sources = Object.fromEntries(Object.entries(PATHS).map(([key, path]) => [key, readFileSync(path, "utf8")]));
+const PROJECTILE_KIND_WIRE = {
+  PistolBullet: "pistol-bullet",
+  Rocket: "rocket",
+  GatlingBullet: "gatling-bullet",
+  ShotgunPellet: "shotgun-pellet"
+};
+
+const sources = Object.fromEntries(
+  Object.entries(PATHS)
+    .filter(([, path]) => !path.endsWith("maps"))
+    .map(([key, path]) => [key, readFileSync(path, "utf8")])
+);
+
 const frontend = {
-  defaultMap: parseFrontendMapCatalog(sources.frontendMap),
-  weaponDefinitions: parseFrontendWeaponDefinitions(sources.frontendContent),
-  skillDefinitions: parseFrontendSkillDefinitions(sources.frontendContent),
+  weaponDefinitions: parseFrontendDefinitions(sources.frontendWeapons, "WEAPON_DEFINITIONS", WEAPON_FIELDS),
+  skillDefinitions: parseFrontendDefinitions(sources.frontendSkills, "SKILL_DEFINITIONS", SKILL_FIELDS)
 };
+
 const backend = {
-  defaultMap: parseBackendRuntimeMapCatalog(combinedBackendBattleSource()),
-  weaponDefinitions: parseBackendRuntimeWeaponDefinitions(combinedBackendBattleSource()),
-  skillDefinitions: parseBackendRuntimeSkillDefinitions(combinedBackendBattleSource()),
+  weaponDefinitions: parseBackendWeaponDefinitions(sources.backendDefaults),
+  skillDefinitions: parseBackendSkillDefinitions(sources.backendDefaults)
 };
+
+const sharedMaps = loadSharedMaps(PATHS.sharedMaps);
 
 const failures = [];
 pushNonEmptyRecordFailure("frontend weaponDefinitions", frontend.weaponDefinitions, failures);
 pushNonEmptyRecordFailure("backend weaponDefinitions", backend.weaponDefinitions, failures);
 pushNonEmptyRecordFailure("frontend skillDefinitions", frontend.skillDefinitions, failures);
 pushNonEmptyRecordFailure("backend skillDefinitions", backend.skillDefinitions, failures);
-compareValues("defaultMap", frontend.defaultMap, backend.defaultMap, failures);
+pushNonEmptyRecordFailure("shared battle maps", Object.fromEntries(sharedMaps.map((map) => [map.mapId, map])), failures);
 compareValues("weaponDefinitions", frontend.weaponDefinitions, backend.weaponDefinitions, failures);
 compareValues("skillDefinitions", frontend.skillDefinitions, backend.skillDefinitions, failures);
-validateBattleContent("frontend", frontend, failures);
-validateBattleContent("backend", backend, failures);
+validateWeaponDefinitions("frontend.weaponDefinitions", frontend.weaponDefinitions, failures);
+validateWeaponDefinitions("backend.weaponDefinitions", backend.weaponDefinitions, failures);
+validateSkillDefinitions("frontend.skillDefinitions", frontend.skillDefinitions, failures);
+validateSkillDefinitions("backend.skillDefinitions", backend.skillDefinitions, failures);
+sharedMaps.forEach((map) => validateSharedMap(`sharedMaps.${map.mapId}`, map, frontend.weaponDefinitions, failures));
 
 if (failures.length > 0) {
   console.error("Battle content contract audit failed:");
@@ -97,86 +114,191 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log("Battle content contract audit passed.");
-  console.log(`Default map: ${frontend.defaultMap.mapId}`);
-  console.log(`Hero spawn points: ${frontend.defaultMap.heroSpawnPoints.length}`);
-  console.log(`Inner obstacles: ${frontend.defaultMap.innerObstacles.length}`);
-  console.log(`Weapon pickups: ${frontend.defaultMap.weaponPickupDefinitions.length}`);
-  console.log(`Item pickups: ${frontend.defaultMap.itemPickupDefinitions.length}`);
+  console.log(`Shared maps: ${sharedMaps.length} (${sharedMaps.map((map) => map.mapId).sort().join(", ")})`);
   console.log(`Weapon definitions: ${Object.keys(frontend.weaponDefinitions).length} (${Object.keys(frontend.weaponDefinitions).sort().join(", ")})`);
-  console.log(`Skill definitions: ${Object.keys(frontend.skillDefinitions).length}`);
+  console.log(`Skill definitions: ${Object.keys(frontend.skillDefinitions).length} (${Object.keys(frontend.skillDefinitions).sort().join(", ")})`);
 }
 
-function pushNonEmptyRecordFailure(label, record, target) {
-  if (Object.keys(record).length === 0) {
-    target.push(`${label} must not be empty.`);
+function parseFrontendDefinitions(source, constName, fields) {
+  const record = extractTsObjectRecord(extractTsConstObject(source, constName));
+  const definitions = {};
+
+  for (const [key, block] of record.entries()) {
+    definitions[key] = Object.fromEntries(fields.map((fieldName) => [fieldName, readTsOptionalScalarField(block, fieldName)]));
   }
+
+  return definitions;
 }
 
-function combinedBackendBattleSource() {
-  return `${sources.backendCatalog}\n${sources.backendRuntime}`;
+function parseBackendWeaponDefinitions(source) {
+  const vectorBody = extractScalaDeclaredVector(source, /\bprivate\s+val\s+weaponRules\b/, "weaponRules");
+  const calls = extractScalaCalls(vectorBody, "weaponRule");
+  const definitions = {};
+
+  for (const call of calls) {
+    const args = parseScalaNamedArgs(call);
+    const weaponKind = readScalaEnum(args.get("weaponKind"), "WeaponKind");
+    const heat = parseHeatDefinition(args.get("heat"));
+    definitions[weaponKind] = {
+      projectileKind: PROJECTILE_KIND_WIRE[readScalaEnum(args.get("projectileKind"), "ProjectileKind")],
+      cooldownMs: readScalaNumberValue(args.get("cooldownMs")),
+      reloadMs: readScalaNumberValue(args.get("reloadMs")),
+      projectileSpeedPerSecond: readScalaNumberValue(args.get("speed")),
+      projectileDamage: readScalaNumberValue(args.get("damage")),
+      projectileLifetimeMs: readScalaNumberValue(args.get("lifetimeMs")),
+      projectileRadius: readScalaNumberValue(args.get("projectileRadius")),
+      splashRadius: readScalaNumberValue(args.get("splashRadius")),
+      projectileCount: readScalaNumberValue(args.get("projectileCount")),
+      spreadRadians: readScalaNumberValue(args.get("spread")),
+      magazineSize: readScalaNumberValue(args.get("magazineSize")),
+      reserveAmmo: readScalaOptionNumber(args.get("reserveAmmo")),
+      pickupAmmo: readScalaNumberValue(args.get("pickupAmmo")),
+      recoilStrength: readScalaNumberValue(args.get("recoilStrength")),
+      usesHeat: heat !== null,
+      maxHeat: heat?.maxHeat ?? 0,
+      heatPerShot: heat?.heatPerShot ?? 0,
+      coolRatePerSecond: heat?.coolRatePerSecond ?? 0,
+      overheatLockMs: heat?.overheatLockMs ?? 0
+    };
+  }
+
+  return definitions;
 }
 
-function validateBattleContent(prefix, content, target) {
-  validateMap(`${prefix}.defaultMap`, content.defaultMap, content.weaponDefinitions, target);
-  validateWeaponDefinitions(`${prefix}.weaponDefinitions`, content.weaponDefinitions, target);
-  validateSkillDefinitions(`${prefix}.skillDefinitions`, content.skillDefinitions, target);
+function parseBackendSkillDefinitions(source) {
+  const skillRules = extractScalaCallAfter(source, "BattleSkillRuleSet", source.indexOf("private val skillRules"));
+  const args = parseScalaNamedArgs(skillRules);
+  const blink = parseSkillConfig(args.get("blink"), "BlinkConfig");
+  const dash = parseSkillConfig(args.get("dash"), "DashConfig");
+  const freeze = parseSkillConfig(args.get("freeze"), "FreezeConfig");
+  const critical = parseSkillConfig(args.get("critical"), "CriticalConfig");
+  const speedMultiplier = readScalaWrappedNumberAfter(source, "slowFieldMovementFactor", "BattleSlowFactor");
+
+  return {
+    Blink: {
+      skillKind: "Blink",
+      activationKind: "prepared-target",
+      effectType: "teleport",
+      cooldownMs: blink.cooldownMs,
+      activeMs: blink.activeMs,
+      range: blink.range,
+      radius: null,
+      durationMs: null,
+      distance: null,
+      speedMultiplier: null
+    },
+    Dash: {
+      skillKind: "Dash",
+      activationKind: "instant",
+      effectType: "dash",
+      cooldownMs: dash.cooldownMs,
+      activeMs: dash.activeMs,
+      range: null,
+      radius: null,
+      durationMs: null,
+      distance: dash.distance,
+      speedMultiplier: null
+    },
+    Freeze: {
+      skillKind: "Freeze",
+      activationKind: "prepared-target",
+      effectType: "slow-field",
+      cooldownMs: freeze.cooldownMs,
+      activeMs: freeze.activeMs,
+      range: freeze.castRange,
+      radius: freeze.radius,
+      durationMs: freeze.activeMs,
+      distance: null,
+      speedMultiplier
+    },
+    Critical: {
+      skillKind: "Critical",
+      activationKind: "instant",
+      effectType: "damage-boost",
+      cooldownMs: critical.cooldownMs,
+      activeMs: critical.activeMs,
+      range: null,
+      radius: null,
+      durationMs: critical.activeMs,
+      distance: null,
+      speedMultiplier: null
+    }
+  };
 }
 
-function validateMap(path, map, weaponDefinitions, target) {
+function parseSkillConfig(rawValue, callName) {
+  const body = extractScalaCall(rawValue, callName);
+  const args = parseScalaNamedArgs(body);
+  const runtime = parseRuntime(args.get("runtime"));
+  return {
+    range: args.has("range") ? readScalaWrappedNumber(args.get("range"), "SkillDistance") : null,
+    distance: args.has("distance") ? readScalaWrappedNumber(args.get("distance"), "SkillDistance") : null,
+    radius: args.has("radius") ? readScalaWrappedNumber(args.get("radius"), "Radius") : null,
+    castRange: args.has("castRange") ? readScalaWrappedNumber(args.get("castRange"), "SkillDistance") : null,
+    ...runtime
+  };
+}
+
+function parseRuntime(rawValue) {
+  const body = extractScalaCall(rawValue, "BattleSkillRuntime");
+  const args = splitTopLevel(body, ",");
+  return {
+    cooldownMs: readScalaWrappedNumber(args[0], "CooldownMillis"),
+    activeMs: readScalaWrappedNumber(args[1], "DurationMillis")
+  };
+}
+
+function parseHeatDefinition(rawValue) {
+  const value = (rawValue ?? "None").trim();
+  if (value === "None") {
+    return null;
+  }
+
+  const body = extractScalaCall(value.slice("Some(".length, -1), "BattleWeaponHeatDefinition");
+  const args = parseScalaNamedArgs(body);
+  return {
+    maxHeat: readScalaWrappedNumber(args.get("maxHeat"), "BattleWeaponHeat"),
+    heatPerShot: readScalaWrappedNumber(args.get("heatPerShot"), "BattleWeaponHeat"),
+    coolRatePerSecond: readScalaWrappedNumber(args.get("coolRatePerSecond"), "BattleWeaponHeatRatePerSecond"),
+    overheatLockMs: readScalaWrappedNumber(args.get("overheatLockMs"), "CooldownMillis")
+  };
+}
+
+function loadSharedMaps(directory) {
+  return readdirSync(directory)
+    .filter((fileName) => fileName.endsWith(".json"))
+    .sort()
+    .map((fileName) => JSON.parse(readFileSync(join(directory, fileName), "utf8")));
+}
+
+function validateSharedMap(path, map, weaponDefinitions, target) {
   assertNonEmptyString(`${path}.mapId`, map.mapId, target);
   assertNonEmptyString(`${path}.themeId`, map.themeId, target);
   assertPositiveNumber(`${path}.worldSize.x`, map.worldSize?.x, target);
   assertPositiveNumber(`${path}.worldSize.y`, map.worldSize?.y, target);
+  assertArray(`${path}.heroDefinitions`, map.heroDefinitions, target);
+  assertArray(`${path}.weaponPickups`, map.weaponPickups, target);
+  assertArray(`${path}.itemPickups`, map.itemPickups, target);
 
-  if (map.heroSpawnPoints.length < 2) {
-    target.push(`${path}.heroSpawnPoints.length: expected at least 2, got ${map.heroSpawnPoints.length}`);
+  for (const [index, hero] of (map.heroDefinitions ?? []).entries()) {
+    assertPointInWorld(`${path}.heroDefinitions[${index}].position`, hero.position, map.worldSize, target);
   }
-  map.heroSpawnPoints.forEach((spawnPoint, index) => {
-    assertPointInWorld(`${path}.heroSpawnPoints[${index}]`, spawnPoint, map.worldSize, target);
-  });
 
-  assertUniqueNonEmptyStrings(
-    `${path}.innerObstacles`,
-    map.innerObstacles.map((obstacle) => obstacle.obstacleId),
-    "obstacleId",
-    target
-  );
-  map.innerObstacles.forEach((obstacle, index) => {
-    const obstaclePath = `${path}.innerObstacles[${index}]`;
-    assertPositiveNumber(`${obstaclePath}.size.x`, obstacle.size?.x, target);
-    assertPositiveNumber(`${obstaclePath}.size.y`, obstacle.size?.y, target);
-    assertRectInWorld(obstaclePath, obstacle.position, obstacle.size, map.worldSize, target);
-  });
-
-  assertUniqueNonEmptyStrings(
-    `${path}.weaponPickupDefinitions`,
-    map.weaponPickupDefinitions.map((pickup) => pickup.pickupId),
-    "pickupId",
-    target
-  );
-  map.weaponPickupDefinitions.forEach((pickup, index) => {
-    const pickupPath = `${path}.weaponPickupDefinitions[${index}]`;
-    assertPointInWorld(`${pickupPath}.position`, pickup.position, map.worldSize, target);
-    assertNonEmptyString(`${pickupPath}.weaponKind`, pickup.weaponKind, target);
+  for (const [index, pickup] of (map.weaponPickups ?? []).entries()) {
+    assertNonEmptyString(`${path}.weaponPickups[${index}].pickupId`, pickup.pickupId, target);
+    assertPointInWorld(`${path}.weaponPickups[${index}].position`, pickup.position, map.worldSize, target);
     if (!Object.hasOwn(weaponDefinitions, pickup.weaponKind)) {
-      target.push(`${pickupPath}.weaponKind: missing weapon definition for ${formatValue(pickup.weaponKind)}`);
+      target.push(`${path}.weaponPickups[${index}].weaponKind: missing weapon definition for ${formatValue(pickup.weaponKind)}`);
     }
-  });
+  }
 
-  assertUniqueNonEmptyStrings(
-    `${path}.itemPickupDefinitions`,
-    map.itemPickupDefinitions.map((pickup) => pickup.pickupId),
-    "pickupId",
-    target
-  );
-  map.itemPickupDefinitions.forEach((pickup, index) => {
-    const pickupPath = `${path}.itemPickupDefinitions[${index}]`;
-    assertPointInWorld(`${pickupPath}.position`, pickup.position, map.worldSize, target);
-    assertNonEmptyString(`${pickupPath}.kind`, pickup.kind, target);
+  for (const [index, pickup] of (map.itemPickups ?? []).entries()) {
+    assertNonEmptyString(`${path}.itemPickups[${index}].pickupId`, pickup.pickupId, target);
+    assertPointInWorld(`${path}.itemPickups[${index}].position`, pickup.position, map.worldSize, target);
     if (pickup.kind !== "Medkit") {
-      target.push(`${pickupPath}.kind: unsupported item pickup kind ${formatValue(pickup.kind)}`);
+      target.push(`${path}.itemPickups[${index}].kind: unsupported item pickup kind ${formatValue(pickup.kind)}`);
     }
-  });
+  }
 }
 
 function validateWeaponDefinitions(path, weaponDefinitions, target) {
@@ -190,7 +312,7 @@ function validateWeaponDefinitions(path, weaponDefinitions, target) {
     assertPositiveNumber(`${definitionPath}.projectileLifetimeMs`, definition.projectileLifetimeMs, target);
     assertPositiveNumber(`${definitionPath}.projectileRadius`, definition.projectileRadius, target);
     assertNonNegativeNumber(`${definitionPath}.splashRadius`, definition.splashRadius, target);
-    assertPositiveNumber(`${definitionPath}.pellets`, definition.pellets, target);
+    assertPositiveNumber(`${definitionPath}.projectileCount`, definition.projectileCount, target);
     assertNonNegativeNumber(`${definitionPath}.spreadRadians`, definition.spreadRadians, target);
     assertNonNegativeNumber(`${definitionPath}.magazineSize`, definition.magazineSize, target);
     assertNonNegativeNumber(`${definitionPath}.reserveAmmo`, definition.reserveAmmo, target);
@@ -201,13 +323,6 @@ function validateWeaponDefinitions(path, weaponDefinitions, target) {
     assertNonNegativeNumber(`${definitionPath}.heatPerShot`, definition.heatPerShot, target);
     assertNonNegativeNumber(`${definitionPath}.coolRatePerSecond`, definition.coolRatePerSecond, target);
     assertNonNegativeNumber(`${definitionPath}.overheatLockMs`, definition.overheatLockMs, target);
-
-    if (definition.usesHeat) {
-      assertPositiveNumber(`${definitionPath}.maxHeat`, definition.maxHeat, target);
-      assertPositiveNumber(`${definitionPath}.heatPerShot`, definition.heatPerShot, target);
-      assertPositiveNumber(`${definitionPath}.coolRatePerSecond`, definition.coolRatePerSecond, target);
-      assertPositiveNumber(`${definitionPath}.overheatLockMs`, definition.overheatLockMs, target);
-    }
   }
 }
 
@@ -221,60 +336,18 @@ function validateSkillDefinitions(path, skillDefinitions, target) {
     assertNonEmptyString(`${definitionPath}.effectType`, definition.effectType, target);
     assertNonNegativeNumber(`${definitionPath}.cooldownMs`, definition.cooldownMs, target);
     assertNonNegativeNumber(`${definitionPath}.activeMs`, definition.activeMs, target);
-
-    if (definition.effectType === "teleport") {
-      assertEquals(`${definitionPath}.activationKind`, definition.activationKind, "prepared-target", target);
-      assertPositiveNumber(`${definitionPath}.range`, definition.range, target);
-    } else if (definition.effectType === "dash") {
-      assertEquals(`${definitionPath}.activationKind`, definition.activationKind, "instant", target);
-      assertPositiveNumber(`${definitionPath}.distance`, definition.distance, target);
-    } else if (definition.effectType === "slow-field") {
-      assertEquals(`${definitionPath}.activationKind`, definition.activationKind, "prepared-target", target);
-      assertPositiveNumber(`${definitionPath}.range`, definition.range, target);
-      assertPositiveNumber(`${definitionPath}.radius`, definition.radius, target);
-      assertPositiveNumber(`${definitionPath}.durationMs`, definition.durationMs, target);
-      assertPositiveNumber(`${definitionPath}.speedMultiplier`, definition.speedMultiplier, target);
-    } else {
-      target.push(`${definitionPath}.effectType: unsupported effect type ${formatValue(definition.effectType)}`);
-    }
   }
 }
 
-function assertUniqueNonEmptyStrings(path, values, fieldName, target) {
-  const seen = new Map();
-  values.forEach((value, index) => {
-    const valuePath = `${path}[${index}].${fieldName}`;
-    assertNonEmptyString(valuePath, value, target);
-    if (typeof value !== "string" || value.trim() === "") {
-      return;
-    }
-    if (seen.has(value)) {
-      target.push(`${valuePath}: duplicate value ${formatValue(value)} first seen at ${path}[${seen.get(value)}].${fieldName}`);
-    } else {
-      seen.set(value, index);
-    }
-  });
+function pushNonEmptyRecordFailure(label, record, target) {
+  if (Object.keys(record).length === 0) {
+    target.push(`${label} must not be empty.`);
+  }
 }
 
-function assertRectInWorld(path, position, size, worldSize, target) {
-  assertPointInWorld(`${path}.position`, position, worldSize, target);
-  if (
-    !isFiniteNumber(position?.x) ||
-    !isFiniteNumber(position?.y) ||
-    !isFiniteNumber(size?.x) ||
-    !isFiniteNumber(size?.y) ||
-    !isFiniteNumber(worldSize?.x) ||
-    !isFiniteNumber(worldSize?.y)
-  ) {
-    return;
-  }
-
-  const minX = position.x - size.x / 2;
-  const maxX = position.x + size.x / 2;
-  const minY = position.y - size.y / 2;
-  const maxY = position.y + size.y / 2;
-  if (minX < 0 || maxX > worldSize.x || minY < 0 || maxY > worldSize.y) {
-    target.push(`${path}: obstacle bounds ${formatValue({ minX, maxX, minY, maxY })} exceed worldSize ${formatValue(worldSize)}`);
+function assertArray(path, value, target) {
+  if (!Array.isArray(value) || value.length === 0) {
+    target.push(`${path}: expected non-empty array, got ${formatValue(value)}`);
   }
 }
 
@@ -289,12 +362,6 @@ function assertPointInWorld(path, point, worldSize, target) {
   }
   if (point.y < 0 || point.y > worldSize.y) {
     target.push(`${path}.y: expected within [0, ${worldSize.y}], got ${formatValue(point.y)}`);
-  }
-}
-
-function assertEquals(path, actual, expected, target) {
-  if (!scalarEquals(actual, expected)) {
-    target.push(`${path}: expected ${formatValue(expected)}, got ${formatValue(actual)}`);
   }
 }
 
@@ -334,469 +401,46 @@ function isFiniteNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function parseFrontendMapCatalog(source) {
-  const defaultMap = extractTsConstObject(source, "DEFAULT_BATTLE_MAP");
-  const heroSpawnPoints = parseTsVecArray(extractTsConstArray(source, "HERO_SPAWN_POINTS"));
-  const innerObstacles = extractTopLevelObjectBlocks(extractTsConstArray(source, "INNER_OBSTACLES")).map((block) => ({
-    obstacleId: readTsStringField(block, "obstacleId"),
-    kind: readTsStringField(block, "kind"),
-    position: readTsVecField(block, "position"),
-    size: readTsVecField(block, "size"),
-  }));
-  const weaponPickupDefinitions = extractTopLevelObjectBlocks(extractTsConstArray(source, "WEAPON_PICKUP_DEFINITIONS")).map(
-    (block) => ({
-      pickupId: readTsStringField(block, "pickupId"),
-      weaponKind: readTsStringField(block, "weaponKind"),
-      position: readTsVecField(block, "position"),
-    })
-  );
-  const itemPickupDefinitions = extractTopLevelObjectBlocks(extractTsConstArray(source, "ITEM_PICKUP_DEFINITIONS")).map(
-    (block) => ({
-      pickupId: readTsStringField(block, "pickupId"),
-      kind: readTsStringField(block, "kind"),
-      position: readTsVecField(block, "position"),
-    })
-  );
-
-  return {
-    mapId: readTsStringField(defaultMap, "mapId"),
-    themeId: readTsStringField(defaultMap, "themeId"),
-    worldSize: readTsVecField(defaultMap, "worldSize"),
-    heroSpawnPoints,
-    innerObstacles,
-    weaponPickupDefinitions,
-    itemPickupDefinitions,
-  };
+function readTsOptionalScalarField(block, fieldName) {
+  return hasTsField(block, fieldName) ? readTsScalarField(block, fieldName) : null;
 }
 
-function parseFrontendWeaponDefinitions(source) {
-  const record = extractTsObjectRecord(extractTsConstObject(source, "WEAPON_DEFINITIONS"));
-  const definitions = {};
-
-  for (const [weaponKind, block] of record.entries()) {
-    definitions[weaponKind] = Object.fromEntries(
-      WEAPON_FIELDS.map((fieldName) => [fieldName, readTsScalarField(block, fieldName)])
-    );
+function readTsScalarField(block, fieldName) {
+  const match = new RegExp(`\\b${fieldName}\\s*:\\s*("[^"]*"|true|false|[-+]?\\d+(?:\\.\\d+)?)`).exec(block);
+  if (!match) {
+    throw new Error(`Missing TS scalar field ${fieldName}.`);
   }
 
-  return definitions;
+  const rawValue = match[1];
+  if (rawValue === "true") return true;
+  if (rawValue === "false") return false;
+  if (rawValue.startsWith("\"")) return rawValue.slice(1, -1);
+  return Number(rawValue);
 }
 
-function parseFrontendSkillDefinitions(source) {
-  const record = extractTsObjectRecord(extractTsConstObject(source, "SKILL_DEFINITIONS"));
-  const definitions = {};
-
-  for (const [skillKind, block] of record.entries()) {
-    definitions[skillKind] = Object.fromEntries(
-      SKILL_FIELDS.map((fieldName) => [fieldName, readTsOptionalScalarField(block, fieldName)])
-    );
-  }
-
-  return definitions;
+function hasTsField(block, fieldName) {
+  return new RegExp(`\\b${fieldName}\\s*:`).test(block);
 }
 
-function parseBackendRuntimeMapCatalog(source) {
-  const constants = parseScalaConstants(source, "");
-  const pickups = parseBackendRuntimePickupDefinitions(source);
+function extractTsConstObject(source, constName) {
+  const declarationIndex = findTsConstDeclaration(source, constName);
+  const objectStart = source.indexOf("{", declarationIndex);
+  const objectEnd = findMatchingBracket(source, objectStart, "{", "}");
 
-  return {
-    mapId: constants.get("MapId") ?? null,
-    themeId: constants.get("ThemeId") ?? null,
-    worldSize: readScalaValVec(source, "WorldSize"),
-    heroSpawnPoints: parseScalaVecArray(extractScalaValVector(source, "SpawnPoints")),
-    innerObstacles: parseBackendRuntimeInnerObstacles(source),
-    weaponPickupDefinitions: pickups.weaponPickupDefinitions,
-    itemPickupDefinitions: pickups.itemPickupDefinitions,
-  };
+  if (objectStart < 0 || objectEnd < 0) {
+    throw new Error(`Could not find object initializer for ${constName}.`);
+  }
+
+  return source.slice(objectStart, objectEnd + 1);
 }
 
-function parseBackendRuntimeInnerObstacles(source) {
-  return [
-    ...extractScalaDefVector(source, "innerObstacles").matchAll(
-      /ArenaObstacle\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*\)/g
-    ),
-  ].map((match) => ({
-    obstacleId: match[1],
-    kind: match[2],
-    position: vec(Number(match[3]), Number(match[4])),
-    size: vec(Number(match[5]), Number(match[6])),
-  }));
-}
-
-function parseBackendRuntimePickupDefinitions(source) {
-  const calls = extractScalaCalls(extractScalaDefVector(source, "initialPickups"), "BattlePickupState");
-  const weaponPickupDefinitions = [];
-  const itemPickupDefinitions = [];
-
-  for (const call of calls) {
-    const args = parseScalaNamedArgs(call);
-    const pickupId = readScalaWrapperString(args.get("pickupId"), "PickupId");
-    const pickupKind = readScalaEnum(args.get("pickupKind"), "PickupKind");
-    const position = parseScalaVecExpression(args.get("position"));
-
-    if (pickupKind === "Weapon") {
-      weaponPickupDefinitions.push({
-        pickupId,
-        weaponKind: readScalaOptionalEnum(args.get("weaponKind"), "WeaponKind"),
-        position,
-      });
-    } else if (pickupKind === "Medkit") {
-      itemPickupDefinitions.push({
-        pickupId,
-        kind: "Medkit",
-        position,
-      });
-    }
+function findTsConstDeclaration(source, constName) {
+  const match = new RegExp(`\\bconst\\s+${constName}\\b`).exec(source);
+  if (!match) {
+    throw new Error(`Could not find const ${constName}.`);
   }
 
-  return { weaponPickupDefinitions, itemPickupDefinitions };
-}
-
-function parseBackendRuntimeWeaponDefinitions(source) {
-  const constants = parseScalaConstants(source, "");
-
-  return {
-    Pistol: {
-      projectileKind: "pistol-bullet",
-      cooldownMs: constants.get("PistolFireCooldownMs"),
-      reloadMs: constants.get("PistolReloadMs"),
-      projectileSpeedPerSecond: constants.get("PistolProjectileSpeed"),
-      projectileDamage: constants.get("PistolDamage"),
-      projectileLifetimeMs: constants.get("PistolProjectileLifetimeMs"),
-      projectileRadius: constants.get("PistolProjectileRadius"),
-      splashRadius: 0,
-      pellets: 1,
-      spreadRadians: 0,
-      magazineSize: constants.get("PistolMagazineSize"),
-      reserveAmmo: constants.get("InitialPistolReserveAmmo"),
-      pickupAmmo: constants.get("PistolPickupAmmo"),
-      recoilStrength: constants.get("PistolRecoilStrength"),
-      usesHeat: false,
-      maxHeat: 0,
-      heatPerShot: 0,
-      coolRatePerSecond: 0,
-      overheatLockMs: 0,
-    },
-    RocketLauncher: {
-      projectileKind: "rocket",
-      cooldownMs: constants.get("RocketCooldownMs"),
-      reloadMs: constants.get("RocketReloadMs"),
-      projectileSpeedPerSecond: constants.get("RocketProjectileSpeed"),
-      projectileDamage: constants.get("RocketDamage"),
-      projectileLifetimeMs: constants.get("RocketProjectileLifetimeMs"),
-      projectileRadius: constants.get("RocketProjectileRadius"),
-      splashRadius: constants.get("RocketSplashRadius"),
-      pellets: 1,
-      spreadRadians: 0,
-      magazineSize: constants.get("RocketMagazineSize"),
-      reserveAmmo: constants.get("RocketReserveAmmo"),
-      pickupAmmo: constants.get("RocketPickupAmmo"),
-      recoilStrength: constants.get("RocketRecoilStrength"),
-      usesHeat: false,
-      maxHeat: 0,
-      heatPerShot: 0,
-      coolRatePerSecond: 0,
-      overheatLockMs: 0,
-    },
-    Gatling: {
-      projectileKind: "gatling-bullet",
-      cooldownMs: constants.get("GatlingCooldownMs"),
-      reloadMs: constants.get("GatlingReloadMs"),
-      projectileSpeedPerSecond: constants.get("GatlingProjectileSpeed"),
-      projectileDamage: constants.get("GatlingDamage"),
-      projectileLifetimeMs: constants.get("GatlingProjectileLifetimeMs"),
-      projectileRadius: constants.get("GatlingProjectileRadius"),
-      splashRadius: 0,
-      pellets: 1,
-      spreadRadians: constants.get("GatlingSpreadRadians"),
-      magazineSize: constants.get("GatlingMagazineSize"),
-      reserveAmmo: 0,
-      pickupAmmo: constants.get("GatlingPickupAmmo"),
-      recoilStrength: constants.get("GatlingRecoilStrength"),
-      usesHeat: true,
-      maxHeat: constants.get("GatlingMaxHeat"),
-      heatPerShot: constants.get("GatlingHeatPerShot"),
-      coolRatePerSecond: constants.get("GatlingCoolRatePerSecond"),
-      overheatLockMs: constants.get("GatlingOverheatLockMs"),
-    },
-    Shotgun: {
-      projectileKind: "shotgun-pellet",
-      cooldownMs: constants.get("ShotgunCooldownMs"),
-      reloadMs: constants.get("ShotgunReloadMs"),
-      projectileSpeedPerSecond: constants.get("ShotgunProjectileSpeed"),
-      projectileDamage: constants.get("ShotgunDamage"),
-      projectileLifetimeMs: constants.get("ShotgunProjectileLifetimeMs"),
-      projectileRadius: constants.get("ShotgunProjectileRadius"),
-      splashRadius: 0,
-      pellets: constants.get("ShotgunPellets"),
-      spreadRadians: constants.get("ShotgunSpreadRadians"),
-      magazineSize: constants.get("ShotgunMagazineSize"),
-      reserveAmmo: constants.get("ShotgunReserveAmmo"),
-      pickupAmmo: constants.get("ShotgunPickupAmmo"),
-      recoilStrength: constants.get("ShotgunRecoilStrength"),
-      usesHeat: false,
-      maxHeat: 0,
-      heatPerShot: 0,
-      coolRatePerSecond: 0,
-      overheatLockMs: 0,
-    },
-  };
-}
-
-function parseBackendRuntimeSkillDefinitions(source) {
-  const constants = parseScalaConstants(source, "");
-
-  return {
-    Blink: {
-      skillKind: "Blink",
-      activationKind: "prepared-target",
-      effectType: "teleport",
-      cooldownMs: constants.get("BlinkCooldownMs"),
-      activeMs: constants.get("BlinkActiveMs"),
-      range: constants.get("BlinkRange"),
-      radius: null,
-      durationMs: null,
-      distance: null,
-      speedMultiplier: null,
-    },
-    Dash: {
-      skillKind: "Dash",
-      activationKind: "instant",
-      effectType: "dash",
-      cooldownMs: constants.get("DashCooldownMs"),
-      activeMs: constants.get("DashActiveMs"),
-      range: null,
-      radius: null,
-      durationMs: null,
-      distance: constants.get("DashDistance"),
-      speedMultiplier: null,
-    },
-    Freeze: {
-      skillKind: "Freeze",
-      activationKind: "prepared-target",
-      effectType: "slow-field",
-      cooldownMs: constants.get("FreezeCooldownMs"),
-      activeMs: constants.get("FreezeDurationMs"),
-      range: constants.get("FreezeCastRange"),
-      radius: constants.get("FreezeRadius"),
-      durationMs: constants.get("FreezeDurationMs"),
-      distance: null,
-      speedMultiplier: constants.get("SlowFieldMovementFactor"),
-    },
-  };
-}
-
-function parseBackendMapCatalog(source) {
-  const defaultMapStart = source.indexOf("val defaultMap");
-  if (defaultMapStart < 0) {
-    throw new Error("Could not find backend defaultMap.");
-  }
-
-  const defaultMap = extractScalaCall(source, "BattleMapConfig", defaultMapStart);
-  const heroSpawnPoints = parseScalaVecArray(extractScalaNamedVector(defaultMap, "heroSpawnPoints"));
-  const innerObstacles = [
-    ...extractScalaNamedVector(defaultMap, "innerObstacles").matchAll(
-      /ArenaObstacleDefinition\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*\)/g
-    ),
-  ].map((match) => ({
-    obstacleId: match[1],
-    kind: match[2],
-    position: vec(Number(match[3]), Number(match[4])),
-    size: vec(Number(match[5]), Number(match[6])),
-  }));
-  const weaponPickupDefinitions = [
-    ...extractScalaNamedVector(defaultMap, "weaponPickupDefinitions").matchAll(
-      /WeaponPickupDefinition\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*\)/g
-    ),
-  ].map((match) => ({
-    pickupId: match[1],
-    weaponKind: match[2],
-    position: vec(Number(match[3]), Number(match[4])),
-  }));
-  const itemPickupDefinitions = [
-    ...extractScalaNamedVector(defaultMap, "itemPickupDefinitions").matchAll(
-      /ItemPickupDefinition\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*BattleVector2\(\s*([^)]+?)\s*,\s*([^)]+?)\s*\)\s*\)/g
-    ),
-  ].map((match) => ({
-    pickupId: match[1],
-    kind: match[2],
-    position: vec(Number(match[3]), Number(match[4])),
-  }));
-
-  return {
-    mapId: readScalaNamedString(defaultMap, "mapId"),
-    themeId: readScalaNamedString(defaultMap, "themeId"),
-    worldSize: readScalaNamedVec(defaultMap, "worldSize"),
-    heroSpawnPoints,
-    innerObstacles,
-    weaponPickupDefinitions,
-    itemPickupDefinitions,
-  };
-}
-
-function parseBackendWeaponDefinitions(source, geometrySource) {
-  const constants = parseScalaConstants(source, geometrySource);
-  const definitions = {};
-  const entries = extractScalaMapEntries(extractScalaNamedMap(source, "weaponDefinitions"), "WeaponDefinition", constants);
-  const defaults = {
-    usesHeat: false,
-    maxHeat: 0,
-    heatPerShot: 0,
-    coolRatePerSecond: 0,
-    overheatLockMs: 0,
-  };
-
-  for (const [weaponKind, args] of entries.entries()) {
-    definitions[weaponKind] = {};
-    for (const fieldName of WEAPON_FIELDS) {
-      definitions[weaponKind][fieldName] =
-        args.has(fieldName) ? resolveScalaValue(args.get(fieldName), constants) : defaults[fieldName];
-    }
-  }
-
-  return definitions;
-}
-
-function parseBackendSkillDefinitions(source) {
-  const constants = parseScalaConstants(source, "");
-  const definitions = {};
-  const entries = extractScalaMapEntries(extractScalaNamedMap(source, "skillDefinitions"), "SkillDefinition", constants);
-  const defaults = {
-    range: null,
-    radius: null,
-    durationMs: null,
-    distance: null,
-    speedMultiplier: null,
-  };
-
-  for (const [skillKind, args] of entries.entries()) {
-    definitions[skillKind] = {};
-    for (const fieldName of SKILL_FIELDS) {
-      definitions[skillKind][fieldName] =
-        args.has(fieldName) ? resolveScalaValue(args.get(fieldName), constants) : defaults[fieldName];
-    }
-  }
-
-  return definitions;
-}
-
-function parseScalaConstants(source, geometrySource) {
-  const constants = new Map();
-
-  for (const match of geometrySource.matchAll(/\bval\s+(\w+)\s*:\s*(?:Double|Int|Long)\s*=\s*([-+]?\d+(?:\.\d+)?L?)/g)) {
-    constants.set(`AuthoritativeArenaGeometry.${match[1]}`, parseScalaNumber(match[2]));
-  }
-
-  for (const match of source.matchAll(/\bval\s+(\w+)\s*:\s*String\s*=\s*"([^"]+)"/g)) {
-    constants.set(match[1], match[2]);
-  }
-
-  for (const match of source.matchAll(/\bval\s+(\w+)\s*:\s*(?:Double|Int|Long)\s*=\s*([A-Za-z0-9_.]+|[-+]?\d+(?:\.\d+)?L?)/g)) {
-    const resolved = tryResolveScalaValue(match[2], constants);
-    if (resolved.resolved) {
-      constants.set(match[1], resolved.value);
-    }
-  }
-
-  return constants;
-}
-
-function tryResolveScalaValue(rawValue, constants) {
-  try {
-    return {
-      resolved: true,
-      value: resolveScalaValue(rawValue, constants),
-    };
-  } catch {
-    return {
-      resolved: false,
-      value: null,
-    };
-  }
-}
-
-function resolveScalaValue(rawValue, constants) {
-  const value = rawValue.trim();
-
-  if (value.startsWith("Some(") && value.endsWith(")")) {
-    return resolveScalaValue(value.slice("Some(".length, -1), constants);
-  }
-
-  if (value === "None") {
-    return null;
-  }
-
-  if (value === "true") {
-    return true;
-  }
-
-  if (value === "false") {
-    return false;
-  }
-
-  const stringMatch = /^"([^"]*)"$/.exec(value);
-  if (stringMatch) {
-    return stringMatch[1];
-  }
-
-  if (/^[-+]?\d+(?:\.\d+)?L?$/.test(value)) {
-    return parseScalaNumber(value);
-  }
-
-  if (constants.has(value)) {
-    return constants.get(value);
-  }
-
-  throw new Error(`Could not resolve Scala value: ${value}`);
-}
-
-function extractScalaMapEntries(mapBody, callName, constants) {
-  const entries = new Map();
-  let index = 0;
-
-  while (index < mapBody.length) {
-    index = skipWhitespaceAndCommas(mapBody, index);
-    if (index >= mapBody.length) {
-      break;
-    }
-
-    const arrowIndex = findTopLevelArrow(mapBody, index);
-    if (arrowIndex < 0) {
-      break;
-    }
-
-    const keyExpression = mapBody.slice(index, arrowIndex).trim();
-    const callIndex = mapBody.indexOf(`${callName}(`, arrowIndex + 2);
-    if (callIndex < 0) {
-      throw new Error(`Could not find ${callName} call for ${keyExpression}.`);
-    }
-
-    const openIndex = mapBody.indexOf("(", callIndex);
-    const closeIndex = findMatchingBracket(mapBody, openIndex, "(", ")");
-    if (closeIndex < 0) {
-      throw new Error(`Could not find closing parenthesis for ${callName} ${keyExpression}.`);
-    }
-
-    entries.set(resolveScalaValue(keyExpression, constants), parseScalaNamedArgs(mapBody.slice(openIndex + 1, closeIndex)));
-    index = closeIndex + 1;
-  }
-
-  return entries;
-}
-
-function parseScalaNamedArgs(argsBody) {
-  const args = new Map();
-
-  for (const part of splitTopLevel(argsBody, ",")) {
-    const equalIndex = part.indexOf("=");
-    if (equalIndex < 0) {
-      continue;
-    }
-
-    args.set(part.slice(0, equalIndex).trim(), part.slice(equalIndex + 1).trim());
-  }
-
-  return args;
+  return match.index;
 }
 
 function extractTsObjectRecord(objectSource) {
@@ -807,26 +451,19 @@ function extractTsObjectRecord(objectSource) {
 
   while (index < closeIndex) {
     index = skipWhitespaceAndCommas(objectSource, index);
-    if (index >= closeIndex) {
-      break;
-    }
+    if (index >= closeIndex) break;
 
     const key = readTsObjectKey(objectSource, index);
-    index = key.nextIndex;
-    index = skipWhitespace(objectSource, index);
+    index = skipWhitespace(objectSource, key.nextIndex);
 
     if (objectSource[index] !== ":") {
       throw new Error(`Expected ':' after TS object key ${key.value}.`);
     }
 
     index = skipWhitespace(objectSource, index + 1);
-    if (objectSource[index] !== "{") {
-      throw new Error(`Expected object value for TS key ${key.value}.`);
-    }
-
     const valueEnd = findMatchingBracket(objectSource, index, "{", "}");
-    if (valueEnd < 0) {
-      throw new Error(`Could not find object value end for TS key ${key.value}.`);
+    if (objectSource[index] !== "{" || valueEnd < 0) {
+      throw new Error(`Expected object value for TS key ${key.value}.`);
     }
 
     record.set(key.value, objectSource.slice(index, valueEnd + 1));
@@ -845,16 +482,9 @@ function readTsObjectKey(source, startIndex) {
 
     while (index < source.length) {
       const char = source[index];
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === quote) {
-        return {
-          value: source.slice(startIndex + 1, index),
-          nextIndex: index + 1,
-        };
-      }
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) return { value: source.slice(startIndex + 1, index), nextIndex: index + 1 };
       index += 1;
     }
   }
@@ -864,272 +494,7 @@ function readTsObjectKey(source, startIndex) {
     throw new Error(`Could not read TS object key near: ${source.slice(startIndex, startIndex + 40)}`);
   }
 
-  return {
-    value: match[0],
-    nextIndex: startIndex + match[0].length,
-  };
-}
-
-function extractTsConstObject(source, constName) {
-  const declarationIndex = findTsConstDeclaration(source, constName);
-  const objectStart = source.indexOf("{", declarationIndex);
-  const objectEnd = findMatchingBracket(source, objectStart, "{", "}");
-
-  if (objectStart < 0 || objectEnd < 0) {
-    throw new Error(`Could not find object initializer for ${constName}.`);
-  }
-
-  return source.slice(objectStart, objectEnd + 1);
-}
-
-function extractTsConstArray(source, constName) {
-  const declarationIndex = findTsConstDeclaration(source, constName);
-  const arrayStart = source.indexOf("[", declarationIndex);
-  const arrayEnd = findMatchingBracket(source, arrayStart, "[", "]");
-
-  if (arrayStart < 0 || arrayEnd < 0) {
-    throw new Error(`Could not find array initializer for ${constName}.`);
-  }
-
-  return source.slice(arrayStart, arrayEnd + 1);
-}
-
-function findTsConstDeclaration(source, constName) {
-  const match = new RegExp(`\\bconst\\s+${constName}\\b`).exec(source);
-  if (!match) {
-    throw new Error(`Could not find const ${constName}.`);
-  }
-
-  return match.index;
-}
-
-function extractTopLevelObjectBlocks(arraySource) {
-  const blocks = [];
-  let objectStart = -1;
-  let objectDepth = 0;
-  let arrayDepth = 0;
-  let quote = null;
-  let escaped = false;
-
-  for (let index = 0; index < arraySource.length; index += 1) {
-    const char = arraySource[index];
-
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-
-    if (char === "\"" || char === "'" || char === "`") {
-      quote = char;
-      continue;
-    }
-
-    if (char === "[") {
-      arrayDepth += 1;
-      continue;
-    }
-
-    if (char === "]") {
-      arrayDepth -= 1;
-      continue;
-    }
-
-    if (char === "{" && arrayDepth === 1) {
-      if (objectDepth === 0) {
-        objectStart = index;
-      }
-      objectDepth += 1;
-      continue;
-    }
-
-    if (char === "}" && objectDepth > 0) {
-      objectDepth -= 1;
-      if (objectDepth === 0 && objectStart >= 0) {
-        blocks.push(arraySource.slice(objectStart, index + 1));
-        objectStart = -1;
-      }
-    }
-  }
-
-  return blocks;
-}
-
-function parseTsVecArray(arraySource) {
-  return [...arraySource.matchAll(/\{\s*x\s*:\s*([-+]?\d+(?:\.\d+)?)\s*,\s*y\s*:\s*([-+]?\d+(?:\.\d+)?)\s*\}/g)].map(
-    (match) => vec(Number(match[1]), Number(match[2]))
-  );
-}
-
-function readTsStringField(block, fieldName) {
-  const match = new RegExp(`\\b${fieldName}\\s*:\\s*"([^"]*)"`).exec(block);
-  if (!match) {
-    throw new Error(`Missing TS string field ${fieldName}.`);
-  }
-
-  return match[1];
-}
-
-function readTsVecField(block, fieldName) {
-  const match = new RegExp(
-    `\\b${fieldName}\\s*:\\s*\\{\\s*x\\s*:\\s*([-+]?\\d+(?:\\.\\d+)?)\\s*,\\s*y\\s*:\\s*([-+]?\\d+(?:\\.\\d+)?)\\s*\\}`
-  ).exec(block);
-  if (!match) {
-    throw new Error(`Missing TS vec field ${fieldName}.`);
-  }
-
-  return vec(Number(match[1]), Number(match[2]));
-}
-
-function readTsOptionalScalarField(block, fieldName) {
-  return hasTsField(block, fieldName) ? readTsScalarField(block, fieldName) : null;
-}
-
-function readTsScalarField(block, fieldName) {
-  const match = new RegExp(`\\b${fieldName}\\s*:\\s*("[^"]*"|true|false|[-+]?\\d+(?:\\.\\d+)?)`).exec(block);
-  if (!match) {
-    throw new Error(`Missing TS scalar field ${fieldName}.`);
-  }
-
-  const rawValue = match[1];
-  if (rawValue === "true") {
-    return true;
-  }
-  if (rawValue === "false") {
-    return false;
-  }
-  if (rawValue.startsWith("\"")) {
-    return rawValue.slice(1, -1);
-  }
-  return Number(rawValue);
-}
-
-function hasTsField(block, fieldName) {
-  return new RegExp(`\\b${fieldName}\\s*:`).test(block);
-}
-
-function extractScalaCall(source, callName, fromIndex = 0) {
-  const callIndex = source.indexOf(`${callName}(`, fromIndex);
-  if (callIndex < 0) {
-    throw new Error(`Could not find Scala call ${callName}.`);
-  }
-
-  const openIndex = source.indexOf("(", callIndex);
-  const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
-  if (openIndex < 0 || closeIndex < 0) {
-    throw new Error(`Could not find Scala call body for ${callName}.`);
-  }
-
-  return source.slice(openIndex + 1, closeIndex);
-}
-
-function extractScalaNamedMap(source, valName) {
-  const valIndex = source.indexOf(`val ${valName}`);
-  if (valIndex < 0) {
-    throw new Error(`Could not find Scala val ${valName}.`);
-  }
-
-  const mapIndex = source.indexOf("Map(", valIndex);
-  const openIndex = source.indexOf("(", mapIndex);
-  const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
-  if (mapIndex < 0 || closeIndex < 0) {
-    throw new Error(`Could not find Scala Map for ${valName}.`);
-  }
-
-  return source.slice(openIndex + 1, closeIndex);
-}
-
-function extractScalaNamedVector(block, fieldName) {
-  const fieldMatch = new RegExp(`\\b${fieldName}\\s*=\\s*Vector\\s*\\(`).exec(block);
-  if (!fieldMatch) {
-    throw new Error(`Could not find Scala Vector field ${fieldName}.`);
-  }
-
-  const openIndex = block.indexOf("(", fieldMatch.index);
-  const closeIndex = findMatchingBracket(block, openIndex, "(", ")");
-  if (openIndex < 0 || closeIndex < 0) {
-    throw new Error(`Could not find Scala Vector body for ${fieldName}.`);
-  }
-
-  return block.slice(openIndex + 1, closeIndex);
-}
-
-function parseScalaVecArray(vectorBody) {
-  return [...vectorBody.matchAll(/BattleVector2\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)/g)].map(
-    (match) => vec(Number(match[1]), Number(match[2]))
-  );
-}
-
-function readScalaNamedString(block, fieldName) {
-  const match = new RegExp(`\\b${fieldName}\\s*=\\s*"([^"]*)"`).exec(block);
-  if (!match) {
-    throw new Error(`Missing Scala string field ${fieldName}.`);
-  }
-
-  return match[1];
-}
-
-function readScalaNamedVec(block, fieldName) {
-  const match = new RegExp(
-    `\\b${fieldName}\\s*=\\s*BattleVector2\\(\\s*([-+]?\\d+(?:\\.\\d+)?)\\s*,\\s*([-+]?\\d+(?:\\.\\d+)?)\\s*\\)`
-  ).exec(block);
-  if (!match) {
-    throw new Error(`Missing Scala vec field ${fieldName}.`);
-  }
-
-  return vec(Number(match[1]), Number(match[2]));
-}
-
-function readScalaValVec(source, valName) {
-  const declaration = new RegExp(`\\bval\\s+${valName}\\b`).exec(source);
-  if (!declaration) {
-    throw new Error(`Could not find Scala val ${valName}.`);
-  }
-
-  const callStart = source.indexOf("BattleVector2(", declaration.index);
-  if (callStart < 0) {
-    throw new Error(`Could not find BattleVector2 initializer for ${valName}.`);
-  }
-
-  return parseScalaVecExpression(source.slice(callStart, findMatchingBracket(source, source.indexOf("(", callStart), "(", ")") + 1));
-}
-
-function parseScalaVecExpression(expression) {
-  const match = /BattleVector2\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)/.exec(expression ?? "");
-  if (!match) {
-    throw new Error(`Could not parse Scala BattleVector2 expression: ${expression}`);
-  }
-
-  return vec(Number(match[1]), Number(match[2]));
-}
-
-function extractScalaVectorAfter(source, marker) {
-  const markerIndex = source.indexOf(marker);
-  if (markerIndex < 0) {
-    throw new Error(`Could not find Scala marker ${marker}.`);
-  }
-
-  const vectorIndex = source.indexOf("Vector(", markerIndex);
-  const openIndex = source.indexOf("(", vectorIndex);
-  const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
-  if (vectorIndex < 0 || closeIndex < 0) {
-    throw new Error(`Could not find Scala Vector after ${marker}.`);
-  }
-
-  return source.slice(openIndex + 1, closeIndex);
-}
-
-function extractScalaValVector(source, valName) {
-  return extractScalaDeclaredVector(source, new RegExp(`\\bval\\s+${valName}\\b`), `val ${valName}`);
-}
-
-function extractScalaDefVector(source, defName) {
-  return extractScalaDeclaredVector(source, new RegExp(`\\bdef\\s+${defName}\\b`), `def ${defName}`);
+  return { value: match[0], nextIndex: startIndex + match[0].length };
 }
 
 function extractScalaDeclaredVector(source, declarationPattern, label) {
@@ -1148,15 +513,36 @@ function extractScalaDeclaredVector(source, declarationPattern, label) {
   return source.slice(openIndex + 1, closeIndex);
 }
 
+function extractScalaCallAfter(source, callName, fromIndex = 0) {
+  const callIndex = source.indexOf(`${callName}(`, fromIndex);
+  if (callIndex < 0) {
+    throw new Error(`Could not find Scala call ${callName}.`);
+  }
+  return extractScalaCall(source.slice(callIndex), callName);
+}
+
+function extractScalaCall(source, callName) {
+  const callIndex = source.indexOf(`${callName}(`);
+  if (callIndex < 0) {
+    throw new Error(`Could not find Scala call ${callName}.`);
+  }
+
+  const openIndex = source.indexOf("(", callIndex);
+  const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
+  if (openIndex < 0 || closeIndex < 0) {
+    throw new Error(`Could not find Scala call body for ${callName}.`);
+  }
+
+  return source.slice(openIndex + 1, closeIndex);
+}
+
 function extractScalaCalls(source, callName) {
   const calls = [];
   let index = 0;
 
   while (index < source.length) {
     const callIndex = source.indexOf(`${callName}(`, index);
-    if (callIndex < 0) {
-      break;
-    }
+    if (callIndex < 0) break;
 
     const openIndex = source.indexOf("(", callIndex);
     const closeIndex = findMatchingBracket(source, openIndex, "(", ")");
@@ -1171,13 +557,16 @@ function extractScalaCalls(source, callName) {
   return calls;
 }
 
-function readScalaWrapperString(rawValue, wrapperName) {
-  const match = new RegExp(`^${wrapperName}\\(\\s*"([^"]+)"\\s*\\)$`).exec((rawValue ?? "").trim());
-  if (!match) {
-    throw new Error(`Could not parse ${wrapperName} string value: ${rawValue}`);
+function parseScalaNamedArgs(argsBody) {
+  const args = new Map();
+
+  for (const part of splitTopLevel(argsBody, ",")) {
+    const equalIndex = part.indexOf("=");
+    if (equalIndex < 0) continue;
+    args.set(part.slice(0, equalIndex).trim(), part.slice(equalIndex + 1).trim());
   }
 
-  return match[1];
+  return args;
 }
 
 function readScalaEnum(rawValue, enumName) {
@@ -1189,60 +578,37 @@ function readScalaEnum(rawValue, enumName) {
   return match[1];
 }
 
-function readScalaOptionalEnum(rawValue, enumName) {
+function readScalaOptionNumber(rawValue) {
   const value = (rawValue ?? "").trim();
-  if (value === "None") {
-    return null;
+  if (value === "None") return null;
+  if (value.startsWith("Some(") && value.endsWith(")")) {
+    return readScalaNumberValue(value.slice("Some(".length, -1));
   }
-
-  const somePrefix = "Some(";
-  if (value.startsWith(somePrefix) && value.endsWith(")")) {
-    return readScalaEnum(value.slice(somePrefix.length, -1), enumName);
-  }
-
-  return readScalaEnum(value, enumName);
+  return readScalaNumberValue(value);
 }
 
-function findTopLevelArrow(source, startIndex) {
-  let depth = 0;
-  let quote = null;
-  let escaped = false;
-
-  for (let index = startIndex; index < source.length - 1; index += 1) {
-    const char = source[index];
-
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === quote) {
-        quote = null;
-      }
-      continue;
-    }
-
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-
-    if (char === "(" || char === "{" || char === "[") {
-      depth += 1;
-      continue;
-    }
-
-    if (char === ")" || char === "}" || char === "]") {
-      depth -= 1;
-      continue;
-    }
-
-    if (depth === 0 && source[index] === "-" && source[index + 1] === ">") {
-      return index;
-    }
+function readScalaWrappedNumberAfter(source, fieldName, wrapperName) {
+  const match = new RegExp(`\\b${fieldName}\\s*=\\s*${wrapperName}\\(([^)]+)\\)`).exec(source);
+  if (!match) {
+    throw new Error(`Could not find wrapped Scala number ${fieldName}.`);
   }
+  return readScalaNumberValue(match[1]);
+}
 
-  return -1;
+function readScalaWrappedNumber(rawValue, wrapperName) {
+  const match = new RegExp(`^${wrapperName}\\(([^)]+)\\)$`).exec((rawValue ?? "").trim());
+  if (!match) {
+    throw new Error(`Could not parse ${wrapperName} number: ${rawValue}`);
+  }
+  return readScalaNumberValue(match[1]);
+}
+
+function readScalaNumberValue(rawValue) {
+  const value = String(rawValue ?? "").trim().replace(/L$/, "");
+  if (!/^[-+]?\d+(?:\.\d+)?$/.test(value)) {
+    throw new Error(`Could not parse Scala number: ${rawValue}`);
+  }
+  return Number(value);
 }
 
 function splitTopLevel(source, delimiter) {
@@ -1256,13 +622,9 @@ function splitTopLevel(source, delimiter) {
     const char = source[index];
 
     if (quote) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === quote) {
-        quote = null;
-      }
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
       continue;
     }
 
@@ -1271,17 +633,9 @@ function splitTopLevel(source, delimiter) {
       continue;
     }
 
-    if (char === "(" || char === "{" || char === "[") {
-      depth += 1;
-      continue;
-    }
-
-    if (char === ")" || char === "}" || char === "]") {
-      depth -= 1;
-      continue;
-    }
-
-    if (depth === 0 && char === delimiter) {
+    if (char === "(" || char === "{" || char === "[") depth += 1;
+    else if (char === ")" || char === "}" || char === "]") depth -= 1;
+    else if (depth === 0 && char === delimiter) {
       parts.push(source.slice(start, index).trim());
       start = index + 1;
     }
@@ -1300,13 +654,9 @@ function findMatchingBracket(value, startIndex, openChar, closeChar) {
     const char = value[index];
 
     if (quote) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === quote) {
-        quote = null;
-      }
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
       continue;
     }
 
@@ -1315,13 +665,10 @@ function findMatchingBracket(value, startIndex, openChar, closeChar) {
       continue;
     }
 
-    if (char === openChar) {
-      depth += 1;
-    } else if (char === closeChar) {
+    if (char === openChar) depth += 1;
+    else if (char === closeChar) {
       depth -= 1;
-      if (depth === 0) {
-        return index;
-      }
+      if (depth === 0) return index;
     }
   }
 
@@ -1329,25 +676,13 @@ function findMatchingBracket(value, startIndex, openChar, closeChar) {
 }
 
 function skipWhitespaceAndCommas(source, index) {
-  while (index < source.length && /[\s,]/.test(source[index])) {
-    index += 1;
-  }
+  while (index < source.length && /[\s,]/.test(source[index])) index += 1;
   return index;
 }
 
 function skipWhitespace(source, index) {
-  while (index < source.length && /\s/.test(source[index])) {
-    index += 1;
-  }
+  while (index < source.length && /\s/.test(source[index])) index += 1;
   return index;
-}
-
-function parseScalaNumber(value) {
-  return Number(String(value).replace(/L$/, ""));
-}
-
-function vec(x, y) {
-  return { x, y };
 }
 
 function compareValues(path, frontendValue, backendValue, target) {
@@ -1361,8 +696,7 @@ function compareValues(path, frontendValue, backendValue, target) {
       target.push(`${path}.length: frontend=${frontendValue.length} backend=${backendValue.length}`);
     }
 
-    const maxLength = Math.max(frontendValue.length, backendValue.length);
-    for (let index = 0; index < maxLength; index += 1) {
+    for (let index = 0; index < Math.max(frontendValue.length, backendValue.length); index += 1) {
       compareValues(`${path}[${index}]`, frontendValue[index], backendValue[index], target);
     }
     return;
@@ -1390,7 +724,6 @@ function scalarEquals(frontendValue, backendValue) {
   if (typeof frontendValue === "number" && typeof backendValue === "number") {
     return Math.abs(frontendValue - backendValue) < 1e-9;
   }
-
   return Object.is(frontendValue, backendValue);
 }
 

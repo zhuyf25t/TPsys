@@ -1,5 +1,7 @@
 package services.battle.microservices.queue.services
 
+import cats.effect.IO
+
 import services.battle.microservices.queue.objects.queue.*
 
 import services.battle.microservices.session.services.{BattleCommandOwnership, BattleSessionSeed}
@@ -11,14 +13,21 @@ private[battle] object BattleQueueSessionLookupRules {
     rooms: Iterable[QueueRoom],
     battleId: BattleId,
     now: EpochMillis
-  ): Option[BattleSessionSeed] =
-    rooms.iterator.flatMap { room =>
-      room.battleSession.filter(_.battleId == battleId).map { session =>
-        BattleSessionSeed(
-          roomId = room.roomId,
-          descriptor = session.copy(serverTime = now),
-          commandOwnership = room.participants.map(entry => BattleCommandOwnership(entry.playerId, entry.ticketId))
-        )
+  ): IO[Option[BattleSessionSeed]] =
+    rooms.foldLeft(IO.pure(Option.empty[BattleSessionSeed])) { (foundIO, room) =>
+      foundIO.flatMap {
+        case Some(seed) =>
+          IO.pure(Some(seed))
+        case None =>
+          room.battleSession.map { maybeSession =>
+            maybeSession.filter(_.battleId == battleId).map { session =>
+              BattleSessionSeed(
+                roomId = room.roomId,
+                descriptor = session.copy(serverTime = now),
+                commandOwnership = room.participants.map(entry => BattleCommandOwnership(entry.playerId, entry.ticketId))
+              )
+            }
+          }
       }
-    }.toVector.headOption
+    }
 }

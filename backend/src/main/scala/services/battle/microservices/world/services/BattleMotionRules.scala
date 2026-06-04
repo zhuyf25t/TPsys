@@ -1,7 +1,11 @@
 package services.battle.microservices.world.services
 
+import cats.effect.IO
+import cats.syntax.all.*
+
 import services.battle.microservices.world.services.BattleArenaCollision.*
 import services.battle.microservices.world.services.BattleGeometry.*
+import services.battle.microservices.world.objects.world.BattleArenaContext
 import services.battle.objects.BattleVector2
 
 private[battle] object BattleMotionRules {
@@ -16,9 +20,9 @@ private[battle] object BattleMotionRules {
     hitBlocker: Boolean
   )
 
-  def normalizeMovement(next: BattleVector2): BattleVector2 = {
+  def normalizeMovement(next: BattleVector2): IO[BattleVector2] = IO.pure {
     val length = math.hypot(next.x, next.y)
-    if length <= 0.0001 then BattleArenaCatalog.ZeroVector
+    if length <= 0.0001 then BattleArenaContext.ZeroVector
     else BattleVector2(next.x / length, next.y / length)
   }
 
@@ -26,49 +30,67 @@ private[battle] object BattleMotionRules {
     position: BattleVector2,
     direction: BattleVector2,
     distance: Double,
-    radius: Double
-  ): SteppedMotionResult = {
-    val normalized = normalizeMovement(direction)
-    val clampedDistance = math.max(0.0, distance)
-    val fullMotion = resolveSteppedMotion(position, normalized, clampedDistance, radius)
+    radius: Double,
+    arena: BattleArenaContext
+  ): IO[SteppedMotionResult] =
+    for
+      normalized <- normalizeMovement(direction)
+      clampedDistance <- IO.pure(math.max(0.0, distance))
+      fullMotion <- resolveSteppedMotion(position, normalized, clampedDistance, radius, arena)
+      result <-
+        if !fullMotion.hitBlocker then IO.pure(fullMotion)
+        else {
+          val xDistance = math.abs(normalized.x * clampedDistance)
+          val yDistance = math.abs(normalized.y * clampedDistance)
+          val xMotionIO =
+            if xDistance > 0.0 then resolveSteppedMotion(position, BattleVector2(math.signum(normalized.x), 0.0), xDistance, radius, arena)
+            else IO.pure(fullMotion)
+          val yMotionIO =
+            if yDistance > 0.0 then resolveSteppedMotion(position, BattleVector2(0.0, math.signum(normalized.y)), yDistance, radius, arena)
+            else IO.pure(fullMotion)
 
-    if !fullMotion.hitBlocker then fullMotion
-    else {
-      val xDistance = math.abs(normalized.x * clampedDistance)
-      val yDistance = math.abs(normalized.y * clampedDistance)
-      val xMotion =
-        if xDistance > 0.0 then resolveSteppedMotion(position, BattleVector2(math.signum(normalized.x), 0.0), xDistance, radius)
-        else fullMotion
-      val yMotion =
-        if yDistance > 0.0 then resolveSteppedMotion(position, BattleVector2(0.0, math.signum(normalized.y)), yDistance, radius)
-        else fullMotion
-
-      Vector(fullMotion, xMotion, yMotion).maxBy(motion => distanceBetween(position, motion.destination))
-    }
-  }
+          for
+            xMotion <- xMotionIO
+            yMotion <- yMotionIO
+            scored <- Vector(fullMotion, xMotion, yMotion).traverse { motion =>
+              distanceBetween(position, motion.destination).map(distance => motion -> distance)
+            }
+          yield scored.maxBy { case (_, distance) => distance }._1
+        }
+    yield result
 
   private def resolveSteppedMotion(
     position: BattleVector2,
     direction: BattleVector2,
     distance: Double,
-    radius: Double
-  ): SteppedMotionResult = {
+    radius: Double,
+    arena: BattleArenaContext
+  ): IO[SteppedMotionResult] = {
     val clampedDistance = math.max(0.0, distance)
-    val steps = math.ceil(clampedDistance / BattleArenaCatalog.MotionStepSize).toInt
-    val scan = (1 to steps).foldLeft(SteppedMotionScan(position, hitBlocker = false)) { (current, step) =>
-      if current.hitBlocker then current
-      else {
-        val travel = math.min(clampedDistance, step.toDouble * BattleArenaCatalog.MotionStepSize)
-        val candidate = add(position, scale(direction, travel))
-        if canPlayerOccupy(candidate, radius) then current.copy(lastValid = candidate)
-        else current.copy(hitBlocker = true)
+    val steps = math.ceil(clampedDistance / arena.motionStepSize).toInt
+    val scanIO = (1 to steps).foldLeft(IO.pure(SteppedMotionScan(position, hitBlocker = false))) { (currentIO, step) =>
+      currentIO.flatMap { current =>
+        if current.hitBlocker then IO.pure(current)
+        else {
+          val travel = math.min(clampedDistance, step.toDouble * arena.motionStepSize)
+          for
+            offset <- scale(direction, travel)
+            candidate <- add(position, offset)
+            canOccupy <- canPlayerOccupy(candidate, radius, arena)
+          yield canOccupy match {
+            case true  => current.copy(lastValid = candidate)
+            case false => current.copy(hitBlocker = true)
+          }
+        }
       }
     }
 
-    SteppedMotionResult(
-      destination = scan.lastValid,
-      blocked = scan.lastValid == position,
-      hitBlocker = scan.hitBlocker
-    )
+    scanIO.map { scan =>
+      SteppedMotionResult(
+        destination = scan.lastValid,
+        blocked = scan.lastValid == position,
+        hitBlocker = scan.hitBlocker
+      )
+    }
   }
 }

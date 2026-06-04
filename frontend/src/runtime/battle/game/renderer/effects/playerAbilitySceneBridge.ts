@@ -1,30 +1,10 @@
-import type { Hero, PlayerCommand, Vec2 } from "../../../../../objects/battle/types";
-import type { HeroView } from "../entities/worldViewFactory";
-import type { SceneGeometryObstacleBounds } from "../../../local/geometry/sceneGeometry";
+import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleHeroViewState as Hero } from "../../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import type { BattlePlayerCommand as PlayerCommand } from "../../../../../objects/battle/microservices/session/objects/command/BattlePlayerCommand";
 import { isBlinkTargetValid as resolveBlinkTargetValidity } from "../../../local/movement/blinkTargetResolver";
 import { applyJumpAction, applySkillInputs } from "../../../local/movement/playerMotionAbilityHandler";
-
-export interface PlayerAbilitySceneBridgeOptions {
-  getPlayerHero(): Hero;
-  getWorldSize(): Vec2;
-  getObstacleBounds(): readonly SceneGeometryObstacleBounds[];
-  getHeroViews(): ReadonlyMap<string, HeroView>;
-  getBaseHeroScale(heroId: string): number;
-  isPlayerMotionActive(): boolean;
-  startPlayerMotion(destination: Vec2, durationMs: number, motionType: "jump" | "dash" | "blink"): void;
-  createAfterimage(
-    position: Vec2,
-    rotation: number,
-    scale: number,
-    textureKey: string,
-    tint: number,
-    alpha: number
-  ): void;
-  createPulse(position: Vec2, radius: number, color: number): void;
-  createFloatingText(position: Vec2, text: string, color: string): void;
-  showFloatingText(position: Vec2, text: string, tone: "neutral" | "warning" | "error" | "success"): void;
-  addFreezeField(ownerHeroId: string, position: Vec2, radius: number, durationMs: number): void;
-}
+import { resolvePlayerAbilityTextureKey } from "./functions/PlayerAbilitySceneBridgeRules";
+import type { PlayerAbilitySceneBridgeOptions } from "./objects/PlayerAbilitySceneBridgeObjects";
 
 export class PlayerAbilitySceneBridge {
   public constructor(private readonly options: PlayerAbilitySceneBridgeOptions) {}
@@ -40,7 +20,10 @@ export class PlayerAbilitySceneBridge {
 
   public handleSkillInputs(command: PlayerCommand): void {
     const player = this.options.getPlayerHero();
-    const playerTextureKey = this.options.getHeroViews().get(player.heroId)?.sprite.texture.key ?? "hero-player";
+    const playerTextureKey = resolvePlayerAbilityTextureKey({
+      heroId: player.heroId,
+      heroViews: this.options.getHeroViews()
+    });
 
     applySkillInputs({
       player,

@@ -1,6 +1,9 @@
 package services.battle.microservices.combat.services
 
+import cats.effect.IO
+
 import services.battle.microservices.runtime.objects.runtime.BattleHistoryCount
+import services.battle.microservices.combat.objects.combat.Damage
 import services.battle.microservices.combat.objects.projectile.ProjectileTerminalReason
 import services.battle.objects.core.{BattleAggregateState, BattleVector2, DurationMillis, PlayerId}
 import services.battle.microservices.actors.objects.player.BattlePlayerState
@@ -9,7 +12,8 @@ import services.battle.microservices.combat.objects.projectile.{BattleProjectile
 private[battle] object BattleProjectileTerminalRules {
   final case class ProjectileDamageReport(
     targetBefore: BattlePlayerState,
-    targetAfter: BattlePlayerState
+    targetAfter: BattlePlayerState,
+    damage: Damage
   )
 
   /** 中文名：append投射物终止（appendProjectileTerminal）。游戏职责：在后端战斗域中管理武器、投射物、命中、伤害和终止效果，支撑实时交火�?*/
@@ -17,8 +21,10 @@ private[battle] object BattleProjectileTerminalRules {
     state: BattleAggregateState,
     terminal: BattleProjectileTerminalState,
     retainedProjectileTerminalCount: BattleHistoryCount
-  ): BattleAggregateState =
-    state.copy(projectileTerminals = retainRecentProjectileTerminals(state.projectileTerminals :+ terminal, retainedProjectileTerminalCount))
+  ): IO[BattleAggregateState] =
+    retainRecentProjectileTerminals(state.projectileTerminals :+ terminal, retainedProjectileTerminalCount).map { retained =>
+      state.copy(projectileTerminals = retained)
+    }
 
   /** 中文名：终止for投射物（terminalForProjectile）。游戏职责：在后端战斗域中管理武器、投射物、命中、伤害和终止效果，支撑实时交火�?*/
   def terminalForProjectile(
@@ -29,7 +35,7 @@ private[battle] object BattleProjectileTerminalRules {
     segmentEnd: BattleVector2,
     ttlAfterValue: Long,
     damageReport: Option[ProjectileDamageReport] = None
-  ): BattleProjectileTerminalState = {
+  ): IO[BattleProjectileTerminalState] = IO.pure {
     val owner = state.players.find(_.heroId == projectile.ownerHeroId)
     BattleProjectileTerminalState(
       projectileId = projectile.projectileId,
@@ -47,13 +53,13 @@ private[battle] object BattleProjectileTerminalRules {
       targetHeroId = damageReport.map(_.targetAfter.heroId),
       hpBefore = damageReport.map(_.targetBefore.hp),
       hpAfter = damageReport.map(_.targetAfter.hp),
-      damage = damageReport.map(_ => projectile.damage)
+      damage = damageReport.map(_.damage)
     )
   }
 
   private def retainRecentProjectileTerminals(
     terminals: Vector[BattleProjectileTerminalState],
     retainedCount: BattleHistoryCount
-  ): Vector[BattleProjectileTerminalState] =
-    terminals.takeRight(retainedCount.value)
+  ): IO[Vector[BattleProjectileTerminalState]] =
+    IO.pure(terminals.takeRight(retainedCount.value))
 }

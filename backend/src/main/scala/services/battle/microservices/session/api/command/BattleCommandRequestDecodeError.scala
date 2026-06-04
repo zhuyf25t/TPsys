@@ -13,6 +13,7 @@ enum BattleCommandRequestField {
   case CastDash
   case CastBlink
   case CastFreeze
+  case CastCritical
   case PointerWorld
   case SwitchWeaponDirection
   case SwitchWeaponIndex

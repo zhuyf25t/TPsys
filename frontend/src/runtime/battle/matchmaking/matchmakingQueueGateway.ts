@@ -3,7 +3,7 @@ import {
   postBattleQueueLeaveAPIMessage,
   postBattleQueueStatusAPIMessage,
   type BattleQueueJoinAPIMessageRequest
-} from "../../../apis/battle/battleApiMessageClient";
+} from "../../../apis/battle/microservices/queue/api/BattleQueueApiMessageClient";
 import {
   sendRealtimeRoomHeartbeat,
   type RealtimeBattleSessionBootstrap,
@@ -21,13 +21,11 @@ import type {
   MatchmakingQueueParticipant,
   MatchmakingQueueState
 } from "./matchmakingQueueTypes";
-import { isBattleVisitorHandle } from "../../../objects/battle/battleRules";
-import type {
-  BattleModeIdDto,
-  BattleQueueLeaveResponseDto,
-  BattleQueueSnapshotResponseDto
-} from "../../../objects/battle/contracts/apiMessages";
-import { battleModeDisplayLabel } from "../battleModeDisplayLabels";
+import { isBattleVisitorHandle } from "../../../objects/battle/objects/core/BattleCoreRules";
+import type { BattleModeIdDto } from "../../../objects/battle/microservices/queue/api/shared/BattleLobbySharedApiTypes";
+import type { BattleQueueLeaveResponseDto } from "../../../objects/battle/microservices/queue/api/queue/BattleQueueLeaveApiTypes";
+import type { BattleQueueSnapshotResponseDto } from "../../../objects/battle/microservices/queue/api/queue/BattleQueueStatusApiTypes";
+import { battleModeDisplayLabel } from "../../../objects/battle/objects/core/BattleModeDisplayLabels";
 
 const QUEUE_REQUEST_TIMEOUT_MS = 1_250;
 

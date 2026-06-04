@@ -1,5 +1,7 @@
 package services.battle.microservices.queue.services
 
+import cats.effect.IO
+
 import services.battle.microservices.queue.objects.queue.*
 
 import services.battle.objects.core.{EpochMillis, RoomId}
@@ -9,21 +11,22 @@ private[battle] object BattleQueueHeartbeatRules {
   def roomIdForHeartbeat(
     tickets: Map[TicketId, TicketRecord],
     request: RealtimeRoomHeartbeatCommand
-  ): Option[RoomId] =
-    request.roomId.orElse(request.ticketId.flatMap(tickets.get).map(_.roomId))
+  ): IO[Option[RoomId]] =
+    IO.pure(request.roomId.orElse(request.ticketId.flatMap(tickets.get).map(_.roomId)))
 
   /** 中文名：更新心跳（updateHeartbeat）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
   def updateHeartbeat(
     room: QueueRoom,
     request: RealtimeRoomHeartbeatCommand,
     now: EpochMillis
-  ): QueueRoom = {
-    val participants = room.participants.map { entry =>
-      if BattleQueueParticipantRules.heartbeatMatches(entry, request) then
-        BattleQueueParticipantRules.touchHeartbeatParticipant(entry, now)
-      else entry
-    }
-
-    room.copy(participants = participants)
-  }
+  ): IO[QueueRoom] =
+    room.participants.foldLeft(IO.pure(Vector.empty[QueueParticipantEntry])) { (participantsIO, entry) =>
+      for
+        participants <- participantsIO
+        matches <- BattleQueueParticipantRules.heartbeatMatches(entry, request)
+        nextEntry <-
+          if matches then BattleQueueParticipantRules.touchHeartbeatParticipant(entry, now)
+          else IO.pure(entry)
+      yield participants :+ nextEntry
+    }.map(participants => room.copy(participants = participants))
 }

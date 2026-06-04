@@ -1,6 +1,8 @@
 package services.battle.microservices.session.services
 
-import services.battle.microservices.runtime.services.BattleEngine
+import cats.effect.IO
+
+import services.battle.microservices.runtime.services.{BattleDynamicRuleBook, BattleEngine}
 import services.battle.objects.BattlePhase
 import services.battle.objects.core.{BattleAggregateState, EpochMillis, RoomId}
 
@@ -15,13 +17,51 @@ private[battle] final case class BattleStoredBattleAdvanceResult(
 )
 
 private[battle] object BattleStoredBattleAdvanceRules {
+  private val StandardExactCatchUpStepLimit = 128L
+  private val HighPopulationExactCatchUpStepLimit = 8L
+  private val HighPopulationPlayerCount = 8
+  private val MaxCoalescedCatchUpSteps = 32
+  private val MinCoalescedCatchUpStepMs = 250L
+
+  private final case class AdvancedStateFrame(
+    state: BattleAggregateState,
+    pendingStepMs: Long
+  )
+
   /** 中文名：推进（advance）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
-  def advance(storedBattle: StoredBattle, now: EpochMillis): BattleStoredBattleAdvanceResult = {
-    val safeNow =
+  def advance(
+    storedBattle: StoredBattle,
+    now: EpochMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleStoredBattleAdvanceResult] =
+    for
+      safeNow <- safeNowFor(storedBattle, now)
+      result <-
+        if storedBattle.state.phase == BattlePhase.Finished then
+          finishedStoredBattle(storedBattle, safeNow)
+        else
+          for
+            elapsedSinceLastUpdate <- elapsedSinceLastUpdate(storedBattle, safeNow)
+            tickStep <- BattleEngine.TickStep(battleRules)
+            accumulatedMs <- accumulatedMs(storedBattle, elapsedSinceLastUpdate)
+            steps <- stepCount(accumulatedMs, tickStep.value)
+            remainderMs <- stepRemainder(accumulatedMs, tickStep.value)
+            advancedFrame <- advanceState(storedBattle.state, safeNow, steps, remainderMs, tickStep.value, battleRules)
+            result <- advancedResult(storedBattle, advancedFrame.state, safeNow, advancedFrame.pendingStepMs, battleRules)
+          yield result
+    yield result
+
+  private def safeNowFor(storedBattle: StoredBattle, now: EpochMillis): IO[EpochMillis] =
+    IO.pure {
       if now.value >= storedBattle.lastUpdatedAt.value then now
       else storedBattle.lastUpdatedAt
+    }
 
-    if storedBattle.state.phase == BattlePhase.Finished then
+  private def finishedStoredBattle(
+    storedBattle: StoredBattle,
+    safeNow: EpochMillis
+  ): IO[BattleStoredBattleAdvanceResult] =
+    IO.pure(
       BattleStoredBattleAdvanceResult(
         storedBattle = storedBattle.copy(
           state = storedBattle.state.copy(serverTime = safeNow),
@@ -30,39 +70,118 @@ private[battle] object BattleStoredBattleAdvanceRules {
         ),
         roomFinished = None
       )
+    )
+
+  private def elapsedSinceLastUpdate(storedBattle: StoredBattle, safeNow: EpochMillis): IO[Long] =
+    IO.pure(math.max(0L, safeNow.value - storedBattle.lastUpdatedAt.value))
+
+  private def accumulatedMs(storedBattle: StoredBattle, elapsedSinceLastUpdate: Long): IO[Long] =
+    IO.pure(storedBattle.pendingStepMs + elapsedSinceLastUpdate)
+
+  private def stepCount(accumulatedMs: Long, tickStepMs: Long): IO[Long] =
+    IO.pure(accumulatedMs / tickStepMs)
+
+  private def stepRemainder(accumulatedMs: Long, tickStepMs: Long): IO[Long] =
+    IO.pure(accumulatedMs % tickStepMs)
+
+  private def advanceState(
+    state: BattleAggregateState,
+    safeNow: EpochMillis,
+    steps: Long,
+    remainderMs: Long,
+    tickStepMs: Long,
+    battleRules: BattleDynamicRuleBook
+  ): IO[AdvancedStateFrame] =
+    if steps <= 0L then
+      BattleEngine
+        .advanceStateStep(state, 0L, safeNow, battleRules)
+        .map(AdvancedStateFrame(_, remainderMs))
+    else if steps <= exactCatchUpStepLimitFor(state) then
+      advanceExactState(state, safeNow, steps, remainderMs, tickStepMs, battleRules)
+        .map(AdvancedStateFrame(_, remainderMs))
+    else
+      advanceCoalescedState(state, safeNow, steps, remainderMs, tickStepMs, battleRules)
+        .map(AdvancedStateFrame(_, 0L))
+
+  private def exactCatchUpStepLimitFor(state: BattleAggregateState): Long =
+    if state.players.length >= HighPopulationPlayerCount then HighPopulationExactCatchUpStepLimit
+    else StandardExactCatchUpStepLimit
+
+  private def advanceExactState(
+    state: BattleAggregateState,
+    safeNow: EpochMillis,
+    steps: Long,
+    remainderMs: Long,
+    tickStepMs: Long,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] = {
+    val steppedThroughAt = safeNow.value - remainderMs
+    val steppedStateIO = (0L until steps).foldLeft(IO.pure(state)) { case (currentStateIO, stepIndex) =>
+      val stepNow = EpochMillis(steppedThroughAt - ((steps - stepIndex - 1L) * tickStepMs))
+      currentStateIO.flatMap(currentState => BattleEngine.advanceStateStep(currentState, tickStepMs, stepNow, battleRules))
+    }
+    steppedStateIO.flatMap(steppedState => BattleEngine.advanceStateStep(steppedState, 0L, safeNow, battleRules))
+  }
+
+  private def advanceCoalescedState(
+    state: BattleAggregateState,
+    safeNow: EpochMillis,
+    steps: Long,
+    remainderMs: Long,
+    tickStepMs: Long,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] = {
+    val accumulatedMs = steps * tickStepMs + remainderMs
+    val startedAt = safeNow.value - accumulatedMs
+    val stepPlans = coalescedStepDurations(accumulatedMs).scanLeft(startedAt -> 0L) {
+      case ((previousNow, _), deltaMs) => (previousNow + deltaMs) -> deltaMs
+    }.tail
+
+    stepPlans.foldLeft(IO.pure(state)) { case (currentStateIO, (stepNow, deltaMs)) =>
+      currentStateIO.flatMap(currentState => BattleEngine.advanceStateStep(currentState, deltaMs, EpochMillis(stepNow), battleRules))
+    }
+  }
+
+  private def coalescedStepDurations(totalMs: Long): Vector[Long] = {
+    val boundedTotalMs = math.max(0L, totalMs)
+    if boundedTotalMs <= 0L then Vector.empty
     else {
-      val elapsedSinceLastUpdate = math.max(0L, safeNow.value - storedBattle.lastUpdatedAt.value)
-      val accumulatedMs = storedBattle.pendingStepMs + elapsedSinceLastUpdate
-      val steps = accumulatedMs / BattleEngine.TickStep.value
-      val remainderMs = accumulatedMs % BattleEngine.TickStep.value
+      val adaptiveStepMs = math.max(
+        MinCoalescedCatchUpStepMs,
+        math.ceil(boundedTotalMs.toDouble / MaxCoalescedCatchUpSteps.toDouble).toLong
+      )
+      val fullStepCount = (boundedTotalMs / adaptiveStepMs).toInt
+      val remainderMs = boundedTotalMs % adaptiveStepMs
+      Vector.fill(fullStepCount)(adaptiveStepMs) ++ (if remainderMs > 0L then Vector(remainderMs) else Vector.empty)
+    }
+  }
 
-      val advancedState =
-        if steps <= 0L then BattleEngine.advanceStateStep(storedBattle.state, 0L, safeNow)
-        else {
-          val steppedThroughAt = safeNow.value - remainderMs
-          val steppedState = (0L until steps).foldLeft(storedBattle.state) { case (currentState, stepIndex) =>
-            val stepNow = EpochMillis(steppedThroughAt - ((steps - stepIndex - 1L) * BattleEngine.TickStep.value))
-            BattleEngine.advanceStateStep(currentState, BattleEngine.TickStep.value, stepNow)
-          }
-          BattleEngine.advanceStateStep(steppedState, 0L, safeNow)
-        }
-
+  private def advancedResult(
+    storedBattle: StoredBattle,
+    advancedState: BattleAggregateState,
+    safeNow: EpochMillis,
+    pendingStepMs: Long,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleStoredBattleAdvanceResult] =
+    roomFinishedWhenTransitioned(storedBattle.state, advancedState, battleRules).map { roomFinished =>
       BattleStoredBattleAdvanceResult(
         storedBattle = storedBattle.copy(
           state = advancedState,
           lastUpdatedAt = safeNow,
-          pendingStepMs = if advancedState.phase == BattlePhase.Finished then 0L else remainderMs
+          pendingStepMs = if advancedState.phase == BattlePhase.Finished then 0L else pendingStepMs
         ),
-        roomFinished = roomFinishedWhenTransitioned(storedBattle.state, advancedState)
+        roomFinished = roomFinished
       )
     }
-  }
 
   private def roomFinishedWhenTransitioned(
     previousState: BattleAggregateState,
-    nextState: BattleAggregateState
-  ): Option[BattleRoomFinishedNotification] =
-    Option.when(previousState.phase != BattlePhase.Finished && nextState.phase == BattlePhase.Finished) {
-      BattleRoomFinishedNotification(nextState.roomId, BattleEngine.finishedAtForRoom(nextState))
-    }
+    nextState: BattleAggregateState,
+    battleRules: BattleDynamicRuleBook
+  ): IO[Option[BattleRoomFinishedNotification]] =
+    if previousState.phase != BattlePhase.Finished && nextState.phase == BattlePhase.Finished then
+      BattleEngine.finishedAtForRoom(nextState, battleRules).map(finishedAt =>
+        Some(BattleRoomFinishedNotification(nextState.roomId, finishedAt))
+      )
+    else IO.pure(None)
 }

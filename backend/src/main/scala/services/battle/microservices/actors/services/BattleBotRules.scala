@@ -1,12 +1,16 @@
 package services.battle.microservices.actors.services
 
+import cats.effect.IO
+import cats.syntax.all.*
+
 import services.battle.microservices.world.services.BattleArenaCollision.*
-import services.battle.microservices.world.services.BattleArenaCatalog
 import services.battle.microservices.world.services.BattleGeometry.*
 import services.battle.microservices.world.services.BattleInitialLayout.*
 import services.battle.microservices.actors.services.BattleInputRules.*
 import services.battle.microservices.world.services.BattleMotionRules.*
-import services.battle.microservices.actors.database.BattleBotRuleBook
+import services.battle.microservices.world.objects.world.BattleArenaContext
+import services.battle.microservices.runtime.services.BattleDynamicRuleBook
+import services.battle.microservices.actors.objects.actors.BattleBotRuleConfig
 import services.battle.microservices.combat.services.BattleWeaponRules.*
 import services.battle.microservices.combat.objects.weapon.WeaponKind
 import services.battle.microservices.abilities.objects.pickup.PickupKind
@@ -21,212 +25,375 @@ private[battle] object BattleBotRules {
     visible: Boolean
   )
 
-  def applyBotControl(player: BattlePlayerState, state: BattleAggregateState): BattlePlayerState = {
-    val target = selectTarget(player, state)
-    val visibleThreat = target.exists(_.visible)
-    val reloadPressed = shouldBotReload(player, visibleThreat)
-    val movement =
-      if reloadPressed then reloadMovement(player, target, state)
-      else target match {
-        case Some(botTarget) => combatMovement(player, botTarget, state)
-        case None            => objectiveMovement(player, state)
-      }
-    val aim =
-      target
-        .map(botTarget => aimAtTarget(player, botTarget, state))
-        .getOrElse(normalizeAim(player.aim, if vectorLength(movement) > 0.0001 then movement else player.aim))
-    val primaryHeld =
-      !reloadPressed && target.exists(botTarget => shouldFireAtTarget(player, botTarget, state))
+  def applyBotControl(
+    player: BattlePlayerState,
+    state: BattleAggregateState,
+    arena: BattleArenaContext,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattlePlayerState] = {
+    if player.isBot then applyZombieControl(player, state, arena, battleRules)
+    else IO.pure(player)
+  }
 
-    player.copy(
+  private def applyZombieControl(
+    player: BattlePlayerState,
+    state: BattleAggregateState,
+    arena: BattleArenaContext,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattlePlayerState] = {
+    for
+      botRules <- battleRules.bot
+      target <- selectZombieTarget(player, state)
+      movement <- target match {
+        case Some(botTarget) =>
+          subtract(botTarget.player.position, player.position)
+            .flatMap(direction => chooseOpenMovement(player, direction, botRules, arena))
+        case None =>
+          objectiveMovement(player, state, botRules, arena, battleRules)
+      }
+      aim <-
+        target match {
+          case Some(botTarget) =>
+            subtract(botTarget.player.position, player.position)
+              .flatMap(direction => normalizeAim(player.aim, direction))
+          case None =>
+            vectorLength(movement).flatMap { movementLength =>
+              normalizeAim(player.aim, if movementLength > 0.0001 then movement else player.aim)
+            }
+        }
+    yield player.copy(
       aim = aim,
       facing = FacingRadians(math.atan2(aim.y, aim.x)),
       movement = movement,
       sprint = false,
-      primaryHeld = primaryHeld,
-      reloadPressed = reloadPressed
+      primaryHeld = false,
+      reloadPressed = false
     )
   }
 
-  private def selectTarget(player: BattlePlayerState, state: BattleAggregateState): Option[BotTarget] = {
-    val targets = state.players
-      .filter(candidate => candidate.playerId != player.playerId && candidate.alive)
-      .map(candidate =>
+  private def selectZombieTarget(player: BattlePlayerState, state: BattleAggregateState): IO[Option[BotTarget]] =
+    state.players
+      .filter(candidate => candidate.playerId != player.playerId && candidate.alive && !candidate.isBot)
+      .traverse(candidate => distanceBetween(player.position, candidate.position).map(distance =>
         BotTarget(
           player = candidate,
-          distance = distanceBetween(player.position, candidate.position),
-          visible = hasArenaLineOfSight(player.position, candidate.position)
+          distance = distance,
+          visible = true
         )
-      )
-    val visibleTargets = targets.filter(_.visible)
-    val visibleOrAll = if visibleTargets.nonEmpty then visibleTargets else targets
-    val humanTargets = visibleOrAll.filterNot(_.player.isBot)
-    val preferredTargets = if humanTargets.nonEmpty then humanTargets else visibleOrAll
+      ))
+      .map(_.sortBy(_.distance).headOption)
 
-    preferredTargets.sortBy(targetScore).headOption
-  }
+  private def selectTarget(player: BattlePlayerState, state: BattleAggregateState, arena: BattleArenaContext): IO[Option[BotTarget]] =
+    state.players
+      .filter(candidate => candidate.playerId != player.playerId && candidate.alive)
+      .traverse { candidate =>
+        for
+          visible <- hasArenaLineOfSight(player.position, candidate.position, arena)
+          distance <- distanceBetween(player.position, candidate.position)
+        yield
+          BotTarget(
+            player = candidate,
+            distance = distance,
+            visible = visible
+          )
+      }
+      .flatMap { targets =>
+        val visibleTargets = targets.filter(_.visible)
+        val visibleOrAll = if visibleTargets.nonEmpty then visibleTargets else targets
+        val humanTargets = visibleOrAll.filterNot(_.player.isBot)
+        val preferredTargets = if humanTargets.nonEmpty then humanTargets else visibleOrAll
 
-  private def targetScore(target: BotTarget): Double = {
+        preferredTargets
+          .traverse(target => targetScore(target).map(score => target -> score))
+          .map(_.sortBy { case (_, score) => score }.headOption.map { case (target, _) => target })
+      }
+
+  private def targetScore(target: BotTarget): IO[Double] = IO.pure {
     val visibilityPenalty = if target.visible then 0.0 else 380.0
     val humanPenalty = if target.player.isBot then 120.0 else 0.0
     val lowHealthBonus = (target.player.maxHp.value - target.player.hp.value) * -1.6
     target.distance + visibilityPenalty + humanPenalty + lowHealthBonus
   }
 
-  private def aimAtTarget(player: BattlePlayerState, target: BotTarget, state: BattleAggregateState): BattleVector2 = {
-    val botRules = BattleBotRuleBook.current
-    val lead = scale(target.player.movement, botRules.aimLeadDistance.value)
-    val base = subtract(target.player.position, player.position)
+  private def aimAtTarget(
+    player: BattlePlayerState,
+    target: BotTarget,
+    state: BattleAggregateState,
+    botRules: BattleBotRuleConfig
+  ): IO[BattleVector2] = {
     val wobbleDirection =
       if ((state.tick.value + player.seat.value.toLong + target.player.seat.value.toLong) % 2L) == 0L then 1.0
       else -1.0
-    val aimNoise = scale(perpendicular(normalizeAim(player.aim, base), wobbleDirection), botRules.aimErrorRadius.value)
-    normalizeAim(player.aim, add(add(base, lead), aimNoise))
+    for
+      lead <- scale(target.player.movement, botRules.aimLeadDistance.value)
+      base <- subtract(target.player.position, player.position)
+      normalizedBase <- normalizeAim(player.aim, base)
+      perpendicularBase <- perpendicular(normalizedBase, wobbleDirection)
+      aimNoise <- scale(perpendicularBase, botRules.aimErrorRadius.value)
+      aimBase <- add(base, lead)
+      noisyAim <- add(aimBase, aimNoise)
+      aim <- normalizeAim(player.aim, noisyAim)
+    yield aim
   }
 
-  private def combatMovement(player: BattlePlayerState, target: BotTarget, state: BattleAggregateState): BattleVector2 = {
-    val toTarget = subtract(target.player.position, player.position)
-    val aim = normalizeAim(player.aim, toTarget)
-    val desired =
-      if shouldRetreat(player, target) then coverOrRetreatDirection(player, target)
-      else if !target.visible then flankDirection(player, aim, state)
-      else {
-        val orbit = perpendicular(aim, orbitDirection(player, state))
-        val botRules = BattleBotRuleBook.current
-        val radial =
-          if target.distance > botRules.preferredRange.value + botRules.preferredRangeAdvanceMargin.value then aim
-          else if target.distance < botRules.preferredRange.value - botRules.preferredRangeRetreatMargin.value then scale(aim, -1.0)
-          else BattleArenaCatalog.ZeroVector
-        add(scale(radial, 0.86), scale(orbit, 0.52))
-      }
-
-    chooseOpenMovement(player, desired)
+  private def combatMovement(
+    player: BattlePlayerState,
+    target: BotTarget,
+    state: BattleAggregateState,
+    botRules: BattleBotRuleConfig,
+    arena: BattleArenaContext
+  ): IO[BattleVector2] = {
+    for
+      toTarget <- subtract(target.player.position, player.position)
+      aim <- normalizeAim(player.aim, toTarget)
+      retreat <- shouldRetreat(player, target, botRules)
+      desired <-
+        if retreat then coverOrRetreatDirection(player, target, botRules, arena)
+        else if !target.visible then flankDirection(player, aim, state)
+        else
+          for
+            orbitDirectionValue <- orbitDirection(player, state)
+            orbit <- perpendicular(aim, orbitDirectionValue)
+            radial <-
+              if target.distance > botRules.preferredRange.value + botRules.preferredRangeAdvanceMargin.value then IO.pure(aim)
+              else if target.distance < botRules.preferredRange.value - botRules.preferredRangeRetreatMargin.value then scale(aim, -1.0)
+              else IO.pure(BattleArenaContext.ZeroVector)
+            scaledRadial <- scale(radial, 0.86)
+            scaledOrbit <- scale(orbit, 0.52)
+            combined <- add(scaledRadial, scaledOrbit)
+          yield combined
+      movement <- chooseOpenMovement(player, desired, botRules, arena)
+    yield movement
   }
 
   private def reloadMovement(
     player: BattlePlayerState,
     target: Option[BotTarget],
-    state: BattleAggregateState
-  ): BattleVector2 =
+    state: BattleAggregateState,
+    botRules: BattleBotRuleConfig,
+    arena: BattleArenaContext,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleVector2] =
     target match {
-      case Some(botTarget) => chooseOpenMovement(player, coverOrRetreatDirection(player, botTarget))
-      case None            => objectiveMovement(player, state)
+      case Some(botTarget) =>
+        coverOrRetreatDirection(player, botTarget, botRules, arena)
+          .flatMap(direction => chooseOpenMovement(player, direction, botRules, arena))
+      case None            => objectiveMovement(player, state, botRules, arena, battleRules)
     }
 
-  private def objectiveMovement(player: BattlePlayerState, state: BattleAggregateState): BattleVector2 =
-    pickupObjective(player, state) match {
-      case Some(pickup) => chooseOpenMovement(player, subtract(pickup.position, player.position))
-      case None         => chooseOpenMovement(player, subtract(patrolTarget(player, state), player.position))
+  private def objectiveMovement(
+    player: BattlePlayerState,
+    state: BattleAggregateState,
+    botRules: BattleBotRuleConfig,
+    arena: BattleArenaContext,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleVector2] =
+    pickupObjective(player, state, botRules, battleRules).flatMap {
+      case Some(pickup) =>
+        subtract(pickup.position, player.position)
+          .flatMap(direction => chooseOpenMovement(player, direction, botRules, arena))
+      case None =>
+        for
+          target <- patrolTarget(player, state, arena, battleRules)
+          direction <- subtract(target, player.position)
+          movement <- chooseOpenMovement(player, direction, botRules, arena)
+        yield movement
     }
 
-  private def pickupObjective(player: BattlePlayerState, state: BattleAggregateState): Option[BattlePickupState] = {
+  private def pickupObjective(
+    player: BattlePlayerState,
+    state: BattleAggregateState,
+    botRules: BattleBotRuleConfig,
+    battleRules: BattleDynamicRuleBook
+  ): IO[Option[BattlePickupState]] = {
     val availablePickups = state.pickups.filter(_.available)
-    val botRules = BattleBotRuleBook.current
     val needsHealth = player.hp.value <= player.maxHp.value * botRules.pickupHealthRatio
-    val needsWeapon =
-      currentWeapon(player).forall(_.weaponKind == WeaponKind.Pistol) ||
-        currentWeapon(player).exists(weapon =>
-          !weaponUsesHeat(weapon.weaponKind) &&
-            weapon.ammoInMagazine.value <= math.max(1, math.floor(weapon.magazineSize.value * botRules.tacticalReloadRatio).toInt)
-        )
-    val preferred =
-      if needsHealth then availablePickups.filter(_.pickupKind == PickupKind.Medkit)
-      else if needsWeapon then availablePickups.filter(_.pickupKind == PickupKind.Weapon)
-      else availablePickups.filter(pickup => distanceBetween(player.position, pickup.position) <= botRules.pickupSeekRange.value)
+    for
+      current <- currentWeapon(player)
+      needsAmmo <- current match {
+        case None =>
+          IO.pure(false)
+        case Some(weapon) =>
+          weaponUsesHeat(weapon.weaponKind, battleRules).map { usesHeat =>
+            !usesHeat &&
+              weapon.ammoInMagazine.value <= math.max(1, math.floor(weapon.magazineSize.value * botRules.tacticalReloadRatio).toInt)
+          }
+      }
+      pickupDistances <- availablePickups.traverse(pickup =>
+        distanceBetween(player.position, pickup.position).map(distance => pickup -> distance)
+      )
+    yield {
+      val needsWeapon = current.forall(_.weaponKind == WeaponKind.Pistol) || needsAmmo
+      val preferred =
+        if needsHealth then pickupDistances.filter { case (pickup, _) => pickup.pickupKind == PickupKind.Medkit }
+        else if needsWeapon then pickupDistances.filter { case (pickup, _) => pickup.pickupKind == PickupKind.Weapon }
+        else pickupDistances.filter { case (_, distance) => distance <= botRules.pickupSeekRange.value }
 
-    preferred.sortBy(pickup => distanceBetween(player.position, pickup.position)).headOption
+      preferred.sortBy { case (_, distance) => distance }.headOption.map { case (pickup, _) => pickup }
+    }
   }
 
-  private def shouldRetreat(player: BattlePlayerState, target: BotTarget): Boolean = {
-    val botRules = BattleBotRuleBook.current
+  private def shouldRetreat(player: BattlePlayerState, target: BotTarget, botRules: BattleBotRuleConfig): IO[Boolean] = IO.pure {
     val lowHealth = player.hp.value <= player.maxHp.value * botRules.lowHealthRatio
     lowHealth || target.distance < botRules.preferredRange.value - botRules.preferredRangeRetreatMargin.value
   }
 
-  private def coverOrRetreatDirection(player: BattlePlayerState, target: BotTarget): BattleVector2 = {
-    val away = normalizeMovement(subtract(player.position, target.player.position))
-    val candidates = Vector(
-      away,
-      add(scale(away, 0.82), scale(perpendicular(away, 1.0), 0.58)),
-      add(scale(away, 0.82), scale(perpendicular(away, -1.0), 0.58)),
-      perpendicular(away, 1.0),
-      perpendicular(away, -1.0)
-    )
-
-    candidates
-      .map(normalizeMovement)
-      .filter(vectorLength(_) > 0.0001)
-      .maxByOption { direction =>
-        val probe = clampToPlayable(add(player.position, scale(direction, BattleBotRuleBook.current.coverProbeDistance.value)))
-        val coverBonus = if hasArenaLineOfSight(target.player.position, probe) then 0.0 else 900.0
-        val occupancyBonus = if canPlayerOccupy(probe, BattleArenaCatalog.PlayerCollisionRadius) then 180.0 else -900.0
-        coverBonus + occupancyBonus + distanceBetween(probe, target.player.position)
+  private def coverOrRetreatDirection(
+    player: BattlePlayerState,
+    target: BotTarget,
+    botRules: BattleBotRuleConfig,
+    arena: BattleArenaContext
+  ): IO[BattleVector2] =
+    for
+      awayVector <- subtract(player.position, target.player.position)
+      away <- normalizeMovement(awayVector)
+      awayForward <- scale(away, 0.82)
+      positivePerpendicular <- perpendicular(away, 1.0)
+      negativePerpendicular <- perpendicular(away, -1.0)
+      positiveOffset <- scale(positivePerpendicular, 0.58)
+      negativeOffset <- scale(negativePerpendicular, 0.58)
+      positiveCandidate <- add(awayForward, positiveOffset)
+      negativeCandidate <- add(awayForward, negativeOffset)
+      candidates <- Vector(
+        away,
+        positiveCandidate,
+        negativeCandidate,
+        positivePerpendicular,
+        negativePerpendicular
+      ).traverse(normalizeMovement)
+      scoredOptions <- candidates.traverse { direction =>
+        vectorLength(direction).flatMap { length =>
+          if length <= 0.0001 then IO.pure(None)
+          else
+            for
+              probeOffset <- scale(direction, botRules.coverProbeDistance.value)
+              unclampedProbe <- add(player.position, probeOffset)
+              probe <- clampToPlayable(unclampedProbe, arena)
+              lineOfSight <- hasArenaLineOfSight(target.player.position, probe, arena)
+              canOccupy <- canPlayerOccupy(probe, arena.playerCollisionRadius, arena)
+              probeDistance <- distanceBetween(probe, target.player.position)
+            yield
+              val coverBonus = if lineOfSight then 0.0 else 900.0
+              val occupancyBonus = if canOccupy then 180.0 else -900.0
+              Some(direction -> (coverBonus + occupancyBonus + probeDistance))
+        }
       }
-      .getOrElse(away)
-  }
+    yield
+      scoredOptions.flatten
+        .maxByOption { case (_, score) => score }
+        .map { case (direction, _) => direction }
+        .getOrElse(away)
 
-  private def flankDirection(player: BattlePlayerState, aim: BattleVector2, state: BattleAggregateState): BattleVector2 =
-    normalizeMovement(add(scale(aim, 0.58), scale(perpendicular(aim, orbitDirection(player, state)), 0.92)))
+  private def flankDirection(player: BattlePlayerState, aim: BattleVector2, state: BattleAggregateState): IO[BattleVector2] =
+    for
+      scaledAim <- scale(aim, 0.58)
+      orbitDirectionValue <- orbitDirection(player, state)
+      orbit <- perpendicular(aim, orbitDirectionValue)
+      scaledOrbit <- scale(orbit, 0.92)
+      combined <- add(scaledAim, scaledOrbit)
+      movement <- normalizeMovement(combined)
+    yield movement
 
-  private def chooseOpenMovement(player: BattlePlayerState, desired: BattleVector2): BattleVector2 = {
-    val normalized = normalizeMovement(desired)
-    if vectorLength(normalized) <= 0.0001 then BattleArenaCatalog.ZeroVector
-    else {
-      val candidates = Vector(
-        normalized,
-        rotate(normalized, math.Pi / 6.0),
-        rotate(normalized, -math.Pi / 6.0),
-        rotate(normalized, math.Pi / 3.0),
-        rotate(normalized, -math.Pi / 3.0),
-        rotate(normalized, math.Pi / 2.0),
-        rotate(normalized, -math.Pi / 2.0),
-        scale(normalized, -1.0)
-      )
+  private def chooseOpenMovement(
+    player: BattlePlayerState,
+    desired: BattleVector2,
+    botRules: BattleBotRuleConfig,
+    arena: BattleArenaContext
+  ): IO[BattleVector2] =
+    for
+      normalized <- normalizeMovement(desired)
+      normalizedLength <- vectorLength(normalized)
+      movement <-
+        if normalizedLength <= 0.0001 then IO.pure(BattleArenaContext.ZeroVector)
+        else {
+          for
+            reverse <- scale(normalized, -1.0)
+            positiveSmall <- rotate(normalized, math.Pi / 6.0)
+            negativeSmall <- rotate(normalized, -math.Pi / 6.0)
+            positiveMedium <- rotate(normalized, math.Pi / 3.0)
+            negativeMedium <- rotate(normalized, -math.Pi / 3.0)
+            positiveSide <- rotate(normalized, math.Pi / 2.0)
+            negativeSide <- rotate(normalized, -math.Pi / 2.0)
+            candidates = Vector(normalized, positiveSmall, negativeSmall, positiveMedium, negativeMedium, positiveSide, negativeSide, reverse)
+            normalizedCandidates <- candidates.traverse(normalizeMovement)
+            scoredCandidates <- normalizedCandidates.traverse { direction =>
+              findMotionDestination(
+                position = player.position,
+                direction = direction,
+                distance = botRules.movementProbeDistance.value,
+                radius = arena.playerCollisionRadius,
+                arena = arena
+              ).flatMap(motion => distanceBetween(player.position, motion.destination).map(distance => direction -> distance))
+            }
+            fallbackVector <- perpendicular(player.aim, 1.0)
+            fallback <- normalizeMovement(fallbackVector)
+          yield scoredCandidates
+            .filter { case (_, distance) => distance > 4.0 }
+            .maxByOption { case (_, distance) => distance }
+            .map(_._1)
+            .getOrElse(fallback)
+        }
+    yield movement
 
-      val best = candidates
-        .map(normalizeMovement)
-        .map(direction =>
-          val motion = findMotionDestination(
-            position = player.position,
-            direction = direction,
-            distance = BattleBotRuleBook.current.movementProbeDistance.value,
-            radius = BattleArenaCatalog.PlayerCollisionRadius
-          )
-          direction -> distanceBetween(player.position, motion.destination)
-        )
-        .filter { case (_, distance) => distance > 4.0 }
-        .maxByOption { case (_, distance) => distance }
+  private def shouldFireAtTarget(
+    player: BattlePlayerState,
+    target: BotTarget,
+    state: BattleAggregateState,
+    botRules: BattleBotRuleConfig,
+    battleRules: BattleDynamicRuleBook
+  ): IO[Boolean] =
+    val weaponCanFireIO =
+      currentWeapon(player).flatMap {
+        case None =>
+          IO.pure(false)
+        case Some(weapon) =>
+          weaponUsesHeat(weapon.weaponKind, battleRules).map { usesHeat =>
+            weapon.reloadRemainingMs.value <= 0 &&
+              (usesHeat || weapon.ammoInMagazine.value > 0)
+          }
+      }
 
-      best.map(_._1).getOrElse(normalizeMovement(perpendicular(player.aim, 1.0)))
-    }
-  }
+    for
+      weaponCanFire <- weaponCanFireIO
+      fireRange <- botFireRangeForTarget(target.player, botRules)
+      allowedByOpeningDelay <- canBotFireAtTarget(state, botRules)
+      firePulseOpen <- isBotFirePulseOpen(player, state, botRules)
+    yield
+      target.visible &&
+      target.distance <= fireRange &&
+      allowedByOpeningDelay &&
+      firePulseOpen &&
+      weaponCanFire
 
-  private def shouldFireAtTarget(player: BattlePlayerState, target: BotTarget, state: BattleAggregateState): Boolean =
-    target.visible &&
-      target.distance <= botFireRangeForTarget(target.player) &&
-      canBotFireAtTarget(state) &&
-      isBotFirePulseOpen(player, state) &&
-      currentWeapon(player).exists(weapon =>
-        weapon.reloadRemainingMs.value <= 0 &&
-          (weaponUsesHeat(weapon.weaponKind) || weapon.ammoInMagazine.value > 0)
-      )
+  private def shouldBotReload(
+    player: BattlePlayerState,
+    visibleThreat: Boolean,
+    botRules: BattleBotRuleConfig,
+    battleRules: BattleDynamicRuleBook
+  ): IO[Boolean] =
+    if !player.isBot then IO.pure(false)
+    else
+      currentWeapon(player).flatMap {
+        case None =>
+          IO.pure(false)
+        case Some(weapon) =>
+          for
+            canStart <- canStartMagazineReload(weapon, battleRules)
+            usesHeat <- weaponUsesHeat(weapon.weaponKind, battleRules)
+          yield
+            val emptyReload = weapon.ammoInMagazine.value <= 0 && canStart
+            val tacticalReload =
+              !visibleThreat &&
+                !usesHeat &&
+                weapon.ammoInMagazine.value <= math.max(1, math.floor(weapon.magazineSize.value * botRules.tacticalReloadRatio).toInt) &&
+                canStart
+            emptyReload || tacticalReload
+      }
 
-  private def shouldBotReload(player: BattlePlayerState, visibleThreat: Boolean): Boolean =
-    player.isBot && currentWeapon(player).exists(weapon =>
-      val emptyReload = weapon.ammoInMagazine.value <= 0 && canStartMagazineReload(weapon)
-      val tacticalReload =
-        !visibleThreat &&
-          !weaponUsesHeat(weapon.weaponKind) &&
-          weapon.ammoInMagazine.value <= math.max(1, math.floor(weapon.magazineSize.value * BattleBotRuleBook.current.tacticalReloadRatio).toInt) &&
-          canStartMagazineReload(weapon)
-      emptyReload || tacticalReload
-    )
+  private def canBotFireAtTarget(state: BattleAggregateState, botRules: BattleBotRuleConfig): IO[Boolean] =
+    IO.pure(state.elapsedMs.value >= botRules.openingFireDelay.value)
 
-  private def canBotFireAtTarget(state: BattleAggregateState): Boolean =
-    state.elapsedMs.value >= BattleBotRuleBook.current.openingFireDelay.value
-
-  private def isBotFirePulseOpen(player: BattlePlayerState, state: BattleAggregateState): Boolean = {
-    val botRules = BattleBotRuleBook.current
+  private def isBotFirePulseOpen(player: BattlePlayerState, state: BattleAggregateState, botRules: BattleBotRuleConfig): IO[Boolean] = IO.pure {
     val interval = math.max(1L, botRules.firePulseInterval.value)
     val window = math.max(1L, math.min(botRules.firePulseWindow.value, interval))
     val rawPhase = (state.elapsedMs.value + player.seat.value.toLong * 97L) % interval
@@ -234,41 +401,49 @@ private[battle] object BattleBotRules {
     phase < window
   }
 
-  private def botFireRangeForTarget(target: BattlePlayerState): Double =
-    val botRules = BattleBotRuleBook.current
-    if target.isBot then botRules.botFireRange.value
-    else botRules.humanFireRange.value
+  private def botFireRangeForTarget(target: BattlePlayerState, botRules: BattleBotRuleConfig): IO[Double] =
+    IO.pure {
+      if target.isBot then botRules.botFireRange.value
+      else botRules.humanFireRange.value
+    }
 
-  private def patrolTarget(player: BattlePlayerState, state: BattleAggregateState): BattleVector2 = {
-    val spawnAnchor = spawnPointFor(SpawnPointIndex(player.seat.value))
-    val patrolAngle = (state.tick.value + player.seat.value.toLong * 11L).toDouble * 0.18
-    clampToPlayable(BattleVector2(
-      spawnAnchor.x + math.cos(patrolAngle) * 260.0,
-      spawnAnchor.y + math.sin(patrolAngle) * 190.0
-    ))
-  }
+  private def patrolTarget(
+    player: BattlePlayerState,
+    state: BattleAggregateState,
+    arena: BattleArenaContext,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleVector2] =
+    spawnPointFor(state.mapId, SpawnPointIndex(player.seat.value), battleRules).flatMap { spawnAnchor =>
+      val patrolAngle = (state.tick.value + player.seat.value.toLong * 11L).toDouble * 0.18
+      clampToPlayable(BattleVector2(
+        spawnAnchor.x + math.cos(patrolAngle) * 260.0,
+        spawnAnchor.y + math.sin(patrolAngle) * 190.0
+      ), arena)
+    }
 
-  private def orbitDirection(player: BattlePlayerState, state: BattleAggregateState): Double =
-    if (state.tick.value + player.seat.value.toLong) % 2L == 0L then 1.0
-    else -1.0
+  private def orbitDirection(player: BattlePlayerState, state: BattleAggregateState): IO[Double] =
+    IO.pure {
+      if (state.tick.value + player.seat.value.toLong) % 2L == 0L then 1.0
+      else -1.0
+    }
 
-  private def rotate(vector: BattleVector2, radians: Double): BattleVector2 =
-    BattleVector2(
+  private def rotate(vector: BattleVector2, radians: Double): IO[BattleVector2] =
+    IO.pure(BattleVector2(
       vector.x * math.cos(radians) - vector.y * math.sin(radians),
       vector.x * math.sin(radians) + vector.y * math.cos(radians)
-    )
+    ))
 
-  private def clampToPlayable(point: BattleVector2): BattleVector2 =
-    BattleVector2(
-      clampDouble(
+  private def clampToPlayable(point: BattleVector2, arena: BattleArenaContext): IO[BattleVector2] =
+    for
+      x <- clampDouble(
         point.x,
-        BattleArenaCatalog.PlayerCollisionRadius,
-        BattleArenaCatalog.WorldSize.x - BattleArenaCatalog.PlayerCollisionRadius
-      ),
-      clampDouble(
-        point.y,
-        BattleArenaCatalog.PlayerCollisionRadius,
-        BattleArenaCatalog.WorldSize.y - BattleArenaCatalog.PlayerCollisionRadius
+        arena.playerCollisionRadius,
+        arena.worldSize.x - arena.playerCollisionRadius
       )
-    )
+      y <- clampDouble(
+        point.y,
+        arena.playerCollisionRadius,
+        arena.worldSize.y - arena.playerCollisionRadius
+      )
+    yield BattleVector2(x, y)
 }

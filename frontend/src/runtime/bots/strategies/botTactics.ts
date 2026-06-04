@@ -1,4 +1,4 @@
-import type { Hero } from "../../../objects/battle/types";
+import type { BattleHeroViewState as Hero } from "../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
 import { getEngageRange, isWeaponScarce, type BotBrainState, type BotTarget } from "./botTargeting";
 
 export interface BotTacticState {

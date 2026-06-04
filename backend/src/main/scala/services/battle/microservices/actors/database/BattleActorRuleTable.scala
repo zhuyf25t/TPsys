@@ -13,6 +13,27 @@ import services.battle.objects.core.{DurationMillis, Radius}
 import system.database.PostgresSupport
 
 private[services] object BattleActorRuleTable {
+  private val DefaultBotRules: BattleBotRuleConfig =
+    BattleBotRuleConfig(
+      moveSpeed = BattleBotMoveSpeed(180.0),
+      preferredRange = Radius(260.0),
+      preferredRangeAdvanceMargin = Radius(80.0),
+      preferredRangeRetreatMargin = Radius(90.0),
+      botFireRange = Radius(520.0),
+      humanFireRange = Radius(360.0),
+      openingFireDelay = DurationMillis(5_000L),
+      firePulseInterval = DurationMillis(1_000L),
+      firePulseWindow = DurationMillis(1_000L),
+      movementProbeDistance = Radius(96.0),
+      coverProbeDistance = Radius(220.0),
+      pickupSeekRange = Radius(380.0),
+      aimLeadDistance = Radius(0.16),
+      aimErrorRadius = Radius(0.02),
+      lowHealthRatio = 0.38,
+      pickupHealthRatio = 0.52,
+      tacticalReloadRatio = 0.28
+    )
+
   private val upsertSql: String =
     """INSERT INTO battle_actor_bot_rules (
       |  rule_id, active, move_speed, preferred_range, preferred_range_advance_margin,
@@ -50,6 +71,9 @@ private[services] object BattleActorRuleTable {
         statement.executeUpdate()
       }
     }
+
+  def upsertDefaultBotRules(connection: Connection): IO[Unit] =
+    upsert(connection, DefaultBotRules)
 
   def loadActive(connection: Connection): IO[BattleBotRuleConfig] =
     IO.blocking {

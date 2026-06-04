@@ -7,7 +7,7 @@ import {
   getLoadoutSummary,
   setLoadoutPreset,
   subscribeLoadoutState
-} from "../../../apis/battle/loadoutGateway";
+} from "../../../runtime/battle/loadout/BattleLoadoutStore";
 import {
   getMailSummaries,
   isRemoteMailSourceConfigured,
@@ -26,7 +26,7 @@ import {
 } from "../../../apis/social/friendRequestGateway";
 import { buildFriendRequestPreview } from "../../friend-requests/components/friendRequestPreviewPresenter";
 import { useLobbyData } from "../../shared/hooks/useLobbyData";
-import type { MatchPhase } from "./battlePageTypes";
+import type { MatchPhase } from "../objects/BattlePageState";
 
 interface UseBattlePageDataOptions {
   matchPhase: MatchPhase;

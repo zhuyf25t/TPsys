@@ -35,12 +35,12 @@ export function HomePageView({
   const isPlayerOnline = playerMeta !== "未登录";
   const replayDetail = replayTotalCount > 0 ? `战报库 ${replayTotalCount} 条` : "完赛后生成";
   const operationDeckStats = [
-    { label: "MODE", value: "3v3", detail: battleModeDetail, tone: "data" },
+    { label: "MODE", value: "ZOMBIE", detail: battleModeDetail, tone: "data" },
     { label: "SYNC", value: "OK", detail: syncDetail, tone: "ready" },
     { label: "REPLAY", value: String(recentReplayCount), detail: replayDetail, tone: recentReplayCount > 0 ? "data" : "idle" }
   ] as const;
   const homeMenuIntelCards = [
-    { eyebrow: "战斗模式", value: "3v3", detail: battleModeDetail },
+    { eyebrow: "战斗模式", value: "ZOMBIE", detail: battleModeDetail },
     { eyebrow: "同步协议", value: "权威同步", detail: syncDetail },
     { eyebrow: "回放链路", value: String(recentReplayCount), detail: replayDetail },
     { eyebrow: "评级状态", value: currentRatingLabel, detail: "战斗评分 / Profile Score" }
@@ -49,8 +49,8 @@ export function HomePageView({
   return (
     <>
       <LobbyShell
-        brand="OMEGALOMANIA"
-        title="OMEGALOMANIA"
+        brand="BATTLE RIFT"
+        title="Battle Rift"
         subtitle={lobbySubtitle}
         playerName={playerName}
         playerBadge={playerBadge}
@@ -71,14 +71,14 @@ export function HomePageView({
         menuBody={
           <div className="home-menu">
             <div className="home-menu__brandplate">
-              <span className="home-menu__kicker">SLAY DEMO / 钢铁战备大厅</span>
+              <span className="home-menu__kicker">BATTLE RIFT / 钢铁战备大厅</span>
               <div className="home-menu__emblem" aria-hidden="true">
                 <span className="home-menu__emblem-ring home-menu__emblem-ring--outer" />
                 <span className="home-menu__emblem-ring home-menu__emblem-ring--inner" />
-                <b>OM</b>
+                <b>BR</b>
               </div>
               <div className="home-menu__logo" aria-hidden="true">
-                OMEGA<span>LOMANIA</span>
+                BATTLE<span>RIFT</span>
               </div>
               <strong className="home-menu__campaign-title">金属战役中枢</strong>
               <p>快节奏 3v3 竞技场 · 武装同步完成，等待投放</p>

@@ -1,7 +1,9 @@
-import type { GameSnapshot } from "../../../../../objects/battle/types";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import { cloneBattleExtractionSnapshotFields } from "../../../microservices/extraction/functions/cloneBattleExtractionState";
 
 /** 中文名：克隆game快照（cloneGameSnapshot）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function cloneGameSnapshot(snapshot: GameSnapshot): GameSnapshot {
+  const extractionFields = cloneBattleExtractionSnapshotFields(snapshot);
   return {
     heroes: snapshot.heroes.map((hero) => ({
       ...hero,
@@ -28,6 +30,9 @@ export function cloneGameSnapshot(snapshot: GameSnapshot): GameSnapshot {
       ...pickup,
       position: { ...pickup.position }
     })),
+    gasZone: extractionFields.gasZone,
+    extraction: extractionFields.extraction,
+    lootCaches: extractionFields.lootCaches,
     events: snapshot.events.map((event) => ({ ...event })),
     worldSize: { ...snapshot.worldSize },
     elapsedMs: snapshot.elapsedMs,

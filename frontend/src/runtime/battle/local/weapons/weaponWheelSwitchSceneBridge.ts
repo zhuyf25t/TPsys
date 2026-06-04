@@ -1,4 +1,5 @@
-import type { Hero, Vec2 } from "../../../../objects/battle/types";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
 import type { WeaponSwitchStateBridge } from "./weaponSwitchStateBridge";
 
 type WeaponWheelSwitchSource = "Phaser" | "Window";

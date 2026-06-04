@@ -1,48 +1,61 @@
 package services.battle.microservices.runtime.services
 
+import cats.effect.IO
+import cats.syntax.all.*
+
 import services.battle.microservices.actors.services.BattlePlayerLifecycleRules
-import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.extraction.services.BattleExtractionRuntimeRules
 import services.battle.microservices.runtime.services.BattleReplayFrameRecorder
 import services.battle.objects.{BattleAggregateState, BattlePhase, BattleTick, ElapsedMillis, EpochMillis}
 
 private[battle] object BattleRuntimeFinishRules {
-  /** 中文名：判断战斗是否结束（isBattleFinished）。游戏职责：根据时长和存活玩家数量判断权威战斗是否进入结束阶段�?*/
-  def isBattleFinished(state: BattleAggregateState, elapsed: Long): Boolean =
-    state.phase == BattlePhase.Finished ||
-      elapsed >= state.durationMs.value ||
-      state.players.count(player => player.alive && player.hp.value > 0) <= 1
+  def isBattleFinished(state: BattleAggregateState, elapsed: Long): IO[Boolean] =
+    BattleExtractionRuntimeRules.hasExtracted(state).map { extracted =>
+      state.phase == BattlePhase.Finished ||
+        extracted ||
+        elapsed >= state.durationMs.value ||
+        state.players.count(player => player.alive && player.hp.value > 0) <= 1
+    }
 
-  /** 中文名：结束运行时状态（finishRuntimeState）。游戏职责：清理结束时玩家运行态、写入胜者并追加最终回放帧�?*/
   def finishRuntimeState(
     state: BattleAggregateState,
     elapsed: Long,
-    now: EpochMillis
-  ): BattleAggregateState = {
-    val finishedPlayers = state.players.map(BattlePlayerLifecycleRules.clearFinishedPlayerRuntime)
-    val winner = BattlePlayerLifecycleRules.winnerFor(finishedPlayers)
-    state.copy(
-      phase = BattlePhase.Finished,
-      serverTime = now,
-      elapsedMs = ElapsedMillis(elapsed),
-      tick = BattleTick(elapsed / BattleRuntimeRuleBook.runtime.tickStep.value),
-      players = finishedPlayers,
-      projectiles = Vector.empty,
-      slowFields = state.slowFields,
-      replayFrames = BattleReplayFrameRecorder.appendFrame(
+    now: EpochMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] =
+    for
+      finishedPlayers <- state.players.traverse(BattlePlayerLifecycleRules.clearFinishedPlayerRuntime)
+      extractedWinner <- BattleExtractionRuntimeRules.extractedWinner(state)
+      winner <- extractedWinner match {
+        case Some(value) => IO.pure(Some(value))
+        case None        => BattlePlayerLifecycleRules.winnerFor(finishedPlayers)
+      }
+      runtimeRules <- battleRules.runtime
+      historyRules <- battleRules.history
+      replayFrames <- BattleReplayFrameRecorder.appendFrame(
         state.replayFrames,
         ElapsedMillis(elapsed),
         finishedPlayers,
         Vector.empty,
         state.pickups,
-        BattleRuntimeRuleBook.history.retainedReplayFrameCount
-      ),
+        historyRules.retainedReplayFrameCount
+      )
+    yield state.copy(
+      phase = BattlePhase.Finished,
+      serverTime = now,
+      elapsedMs = ElapsedMillis(elapsed),
+      tick = BattleTick(elapsed / runtimeRules.tickStep.value),
+      players = finishedPlayers,
+      projectiles = Vector.empty,
+      slowFields = state.slowFields,
+      replayFrames = replayFrames,
       winnerPlayerId = winner.map(_.playerId),
       winnerHeroId = winner.map(_.heroId)
     )
-  }
 
-  /** 中文名：房间结束时间（finishedAtForRoom）。游戏职责：给等待房间生命周期选择战斗完成时间�?*/
-  def finishedAtForRoom(state: BattleAggregateState): EpochMillis =
-    if state.elapsedMs.value >= state.durationMs.value then state.endsAt
-    else state.serverTime
+  def finishedAtForRoom(state: BattleAggregateState, battleRules: BattleDynamicRuleBook): IO[EpochMillis] =
+    IO.pure {
+      if state.elapsedMs.value >= state.durationMs.value then state.endsAt
+      else state.serverTime
+    }
 }

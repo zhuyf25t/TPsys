@@ -1,16 +1,21 @@
-import type { Hero, ItemPickup, Projectile, SlowField, Vec2, WeaponPickup } from "../../../objects/battle/types";
-import { AUTO_PICKUP_RADIUS, BASE_MOVE_SPEED, STAMINA_DRAIN_PER_SECOND, STAMINA_RECOVER_PER_SECOND } from "../../battle/game/constants";
-import { WEAPON_DEFINITIONS } from "../../battle/game/weapons";
-import { applyAutomaticItemPickup, applyAutomaticWeaponPickup } from "../../battle/local/pickups/pickupController";
-import { type MotionObstacleBounds } from "../../battle/local/movement/motionController";
-import { advanceMovement } from "../../battle/local/movement/movementController";
+﻿import type { BattleItemPickupState as ItemPickup, BattleWeaponPickupState as WeaponPickup } from "../../../objects/battle/microservices/abilities/objects/pickup/BattlePickupState";
+import type { BattleProjectileState as Projectile } from "../../../objects/battle/microservices/combat/objects/projectile/BattleProjectileState";
+import type { BattleSlowFieldState as SlowField } from "../../../objects/battle/microservices/abilities/objects/skill/BattleSlowFieldState";
+import type { BattleVector2 as Vec2 } from "../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleHeroViewState as Hero } from "../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import { AUTO_PICKUP_RADIUS, BASE_MOVE_SPEED, STAMINA_DRAIN_PER_SECOND, STAMINA_RECOVER_PER_SECOND } from "../../battle/game/objects/BattleGameConstants";
+import { WEAPON_DEFINITIONS } from "../../../objects/battle/microservices/combat/objects/combat/BattleCombatRuleDefinitions";
+import { applyAutomaticItemPickup, applyAutomaticWeaponPickup } from "../../battle/microservices/abilities/functions/BattlePickupRules";
+import { type MotionObstacleBounds } from "../../battle/microservices/world/functions/BattleMotionRules";
+import { advanceMovement } from "../../battle/microservices/actors/functions/BattlePlayerMovementRules";
 import { type BotBrainState, type BotTarget, chooseSupportTarget, chooseTarget, findNearestAliveEnemy, getBotFireDelayMs, getEngageRange } from "../strategies/botTargeting";
 import { buildBotMovementVector, shouldSprint, stabilizeBotMovementVector } from "../strategies/botMovement";
 import { steerBotDestination } from "../strategies/botSteering";
 import { distanceBetween, heroSeed } from "../strategies/botMath";
-import { getCurrentWeapon, resolveWeaponAction } from "../../battle/local/weapons/weaponActionController";
+import { resolveWeaponAction } from "../../battle/microservices/combat/functions/BattleWeaponActionRules";
+import { getCurrentWeapon } from "../../battle/microservices/combat/functions/BattleWeaponInventoryRules";
 import { resolveBotTactic } from "../strategies/botTactics";
-import { getFreezeSpeedMultiplier } from "../../battle/local/skills/freezeFieldController";
+import { getFreezeSpeedMultiplier } from "../../battle/microservices/abilities/functions/BattleSlowFieldRuntimeRules";
 import { getBotBehaviorProfile } from "../registry/botBehaviorRegistry";
 import { buildBotDecisionContext, resolveBotStrategyCommand } from "../strategies/botSdk";
 
@@ -35,7 +40,7 @@ export interface BotControllerResult {
 
 const botBrains = new Map<string, BotBrainState>();
 
-/** 中文名：推进机器人actions（advanceBotActions）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細鎺ㄨ繘鏈哄櫒浜篴ctions锛坅dvanceBotActions锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function advanceBotActions(input: BotControllerInput): BotControllerResult {
   const deltaMs = Math.max(0, input.deltaMs);
   let projectileSequence = input.projectileSequence;
@@ -261,6 +266,7 @@ function buildBotCommand(
     toggleBlink: false,
     toggleFreeze: false,
     castDash: false,
+    castCritical: false,
     reloadPressed: shouldReload
   };
 }

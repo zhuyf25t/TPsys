@@ -1,55 +1,36 @@
-import type { GameSnapshot } from "../../../../../objects/battle/types";
+import {
+  resolveHiddenPickupViewIds,
+  resolveLiveItemPickupIds,
+  resolveLiveWeaponPickupIds
+} from "./functions/PickupViewSyncRules";
 import {
   setPickupViewVisible,
   syncItemPickupView,
   syncWeaponPickupView,
   type PickupView
 } from "./pickupViewPresentation";
+import type { PickupViewSyncContext } from "./objects/PickupViewSyncObjects";
 
-export interface PickupViewSyncState {
-  pickupViews: Map<string, PickupView>;
-  itemPickupViews: Map<string, PickupView>;
-  scratchLiveWeaponPickupIds: Set<string>;
-  scratchLiveItemPickupIds: Set<string>;
-}
+export type {
+  PickupViewSyncContext,
+  PickupViewSyncState
+} from "./objects/PickupViewSyncObjects";
 
-export interface PickupViewSyncContext {
-  snapshot: GameSnapshot;
-  worldViews: PickupViewSyncState;
-}
-
-/** 中文名：sync拾取物views（syncPickupViews）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function syncPickupViews({ snapshot, worldViews }: PickupViewSyncContext): void {
   const liveWeaponPickupIds = worldViews.scratchLiveWeaponPickupIds;
-  liveWeaponPickupIds.clear();
-  snapshot.weaponPickups.forEach((pickup) => {
-    liveWeaponPickupIds.add(pickup.weaponId);
-  });
-
-  for (const [weaponId, view] of worldViews.pickupViews.entries()) {
-    if (liveWeaponPickupIds.has(weaponId)) {
-      continue;
-    }
-
-    setPickupViewVisible(view, false);
-  }
+  replaceScratchPickupIds(liveWeaponPickupIds, resolveLiveWeaponPickupIds(snapshot.weaponPickups));
+  resolveHiddenPickupViewIds(liveWeaponPickupIds, worldViews.pickupViews.keys()).forEach((pickupId) =>
+    setHiddenPickupView(worldViews.pickupViews, pickupId)
+  );
 
   const liveItemPickupIds = worldViews.scratchLiveItemPickupIds;
-  liveItemPickupIds.clear();
-  snapshot.itemPickups.forEach((pickup) => {
-    liveItemPickupIds.add(pickup.pickupId);
-  });
-
-  for (const [pickupId, view] of worldViews.itemPickupViews.entries()) {
-    if (liveItemPickupIds.has(pickupId)) {
-      continue;
-    }
-
-    setPickupViewVisible(view, false);
-  }
+  replaceScratchPickupIds(liveItemPickupIds, resolveLiveItemPickupIds(snapshot.itemPickups));
+  resolveHiddenPickupViewIds(liveItemPickupIds, worldViews.itemPickupViews.keys()).forEach((pickupId) =>
+    setHiddenPickupView(worldViews.itemPickupViews, pickupId)
+  );
 
   snapshot.weaponPickups.forEach((pickup) => {
-    const view = worldViews.pickupViews.get(pickup.weaponId);
+    const view = worldViews.pickupViews.get(pickup.pickupId);
     if (!view) {
       return;
     }
@@ -65,4 +46,18 @@ export function syncPickupViews({ snapshot, worldViews }: PickupViewSyncContext)
 
     syncItemPickupView(view, pickup, snapshot.elapsedMs);
   });
+}
+
+function replaceScratchPickupIds(target: Set<string>, source: ReadonlySet<string>): void {
+  target.clear();
+  source.forEach((pickupId) => {
+    target.add(pickupId);
+  });
+}
+
+function setHiddenPickupView(pickupViews: Map<string, PickupView>, pickupId: string): void {
+  const view = pickupViews.get(pickupId);
+  if (view) {
+    setPickupViewVisible(view, false);
+  }
 }

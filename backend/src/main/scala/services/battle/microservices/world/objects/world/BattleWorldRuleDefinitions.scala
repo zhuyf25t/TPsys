@@ -2,6 +2,11 @@ package services.battle.microservices.world.objects.world
 
 import services.battle.objects.core.{BattleMapId, BattleVector2, Radius}
 import services.battle.microservices.abilities.objects.pickup.BattlePickupDefinition
+import services.battle.microservices.extraction.objects.extraction.{
+  BattleExtractionZoneDefinition,
+  BattleGasPlanDefinition,
+  BattleLootCacheDefinition
+}
 
 private[services] enum ArenaObstacleKind {
   case Wall
@@ -71,7 +76,10 @@ private[services] final case class BattleLoadedMapSpec(
   worldSize: BattleVector2,
   spawnPoints: Vector[BattleVector2],
   collisionObstacles: Vector[ArenaObstacle],
-  pickupDefinitions: Vector[BattlePickupDefinition]
+  pickupDefinitions: Vector[BattlePickupDefinition],
+  extractionZones: Vector[BattleExtractionZoneDefinition],
+  lootCaches: Vector[BattleLootCacheDefinition],
+  gasPlan: Option[BattleGasPlanDefinition]
 )
 
 private[services] final case class BattleWorldMapSpecJson(value: String) extends AnyVal

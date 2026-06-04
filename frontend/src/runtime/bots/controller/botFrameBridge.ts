@@ -1,6 +1,6 @@
-import type { GameSnapshot } from "../../../objects/battle/types";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
 import { advanceBotActions } from "./botController";
-import type { ObstacleBounds } from "../../battle/game/renderer/arena/arenaBuilder";
+import type { ObstacleBounds } from "../../battle/game/renderer/arena/objects/ArenaBuilderObjects";
 
 export interface BotFrameBridgeOptions {
   getSnapshot(): GameSnapshot;

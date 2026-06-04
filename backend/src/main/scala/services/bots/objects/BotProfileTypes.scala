@@ -59,75 +59,62 @@ final case class BotProfileRecord(
 )
 
 object DemoBotProfiles {
+  private val zombieSkin: BotSkinProfile =
+    BotSkinProfile(
+      avatarKey = BotAvatarKey("zombie"),
+      textureKey = BotTextureKey("hero-zombie"),
+      label = BotSkinLabel("Zombie")
+    )
+
   val all: Vector[BotProfileRecord] = Vector(
     BotProfileRecord(
       botId = BotId("bot-1"),
-      handle = PlayerHandle("cpu-sable"),
-      displayName = DisplayName("Sable"),
+      handle = PlayerHandle("cpu-zombie-1"),
+      displayName = DisplayName("Zombie 1"),
       initialRating = BotInitialRating(1010),
       profileTone = BotProfileTone.Steady,
-      strategyLabel = BotStrategyLabel("Anchor skirmisher"),
-      skin = BotSkinProfile(
-        avatarKey = BotAvatarKey("survivor"),
-        textureKey = BotTextureKey("hero-survivor"),
-        label = BotSkinLabel("Survivor")
-      ),
+      strategyLabel = BotStrategyLabel("Infected anchor"),
+      skin = zombieSkin,
       profileOrder = BotProfileOrder(0)
     ),
     BotProfileRecord(
       botId = BotId("bot-2"),
-      handle = PlayerHandle("cpu-rivet"),
-      displayName = DisplayName("Rivet"),
+      handle = PlayerHandle("cpu-zombie-2"),
+      displayName = DisplayName("Zombie 2"),
       initialRating = BotInitialRating(990),
       profileTone = BotProfileTone.Scrappy,
-      strategyLabel = BotStrategyLabel("Close-range looter"),
-      skin = BotSkinProfile(
-        avatarKey = BotAvatarKey("soldier"),
-        textureKey = BotTextureKey("hero-soldier"),
-        label = BotSkinLabel("Soldier")
-      ),
+      strategyLabel = BotStrategyLabel("Infected rush"),
+      skin = zombieSkin,
       profileOrder = BotProfileOrder(1)
     ),
     BotProfileRecord(
       botId = BotId("bot-3"),
-      handle = PlayerHandle("cpu-ember"),
-      displayName = DisplayName("Ember"),
+      handle = PlayerHandle("cpu-zombie-3"),
+      displayName = DisplayName("Zombie 3"),
       initialRating = BotInitialRating(1040),
       profileTone = BotProfileTone.Aggressive,
-      strategyLabel = BotStrategyLabel("Pressure duelist"),
-      skin = BotSkinProfile(
-        avatarKey = BotAvatarKey("brown"),
-        textureKey = BotTextureKey("hero-brown"),
-        label = BotSkinLabel("Brown jacket")
-      ),
+      strategyLabel = BotStrategyLabel("Infected pressure"),
+      skin = zombieSkin,
       profileOrder = BotProfileOrder(2)
     ),
     BotProfileRecord(
       botId = BotId("bot-4"),
-      handle = PlayerHandle("cpu-orbit"),
-      displayName = DisplayName("Orbit"),
+      handle = PlayerHandle("cpu-zombie-4"),
+      displayName = DisplayName("Zombie 4"),
       initialRating = BotInitialRating(1025),
       profileTone = BotProfileTone.Patient,
-      strategyLabel = BotStrategyLabel("Mid-range kiter"),
-      skin = BotSkinProfile(
-        avatarKey = BotAvatarKey("old"),
-        textureKey = BotTextureKey("hero-old"),
-        label = BotSkinLabel("Veteran")
-      ),
+      strategyLabel = BotStrategyLabel("Infected stalker"),
+      skin = zombieSkin,
       profileOrder = BotProfileOrder(3)
     ),
     BotProfileRecord(
       botId = BotId("bot-5"),
-      handle = PlayerHandle("cpu-nova"),
-      displayName = DisplayName("Nova"),
+      handle = PlayerHandle("cpu-zombie-5"),
+      displayName = DisplayName("Zombie 5"),
       initialRating = BotInitialRating(980),
       profileTone = BotProfileTone.Opportunist,
-      strategyLabel = BotStrategyLabel("Pickup chaser"),
-      skin = BotSkinProfile(
-        avatarKey = BotAvatarKey("woman"),
-        textureKey = BotTextureKey("hero-woman"),
-        label = BotSkinLabel("Runner")
-      ),
+      strategyLabel = BotStrategyLabel("Infected scavenger"),
+      skin = zombieSkin,
       profileOrder = BotProfileOrder(4)
     )
   )

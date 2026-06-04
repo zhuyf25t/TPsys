@@ -1,5 +1,7 @@
 package services.battle.microservices.projections.services
 
+import cats.effect.IO
+
 import services.battle.objects.core.{
   BattleAggregateState,
   DurationMillis,
@@ -20,30 +22,30 @@ private[battle] final case class BattleSettlements(
   first: BattleSettlement,
   rest: Vector[BattleSettlement]
 ) {
-  def toVector: Vector[BattleSettlement] =
-    first +: rest
+  def toVector: IO[Vector[BattleSettlement]] =
+    IO.pure(first +: rest)
 
-  def map[A](f: BattleSettlement => A): Vector[A] =
-    toVector.map(f)
+  def map[A](f: BattleSettlement => A): IO[Vector[A]] =
+    toVector.map(_.map(f))
 
-  def foreach[U](f: BattleSettlement => U): Unit =
-    toVector.foreach(f)
+  def foreach[U](f: BattleSettlement => U): IO[Unit] =
+    toVector.map(_.foreach(f))
 
-  def find(f: BattleSettlement => Boolean): Option[BattleSettlement] =
-    toVector.find(f)
+  def find(f: BattleSettlement => Boolean): IO[Option[BattleSettlement]] =
+    toVector.map(_.find(f))
 }
 
 private[battle] object BattleSettlements {
   def fromVectorOrFallback(
     values: Vector[BattleSettlement],
     fallback: => BattleSettlement
-  ): BattleSettlements =
-    values.headOption match {
+  ): IO[BattleSettlements] =
+    IO.pure(values.headOption match {
       case Some(first) =>
         BattleSettlements(first, values.drop(1))
       case None =>
         BattleSettlements(fallback, Vector.empty)
-    }
+    })
 }
 
 private[battle] final case class BattleFinishProjectionPlan(
@@ -63,73 +65,86 @@ private[battle] final case class BattleSettlementBuildContext(
 private[battle] final case class BattlePreviousRatings private (
   ratingsByHandleKey: Map[String, Rating]
 ) {
-  /** 中文名：积分before（ratingBefore）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
-  def ratingBefore(handle: PlayerHandle): Rating =
-    ratingsByHandleKey.getOrElse(handle.key, BattleSettlementScoringRules.DefaultRating)
+  def ratingBefore(handle: PlayerHandle): IO[Rating] =
+    IO.pure(ratingsByHandleKey.getOrElse(handle.key, BattleSettlementScoringRules.DefaultRating))
 }
 
 private[battle] object BattlePreviousRatings {
   val empty: BattlePreviousRatings =
     BattlePreviousRatings(Map.empty)
 
-  /** 中文名：从ratings（fromRatings）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
-  def fromRatings(ratings: Iterable[(PlayerHandle, Rating)]): BattlePreviousRatings =
-    BattlePreviousRatings(
+  def fromRatings(ratings: Iterable[(PlayerHandle, Rating)]): IO[BattlePreviousRatings] =
+    IO.pure(BattlePreviousRatings(
       ratings.map { case (handle, rating) => handle.key -> rating }.toMap
-    )
+    ))
 }
 
 private[battle] object BattleFinishProjectionPlanner {
-  /** 中文名：构建（build）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   def build(
     state: BattleAggregateState,
     previousRatings: BattlePreviousRatings
-  ): BattleFinishProjectionPlan = {
-    val settlements = buildSettlements(state, previousRatings)
-    BattleFinishProjectionPlan(
+  ): IO[BattleFinishProjectionPlan] =
+    for
+      settlements <- buildSettlements(state, previousRatings)
+      replay <- BattleFinishProjectionReplayRules.replayRecord(state, settlements)
+    yield BattleFinishProjectionPlan(
       settlements = settlements,
-      replay = Some(BattleFinishProjectionReplayRules.replayRecord(state, settlements))
+      replay = Some(replay)
     )
-  }
 
-  /** 中文名：humanplayersbyplacement（humanPlayersByPlacement）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
-  def humanPlayersByPlacement(state: BattleAggregateState): Vector[BattlePlayerState] =
-    BattleFinishProjectionPlayerRules
-      .playersByPlacement(state.players)
-      .filter(BattleFinishProjectionPlayerRules.isPlayableHumanPlayer)
+  def humanPlayersByPlacement(state: BattleAggregateState): IO[Vector[BattlePlayerState]] =
+    for
+      orderedPlayers <- BattleFinishProjectionPlayerRules.playersByPlacement(state.players)
+      playablePlayers <- orderedPlayers.foldLeft(IO.pure(Vector.empty[BattlePlayerState])) { case (previous, player) =>
+        for
+          players <- previous
+          playable <- BattleFinishProjectionPlayerRules.isPlayableHumanPlayer(player)
+        yield if playable then players :+ player else players
+      }
+    yield playablePlayers
 
   private def buildSettlements(
     state: BattleAggregateState,
     previousRatings: BattlePreviousRatings
-  ): BattleSettlements = {
-    val orderedPlayers = BattleFinishProjectionPlayerRules.playersByPlacement(state.players)
-    val context = settlementBuildContext(state, orderedPlayers)
-
-    val playableHumanSettlements = orderedPlayers
-      .filter(BattleFinishProjectionPlayerRules.isPlayableHumanPlayer)
-      .map(player => playableSettlementFor(state, context, previousRatings, player))
-
-    BattleSettlements.fromVectorOrFallback(
-      playableHumanSettlements,
-      BattleSettlement(
-        player = None,
-        result = serverResult(state, context.finishedAt, context.durationMs, context.playersLine, previousRatings)
-      )
-    )
-  }
+  ): IO[BattleSettlements] =
+    for
+      orderedPlayers <- BattleFinishProjectionPlayerRules.playersByPlacement(state.players)
+      context <- settlementBuildContext(state, orderedPlayers)
+      playableHumanSettlements <- orderedPlayers.foldLeft(IO.pure(Vector.empty[BattleSettlement])) {
+        case (previous, player) =>
+          for
+            settlements <- previous
+            playable <- BattleFinishProjectionPlayerRules.isPlayableHumanPlayer(player)
+            next <-
+              if playable then playableSettlementFor(state, context, previousRatings, player).map(settlements :+ _)
+              else IO.pure(settlements)
+          yield next
+      }
+      settlements <- playableHumanSettlements.headOption match {
+        case Some(first) =>
+          IO.pure(BattleSettlements(first, playableHumanSettlements.drop(1)))
+        case None =>
+          serverResult(state, context.finishedAt, context.durationMs, context.playersLine, previousRatings)
+            .map(result => BattleSettlements(BattleSettlement(player = None, result = result), Vector.empty))
+      }
+    yield settlements
 
   private def settlementBuildContext(
     state: BattleAggregateState,
     orderedPlayers: Vector[BattlePlayerState]
-  ): BattleSettlementBuildContext =
-    BattleSettlementBuildContext(
+  ): IO[BattleSettlementBuildContext] =
+    for
+      playersLine <- BattleFinishProjectionLabelRules.playersLine(state.players)
+      finishedAt <- BattleFinishProjectionTimeRules.projectedFinishedAt(state)
+      durationMs <- BattleFinishProjectionTimeRules.projectedDuration(state)
+    yield BattleSettlementBuildContext(
       orderedPlayers = orderedPlayers,
       placementsByPlayerId = orderedPlayers.zipWithIndex.map { case (player, index) =>
         player.playerId -> BattlePlacement.unsafe(index + 1)
       }.toMap,
-      playersLine = BattleFinishProjectionLabelRules.playersLine(state.players).value,
-      finishedAt = BattleFinishProjectionTimeRules.projectedFinishedAt(state),
-      durationMs = BattleFinishProjectionTimeRules.projectedDuration(state),
+      playersLine = playersLine.value,
+      finishedAt = finishedAt,
+      durationMs = durationMs,
       playerCount = orderedPlayers.length
     )
 
@@ -138,36 +153,43 @@ private[battle] object BattleFinishProjectionPlanner {
     context: BattleSettlementBuildContext,
     previousRatings: BattlePreviousRatings,
     player: BattlePlayerState
-  ): BattleSettlement = {
+  ): IO[BattleSettlement] = {
     val placement = context.placementsByPlayerId.getOrElse(player.playerId, BattlePlacement.unsafe(context.orderedPlayers.length))
-    val score = BattleSettlementScoringRules.placementScore(Some(placement), context.playerCount)
-    val ratingBefore = previousRatings.ratingBefore(player.handle)
     val survivalOutcome = BattleSurvivalOutcome.fromAliveAtEnd(player.alive)
-    val ratingDelta = BattleSettlementScoringRules.ratingDelta(score, Some(placement), survivalOutcome)
-    val ratingAfter = Rating(ratingBefore.value + ratingDelta.value)
-    val result = BattleResultRecord(
-      battleId = state.battleId,
-      handle = player.handle,
-      displayName = player.displayName,
-      finishedAt = context.finishedAt,
-      finishedAtLabel = BattleFinishProjectionLabelRules.finishedAtLabel(context.finishedAt),
-      durationMs = context.durationMs,
-      score = Score(score),
-      placement = Some(placement),
-      survivalOutcome = survivalOutcome,
-      ratingBefore = ratingBefore,
-      ratingDelta = ratingDelta,
-      ratingAfter = ratingAfter,
-      resultLabel = BattleFinishProjectionLabelRules.resultLabel(player, placement),
-      modeLabel = BattleFinishProjectionLabelRules.modeLabel,
-      mapLabel = BattleFinishProjectionLabelRules.mapLabel,
-      highlightLine = BattleFinishProjectionLabelRules.highlightLine(player, placement, score),
-      playersLine = BattlePlayersLine.fromWire(context.playersLine),
-      timelineHint = BattleFinishProjectionLabelRules.timelineHint(player),
-      currentLoadout = None
-    )
-
-    BattleSettlement(player = Some(player), result = result)
+    for
+      ratingBefore <- previousRatings.ratingBefore(player.handle)
+      score <- BattleSettlementScoringRules.placementScore(Some(placement), context.playerCount)
+      ratingDelta <- BattleSettlementScoringRules.ratingDelta(score, Some(placement), survivalOutcome)
+      finishedAtLabel <- BattleFinishProjectionLabelRules.finishedAtLabel(context.finishedAt)
+      resultLabel <- BattleFinishProjectionLabelRules.resultLabel(player, placement)
+      modeLabel <- BattleFinishProjectionLabelRules.modeLabel
+      mapLabel <- BattleFinishProjectionLabelRules.mapLabel
+      highlightLine <- BattleFinishProjectionLabelRules.highlightLine(player, placement, score)
+      timelineHint <- BattleFinishProjectionLabelRules.timelineHint(player)
+    yield
+      val ratingAfter = Rating(ratingBefore.value + ratingDelta.value)
+      val result = BattleResultRecord(
+        battleId = state.battleId,
+        handle = player.handle,
+        displayName = player.displayName,
+        finishedAt = context.finishedAt,
+        finishedAtLabel = finishedAtLabel,
+        durationMs = context.durationMs,
+        score = Score(score),
+        placement = Some(placement),
+        survivalOutcome = survivalOutcome,
+        ratingBefore = ratingBefore,
+        ratingDelta = ratingDelta,
+        ratingAfter = ratingAfter,
+        resultLabel = resultLabel,
+        modeLabel = modeLabel,
+        mapLabel = mapLabel,
+        highlightLine = highlightLine,
+        playersLine = BattlePlayersLine.fromWire(context.playersLine),
+        timelineHint = timelineHint,
+        currentLoadout = None
+      )
+      BattleSettlement(player = Some(player), result = result)
   }
 
   private def serverResult(
@@ -176,15 +198,23 @@ private[battle] object BattleFinishProjectionPlanner {
     durationMs: DurationMillis,
     playersLine: String,
     previousRatings: BattlePreviousRatings
-  ): BattleResultRecord = {
+  ): IO[BattleResultRecord] = {
     val handle = PlayerHandle("server")
-    val ratingBefore = previousRatings.ratingBefore(handle)
-    BattleResultRecord(
+    for
+      ratingBefore <- previousRatings.ratingBefore(handle)
+      displayName <- BattleFinishProjectionLabelRules.serverDisplayName
+      finishedAtLabel <- BattleFinishProjectionLabelRules.finishedAtLabel(finishedAt)
+      resultLabel <- BattleFinishProjectionLabelRules.serverResultLabel
+      modeLabel <- BattleFinishProjectionLabelRules.modeLabel
+      mapLabel <- BattleFinishProjectionLabelRules.mapLabel
+      highlightLine <- BattleFinishProjectionLabelRules.serverHighlightLine(state.battleId)
+      timelineHint <- BattleFinishProjectionLabelRules.serverTimelineHint
+    yield BattleResultRecord(
       battleId = state.battleId,
       handle = handle,
-      displayName = BattleFinishProjectionLabelRules.serverDisplayName,
+      displayName = displayName,
       finishedAt = finishedAt,
-      finishedAtLabel = BattleFinishProjectionLabelRules.finishedAtLabel(finishedAt),
+      finishedAtLabel = finishedAtLabel,
       durationMs = durationMs,
       score = Score(0),
       placement = None,
@@ -192,14 +222,13 @@ private[battle] object BattleFinishProjectionPlanner {
       ratingBefore = ratingBefore,
       ratingDelta = RatingDelta(0),
       ratingAfter = ratingBefore,
-      resultLabel = BattleFinishProjectionLabelRules.serverResultLabel,
-      modeLabel = BattleFinishProjectionLabelRules.modeLabel,
-      mapLabel = BattleFinishProjectionLabelRules.mapLabel,
-      highlightLine = BattleFinishProjectionLabelRules.serverHighlightLine(state.battleId),
+      resultLabel = resultLabel,
+      modeLabel = modeLabel,
+      mapLabel = mapLabel,
+      highlightLine = highlightLine,
       playersLine = BattlePlayersLine.fromWire(playersLine),
-      timelineHint = BattleFinishProjectionLabelRules.serverTimelineHint,
+      timelineHint = timelineHint,
       currentLoadout = None
     )
   }
-
 }

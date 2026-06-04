@@ -1,7 +1,7 @@
 export type PlayerHandle = string;
 export type DisplayName = string;
 export type SessionToken = string;
-export type SkinIdDto = "blue" | "survivor" | "soldier" | "old";
+export type SkinIdDto = "blue" | "survivor" | "soldier" | "old" | "zombie";
 
 export interface IdentityRegistrationApiRequestDto {
   handle?: string;

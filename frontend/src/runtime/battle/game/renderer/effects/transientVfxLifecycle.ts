@@ -1,31 +1,17 @@
 import type Phaser from "phaser";
-import { getBattleDiagnosticsRoot, isBattleDiagnosticsEnabled } from "../battleDiagnosticsGate";
-
-interface TransientEffectRecord {
-  object: Phaser.GameObjects.GameObject;
-  active: boolean;
-}
-
-export interface SceneVfxDiagnosticsSnapshot {
-  activeTransientCount: number;
-  trackedTransientSlotCount: number;
-  activeRingCount: number;
-  createdCount: number;
-  destroyedCount: number;
-  peakActiveTransientCount: number;
-}
-
-interface SlayDemoBattleDiagnosticsRoot {
-  vfx?: SceneVfxDiagnosticsSnapshot;
-  [key: string]: unknown;
-}
-
-export interface TransientVfxLifecycleOptions {
-  getActiveRingCount: () => number;
-}
-
-const MAX_TRANSIENT_VFX = 120;
-const TRANSIENT_COMPACTION_LIMIT = MAX_TRANSIENT_VFX * 2;
+import { getBattleDiagnosticsRoot, isBattleDiagnosticsEnabled } from "../diagnostics/battleDiagnosticsGate";
+import {
+  resolveSceneVfxDiagnosticsSnapshot,
+  resolveTransientVfxPeakActiveCount,
+  shouldCompactTransientVfxSlots,
+  shouldReleaseOldestTransientVfx
+} from "./functions/TransientVfxLifecycleRules";
+import type {
+  SlayDemoBattleDiagnosticsRoot,
+  TransientEffectRecord,
+  TransientVfxDestroyAllOptions,
+  TransientVfxLifecycleOptions
+} from "./objects/TransientVfxLifecycleObjects";
 
 export class TransientVfxLifecycle {
   private transientEffects: TransientEffectRecord[] = [];
@@ -72,7 +58,7 @@ export class TransientVfxLifecycle {
       this.diagnosticsCreatedCount += 1;
     }
 
-    while (this.transientActiveCount > MAX_TRANSIENT_VFX) {
+    while (shouldReleaseOldestTransientVfx(this.transientActiveCount)) {
       this.destroyOldestTransient();
     }
 
@@ -98,7 +84,7 @@ export class TransientVfxLifecycle {
     }
   }
 
-  public destroyAll(options: { publishDiagnostics?: boolean } = {}): void {
+  public destroyAll(options: TransientVfxDestroyAllOptions = {}): void {
     if (this.diagnosticsEnabled) {
       this.diagnosticsDestroyedCount += this.transientActiveCount;
     }
@@ -122,14 +108,16 @@ export class TransientVfxLifecycle {
       return;
     }
 
-    diagnosticsRoot.vfx = {
+    diagnosticsRoot.vfx = resolveSceneVfxDiagnosticsSnapshot({
       activeTransientCount: this.transientActiveCount,
       trackedTransientSlotCount: this.transientEffects.length,
       activeRingCount: this.options.getActiveRingCount(),
-      createdCount: this.diagnosticsCreatedCount,
-      destroyedCount: this.diagnosticsDestroyedCount,
-      peakActiveTransientCount: this.diagnosticsPeakActiveTransientCount
-    };
+      counters: {
+        createdCount: this.diagnosticsCreatedCount,
+        destroyedCount: this.diagnosticsDestroyedCount,
+        peakActiveTransientCount: this.diagnosticsPeakActiveTransientCount
+      }
+    });
   }
 
   private destroyOldestTransient(): void {
@@ -187,7 +175,7 @@ export class TransientVfxLifecycle {
   }
 
   private maybeCompactTransientEffects(): void {
-    if (this.transientEffects.length <= TRANSIENT_COMPACTION_LIMIT) {
+    if (!shouldCompactTransientVfxSlots(this.transientEffects.length)) {
       return;
     }
 
@@ -216,9 +204,9 @@ export class TransientVfxLifecycle {
       return;
     }
 
-    this.diagnosticsPeakActiveTransientCount = Math.max(
-      this.diagnosticsPeakActiveTransientCount,
-      this.transientActiveCount
-    );
+    this.diagnosticsPeakActiveTransientCount = resolveTransientVfxPeakActiveCount({
+      currentPeakActiveTransientCount: this.diagnosticsPeakActiveTransientCount,
+      activeTransientCount: this.transientActiveCount
+    });
   }
 }

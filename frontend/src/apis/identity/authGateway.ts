@@ -87,6 +87,13 @@ const SKIN_OPTIONS: readonly AuthSkinOption[] = [
     textureKey: "hero-old",
     imageSrc: "/assets/kenney-top-down-shooter/PNG/Man%20Old/manOld_hold.png",
     tint: 0xc8b6ff
+  },
+  {
+    id: "zombie",
+    label: "\u4e27\u5c38",
+    textureKey: "hero-zombie",
+    imageSrc: "/assets/kenney-top-down-shooter/PNG/Zombie%201/zoimbie1_hold.png",
+    tint: 0xb7f06a
   }
 ] as const;
 
@@ -549,7 +556,9 @@ function normalizeRemoteAuthPayload(value: unknown): RemoteAuthPayload | null {
 }
 
 function normalizeSkinId(value: string | null): SkinIdDto | null {
-  return value === "blue" || value === "survivor" || value === "soldier" || value === "old" ? value : null;
+  return value === "blue" || value === "survivor" || value === "soldier" || value === "old" || value === "zombie"
+    ? value
+    : null;
 }
 
 function readRequiredString(value: unknown): string | null {

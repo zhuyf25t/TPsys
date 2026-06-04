@@ -9,6 +9,7 @@ import services.battle.microservices.results.objects.result.BattleResultListQuer
 import services.battle.microservices.results.services.BattleResultService
 import services.battle.microservices.results.api.results.BattleResultListResponse
 import services.battle.microservices.results.api.results.BattleResultListRequest.given
+import services.battle.microservices.results.api.results.BattleResultResponseMapping
 import services.battle.microservices.results.objects.result.BattleResultListLimit
 import system.api.{APIMessage, APIWithTokenMessage}
 import system.objects.UserId
@@ -20,7 +21,8 @@ final case class BattleResultListAPIMessage(
   override def plan(connection: Connection): IO[BattleResultListResponse] =
     for
       records <- BattleResultService.list(connection, query)
-    yield BattleResultListResponse.fromRecords(records)
+      response <- BattleResultResponseMapping.fromRecords(records)
+    yield response
 }
 
 object BattleResultListAPIMessage {

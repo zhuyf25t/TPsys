@@ -14,6 +14,17 @@ import services.battle.microservices.combat.objects.weapon.WeaponKind
 import services.battle.microservices.abilities.objects.pickup.{PickupId, PickupKind}
 import services.battle.objects.core.{BattleMapId, BattleVector2, Radius}
 import services.battle.microservices.abilities.objects.pickup.BattlePickupDefinition
+import services.battle.microservices.extraction.objects.extraction.{
+  BattleExtractionZoneDefinition,
+  BattleExtractionZoneId,
+  BattleGasDamagePerSecond,
+  BattleGasPlanDefinition,
+  BattleGasStageDefinition,
+  BattleGasStageIndex,
+  BattleLootCacheDefinition,
+  BattleLootCacheId,
+  BattleLootScoreValue
+}
 import system.database.PostgresSupport
 
 private[services] object BattleWorldRuleTable {
@@ -202,7 +213,10 @@ private[services] object BattleWorldRuleTable {
         payload.obstacles.flatMap(obstacleFromMapObject) ++
           payload.trees.map(obstacleFromTree) ++
           payload.buildings.flatMap(obstaclesFromBuilding),
-      pickupDefinitions = payload.itemPickups.map(itemPickupDefinition) ++ payload.weaponPickups.map(weaponPickupDefinition)
+      pickupDefinitions = payload.itemPickups.map(itemPickupDefinition) ++ payload.weaponPickups.map(weaponPickupDefinition),
+      extractionZones = payload.extractionZones.getOrElse(Vector.empty).map(extractionZoneDefinition),
+      lootCaches = payload.lootCaches.getOrElse(Vector.empty).map(lootCacheDefinition),
+      gasPlan = payload.gasPlan.map(gasPlanDefinition)
     )
   }
 
@@ -251,6 +265,39 @@ private[services] object BattleWorldRuleTable {
       pickupKind = PickupKind.Weapon,
       weaponKind = Some(required(WeaponKind.fromWire(pickup.weaponKind), s"weapon kind ${pickup.weaponKind}")),
       position = pickup.position.toDomain
+    )
+
+  private def extractionZoneDefinition(zone: BattleMapExtractionZoneJson): BattleExtractionZoneDefinition =
+    BattleExtractionZoneDefinition(
+      zoneId = BattleExtractionZoneId(zone.zoneId),
+      position = zone.position.toDomain,
+      radius = Radius(zone.radius),
+      availableFrom = services.battle.objects.core.ElapsedMillis(math.max(0L, zone.availableFromMs)),
+      channelDuration = services.battle.objects.core.DurationMillis(math.max(1L, zone.channelDurationMs))
+    )
+
+  private def lootCacheDefinition(cache: BattleMapLootCacheJson): BattleLootCacheDefinition =
+    BattleLootCacheDefinition(
+      cacheId = BattleLootCacheId(cache.cacheId),
+      position = cache.position.toDomain,
+      radius = Radius(cache.radius),
+      searchDuration = services.battle.objects.core.DurationMillis(math.max(1L, cache.searchDurationMs)),
+      scoreValue = BattleLootScoreValue(math.max(0, cache.scoreValue))
+    )
+
+  private def gasPlanDefinition(plan: BattleMapGasPlanJson): BattleGasPlanDefinition =
+    BattleGasPlanDefinition(
+      center = plan.center.toDomain,
+      stages = plan.stages.zipWithIndex.map { case (stage, index) =>
+        BattleGasStageDefinition(
+          stageIndex = BattleGasStageIndex(index),
+          startsAt = services.battle.objects.core.ElapsedMillis(math.max(0L, stage.startsAtMs)),
+          duration = services.battle.objects.core.DurationMillis(math.max(1L, stage.durationMs)),
+          fromRadius = Radius(math.max(0.0, stage.fromRadius)),
+          toRadius = Radius(math.max(0.0, stage.toRadius)),
+          damagePerSecond = BattleGasDamagePerSecond(math.max(0.0, stage.damagePerSecond))
+        )
+      }
     )
 
   private def required[A](value: Option[A], label: String): A =
@@ -316,7 +363,10 @@ private final case class BattleMapPayloadJson(
   obstacles: Vector[BattleMapObstacleJson],
   buildings: Vector[BattleMapBuildingJson],
   weaponPickups: Vector[BattleMapWeaponPickupJson],
-  itemPickups: Vector[BattleMapItemPickupJson]
+  itemPickups: Vector[BattleMapItemPickupJson],
+  extractionZones: Option[Vector[BattleMapExtractionZoneJson]],
+  lootCaches: Option[Vector[BattleMapLootCacheJson]],
+  gasPlan: Option[BattleMapGasPlanJson]
 )
 
 private object BattleMapPayloadJson {
@@ -419,4 +469,49 @@ private final case class BattleMapItemPickupJson(
 
 private object BattleMapItemPickupJson {
   given Decoder[BattleMapItemPickupJson] = deriveDecoder
+}
+
+private final case class BattleMapExtractionZoneJson(
+  zoneId: String,
+  position: BattleMapVectorJson,
+  radius: Double,
+  availableFromMs: Long,
+  channelDurationMs: Long
+)
+
+private object BattleMapExtractionZoneJson {
+  given Decoder[BattleMapExtractionZoneJson] = deriveDecoder
+}
+
+private final case class BattleMapLootCacheJson(
+  cacheId: String,
+  position: BattleMapVectorJson,
+  radius: Double,
+  searchDurationMs: Long,
+  scoreValue: Int
+)
+
+private object BattleMapLootCacheJson {
+  given Decoder[BattleMapLootCacheJson] = deriveDecoder
+}
+
+private final case class BattleMapGasStageJson(
+  startsAtMs: Long,
+  durationMs: Long,
+  fromRadius: Double,
+  toRadius: Double,
+  damagePerSecond: Double
+)
+
+private object BattleMapGasStageJson {
+  given Decoder[BattleMapGasStageJson] = deriveDecoder
+}
+
+private final case class BattleMapGasPlanJson(
+  center: BattleMapVectorJson,
+  stages: Vector[BattleMapGasStageJson]
+)
+
+private object BattleMapGasPlanJson {
+  given Decoder[BattleMapGasPlanJson] = deriveDecoder
 }

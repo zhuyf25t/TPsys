@@ -1,5 +1,7 @@
 package services.battle.microservices.session.services
 
+import cats.effect.IO
+
 import services.battle.objects.{BattleArtifactStatus, BattlePhase}
 import services.battle.objects.core.BattleAggregateState
 import services.battle.microservices.results.objects.result.BattleFinishProjectionStatus
@@ -10,8 +12,7 @@ private[battle] final case class BattleFinishProjectionPreparation(
 )
 
 private[battle] object BattleFinishProjectionPreparationRules {
-  /** 中文名：准备结束投影（prepare）。游戏职责：在战斗刚结束时标记投影进行中，并交出需要生成战�?回放的权威状态�?*/
-  def prepare(storedBattle: StoredBattle): BattleFinishProjectionPreparation = {
+  def prepare(storedBattle: StoredBattle): IO[BattleFinishProjectionPreparation] = IO.pure {
     val state = storedBattle.state
     if state.phase != BattlePhase.Finished then BattleFinishProjectionPreparation(storedBattle, None)
     else

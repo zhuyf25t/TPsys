@@ -1,4 +1,4 @@
-import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../../objects/battle/battleRules";
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../../objects/battle/objects/core/BattleCoreRules";
 
 export interface NavItem {
   label: string;

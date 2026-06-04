@@ -26,6 +26,10 @@ private[services] final case class FreezeConfig(
   runtime: BattleSkillRuntime
 )
 
+private[services] final case class CriticalConfig(
+  runtime: BattleSkillRuntime
+)
+
 private[services] final case class BattleSkillRuleDefinition(
   skillKind: SkillKind,
   range: Option[SkillDistance],
@@ -38,7 +42,8 @@ private[services] final case class BattleSkillRuleDefinition(
 private[services] final case class BattleSkillRuleSet(
   blink: BlinkConfig,
   dash: DashConfig,
-  freeze: FreezeConfig
+  freeze: FreezeConfig,
+  critical: CriticalConfig
 )
 
 private[services] final case class BattlePickupRuleConfig(

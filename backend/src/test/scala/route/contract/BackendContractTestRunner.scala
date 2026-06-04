@@ -1,10 +1,7 @@
 package route.contract
 
-import services.battle.BattleDynamicRuleTestDefaults
-
 object BackendContractTestRunner:
   def main(args: Array[String]): Unit =
-    BattleDynamicRuleTestDefaults.install()
     run("storage config", StorageConfigContractTest.run)
     run("repository wiring", BackendRepositoryWiringContractTest.run)
     run("password hasher", PasswordHasherContractTest.run)

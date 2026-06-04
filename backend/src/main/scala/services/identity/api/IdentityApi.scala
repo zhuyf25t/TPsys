@@ -96,7 +96,7 @@ object IdentityApiErrorCode {
       case IdentityApiErrorCode.InvalidJsonObject    => "Request body must be a JSON object with string fields."
       case IdentityApiErrorCode.InvalidHandle        => "Handle must be 3-16 characters and use letters, numbers, -, _."
       case IdentityApiErrorCode.InvalidPassword      => "Password must be at least 4 characters."
-      case IdentityApiErrorCode.InvalidSkin          => "Skin must be one of: blue, old, soldier, survivor."
+      case IdentityApiErrorCode.InvalidSkin          => "Skin must be one of: blue, old, soldier, survivor, zombie."
       case IdentityApiErrorCode.HandleTaken          => "Handle already exists."
       case IdentityApiErrorCode.InvalidCredentials   => "Handle or password is incorrect."
       case IdentityApiErrorCode.MissingSession       => "Session token is required."

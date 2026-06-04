@@ -1,17 +1,18 @@
+import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/objects/core/BattleCoreScalars";
 import Phaser from "phaser";
-import type { Hero, Vec2 } from "../../../../../objects/battle/types";
-import type { HeroView } from "../entities/worldViewFactory";
-
-type MotionType = "jump" | "dash" | "blink";
-
-export interface PlayerMotionTweenControllerOptions {
-  scene: Phaser.Scene;
-  playerActor: Phaser.Physics.Arcade.Image;
-  heroViews: Map<string, HeroView>;
-  getPlayerHero(): Hero;
-  getBaseHeroScale(heroId: string): number;
-  createPulse(position: Vec2, radius: number, color: number): void;
-}
+import {
+  resolvePlayerMotionAfterimagePlan,
+  resolvePlayerMotionCompletionPulsePlan,
+  resolvePlayerMotionJumpArcScale,
+  resolvePlayerMotionSpriteTweenPlan,
+  resolvePlayerMotionTrailFeedbackPlan,
+  resolvePlayerMotionTweenEase
+} from "./functions/PlayerMotionTweenRules";
+import type {
+  PlayerMotionAfterimageShapePlan,
+  PlayerMotionTweenControllerOptions,
+  PlayerMotionType
+} from "./objects/PlayerMotionTweenObjects";
 
 export class PlayerMotionTweenController {
   private playerMotionTween: Phaser.Tweens.Tween | null = null;
@@ -36,7 +37,7 @@ export class PlayerMotionTweenController {
     }
   }
 
-  public start(destination: Vec2, durationMs: number, motionType: MotionType): void {
+  public start(destination: Vec2, durationMs: number, motionType: PlayerMotionType): void {
     const player = this.options.getPlayerHero();
     const start = { x: player.position.x, y: player.position.y, t: 0 };
     const playerView = this.options.heroViews.get(player.heroId);
@@ -50,8 +51,9 @@ export class PlayerMotionTweenController {
 
     this.stop();
     this.options.playerActor.setVelocity(0, 0);
+    const trailFeedbackPlan = resolvePlayerMotionTrailFeedbackPlan(motionType);
     this.playerTrailEvent = this.options.scene.time.addEvent({
-      delay: motionType === "jump" ? 42 : 28,
+      delay: trailFeedbackPlan.delayMs,
       loop: true,
       callback: () => {
         this.createAfterimage(
@@ -59,20 +61,21 @@ export class PlayerMotionTweenController {
           player.facing,
           playerView?.sprite.scaleX ?? baseScale,
           textureKey,
-          motionType === "jump" ? 0xbce8ff : motionType === "dash" ? 0xf4f6ff : 0x86dfff,
-          motionType === "jump" ? 0.18 : 0.24
+          trailFeedbackPlan.tint,
+          trailFeedbackPlan.alpha
         );
       }
     });
 
     if (motionType === "jump" && playerView) {
+      const spriteTweenPlan = resolvePlayerMotionSpriteTweenPlan({ baseScale, durationMs });
       this.options.scene.tweens.add({
         targets: playerView.sprite,
-        scaleX: baseScale * 1.12,
-        scaleY: baseScale * 1.12,
-        yoyo: true,
-        duration: durationMs / 2,
-        ease: "Quad.Out"
+        scaleX: spriteTweenPlan.scaleX,
+        scaleY: spriteTweenPlan.scaleY,
+        yoyo: spriteTweenPlan.yoyo,
+        duration: spriteTweenPlan.durationMs,
+        ease: spriteTweenPlan.ease
       });
     }
 
@@ -80,7 +83,7 @@ export class PlayerMotionTweenController {
       targets: start,
       t: 1,
       duration: durationMs,
-      ease: motionType === "blink" ? "Cubic.InOut" : "Quad.Out",
+      ease: resolvePlayerMotionTweenEase(motionType),
       onUpdate: () => {
         const x = Phaser.Math.Linear(start.x, destination.x, start.t);
         const y = Phaser.Math.Linear(start.y, destination.y, start.t);
@@ -88,8 +91,7 @@ export class PlayerMotionTweenController {
         player.position = { x, y };
 
         if (motionType === "jump" && playerView) {
-          const arcScale = 1 + Math.sin(start.t * Math.PI) * 0.07;
-          playerView.sprite.setScale(baseScale * arcScale);
+          playerView.sprite.setScale(resolvePlayerMotionJumpArcScale(baseScale, start.t));
         }
       },
       onComplete: () => {
@@ -102,13 +104,8 @@ export class PlayerMotionTweenController {
           playerView.sprite.setScale(baseScale);
         }
 
-        if (motionType === "jump") {
-          this.options.createPulse(destination, 28, 0xc5f3ff);
-        } else if (motionType === "dash") {
-          this.options.createPulse(destination, 22, 0xdfe8ff);
-        } else {
-          this.options.createPulse(destination, 44, 0x72e7ff);
-        }
+        const completionPulsePlan = resolvePlayerMotionCompletionPulsePlan(motionType);
+        this.options.createPulse(destination, completionPulsePlan.radius, completionPulsePlan.color);
       }
     });
   }
@@ -121,14 +118,21 @@ export class PlayerMotionTweenController {
     tint: number,
     alpha: number
   ): void {
-    const ghost = this.options.scene.add.image(position.x, position.y, textureKey).setDepth(41).setRotation(rotation).setScale(scale).setAlpha(alpha);
-    ghost.setTint(tint);
+    const plan = resolvePlayerMotionAfterimagePlan({
+      position,
+      rotation,
+      scale,
+      textureKey,
+      tint,
+      alpha
+    });
+    const ghost = createPlayerMotionAfterimage(this.options.scene, plan.shape);
     this.options.scene.tweens.add({
       targets: ghost,
-      alpha: 0,
-      scaleX: scale * 0.92,
-      scaleY: scale * 0.92,
-      duration: 180,
+      alpha: plan.tween.alpha,
+      scaleX: plan.tween.scaleX,
+      scaleY: plan.tween.scaleY,
+      duration: plan.tween.durationMs,
       onComplete: () => ghost.destroy()
     });
   }
@@ -136,4 +140,19 @@ export class PlayerMotionTweenController {
   public destroy(): void {
     this.stop();
   }
+}
+
+function createPlayerMotionAfterimage(
+  scene: Phaser.Scene,
+  shape: PlayerMotionAfterimageShapePlan
+): Phaser.GameObjects.Image {
+  const ghost = scene.add
+    .image(shape.position.x, shape.position.y, shape.textureKey)
+    .setDepth(shape.depth)
+    .setRotation(shape.rotation)
+    .setScale(shape.scale)
+    .setAlpha(shape.alpha);
+  ghost.setTint(shape.tint);
+
+  return ghost;
 }

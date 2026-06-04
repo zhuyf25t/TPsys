@@ -1,9 +1,11 @@
 package services.battle.microservices.runtime.services
 
+import cats.effect.IO
+
 import services.battle.microservices.actors.services.BattlePlayerRuntimeRules
 import services.battle.microservices.combat.services.{BattleHeldFireRuntimeRules, BattleProjectileRuntimeRules, BattleWeaponFireRules, BattleWeaponRules}
-import services.battle.microservices.abilities.database.BattlePickupRuleBook
-import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
+import services.battle.microservices.extraction.services.BattleExtractionRuntimeRules
+import services.battle.microservices.world.services.BattleArenaCatalog
 import services.battle.objects.{BattleAggregateState, BattlePhase, BattleTick, ElapsedMillis, EpochMillis}
 import services.battle.microservices.abilities.services.{BattlePickupRules, BattleSlowFieldRuntimeRules}
 import services.battle.microservices.runtime.services.BattleTimeRules
@@ -13,42 +15,49 @@ private[battle] object BattleRuntimeStepRules {
   def advanceStateStep(
     state: BattleAggregateState,
     requestedDeltaMs: Long,
-    now: EpochMillis
-  ): BattleAggregateState = {
-    if state.phase == BattlePhase.Finished then state.copy(serverTime = now)
-    else {
-      val targetElapsed = BattleTimeRules.elapsedAt(state.startedAt, state.durationMs, now)
-      val previousElapsed = BattleTimeRules.elapsedAt(
+    now: EpochMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] = {
+    if state.phase == BattlePhase.Finished then IO.pure(state.copy(serverTime = now))
+    else
+      for
+        targetElapsed <- BattleTimeRules.elapsedAt(state.startedAt, state.durationMs, now)
+        previousElapsed <- BattleTimeRules.elapsedAt(
         state.startedAt,
         state.durationMs,
         EpochMillis(now.value - math.max(0L, requestedDeltaMs))
       )
-      val deltaMs = math.max(0L, targetElapsed - previousElapsed)
-      val advancedRuntime =
-        if deltaMs <= 0L then BattleRuntimeFinalizationRules.finalizeRuntimeStep(state, targetElapsed, now)
-        else {
-          val clockedState = state.copy(
-            serverTime = now,
-            elapsedMs = ElapsedMillis(targetElapsed),
-            tick = BattleTick(targetElapsed / BattleRuntimeRuleBook.runtime.tickStep.value)
-          )
-          val afterSlowFields = BattleSlowFieldRuntimeRules.advanceSlowFields(clockedState, deltaMs)
-          val afterPlayers = BattlePlayerRuntimeRules.advancePlayers(afterSlowFields, deltaMs)
-          val afterPickups = BattlePickupRules.advancePickups(afterPlayers, deltaMs)
-          val afterRequestedReloads = BattleWeaponFireRules.resolveRequestedReloads(afterPickups)
-          val afterHeldFire = BattleHeldFireRuntimeRules.resolveHeldPrimaryFire(afterRequestedReloads)
-          val afterProjectiles = BattleProjectileRuntimeRules.advanceProjectiles(afterHeldFire, deltaMs)
-          val afterCollected =
-            BattlePickupRules.collectPickups(
-              state = afterProjectiles,
-              config = BattlePickupRuleBook.current,
-              retainedBattleEventCount = BattleRuntimeRuleBook.history.retainedBattleEventCount.value,
-              equipOrRefillWeapon = BattleWeaponRules.equipOrRefillWeapon
-            )
-          BattleRuntimeFinalizationRules.finalizeRuntimeStep(afterCollected, targetElapsed, now)
-        }
-
-      advancedRuntime.copy(serverTime = now)
-    }
+        deltaMs = math.max(0L, targetElapsed - previousElapsed)
+        advancedRuntime <-
+          if deltaMs <= 0L then BattleRuntimeFinalizationRules.finalizeRuntimeStep(state, targetElapsed, now, battleRules)
+          else
+            for
+              runtimeRules <- battleRules.runtime
+              clockedState = state.copy(
+                serverTime = now,
+                elapsedMs = ElapsedMillis(targetElapsed),
+                tick = BattleTick(targetElapsed / runtimeRules.tickStep.value)
+              )
+              afterSlowFields <- BattleSlowFieldRuntimeRules.advanceSlowFields(clockedState, deltaMs)
+              afterPlayers <- BattlePlayerRuntimeRules.advancePlayers(afterSlowFields, deltaMs, battleRules)
+              afterPickups <- BattlePickupRules.advancePickups(afterPlayers, deltaMs)
+              afterRequestedReloads <- BattleWeaponFireRules.resolveRequestedReloads(afterPickups, battleRules)
+              arena <- BattleArenaCatalog.contextFor(afterRequestedReloads.mapId, battleRules)
+              afterHeldFire <- BattleHeldFireRuntimeRules.resolveHeldPrimaryFire(afterRequestedReloads, arena, battleRules)
+              afterProjectiles <- BattleProjectileRuntimeRules.advanceProjectiles(afterHeldFire, deltaMs, arena, battleRules)
+              pickupConfig <- battleRules.pickup
+              historyRules <- battleRules.history
+              afterCollected <-
+                BattlePickupRules.collectPickups(
+                  state = afterProjectiles,
+                  config = pickupConfig,
+                  retainedBattleEventCount = historyRules.retainedBattleEventCount.value,
+                  equipOrRefillWeapon = (player, weaponKind) =>
+                    BattleWeaponRules.equipOrRefillWeapon(player, weaponKind, battleRules)
+                )
+              afterObjectives <- BattleExtractionRuntimeRules.advanceObjectives(afterCollected, deltaMs, battleRules)
+              finalized <- BattleRuntimeFinalizationRules.finalizeRuntimeStep(afterObjectives, targetElapsed, now, battleRules)
+            yield finalized
+      yield advancedRuntime.copy(serverTime = now)
   }
 }

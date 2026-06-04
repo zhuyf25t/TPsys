@@ -1,56 +1,57 @@
-﻿import Phaser from "phaser";
-import type { GameSnapshot, Hero, PlayerCommand, PreparedSkill, Vec2 } from "../../../../objects/battle/types";
-import { buildArena, type ObstacleBounds, type OccludableView } from "../renderer/arena/arenaBuilder";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
+import Phaser from "phaser";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import type { BattlePreparedSkill as PreparedSkill } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import type { BattlePlayerCommand as PlayerCommand } from "../../../../objects/battle/microservices/session/objects/command/BattlePlayerCommand";
+import { buildArena } from "../renderer/arena/arenaBuilder";
+import type { ObstacleBounds, OccludableView } from "../renderer/arena/objects/ArenaBuilderObjects";
 import { createWorldViewState, type HeroView, type WorldViewState } from "../renderer/entities/worldViewFactory";
-import { CombatProjectileEffectSceneBridge } from "../renderer/effects/combatProjectileEffectSceneBridge";
 import { SceneVfxController } from "../renderer/effects/sceneVfxController";
-import { PlayerMotionTweenController } from "../renderer/effects/playerMotionTweenController";
-import { preloadBattleAssets } from "../renderer/battleAssetPreloader";
+import { WinterZombieVisualController } from "../renderer/effects/winterZombieVisualController";
+import { preloadBattleAssets } from "../renderer/assets/BattleAssetPreloader";
 import { cloneGameSnapshot } from "../renderer/snapshot/exportSnapshotClone";
 import { getPlayerHeroFromSnapshot } from "../renderer/snapshot/playerHeroLookup";
 import { createBattleControlKeys, type ControlKeys } from "../../local/input/controlKeys";
 import type { WheelSwitchDetail } from "../../local/input/wheelSwitchAdapter";
-import { BattleTemporalFrameBridge } from "../../local/timers/battleTemporalFrameBridge";
-import { FreezeFieldSceneBridge } from "../../local/skills/freezeFieldSceneBridge";
-import { PlayerAbilitySceneBridge } from "../renderer/effects/playerAbilitySceneBridge";
 import { BattleHudSceneBridge } from "../renderer/hud/battleHudSceneBridge";
 import { createInitialBattleSnapshot } from "../../local/session/initialBattleSnapshot";
-import { RespawnSceneBridge } from "../../local/session/respawnSceneBridge";
-import { WeaponActionSceneBridge } from "../renderer/effects/weaponActionSceneBridge";
-import { ProjectileFrameSceneBridge } from "../renderer/effects/projectileFrameSceneBridge";
-import type { BattleFeedbackSceneBridge } from "../renderer/effects/battleFeedbackSceneBridge";
-import type { SharedAuthoritativeLocalFeedbackSceneBridge } from "../renderer/effects/sharedAuthoritativeLocalFeedbackSceneBridge";
-import { BotFrameBridge } from "../../../bots/controller/botFrameBridge";
-import { PickupFrameBridge } from "../../local/pickups/pickupFrameBridge";
 import { WeaponSwitchStateBridge } from "../../local/weapons/weaponSwitchStateBridge";
-import { WeaponWheelSwitchSceneBridge } from "../../local/weapons/weaponWheelSwitchSceneBridge";
 import { createProjectileSequenceBridge } from "../../local/projectiles/projectileSequenceBridge";
 import {
   AuthoritativeFrameSceneBridge,
   type GameSceneAuthoritativeFrame,
   type GameSceneAuthoritativeFrameOptions
-} from "../renderer/authoritativeFrameSceneBridge";
-import { LocalHeroDisplay } from "../renderer/localHeroDisplayPose";
-import { LocalBattleFrameSceneBridge } from "../../local/session/localBattleFrameSceneBridge";
-import { getHeroBasePresentationScale } from "../renderer/entities/heroPresentationScale";
+} from "../renderer/authoritative/BattleAuthoritativeFrameSceneBridge";
+import { LocalHeroDisplay } from "../renderer/entities/BattleLocalHeroDisplay";
+import { getHeroBasePresentationScale } from "../renderer/entities/functions/HeroPresentationScaleRules";
 import {
-  renderGameSceneHud,
-  syncGameSceneWorldViews,
+  renderGameSceneHud
+} from "../renderer/presentation/BattleGameSceneHudPresentation";
+import {
+  syncGameSceneWorldViews
+} from "../renderer/presentation/BattleGameSceneWorldViewPresentation";
+import {
   updateGameSceneOcclusion
-} from "../renderer/gameScenePresentationBridge";
-import { createGameScenePlayerActor, flashGameSceneHero } from "../renderer/gameSceneHeroActorBridge";
+} from "../renderer/presentation/BattleGameSceneOcclusionPresentation";
+import { createGameScenePlayerActor, flashGameSceneHero } from "../renderer/entities/BattleGameSceneHeroActorBridge";
 import {
   configureGameSceneCamera,
   configureGameSceneCameraBounds,
   createGameSceneCameraTarget,
   updateGameSceneCameraTarget
-} from "../renderer/gameSceneCameraBridge";
-import { readGameScenePlayerCommand } from "../renderer/gameSceneInputBridge";
-import { createGameSceneHeroDisplacementBridge } from "../renderer/gameSceneHeroDisplacementBridge";
+} from "../renderer/camera/BattleGameSceneCameraBridge";
+import { readGameScenePlayerCommand } from "../renderer/input/BattleGameSceneInputBridge";
+import { BattleExtractionObjectiveOverlay } from "../../microservices/extraction/components/BattleExtractionObjectiveOverlay";
+import { advanceBattleSharedAuthoritativeGasZone } from "../../microservices/extraction/functions/advanceBattleSharedAuthoritativeGasZone";
 import {
-  createGameSceneBattleFeedbackBridge,
-  createGameSceneSharedAuthoritativeLocalFeedbackBridge
-} from "../renderer/gameSceneFeedbackBridgeFactory";
+  createBattleAuthoritativeClockAnchor,
+  resolveBattleAuthoritativeClockElapsedMs,
+  type BattleAuthoritativeClockAnchor
+} from "../../microservices/session/functions/BattleAuthoritativeClockSyncRules";
+import { createGameSceneRuntimeBridges } from "./functions/createGameSceneRuntimeBridges";
+import { installGameSceneInputLifecycle } from "./functions/installGameSceneInputLifecycle";
+import type { GameSceneRuntimeBridgeSet } from "./objects/GameSceneRuntimeBridgeSet";
 
 interface GameSceneOptions {
   sharedAuthoritativeRuntime?: boolean;
@@ -75,27 +76,17 @@ export class GameScene extends Phaser.Scene {
   private secondaryJustPressed = false;
   private pendingWeaponSwitchDirection: -1 | 0 | 1 = 0;
   private cameraOffset: Vec2 = { x: 0, y: 0 };
-  private motionController!: PlayerMotionTweenController;
-  private freezeFieldBridge!: FreezeFieldSceneBridge;
-  private playerAbilityBridge!: PlayerAbilitySceneBridge;
-  private combatEffectBridge!: CombatProjectileEffectSceneBridge;
-  private weaponActionBridge!: WeaponActionSceneBridge;
-  private projectileFrameBridge!: ProjectileFrameSceneBridge;
-  private battleFeedbackBridge!: BattleFeedbackSceneBridge;
-  private sharedAuthoritativeLocalFeedbackBridge!: SharedAuthoritativeLocalFeedbackSceneBridge;
-  private botFrameBridge!: BotFrameBridge;
-  private pickupFrameBridge!: PickupFrameBridge;
-  private respawnBridge!: RespawnSceneBridge;
-  private temporalFrameBridge!: BattleTemporalFrameBridge;
-  private localBattleFrameBridge!: LocalBattleFrameSceneBridge;
-  private weaponWheelSwitchBridge!: WeaponWheelSwitchSceneBridge;
+  private runtimeBridges!: GameSceneRuntimeBridgeSet;
   private vfx!: SceneVfxController;
+  private winterZombieVisuals!: WinterZombieVisualController;
   private hudBridge!: BattleHudSceneBridge;
+  private objectiveOverlay!: BattleExtractionObjectiveOverlay;
   private readonly weaponSwitchStateBridge = new WeaponSwitchStateBridge();
   private readonly projectileSequenceBridge = createProjectileSequenceBridge();
   private authoritativeRemoteHeroIds = new Set<string>();
   private latestPlayerCommand: PlayerCommand | null = null;
   private authoritativePreparedSkillOverride: PreparedSkill = null;
+  private authoritativeClockAnchor: BattleAuthoritativeClockAnchor | null = null;
   private lastOcclusionSyncAtMs = Number.NEGATIVE_INFINITY;
   private lastOcclusionSyncPosition: Vec2 | null = null;
   private elapsedOffsetMs = 0;
@@ -111,13 +102,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.input.setDefaultCursor("crosshair");
-    this.input.mouse?.disableContextMenu();
-    this.input.on("pointerdown", this.handlePointerDown, this);
-    this.input.on("wheel", this.handleMouseWheel, this);
-    window.addEventListener("game-wheel-switch", this.onGlobalWheelSwitch as EventListener);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      window.removeEventListener("game-wheel-switch", this.onGlobalWheelSwitch as EventListener);
+    installGameSceneInputLifecycle(this, {
+      onPointerDown: (pointer) => this.handlePointerDown(pointer),
+      onMouseWheel: (pointer, gameObjects, deltaX, deltaY, deltaZ, event) =>
+        this.handleMouseWheel(pointer, gameObjects, deltaX, deltaY, deltaZ, event),
+      onGlobalWheelSwitch: (event) => this.onGlobalWheelSwitch(event)
     });
 
     this.snapshot = this.initialSnapshot ? cloneGameSnapshot(this.initialSnapshot) : createInitialBattleSnapshot();
@@ -129,9 +118,11 @@ export class GameScene extends Phaser.Scene {
     this.wallBodies = this.physics.add.staticGroup();
 
     this.createArena();
+    this.objectiveOverlay = new BattleExtractionObjectiveOverlay(this);
     this.createPlayerActor();
     this.cameraTarget = createGameSceneCameraTarget(this, this.getPlayerHero());
     this.createHeroViews();
+    this.winterZombieVisuals = new WinterZombieVisualController(this);
     this.hudBridge = new BattleHudSceneBridge();
     this.hudBridge.layout(this.scale.width, this.scale.height);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -139,144 +130,29 @@ export class GameScene extends Phaser.Scene {
     });
     configureGameSceneCamera(this.cameras.main, this.cameraTarget, this.snapshot.worldSize);
     this.vfx = new SceneVfxController(this);
-    this.weaponWheelSwitchBridge = new WeaponWheelSwitchSceneBridge({
-      getPlayerHero: () => this.getPlayerHero(),
-      isAuthoritativeRendererHost: () => this.sharedAuthoritativeRuntime,
-      getNowMs: () => performance.now(),
-      weaponSwitchStateBridge: this.weaponSwitchStateBridge,
-      showFloatingText: (position, text, tone) => this.vfx.showFloatingText(position, text, tone)
-    });
-    this.freezeFieldBridge = new FreezeFieldSceneBridge({
-      getSlowFields: () => this.snapshot.slowFields,
-      setSlowFields: (fields) => {
-        this.snapshot.slowFields = fields;
-      },
-      showFloatingText: (position, text, tone) => this.vfx.showFloatingText(position, text, tone)
-    });
-    this.motionController = new PlayerMotionTweenController({
+    this.runtimeBridges = createGameSceneRuntimeBridges({
       scene: this,
       playerActor: this.playerActor,
-      heroViews: this.heroViews,
-      getPlayerHero: () => this.getPlayerHero(),
-      getBaseHeroScale: (heroId) => getHeroBasePresentationScale(heroId, this.snapshot.playerHeroId),
-      createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color)
-    });
-    this.playerAbilityBridge = new PlayerAbilitySceneBridge({
-      getPlayerHero: () => this.getPlayerHero(),
-      getWorldSize: () => this.snapshot.worldSize,
-      getObstacleBounds: () => this.obstacleBounds,
-      getHeroViews: () => this.heroViews,
-      getBaseHeroScale: (heroId) => getHeroBasePresentationScale(heroId, this.snapshot.playerHeroId),
-      isPlayerMotionActive: () => this.isPlayerMotionActive(),
-      startPlayerMotion: (destination, durationMs, motionType) => this.startPlayerMotion(destination, durationMs, motionType),
-      createAfterimage: (position, rotation, scale, textureKey, tint, alpha) => this.createAfterimage(position, rotation, scale, textureKey, tint, alpha),
-      createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color),
-      createFloatingText: (position, text, color) => this.vfx.createFloatingText(position, text, color),
-      showFloatingText: (position, text, tone) => this.vfx.showFloatingText(position, text, tone),
-      addFreezeField: (ownerHeroId, position, radius, durationMs) =>
-        this.freezeFieldBridge.addFreezeField(ownerHeroId, position, radius, durationMs)
-    });
-    const heroDisplacementBridge = createGameSceneHeroDisplacementBridge({
-      getWorldSize: () => this.snapshot.worldSize,
-      getObstacleBounds: () => this.obstacleBounds,
-      getPlayerHero: () => this.getPlayerHero(),
-      setHeroPosition: (hero, position) => this.setHeroPosition(hero, position)
-    });
-    this.combatEffectBridge = new CombatProjectileEffectSceneBridge({
-      getSnapshot: () => this.snapshot,
-      createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color),
-      createImpactSpark: (position, color) => this.vfx.createImpactSpark(position, color),
-      createShockwave: (position, startRadius, endRadius, color, duration) => this.vfx.createShockwave(position, startRadius, endRadius, color, duration),
-      createFloatingText: (position, text, color) => this.vfx.createFloatingText(position, text, color),
-      flashHero: (heroId, color) => this.flashHero(heroId, color),
-      shakeCamera: (duration, intensity) => this.cameras.main.shake(duration, intensity),
-      stopPlayerMotion: () => this.stopPlayerMotion(),
-      setPlayerActorDisabled: () => {
-        const body = this.playerActor.body as Phaser.Physics.Arcade.Body;
-        body.enable = false;
-        this.playerActor.setVelocity(0, 0);
-      },
-      applyKnockback: (hero, direction, strength) => heroDisplacementBridge.applyKnockback(hero, direction, strength),
-      pushEvent: (type, message) => this.temporalFrameBridge.pushEvent(this.snapshot, type, message)
-    });
-    this.weaponActionBridge = new WeaponActionSceneBridge({
-      getPlayerHero: () => this.getPlayerHero(),
-      getWeaponSwitchRemainingMs: () => this.weaponSwitchStateBridge.getWeaponSwitchRemainingMs(),
-      isPlayerMotionActive: () => this.isPlayerMotionActive(),
-      getProjectileSequence: () => this.projectileSequenceBridge.getSequence(),
-      setProjectileSequence: (next) => this.projectileSequenceBridge.setSequence(next),
-      addProjectile: (projectile) => {
-        this.snapshot.projectiles.push(projectile);
-      },
-      showFloatingText: (position, text, tone) => this.vfx.showFloatingText(position, text, tone),
-      createMuzzleBurst: (position, color, radius, sparks, direction) =>
-        this.vfx.createMuzzleBurst(position, color, radius, sparks, direction),
-      createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color),
-      createImpactSpark: (position, color) => this.vfx.createImpactSpark(position, color),
-      applyRecoil: (direction, strength) => heroDisplacementBridge.applyRecoil(direction, strength)
-    });
-    this.projectileFrameBridge = new ProjectileFrameSceneBridge({
-      getSnapshot: () => this.snapshot,
-      getObstacleBounds: () => this.obstacleBounds,
-      presentEffect: (effect) => this.combatEffectBridge.present(effect)
-    });
-    this.battleFeedbackBridge = createGameSceneBattleFeedbackBridge({
-      getSnapshot: () => this.snapshot,
-      getWorldViews: () => this.worldViews,
-      flashHero: (heroId, color) => this.flashHero(heroId, color),
-      vfx: this.vfx,
-      camera: this.cameras.main
-    });
-    this.sharedAuthoritativeLocalFeedbackBridge = createGameSceneSharedAuthoritativeLocalFeedbackBridge({
-      getPlayerHero: () => this.getPlayerHero(),
       localHeroDisplay: this.localHeroDisplay,
-      getWorldSize: () => this.snapshot.worldSize,
-      getObstacleBounds: () => this.obstacleBounds,
-      getNowMs: () => performance.now(),
-      vfx: this.vfx
-    });
-    this.botFrameBridge = new BotFrameBridge({
-      getSnapshot: () => this.snapshot,
-      getObstacleBounds: () => this.obstacleBounds,
-      getProjectileSequence: () => this.projectileSequenceBridge.getSequence(),
-      setProjectileSequence: (nextSequence) => this.projectileSequenceBridge.setSequence(nextSequence),
-      getAuthoritativeHeroIds: () => this.authoritativeRemoteHeroIds
-    });
-    this.pickupFrameBridge = new PickupFrameBridge({
+      worldViews: this.worldViews,
+      heroViews: this.heroViews,
+      obstacleBounds: this.obstacleBounds,
+      occludables: this.occludables,
+      sharedAuthoritativeRuntime: this.sharedAuthoritativeRuntime,
+      weaponSwitchStateBridge: this.weaponSwitchStateBridge,
+      projectileSequenceBridge: this.projectileSequenceBridge,
+      vfx: this.vfx,
       getSnapshot: () => this.snapshot,
       getPlayerHero: () => this.getPlayerHero(),
-      getObstacleBounds: () => this.obstacleBounds,
-      getOccludables: () => this.occludables,
-      showFloatingText: (position, text, tone) => this.vfx.showFloatingText(position, text, tone),
-      createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color),
-      pushEvent: (type, message) => this.temporalFrameBridge.pushEvent(this.snapshot, type, message)
-    });
-    this.respawnBridge = new RespawnSceneBridge({
-      getSnapshot: () => this.snapshot,
-      getPlayerActor: () => this.playerActor,
-      resetWeaponSwitchState: () => this.weaponSwitchStateBridge.reset(),
-      stopPlayerMotion: () => this.stopPlayerMotion(),
-      pushEvent: (type, message) => this.temporalFrameBridge.pushEvent(this.snapshot, type, message),
-      createPulse: (position, radius, color) => this.vfx.createPulse(position, radius, color)
-    });
-    this.temporalFrameBridge = new BattleTemporalFrameBridge();
-    this.localBattleFrameBridge = new LocalBattleFrameSceneBridge({
-      getSnapshot: () => this.snapshot,
-      getPlayerHero: () => this.getPlayerHero(),
+      getAuthoritativeHeroIds: () => this.authoritativeRemoteHeroIds,
+      getBaseHeroScale: (heroId) => getHeroBasePresentationScale(heroId, this.snapshot.playerHeroId),
       syncPlayerHeroFromPhysics: () => this.syncPlayerHeroFromPhysics(),
-      setPlayerActorVelocity: (velocity) => this.playerActor.setVelocity(velocity.x, velocity.y),
-      isPlayerMotionActive: () => this.isPlayerMotionActive(),
-      showFloatingText: (position, text, tone) => this.vfx.showFloatingText(position, text, tone),
-      pickupFrameBridge: this.pickupFrameBridge,
-      respawnBridge: this.respawnBridge,
-      playerAbilityBridge: this.playerAbilityBridge,
-      weaponActionBridge: this.weaponActionBridge,
-      botFrameBridge: this.botFrameBridge,
-      projectileFrameBridge: this.projectileFrameBridge,
-      weaponSwitchStateBridge: this.weaponSwitchStateBridge
+      setHeroPosition: (hero, position) => this.setHeroPosition(hero, position),
+      flashHero: (heroId, color) => this.flashHero(heroId, color)
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.vfx.destroy();
+      this.winterZombieVisuals.destroy();
     });
 
     this.physics.add.collider(this.playerActor, this.wallBodies);
@@ -291,7 +167,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.sharedAuthoritativeRuntime) {
       this.applyAuthoritativePreparedSkillOverride();
-      this.stopPlayerMotion();
+      this.runtimeBridges.motionController.stop();
       this.playerActor.setVelocity(0, 0);
       this.authoritativeFrameBridge.updateLocalDisplayMotion({
         snapshot: this.snapshot,
@@ -301,14 +177,16 @@ export class GameScene extends Phaser.Scene {
         obstacleBounds: this.obstacleBounds,
         localPlayerMovementActive: this.isLatestPlayerCommandMovementActive()
       });
-      this.sharedAuthoritativeLocalFeedbackBridge.update(command);
+      this.runtimeBridges.sharedAuthoritativeLocalFeedbackBridge.update(command);
     } else {
-      this.localBattleFrameBridge.update(command, delta);
+      this.runtimeBridges.localBattleFrameBridge.update(command, delta);
     }
     this.updateCameraTarget();
 
     this.syncWorldViews(command, delta);
-    this.battleFeedbackBridge.update(this.sharedAuthoritativeRuntime);
+    this.winterZombieVisuals.update(this.snapshot, this.heroViews, delta);
+    this.objectiveOverlay.render(this.snapshot);
+    this.runtimeBridges.battleFeedbackBridge.update(this.sharedAuthoritativeRuntime);
     this.updateOcclusionIfNeeded(time);
     this.renderHud(Math.round(this.game.loop.actualFps));
     this.vfx.updateVisualEffects(delta);
@@ -319,11 +197,24 @@ export class GameScene extends Phaser.Scene {
   }
   private advanceRuntimeLocalClock(time: number, delta: number) {
     if (this.sharedAuthoritativeRuntime) {
+      const previousElapsedMs = Math.max(0, this.snapshot.elapsedMs);
+      const fallbackDeltaMs = Math.max(0, Number.isFinite(delta) ? delta : 0);
+      this.snapshot.elapsedMs = resolveBattleAuthoritativeClockElapsedMs({
+        anchor: this.authoritativeClockAnchor,
+        fallbackElapsedMs: previousElapsedMs + fallbackDeltaMs,
+        nowMs: Date.now()
+      });
+      const deltaMs = Math.max(0, this.snapshot.elapsedMs - previousElapsedMs);
+      this.snapshot.gasZone = advanceBattleSharedAuthoritativeGasZone({
+        gasZone: this.snapshot.gasZone,
+        elapsedMs: this.snapshot.elapsedMs,
+        deltaMs
+      });
       return;
     }
 
     this.snapshot.elapsedMs = this.elapsedOffsetMs + time;
-    this.temporalFrameBridge.update(this.snapshot, delta);
+    this.runtimeBridges.temporalFrameBridge.update(this.snapshot, delta);
   }
   private createArena() {
     buildArena({
@@ -395,7 +286,8 @@ export class GameScene extends Phaser.Scene {
       sharedAuthoritativeRuntime: this.sharedAuthoritativeRuntime,
       localHeroDisplay: this.localHeroDisplay,
       camera: this.cameras.main,
-      obstacleBounds: this.obstacleBounds
+      obstacleBounds: this.obstacleBounds,
+      mapExpanded: this.controls.map.isDown
     });
   }
   private handlePointerDown(pointer: Phaser.Input.Pointer) {
@@ -409,13 +301,13 @@ export class GameScene extends Phaser.Scene {
     if (event.ctrlKey) { return; }
 
     this.captureWeaponSwitchDirection(deltaY);
-    this.weaponWheelSwitchBridge.handleWheel("Phaser", deltaY);
+    this.runtimeBridges.weaponWheelSwitchBridge.handleWheel("Phaser", deltaY);
   }
   private readonly onGlobalWheelSwitch = (event: Event): void => {
     const customEvent = event as CustomEvent<WheelSwitchDetail>;
     const deltaY = customEvent.detail?.deltaY ?? 0;
     this.captureWeaponSwitchDirection(deltaY);
-    this.weaponWheelSwitchBridge.handleWheel("Window", deltaY);
+    this.runtimeBridges.weaponWheelSwitchBridge.handleWheel("Window", deltaY);
   };
   private captureWeaponSwitchDirection(deltaY: number) {
     if (deltaY < 0) {
@@ -465,24 +357,12 @@ export class GameScene extends Phaser.Scene {
       command,
       deltaMs,
       weaponSwitchStateBridge: this.weaponSwitchStateBridge,
-      playerAbilityBridge: this.playerAbilityBridge,
+      playerAbilityBridge: this.runtimeBridges.playerAbilityBridge,
       sharedAuthoritativeRuntime: this.sharedAuthoritativeRuntime,
       remoteAuthoritativeHeroIds: this.authoritativeRemoteHeroIds,
       localHeroDisplay: this.localHeroDisplay,
       obstacleBounds: this.obstacleBounds
     });
-  }
-  private isPlayerMotionActive() {
-    return this.motionController.isActive();
-  }
-  private stopPlayerMotion() {
-    this.motionController.stop();
-  }
-  private startPlayerMotion(destination: Vec2, durationMs: number, motionType: "jump" | "dash" | "blink") {
-    this.motionController.start(destination, durationMs, motionType);
-  }
-  private createAfterimage(position: Vec2, rotation: number, scale: number, textureKey: string, tint: number, alpha: number) {
-    this.motionController.createAfterimage(position, rotation, scale, textureKey, tint, alpha);
   }
   private flashHero(heroId: string, flashColor: number) {
     const hero = this.snapshot.heroes.find((entry) => entry.heroId === heroId);
@@ -515,13 +395,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.battleFeedbackBridge?.applyAuthoritativeFrame(frame);
+    const receivedAtMs = options.nowMs ?? Date.now();
+    this.authoritativeClockAnchor = createBattleAuthoritativeClockAnchor({ frame, receivedAtMs });
+    this.runtimeBridges.battleFeedbackBridge.applyAuthoritativeFrame(frame);
     this.authoritativeRemoteHeroIds = this.authoritativeFrameBridge.applyFrame({
       snapshot: this.snapshot,
       frame,
       localPlayerMovementActive: this.isLatestPlayerCommandMovementActive(),
       obstacleBounds: this.obstacleBounds,
-      options
+      options: { ...options, nowMs: receivedAtMs }
     });
     this.applyAuthoritativePreparedSkillOverride();
     this.configureWorldBounds();

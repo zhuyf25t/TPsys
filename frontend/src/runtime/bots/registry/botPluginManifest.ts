@@ -28,7 +28,7 @@ export const BOT_PLUGIN_MANIFESTS = [
     displayName: "内置本地机器人",
     version: "1.0.0",
     apiVersion: BOT_PLUGIN_API_VERSION,
-    author: "Slay Demo",
+    author: "Battle Rift",
     description: "内置本地机器人档案和策略标签的只读插件声明。",
     strategyIds: [
       "anchor-skirmisher",

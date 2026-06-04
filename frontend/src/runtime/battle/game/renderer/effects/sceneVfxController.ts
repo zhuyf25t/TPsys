@@ -1,29 +1,23 @@
 import Phaser from "phaser";
-import type { Vec2 } from "../../../../../objects/battle/types";
-import { FloatingTextVfxPresenter, type FloatingTone } from "./floatingTextVfxPresenter";
+import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/objects/core/BattleCoreScalars";
+import { FloatingTextVfxPresenter } from "./floatingTextVfxPresenter";
 import { MuzzleAndHitVfxPresenter } from "./muzzleAndHitVfxPresenter";
+import type { FloatingTone } from "./objects/FloatingTextVfxObjects";
+import type { ProjectileTracerOptions } from "./objects/ProjectileTracerVfxObjects";
+import type { SceneRingPulseEffect, SceneRingPulseShapePlan } from "./objects/SceneVfxObjects";
+import type { SkillFeedbackIntent } from "./objects/SkillFeedbackVfxObjects";
 import {
-  createProjectileTracer as renderProjectileTracer,
-  type ProjectileTracerOptions
-} from "./projectileTracerVfxRenderer";
-import { SkillFeedbackVfxPresenter, type SkillFeedbackIntent } from "./skillFeedbackVfxPresenter";
+  resolveSceneRingPulsePlan,
+  resolveSceneRingPulseUpdatePlan
+} from "./functions/SceneVfxRules";
+import { createProjectileTracer as renderProjectileTracer } from "./projectileTracerVfxRenderer";
+import { SkillFeedbackVfxPresenter } from "./skillFeedbackVfxPresenter";
 import { TransientVfxLifecycle } from "./transientVfxLifecycle";
-
-export type { SceneVfxDiagnosticsSnapshot } from "./transientVfxLifecycle";
-export type { ProjectileTracerOptions } from "./projectileTracerVfxRenderer";
-export type { SkillFeedbackIntent } from "./skillFeedbackVfxPresenter";
-export type { FloatingTone } from "./floatingTextVfxPresenter";
-
-interface RingEffect {
-  circle: Phaser.GameObjects.Arc;
-  ttlMs: number;
-  maxTtlMs: number;
-}
 
 const DEFAULT_MUZZLE_DIRECTION: Vec2 = { x: 1, y: 0 };
 
 export class SceneVfxController {
-  private visualEffects: RingEffect[] = [];
+  private visualEffects: SceneRingPulseEffect[] = [];
   private readonly transientVfx: TransientVfxLifecycle;
   private readonly muzzleAndHitVfxPresenter: MuzzleAndHitVfxPresenter;
   private readonly skillFeedbackPresenter: SkillFeedbackVfxPresenter;
@@ -52,11 +46,13 @@ export class SceneVfxController {
   }
 
   public createPulse = (position: Vec2, radius: number, color: number): void => {
-    const circle = this.transientVfx.track(
-      this.scene.add.circle(position.x, position.y, radius, color, 0.18).setDepth(45)
-    );
-    circle.setStrokeStyle(2, color, 0.78);
-    this.visualEffects.push({ circle, ttlMs: 220, maxTtlMs: 220 });
+    const plan = resolveSceneRingPulsePlan({ position, radius, color });
+    const circle = this.transientVfx.track(createSceneRingPulseCircle(this.scene, plan.shape));
+    this.visualEffects.push({
+      circle,
+      ttlMs: plan.lifetime.ttlMs,
+      maxTtlMs: plan.lifetime.maxTtlMs
+    });
     this.transientVfx.publishDiagnostics();
   };
 
@@ -140,17 +136,19 @@ export class SceneVfxController {
         continue;
       }
 
-      const nextTtl = effect.ttlMs - deltaMs;
-      if (nextTtl <= 0) {
+      const updatePlan = resolveSceneRingPulseUpdatePlan({
+        ttlMs: effect.ttlMs,
+        maxTtlMs: effect.maxTtlMs,
+        deltaMs
+      });
+      if (updatePlan.kind === "destroy") {
         this.transientVfx.destroyObject(effect.circle);
         continue;
       }
 
-      effect.ttlMs = nextTtl;
-      const ttlRatio = nextTtl / effect.maxTtlMs;
-      const progress = 1 - ttlRatio;
-      effect.circle.setScale(1 + progress * 0.42);
-      effect.circle.setAlpha(0.18 * ttlRatio);
+      effect.ttlMs = updatePlan.ttlMs;
+      effect.circle.setScale(updatePlan.scale);
+      effect.circle.setAlpha(updatePlan.alpha);
       this.visualEffects[writeIndex] = effect;
       writeIndex += 1;
     }
@@ -175,4 +173,16 @@ export class SceneVfxController {
 
     return activeRingCount;
   }
+}
+
+function createSceneRingPulseCircle(
+  scene: Phaser.Scene,
+  shape: SceneRingPulseShapePlan
+): Phaser.GameObjects.Arc {
+  const circle = scene.add
+    .circle(shape.position.x, shape.position.y, shape.radius, shape.color, shape.fillAlpha)
+    .setDepth(shape.depth);
+  circle.setStrokeStyle(shape.strokeWidth, shape.strokeColor, shape.strokeAlpha);
+
+  return circle;
 }

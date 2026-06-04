@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import type { Vec2 } from "../../../../../objects/battle/types";
 import {
   CRATE_TEXTURE_KEY,
   FLOOR_TILE_SIZE,
@@ -8,41 +7,26 @@ import {
   WALL_TEXTURE_KEY,
   WORLD_SIZE,
   type ArenaObstacle
-} from "../../constants";
-import type { CollisionShape, CollisionShapeSpec, MapBuildingDefinition, MapObstacleDefinition } from "../../maps/battleMapCatalog";
+} from "../../objects/BattleGameConstants";
+import type {
+  ArenaBuilderContext,
+  ObstacleBounds,
+  OccludableSprite,
+  OccludableView
+} from "./objects/ArenaBuilderObjects";
+import {
+  backgroundColorForTheme,
+  buildingWallObstacle,
+  collisionBoundsSize,
+  depthForObstacle,
+  doorTextureForTheme,
+  mapDecorativeKind,
+  shapeFromSpec,
+  triggerFromCollision
+} from "./functions/ArenaBuilderRules";
 import { createArenaPresentationLayers } from "./arenaBackgroundPresenter";
-import { createPickupPads } from "./arenaDecorationPresenter";
+import { createPickupPads, createWinterZombieSetPieces } from "./arenaDecorationPresenter";
 import { createStaticObstacleMetalSkin } from "./obstacleSkinPresenter";
-
-export type OccludableSprite = Phaser.GameObjects.Image | Phaser.Physics.Arcade.Image;
-
-export type OccludableTrigger =
-  | { kind: "aabb"; position: Vec2; size: Vec2 }
-  | { kind: "circle"; position: Vec2; radius: number };
-
-export type OccludableMode = "local-probe" | "tree-leaves" | "building-roof";
-
-export interface ObstacleBounds {
-  position: Vec2;
-  size: Vec2;
-  shape?: CollisionShape;
-}
-
-export interface OccludableView {
-  sprite: OccludableSprite;
-  bounds: Phaser.Geom.Rectangle;
-  baseAlpha: number;
-  mode: OccludableMode;
-  trigger?: OccludableTrigger;
-  fadeAlpha?: number;
-}
-
-export interface ArenaBuilderContext {
-  scene: Phaser.Scene;
-  wallBodies: Phaser.Physics.Arcade.StaticGroup;
-  obstacleBounds: ObstacleBounds[];
-  occludables: OccludableView[];
-}
 
 /** 涓枃鍚嶏細鏋勫缓绔炴妧鍦猴紙buildArena锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔垬鏂楀煙涓粍缁囨垬鏂楃晫闈€佺姸鎬併€佽緭鍏ユ垨娓叉煋鏁版嵁锛屼繚鎸佸鎴风鐜╂硶琛ㄨ揪涓庡悗绔绾︿竴鑷淬€?*/
 export function buildArena(context: ArenaBuilderContext): void {
@@ -122,6 +106,7 @@ function createNaturalMapObjects(context: ArenaBuilderContext): void {
   createBuildings(context);
   createDecorativeObstacles(context);
   createTrees(context);
+  createWinterZombieSetPieces(context.scene, context.occludables);
 }
 
 function createBuildings({ scene, wallBodies, obstacleBounds, occludables }: ArenaBuilderContext): void {
@@ -166,7 +151,7 @@ function createBuildings({ scene, wallBodies, obstacleBounds, occludables }: Are
 
     building.walls.forEach((wall) => {
       const obstacle = buildingWallObstacle(building, wall);
-      createStaticObstacle(scene, wallBodies, obstacleBounds, occludables, obstacle, { visible: false });
+      createStaticObstacle(scene, wallBodies, obstacleBounds, occludables, obstacle, { visible: false, collisionOnly: true });
     });
 
     const roofPosition = {
@@ -191,6 +176,7 @@ function createDecorativeObstacles({ scene, wallBodies, obstacleBounds, occludab
   getActiveBattleMap().decorativeObstacles.forEach((obstacle) => {
     scene.add
       .ellipse(obstacle.position.x + 8, obstacle.position.y + 10, obstacle.displaySize.x * 0.72, obstacle.displaySize.y * 0.42, 0x1b2418, 0.2)
+      .setRotation(obstacle.rotation ?? 0)
       .setDepth(35);
 
     const sprite = obstacle.collision
@@ -206,13 +192,15 @@ function createDecorativeObstacles({ scene, wallBodies, obstacleBounds, occludab
             size: collisionBoundsSize(obstacle.collision),
             shape: shapeFromSpec(obstacle.collision),
             texture: obstacle.texture,
-            displaySize: obstacle.displaySize
+            displaySize: obstacle.displaySize,
+            rotation: obstacle.rotation
           },
           { visible: true }
         )
       : scene.add
           .image(obstacle.position.x, obstacle.position.y, obstacle.texture)
           .setDisplaySize(obstacle.displaySize.x, obstacle.displaySize.y)
+          .setRotation(obstacle.rotation ?? 0)
           .setDepth(obstacle.kind === "leaf_pile" ? 24 : 43)
           .setAlpha(obstacle.kind === "leaf_pile" ? 0.82 : 0.94);
 
@@ -269,13 +257,14 @@ function createStaticObstacle(
   obstacleBounds: ObstacleBounds[],
   occludables: OccludableView[],
   obstacle: ArenaObstacle,
-  options: { visible: boolean }
+  options: { visible: boolean; collisionOnly?: boolean }
 ): Phaser.Physics.Arcade.Image {
   const textureKey = obstacle.texture ?? (obstacle.kind === "wall" ? WALL_TEXTURE_KEY : CRATE_TEXTURE_KEY);
   const displaySize = obstacle.displaySize ?? obstacle.size;
   const staticImage = scene.physics.add
     .staticImage(obstacle.position.x, obstacle.position.y, textureKey)
     .setDisplaySize(displaySize.x, displaySize.y)
+    .setRotation(obstacle.rotation ?? 0)
     .setDepth(depthForObstacle(obstacle));
 
   if (!isNaturalBattleMapTheme(getActiveBattleMap().themeId)) {
@@ -283,11 +272,18 @@ function createStaticObstacle(
     staticImage
       .setTint(obstacle.kind === "wall" ? 0x243039 : 0x2d3437)
       .setAlpha(obstacle.kind === "wall" ? 0.98 : 0.96);
+  } else if (options.collisionOnly) {
+    staticImage.setAlpha(0);
   } else if (!options.visible) {
     staticImage.setVisible(false).setAlpha(0.01);
   }
 
   staticImage.refreshBody();
+  const body = staticImage.body as Phaser.Physics.Arcade.StaticBody | null;
+  if (body) {
+    body.setSize(obstacle.size.x, obstacle.size.y, true);
+    body.enable = true;
+  }
   wallBodies.add(staticImage);
   obstacleBounds.push({
     position: { x: obstacle.position.x, y: obstacle.position.y },
@@ -300,97 +296,6 @@ function createStaticObstacle(
   }
 
   return staticImage;
-}
-
-function buildingWallObstacle(building: MapBuildingDefinition, wall: MapBuildingDefinition["walls"][number]): ArenaObstacle {
-  const shape = shapeFromSpec(wall.collision);
-  const position = wall.collision.position ?? building.position;
-  return {
-    obstacleId: `${building.buildingId}-${wall.wallId}`,
-    kind: "building-wall",
-    position: { x: position.x, y: position.y },
-    size: collisionBoundsSize(wall.collision),
-    shape
-  };
-}
-
-function shapeFromSpec(collision: CollisionShapeSpec): CollisionShape {
-  if (collision.kind === "circle") {
-    return { kind: "circle", radius: collision.radius };
-  }
-
-  return { kind: "aabb", size: { x: collision.size.x, y: collision.size.y } };
-}
-
-function collisionBoundsSize(collision: CollisionShapeSpec): Vec2 {
-  if (collision.kind === "circle") {
-    return { x: collision.radius * 2, y: collision.radius * 2 };
-  }
-
-  return { x: collision.size.x, y: collision.size.y };
-}
-
-function triggerFromCollision(fallbackPosition: Vec2, collision: CollisionShapeSpec): OccludableTrigger {
-  const position = collision.position ?? fallbackPosition;
-  if (collision.kind === "circle") {
-    return { kind: "circle", position: { x: position.x, y: position.y }, radius: collision.radius };
-  }
-
-  return {
-    kind: "aabb",
-    position: { x: position.x, y: position.y },
-    size: { x: collision.size.x, y: collision.size.y }
-  };
-}
-
-function mapDecorativeKind(kind: MapObstacleDefinition["kind"]): ArenaObstacle["kind"] {
-  switch (kind) {
-    case "rock":
-      return "rock";
-    case "logs":
-      return "logs";
-    case "hay":
-      return "hay";
-    case "stump":
-      return "stump";
-    case "bush":
-    case "leaf_pile":
-      return "crate";
-  }
-}
-
-function doorTextureForTheme(themeId: ReturnType<typeof getActiveBattleMap>["themeId"]): string {
-  return themeId === "fall" ? "fall-door" : "shared-door";
-}
-
-function backgroundColorForTheme(themeId: ReturnType<typeof getActiveBattleMap>["themeId"]): string {
-  switch (themeId) {
-    case "fall":
-      return "#243526";
-    case "winter":
-      return "#c7dce5";
-    case "normal":
-      return "#1f351f";
-    case "industrial":
-      return "#0d0f0f";
-  }
-}
-
-function depthForObstacle(obstacle: ArenaObstacle): number {
-  switch (obstacle.kind) {
-    case "wall":
-    case "building-wall":
-      return 54;
-    case "tree-trunk":
-      return 49;
-    case "rock":
-    case "logs":
-    case "hay":
-    case "stump":
-      return 47;
-    case "crate":
-      return 46;
-  }
 }
 
 function registerOccludable(

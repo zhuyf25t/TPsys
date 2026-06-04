@@ -1,5 +1,7 @@
 package services.battle.microservices.queue.services
 
+import cats.effect.IO
+
 import services.battle.microservices.queue.objects.queue.*
 import services.battle.objects.core.RoomId
 
@@ -17,58 +19,83 @@ private[battle] object BattleQueueLeaveRules {
     tickets: Map[TicketId, TicketRecord],
     queueRequests: Map[QueueRequestId, TicketId],
     ticketId: TicketId
-  ): BattleQueueLeaveTransition =
+  ): IO[BattleQueueLeaveTransition] =
     tickets.get(ticketId) match {
       case None =>
-        BattleQueueLeaveTransition(
-          rooms = rooms,
-          tickets = tickets,
-          queueRequests = queueRequests,
-          outcome = BattleQueueLeaveOutcome.TicketNotFound
-        )
+        leaveTransition(rooms, tickets, queueRequests, BattleQueueLeaveOutcome.TicketNotFound)
       case Some(record) =>
         rooms.get(record.roomId) match {
-          case Some(room) if !room.isWaiting =>
-            BattleQueueLeaveTransition(
-              rooms = rooms,
-              tickets = tickets,
-              queueRequests = queueRequests,
-              outcome = BattleQueueLeaveOutcome.NotWaiting
-            )
-          case _ =>
-            BattleQueueLeaveTransition(
-              rooms = roomsAfterLeave(rooms, record.roomId, ticketId),
-              tickets = tickets.removed(ticketId),
-              queueRequests = queueRequestsAfterLeave(queueRequests, record),
-              outcome = BattleQueueLeaveOutcome.LeftQueue
-            )
+          case Some(room) =>
+            room.isWaiting.flatMap {
+              case false =>
+                leaveTransition(rooms, tickets, queueRequests, BattleQueueLeaveOutcome.NotWaiting)
+              case true =>
+                leftQueueTransition(rooms, tickets, queueRequests, record, ticketId)
+            }
+          case None =>
+            leftQueueTransition(rooms, tickets, queueRequests, record, ticketId)
         }
     }
+
+  private def leftQueueTransition(
+    rooms: Map[RoomId, QueueRoom],
+    tickets: Map[TicketId, TicketRecord],
+    queueRequests: Map[QueueRequestId, TicketId],
+    record: TicketRecord,
+    ticketId: TicketId
+  ): IO[BattleQueueLeaveTransition] =
+    for
+      nextRooms <- roomsAfterLeave(rooms, record.roomId, ticketId)
+      nextQueueRequests <- queueRequestsAfterLeave(queueRequests, record)
+      transition <- leaveTransition(
+        nextRooms,
+        tickets.removed(ticketId),
+        nextQueueRequests,
+        BattleQueueLeaveOutcome.LeftQueue
+      )
+    yield transition
+
+  private def leaveTransition(
+    rooms: Map[RoomId, QueueRoom],
+    tickets: Map[TicketId, TicketRecord],
+    queueRequests: Map[QueueRequestId, TicketId],
+    outcome: BattleQueueLeaveOutcome
+  ): IO[BattleQueueLeaveTransition] =
+    IO.pure(
+      BattleQueueLeaveTransition(
+        rooms = rooms,
+        tickets = tickets,
+        queueRequests = queueRequests,
+        outcome = outcome
+      )
+    )
 
   private def roomsAfterLeave(
     rooms: Map[RoomId, QueueRoom],
     roomId: RoomId,
     ticketId: TicketId
-  ): Map[RoomId, QueueRoom] =
+  ): IO[Map[RoomId, QueueRoom]] =
     rooms.get(roomId) match {
       case None =>
-        rooms
+        IO.pure(rooms)
       case Some(room) =>
         val updatedParticipants = room.participants.filterNot(_.ticketId == ticketId)
-        (updatedParticipants.isEmpty, room.isWaiting) match {
-          case (true, true) =>
-            rooms.removed(roomId)
-          case _ =>
-            rooms.updated(roomId, room.copy(participants = updatedParticipants))
+        room.isWaiting.map { waiting =>
+          (updatedParticipants.isEmpty, waiting) match {
+            case (true, true) =>
+              rooms.removed(roomId)
+            case _ =>
+              rooms.updated(roomId, room.copy(participants = updatedParticipants))
+          }
         }
     }
 
   private def queueRequestsAfterLeave(
     queueRequests: Map[QueueRequestId, TicketId],
     record: TicketRecord
-  ): Map[QueueRequestId, TicketId] =
-    record.queueRequestId match {
+  ): IO[Map[QueueRequestId, TicketId]] =
+    IO.pure(record.queueRequestId match {
       case Some(id) => queueRequests.removed(id)
       case None     => queueRequests
-    }
+    })
 }

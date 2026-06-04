@@ -1,5 +1,7 @@
 package services.battle.microservices.abilities.services
 
+import cats.effect.IO
+
 import services.battle.microservices.abilities.objects.skill.{SkillKind, SkillOutcomeReason}
 import services.battle.microservices.actors.objects.player.BattlePlayerSkillState
 
@@ -8,13 +10,13 @@ private[battle] object BattleSkillRules {
   def availabilityFailure(
     skills: Vector[BattlePlayerSkillState],
     skillKind: SkillKind
-  ): Option[SkillOutcomeReason] =
-    skills.find(_.skillKind == skillKind) match {
+  ): IO[Option[SkillOutcomeReason]] =
+    IO.pure(skills.find(_.skillKind == skillKind) match {
       case None =>
         Some(SkillOutcomeReason.SkillNotOwned)
       case Some(skill) if skill.cooldownMs.value > 0 =>
         Some(SkillOutcomeReason.Cooldown)
       case Some(_) =>
         None
-    }
+    })
 }

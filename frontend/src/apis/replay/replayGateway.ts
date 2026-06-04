@@ -13,7 +13,10 @@ import {
 import type { ReplayExportArtifact, ReplayFrame, ReplayHeroFrame, ReplayPlayback } from "../../objects/replay/replayTypes";
 import { getCurrentAuthUser } from "../identity/authGateway";
 import { getReplayEntries, getReplayEntryById, isReplayEntryBackendSyncDisabled } from "../../runtime/battle/local/state/battleTruthStore";
-import { loadBattleResultByBattleId, type BackendBattleResultRecord } from "../battle/battleResultsApi";
+import {
+  loadBattleResultByBattleId,
+  type BackendBattleResultRecord
+} from "../battle/microservices/results/api/BattleResultsApi";
 import { normalizePlayableIdentityHandle, normalizePlayerHandleKey } from "../../objects/identity/identityHandlePolicy";
 
 const DISPLAY_FRAME_LIMIT = REPLAY_PERSIST_FRAME_LIMIT;

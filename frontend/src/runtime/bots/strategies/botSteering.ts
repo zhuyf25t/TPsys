@@ -1,6 +1,5 @@
-import type { Vec2 } from "../../../objects/battle/types";
-import { findMotionDestination, type MotionObstacleBounds } from "../../battle/local/movement/motionController";
-import { normalizeVector } from "../../battle/local/geometry/sceneGeometry";
+import type { BattleVector2 as Vec2 } from "../../../objects/battle/objects/core/BattleCoreScalars";
+import { findMotionDestination, normalizeVector, type MotionObstacleBounds } from "../../battle/microservices/world/functions/BattleMotionRules";
 import { distanceBetween } from "./botMath";
 
 /** 中文名：steer机器人destination（steerBotDestination）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */

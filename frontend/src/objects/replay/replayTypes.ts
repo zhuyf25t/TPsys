@@ -1,49 +1,14 @@
 import type {
-  HeroLifeState,
-  ProjectileKind,
-  Vec2,
-  WeaponKind
-} from "../battle/types";
+  BattleReplayFrameState,
+  BattleReplayHeroFrameState,
+  BattleReplayPickupFrameState,
+  BattleReplayProjectileFrameState
+} from "../battle/microservices/projections/objects/replay/BattleReplayFrameState";
 
-export interface ReplayHeroFrame {
-  heroId: string;
-  displayName: string;
-  position: Vec2;
-  hp: number;
-  maxHp: number;
-  alive: boolean;
-  lifeState: HeroLifeState;
-  score: number;
-  facing: number;
-  currentWeaponKind: WeaponKind | null;
-  eliminatedAtMs: number | null;
-}
-
-export interface ReplayProjectileFrame {
-  projectileId: string;
-  kind: ProjectileKind;
-  position: Vec2;
-  facing: number;
-  alive: boolean;
-  ttlMs: number;
-  splashRadius: number;
-}
-
-export interface ReplayPickupFrame {
-  id: string;
-  kind: "weapon" | "medkit";
-  position: Vec2;
-  available: boolean;
-}
-
-export interface ReplayFrame {
-  elapsedMs: number;
-  worldSize: Vec2;
-  heroes: ReplayHeroFrame[];
-  projectiles: ReplayProjectileFrame[];
-  pickups: ReplayPickupFrame[];
-  eventMessages: string[];
-}
+export type ReplayHeroFrame = BattleReplayHeroFrameState;
+export type ReplayProjectileFrame = BattleReplayProjectileFrameState;
+export type ReplayPickupFrame = BattleReplayPickupFrameState;
+export type ReplayFrame = BattleReplayFrameState;
 
 export interface ReplayPlayback {
   id: string;

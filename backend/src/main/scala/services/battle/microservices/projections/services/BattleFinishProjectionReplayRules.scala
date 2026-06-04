@@ -1,36 +1,49 @@
 package services.battle.microservices.projections.services
 
+import cats.effect.IO
+
 import services.battle.objects.core.BattleAggregateState
 import services.battle.microservices.results.objects.result.BattleResultRecord
 import services.replay.objects.{ReplayFrameCount, ReplayFramesJson, ReplayId, ReplayPlaybackAvailability, ReplayRecord, ReplaySettlementRecord}
 
 private[battle] object BattleFinishProjectionReplayRules {
-  /** 中文名：回放ownersettlement（replayOwnerSettlement）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
   def replayOwnerSettlement(
     state: BattleAggregateState,
     settlements: BattleSettlements
-  ): BattleSettlement =
-    state.winnerPlayerId
-      .flatMap(winnerPlayerId => settlements.find(_.player.exists(_.playerId == winnerPlayerId)))
-      .getOrElse(settlements.first)
+  ): IO[BattleSettlement] =
+    state.winnerPlayerId match {
+      case Some(winnerPlayerId) =>
+        settlements.find(_.player.exists(_.playerId == winnerPlayerId)).map(_.getOrElse(settlements.first))
+      case None =>
+        IO.pure(settlements.first)
+    }
 
-  /** 中文名：回放记录（replayRecord）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
-  def replayRecord(state: BattleAggregateState, settlements: BattleSettlements): ReplayRecord = {
-    val result = replayOwnerSettlement(state, settlements).result
-    val replayFrames = BattleReplayFramesJsonRenderer.render(
-      state,
-      BattleFinishProjectionTimeRules.projectedDuration(state)
-    )
-    ReplayRecord(
+  def replayRecord(state: BattleAggregateState, settlements: BattleSettlements): IO[ReplayRecord] =
+    for
+      ownerSettlement <- replayOwnerSettlement(state, settlements)
+      result = ownerSettlement.result
+      durationMs <- BattleFinishProjectionTimeRules.projectedDuration(state)
+      replayFrames <- BattleReplayFramesJsonRenderer.render(state, durationMs)
+      title <- BattleFinishProjectionLabelRules.replayTitle(result)
+      replayResultLabel <- BattleFinishProjectionLabelRules.replayResultLabel(state)
+      settlementValues <- settlements.toVector
+      replaySettlements <- settlementValues.foldLeft(IO.pure(Vector.empty[ReplaySettlementRecord])) {
+        case (previous, settlement) =>
+          for
+            values <- previous
+            value <- replaySettlement(settlement.result)
+          yield values :+ value
+      }
+    yield ReplayRecord(
       replayId = ReplayId(state.battleId.value),
       battleId = state.battleId,
       handle = result.handle,
       displayName = result.displayName,
       finishedAt = result.finishedAt,
       finishedAtLabel = result.finishedAtLabel,
-      title = BattleFinishProjectionLabelRules.replayTitle(result),
+      title = title,
       modeLabel = result.modeLabel.value,
-      resultLabel = BattleFinishProjectionLabelRules.replayResultLabel(state),
+      resultLabel = replayResultLabel,
       mapLabel = result.mapLabel.value,
       highlightLine = result.highlightLine.value,
       coverLabel = BattleFinishProjectionLabelRules.CoverLabel,
@@ -48,23 +61,23 @@ private[battle] object BattleFinishProjectionReplayRules {
       frameCount = ReplayFrameCount.fromWire(replayFrames.frameCount),
       playbackAvailability = ReplayPlaybackAvailability.fromAvailableFlag(replayFrames.frameCount >= 2),
       framesJson = ReplayFramesJson.fromNormalized(replayFrames.json),
-      settlements = settlements.map(settlement => replaySettlement(settlement.result))
+      settlements = replaySettlements
     )
-  }
 
-  /** 中文名：回放settlement（replaySettlement）。游戏职责：在后端结算域中管理战报、回放、排名和历史记录，形成对局结束后的权威结果�?*/
-  def replaySettlement(result: BattleResultRecord): ReplaySettlementRecord =
-    ReplaySettlementRecord(
-      handle = result.handle,
-      displayName = result.displayName,
-      resultLabel = result.resultLabel.value,
-      highlightLine = result.highlightLine.value,
-      score = result.score,
-      placement = result.placement,
-      ratingBefore = Some(result.ratingBefore),
-      ratingDelta = Some(result.ratingDelta),
-      ratingAfter = Some(result.ratingAfter),
-      survivalOutcome = result.survivalOutcome,
-      currentLoadout = result.currentLoadout
+  def replaySettlement(result: BattleResultRecord): IO[ReplaySettlementRecord] =
+    IO.pure(
+      ReplaySettlementRecord(
+        handle = result.handle,
+        displayName = result.displayName,
+        resultLabel = result.resultLabel.value,
+        highlightLine = result.highlightLine.value,
+        score = result.score,
+        placement = result.placement,
+        ratingBefore = Some(result.ratingBefore),
+        ratingDelta = Some(result.ratingDelta),
+        ratingAfter = Some(result.ratingAfter),
+        survivalOutcome = result.survivalOutcome,
+        currentLoadout = result.currentLoadout
+      )
     )
 }

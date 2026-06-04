@@ -1,8 +1,6 @@
 package services.battle.microservices.queue.services
 
-import java.util.concurrent.atomic.AtomicReference
-
-import cats.effect.IO
+import cats.effect.{IO, Ref, Resource}
 
 import BattleQueueSnapshots.{toQueueSnapshot, toRoomSnapshot}
 import services.battle.microservices.queue.objects.queue.*
@@ -17,43 +15,43 @@ import services.battle.objects.core.{
 }
 import services.identity.objects.PlayerHandle
 
-final class InMemoryBattleQueueService(
+final class InMemoryBattleQueueService private (
   capacity: BattleCapacity,
   matchmakingDuration: DurationMillis,
   currentTimeMillis: () => Long,
-  newBattleId: () => IO[BattleId]
+  newBattleId: () => IO[BattleId],
+  runtimeState: Ref[IO, QueueRuntimeState]
 ) extends BattleQueueService {
-  private val runtimeState: AtomicReference[QueueRuntimeState] =
-    AtomicReference(QueueRuntimeState.initial)
-
   /** 中文名：加入队列（join）。游戏职责：把玩家加入等待房间，并在房间满足条件时生成战斗会话。 */
   override def join(command: BattleQueueJoinCommand): IO[BattleQueueSnapshot] =
     for
       now <- currentTime
       snapshot <- updateAdvancedState(now) { advancedState =>
-        val normalizedCommand = BattleQueueJoinRules.normalizeCommand(command)
-        val (reusedSnapshot, stateAfterReuse) =
-          reuseWaitingQueueRequestOrForgetStale(advancedState, normalizedCommand.queueRequestId, normalizedCommand.battleMode, now)
-
-        reusedSnapshot match {
-          case Some(snapshot) =>
-            IO.pure(stateAfterReuse -> snapshot)
-          case None =>
-            val (room, stateWithRoom) =
-              selectJoinRoom(stateAfterReuse, normalizedCommand.handle, normalizedCommand.battleMode, normalizedCommand.queueRequestId, now)
-            val (ticketId, stateAfterTicket) = nextTicketId(stateWithRoom)
-            val (playerId, stateAfterPlayer) = nextPlayerId(stateAfterTicket)
-            val draft = BattleQueueJoinRules.draft(normalizedCommand, room, ticketId, playerId, now)
-            advanceRoom(draft.room, now).map { updatedRoom =>
-              val nextState =
-                stateAfterPlayer
-                  .withRoom(updatedRoom)
-                  .withTickets(stateAfterPlayer.tickets.updated(ticketId, draft.ticket))
-                  .withQueueRequests(BattleQueueJoinRules.queueRequestsAfterJoin(stateAfterPlayer.queueRequests, normalizedCommand, ticketId))
-
-              nextState -> toQueueSnapshot(updatedRoom, draft.entry, now)
-            }
-        }
+        for
+          normalizedCommand <- BattleQueueJoinRules.normalizeCommand(command)
+          reuseResult <- reuseWaitingQueueRequestOrForgetStale(advancedState, normalizedCommand.queueRequestId, normalizedCommand.battleMode, now)
+          (reusedSnapshot, stateAfterReuse) = reuseResult
+          result <- reusedSnapshot match {
+            case Some(snapshot) =>
+              IO.pure(stateAfterReuse -> snapshot)
+            case None =>
+              for
+                selected <- selectJoinRoom(stateAfterReuse, normalizedCommand.handle, normalizedCommand.battleMode, normalizedCommand.queueRequestId, now)
+                (room, stateWithRoom) = selected
+                ticket <- nextTicketId(stateWithRoom)
+                (ticketId, stateAfterTicket) = ticket
+                player <- nextPlayerId(stateAfterTicket)
+                (playerId, stateAfterPlayer) = player
+                draft <- BattleQueueJoinRules.draft(normalizedCommand, room, ticketId, playerId, now)
+                updatedRoom <- advanceRoom(draft.room, now)
+                queueRequests <- BattleQueueJoinRules.queueRequestsAfterJoin(stateAfterPlayer.queueRequests, normalizedCommand, ticketId)
+                snapshot <- toQueueSnapshot(updatedRoom, draft.entry, now)
+                stateWithRoom <- stateAfterPlayer.withRoom(updatedRoom)
+                stateWithTicket <- stateWithRoom.withTickets(stateAfterPlayer.tickets.updated(ticketId, draft.ticket))
+                nextState <- stateWithTicket.withQueueRequests(queueRequests)
+              yield nextState -> snapshot
+          }
+        yield result
       }
     yield snapshot
 
@@ -71,13 +69,12 @@ final class InMemoryBattleQueueService(
   /** 中文名：离开队列（leave）。游戏职责：从等待房间移除 ticket，并返回离队结果 ADT。 */
   override def leave(ticketId: TicketId): IO[BattleQueueLeaveOutcome] =
     updateState { currentState =>
-        val transition = BattleQueueLeaveRules.leave(currentState.rooms, currentState.tickets, currentState.queueRequests, ticketId)
-        IO.pure(
-          currentState
-            .withRooms(transition.rooms)
-            .withTickets(transition.tickets)
-            .withQueueRequests(transition.queueRequests) -> transition.outcome
-        )
+      for
+        transition <- BattleQueueLeaveRules.leave(currentState.rooms, currentState.tickets, currentState.queueRequests, ticketId)
+        stateWithRooms <- currentState.withRooms(transition.rooms)
+        stateWithTickets <- stateWithRooms.withTickets(transition.tickets)
+        nextState <- stateWithTickets.withQueueRequests(transition.queueRequests)
+      yield nextState -> transition.outcome
     }
 
   /** 中文名：房间快照（roomSnapshot）。游戏职责：按 roomId 返回等待区房间当前状态。 */
@@ -85,7 +82,7 @@ final class InMemoryBattleQueueService(
     for
       now <- currentTime
       result <- updateAdvancedState(now) { advancedState =>
-        IO.pure(advancedState -> advancedState.rooms.get(roomId).map(toRoomSnapshot(_, now)).toRight(BattleRoomError.RoomNotFound))
+        roomSnapshotResult(advancedState, roomId, now).map(result => advancedState -> result)
       }
     yield result
 
@@ -94,28 +91,16 @@ final class InMemoryBattleQueueService(
     for
       now <- currentTime
       result <- updateAdvancedState(now) { advancedState =>
-        val (nextState, result) =
-          BattleQueueHeartbeatRules.roomIdForHeartbeat(advancedState.tickets, request) match {
-            case None =>
-              (advancedState, Left(BattleRoomError.MissingRoomId))
-            case Some(id) =>
-              advancedState.rooms.get(id) match {
-                case None =>
-                  (advancedState, Left(BattleRoomError.RoomNotFound))
-                case Some(room) =>
-                  val updatedRoom = BattleQueueHeartbeatRules.updateHeartbeat(room, request, now)
-                  (advancedState.withRoom(updatedRoom), Right(toRoomSnapshot(updatedRoom, now)))
-              }
-          }
-
-        IO.pure(nextState -> result)
+        heartbeatTransition(advancedState, request, now)
       }
     yield result
 
   /** 中文名：标记战斗结束（markBattleFinished）。游戏职责：把已启动战斗对应的等待房间推进到 Finished ADT 状态。 */
   override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] =
     updateState { currentState =>
-      IO.pure(currentState.withRooms(BattleQueueRoomLifecycleRules.markFinished(currentState.rooms, roomId, finishedAt)) -> ())
+      BattleQueueRoomLifecycleRules
+        .markFinished(currentState.rooms, roomId, finishedAt)
+        .flatMap(rooms => currentState.withRooms(rooms).map(_ -> ()))
     }
 
   /** 中文名：读取活动战斗会话（activeBattleSession）。游戏职责：让战斗运行时按 battleId 找到已启动的 session seed。 */
@@ -123,9 +108,42 @@ final class InMemoryBattleQueueService(
     for
       now <- currentTime
       session <- updateAdvancedState(now) { advancedState =>
-        IO.pure(advancedState -> BattleQueueSessionLookupRules.activeBattleSession(advancedState.rooms.values, battleId, now))
+        BattleQueueSessionLookupRules
+          .activeBattleSession(advancedState.rooms.values, battleId, now)
+          .map(session => advancedState -> session)
       }
     yield session
+
+  private def roomSnapshotResult(
+    state: QueueRuntimeState,
+    roomId: RoomId,
+    now: EpochMillis
+  ): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
+    state.rooms.get(roomId) match {
+      case None       => IO.pure(Left(BattleRoomError.RoomNotFound))
+      case Some(room) => toRoomSnapshot(room, now).map(Right(_))
+    }
+
+  private def heartbeatTransition(
+    state: QueueRuntimeState,
+    request: RealtimeRoomHeartbeatCommand,
+    now: EpochMillis
+  ): IO[(QueueRuntimeState, Either[BattleRoomError, RealtimeRoomSnapshot])] =
+    BattleQueueHeartbeatRules.roomIdForHeartbeat(state.tickets, request).flatMap {
+      case None =>
+        IO.pure(state -> Left(BattleRoomError.MissingRoomId))
+      case Some(id) =>
+        state.rooms.get(id) match {
+          case None =>
+            IO.pure(state -> Left(BattleRoomError.RoomNotFound))
+          case Some(room) =>
+            for
+              updatedRoom <- BattleQueueHeartbeatRules.updateHeartbeat(room, request, now)
+              snapshot <- toRoomSnapshot(updatedRoom, now)
+              nextState <- state.withRoom(updatedRoom)
+            yield nextState -> Right(snapshot)
+        }
+    }
 
   private def selectJoinRoom(
     state: QueueRuntimeState,
@@ -133,29 +151,34 @@ final class InMemoryBattleQueueService(
     battleMode: BattleMode,
     queueRequestId: Option[QueueRequestId],
     now: EpochMillis
-  ): (QueueRoom, QueueRuntimeState) = {
-    val openRooms = BattleQueueRoomSelectionRules.openWaitingRooms(state.rooms.values)
-    BattleQueueRoomSelectionRules
-      .reusableRoom(openRooms, handle, battleMode, queueRequestId)
-      .map(room => (room, state))
-      .getOrElse(createRoom(state, now, battleMode))
-  }
+  ): IO[(QueueRoom, QueueRuntimeState)] =
+    for
+      openRooms <- BattleQueueRoomSelectionRules.openWaitingRooms(state.rooms.values)
+      reusable <- BattleQueueRoomSelectionRules.reusableRoom(openRooms, handle, battleMode, queueRequestId)
+      selected <- reusable match {
+        case Some(room) => IO.pure(room -> state)
+        case None       => createRoom(state, now, battleMode)
+      }
+    yield selected
 
-  private def createRoom(state: QueueRuntimeState, now: EpochMillis, battleMode: BattleMode): (QueueRoom, QueueRuntimeState) = {
-    val (roomId, stateAfterRoomId) = nextRoomId(state)
-    val room = BattleQueueRoomLifecycleRules.newWaitingRoom(roomId, battleMode, now, matchmakingDuration, capacity)
-    (room, stateAfterRoomId.withRoom(room))
-  }
+  private def createRoom(state: QueueRuntimeState, now: EpochMillis, battleMode: BattleMode): IO[(QueueRoom, QueueRuntimeState)] =
+    for
+      allocated <- nextRoomId(state)
+      (roomId, stateAfterRoomId) = allocated
+      room <- BattleQueueRoomLifecycleRules.newWaitingRoom(roomId, battleMode, now, matchmakingDuration, BattleQueueCapacityRules.capacityFor(battleMode, capacity))
+      nextState <- stateAfterRoomId.withRoom(room)
+    yield room -> nextState
 
   private def currentTime: IO[EpochMillis] =
     IO.blocking(EpochMillis(currentTimeMillis()))
 
   private def updateState[A](transition: QueueRuntimeState => IO[(QueueRuntimeState, A)]): IO[A] =
-    IO.defer {
-      val currentState = runtimeState.get()
+    runtimeState.access.flatMap { case (currentState, setState) =>
       transition(currentState).flatMap { case (nextState, result) =>
-        if runtimeState.compareAndSet(currentState, nextState) then IO.pure(result)
-        else updateState(transition)
+        setState(nextState).flatMap {
+          case true  => IO.pure(result)
+          case false => updateState(transition)
+        }
       }
     }
 
@@ -172,12 +195,12 @@ final class InMemoryBattleQueueService(
         updatedRooms <- updatedRoomsIO
         updatedRoom <- advanceRoom(room, now)
       yield updatedRooms.updated(roomId, updatedRoom)
-    }.map(state.withRooms)
+    }.flatMap(state.withRooms)
 
   private def advanceRoom(room: QueueRoom, now: EpochMillis): IO[QueueRoom] =
-    BattleQueueRoomLifecycleRules.startDecision(room, now) match {
+    BattleQueueRoomLifecycleRules.startDecision(room, now).flatMap {
       case QueueRoomStartDecision.Start =>
-        newBattleId().map(battleId => BattleQueueRoomLifecycleRules.startRoom(room, battleId, now))
+        newBattleId().flatMap(battleId => BattleQueueRoomLifecycleRules.startRoom(room, battleId, now))
       case QueueRoomStartDecision.Keep =>
         IO.pure(room)
     }
@@ -187,36 +210,37 @@ final class InMemoryBattleQueueService(
     queueRequestId: Option[QueueRequestId],
     battleMode: BattleMode,
     now: EpochMillis
-  ): (Option[BattleQueueSnapshot], QueueRuntimeState) =
+  ): IO[(Option[BattleQueueSnapshot], QueueRuntimeState)] =
     queueRequestId match {
       case None =>
-        (None, state)
+        IO.pure(None -> state)
       case Some(id) =>
-        val result = BattleQueueRequestReuseRules.reuseWaitingRequest(
-          queueRequests = state.queueRequests,
-          tickets = state.tickets,
-          rooms = state.rooms,
-          queueRequestId = id,
-          battleMode = battleMode,
-          now = now
-        )
-        (result.snapshot, state.withQueueRequests(result.queueRequests))
+        BattleQueueRequestReuseRules
+          .reuseWaitingRequest(
+            queueRequests = state.queueRequests,
+            tickets = state.tickets,
+            rooms = state.rooms,
+            queueRequestId = id,
+            battleMode = battleMode,
+            now = now
+          )
+          .flatMap(result => state.withQueueRequests(result.queueRequests).map(nextState => result.snapshot -> nextState))
     }
 
-  private def nextTicketId(state: QueueRuntimeState): (TicketId, QueueRuntimeState) = {
-    val (id, nextAllocator) = state.idAllocator.allocateTicketId
-    (id, state.copy(idAllocator = nextAllocator))
-  }
+  private def nextTicketId(state: QueueRuntimeState): IO[(TicketId, QueueRuntimeState)] =
+    state.idAllocator.allocateTicketId.map { case (id, nextAllocator) =>
+      id -> state.copy(idAllocator = nextAllocator)
+    }
 
-  private def nextRoomId(state: QueueRuntimeState): (RoomId, QueueRuntimeState) = {
-    val (id, nextAllocator) = state.idAllocator.allocateRoomId
-    (id, state.copy(idAllocator = nextAllocator))
-  }
+  private def nextRoomId(state: QueueRuntimeState): IO[(RoomId, QueueRuntimeState)] =
+    state.idAllocator.allocateRoomId.map { case (id, nextAllocator) =>
+      id -> state.copy(idAllocator = nextAllocator)
+    }
 
-  private def nextPlayerId(state: QueueRuntimeState): (PlayerId, QueueRuntimeState) = {
-    val (id, nextAllocator) = state.idAllocator.allocatePlayerId
-    (id, state.copy(idAllocator = nextAllocator))
-  }
+  private def nextPlayerId(state: QueueRuntimeState): IO[(PlayerId, QueueRuntimeState)] =
+    state.idAllocator.allocatePlayerId.map { case (id, nextAllocator) =>
+      id -> state.copy(idAllocator = nextAllocator)
+    }
 }
 
 object InMemoryBattleQueueService {
@@ -224,11 +248,45 @@ object InMemoryBattleQueueService {
   val DefaultMatchmakingDuration: DurationMillis = DurationMillis(5_000L)
 
   /** 中文名：创建内存队列服务（apply）。游戏职责：为本地运行时创建默认排队服务实例。 */
-  def apply(): InMemoryBattleQueueService =
-    new InMemoryBattleQueueService(
+  def apply(): IO[InMemoryBattleQueueService] =
+    create()
+
+  def create(): IO[InMemoryBattleQueueService] =
+    create(
       capacity = DefaultCapacity,
       matchmakingDuration = DefaultMatchmakingDuration,
       currentTimeMillis = () => System.currentTimeMillis(),
       newBattleId = () => RandomBattleIdGenerator.nextBattleId()
     )
+
+  def create(
+    capacity: BattleCapacity,
+    matchmakingDuration: DurationMillis,
+    currentTimeMillis: () => Long,
+    newBattleId: () => IO[BattleId]
+  ): IO[InMemoryBattleQueueService] =
+    Ref.of[IO, QueueRuntimeState](QueueRuntimeState.initial).map { stateRef =>
+      new InMemoryBattleQueueService(
+        capacity = capacity,
+        matchmakingDuration = matchmakingDuration,
+        currentTimeMillis = currentTimeMillis,
+        newBattleId = newBattleId,
+        runtimeState = stateRef
+      )
+    }
+
+  def resource(): Resource[IO, InMemoryBattleQueueService] =
+    Resource.eval(create())
+}
+
+private[battle] object BattleQueueCapacityRules {
+  private val WinterZombieCapacity: BattleCapacity = BattleCapacity(12)
+  private val AutumnBotCapacity: BattleCapacity = BattleCapacity(12)
+
+  def capacityFor(battleMode: BattleMode, defaultCapacity: BattleCapacity): BattleCapacity =
+    battleMode match {
+      case BattleMode.Autumn => AutumnBotCapacity
+      case BattleMode.Winter => WinterZombieCapacity
+      case _                 => defaultCapacity
+    }
 }

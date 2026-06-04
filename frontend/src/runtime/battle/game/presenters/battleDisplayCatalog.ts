@@ -1,4 +1,4 @@
-import type { ItemPickup, WeaponPickup } from "../../../../objects/battle/types";
+import type { BattleItemPickupState as ItemPickup, BattleWeaponPickupState as WeaponPickup } from "../../../../objects/battle/microservices/abilities/objects/pickup/BattlePickupState";
 
 export const MATCH_DURATION_MS = 5 * 60 * 1000;
 

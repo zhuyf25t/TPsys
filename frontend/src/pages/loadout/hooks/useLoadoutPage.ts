@@ -12,7 +12,7 @@ import {
   swapSkillSlots,
   type LoadoutSkillId,
   type SkillSlotKey
-} from "../../../apis/battle/loadoutGateway";
+} from "../../../runtime/battle/loadout/BattleLoadoutStore";
 import { fetchDiscussionSummaries, getDiscussionSummaries } from "../../../apis/forum/forumGateway";
 import { getRatingEntries, loadRatingEntries } from "../../../apis/governance/ratingGateway";
 import { getAuthSkinOptions, getCurrentAuthUser, logoutLocalUser, subscribeAuthState } from "../../../apis/identity/authGateway";
@@ -32,11 +32,11 @@ import {
   REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS
 } from "../../../apis/social/friendRequestGateway";
 import { buildFriendRequestPreview, type FriendRequestPreviewModel } from "../../friend-requests/components/friendRequestPreviewPresenter";
-import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../../../objects/battle/battleRules";
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../../../objects/battle/objects/core/BattleCoreRules";
 import type { LobbyPreviewSet, LobbyQuickAction, LobbyQuickKey, LobbyShellProps } from "../../../components/ui/LobbyShell";
 import { useLobbyData } from "../../shared/hooks/useLobbyData";
 
-export type { LoadoutSkillId, SkillSlotKey } from "../../../apis/battle/loadoutGateway";
+export type { LoadoutSkillId, SkillSlotKey } from "../../../runtime/battle/loadout/BattleLoadoutStore";
 
 export type LoadoutTone = "cyan" | "gold" | "ice";
 export type LoadoutAuthMode = "login" | "register" | null;

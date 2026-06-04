@@ -8,6 +8,7 @@ import java.sql.Connection
 import services.battle.microservices.results.api.results.BattleResultRecordRequest.given
 import services.battle.microservices.results.api.results.BattleResultRecordRequestDecodeError
 import services.battle.microservices.results.api.results.BattleResultRecordResponse
+import services.battle.microservices.results.api.results.BattleResultResponseMapping
 import services.battle.microservices.results.objects.result.{BattleResultRecordCommand, BattleResultRecordValidationError}
 import services.battle.microservices.results.services.BattleResultService
 import system.api.{APIMessage, APIMessageError, APIWithTokenMessage}
@@ -22,7 +23,8 @@ final case class BattleResultRecordAPIMessage(
       saved <- BattleResultService.record(connection, command).flatMap { result =>
         IO.fromEither(result.left.map(BattleResultRecordAPIMessage.validationApiError))
       }
-    yield BattleResultRecordResponse.fromRecord(saved)
+      response <- BattleResultResponseMapping.fromRecord(saved)
+    yield response
 }
 
 object BattleResultRecordAPIMessage {

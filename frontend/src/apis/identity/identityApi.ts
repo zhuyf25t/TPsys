@@ -75,5 +75,7 @@ function readString(value: unknown): string | null {
 }
 
 function normalizeSkinId(value: string | null): SkinIdDto | null {
-  return value === "blue" || value === "survivor" || value === "soldier" || value === "old" ? value : null;
+  return value === "blue" || value === "survivor" || value === "soldier" || value === "old" || value === "zombie"
+    ? value
+    : null;
 }

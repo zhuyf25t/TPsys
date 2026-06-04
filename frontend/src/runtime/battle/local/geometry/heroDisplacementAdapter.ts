@@ -1,25 +1,23 @@
-import type { Hero, Vec2 } from "../../../../objects/battle/types";
-import type { SceneGeometryObstacleBounds } from "./sceneGeometry";
-import { resolveKnockbackDestination, resolveRecoilDestination } from "./displacementResolver";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import {
+  resolveKnockbackDestination,
+  resolveRecoilDestination,
+  type BattleCombatDisplacementInput
+} from "../../microservices/combat/functions/BattleCombatDisplacementRules";
+import type { MotionObstacleBounds } from "../../microservices/world/functions/BattleMotionRules";
 
 export interface HeroDisplacementInput {
   hero: Hero;
   direction: Vec2;
   strength: number;
   worldSize: Vec2;
-  obstacleBounds: readonly SceneGeometryObstacleBounds[];
+  obstacleBounds: readonly MotionObstacleBounds[];
   setHeroPosition(position: Vec2): void;
 }
 
 function applyHeroDisplacement(
-  resolveDestination: (input: {
-    position: Vec2;
-    radius: number;
-    direction: Vec2;
-    strength: number;
-    worldSize: Vec2;
-    obstacleBounds: readonly SceneGeometryObstacleBounds[];
-  }) => Vec2 | null,
+  resolveDestination: (input: BattleCombatDisplacementInput) => Vec2 | null,
   input: HeroDisplacementInput
 ): void {
   const destination = resolveDestination({

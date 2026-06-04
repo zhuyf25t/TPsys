@@ -15,6 +15,45 @@ import services.battle.microservices.actors.objects.player.HitPoints
 import system.database.PostgresSupport
 
 private[services] object BattleAbilityRuleTable {
+  private val DefaultCriticalRuntime =
+    BattleSkillRuntime(CooldownMillis(7_000), DurationMillis(6_000L))
+
+  private val DefaultSkillRules: Vector[BattleSkillRuleDefinition] =
+    Vector(
+      BattleSkillRuleDefinition(
+        skillKind = SkillKind.Blink,
+        range = Some(SkillDistance(250.0)),
+        distance = None,
+        radius = None,
+        castRange = None,
+        runtime = BattleSkillRuntime(CooldownMillis(7_000), DurationMillis(240L))
+      ),
+      BattleSkillRuleDefinition(
+        skillKind = SkillKind.Dash,
+        range = None,
+        distance = Some(SkillDistance(180.0)),
+        radius = None,
+        castRange = None,
+        runtime = BattleSkillRuntime(CooldownMillis(5_000), DurationMillis(180L))
+      ),
+      BattleSkillRuleDefinition(
+        skillKind = SkillKind.Freeze,
+        range = None,
+        distance = None,
+        radius = Some(Radius(150.0)),
+        castRange = Some(SkillDistance(520.0)),
+        runtime = BattleSkillRuntime(CooldownMillis(10_000), DurationMillis(10_000L))
+      ),
+      BattleSkillRuleDefinition(
+        skillKind = SkillKind.Critical,
+        range = None,
+        distance = None,
+        radius = None,
+        castRange = None,
+        runtime = DefaultCriticalRuntime
+      )
+    )
+
   private val skillUpsertSql: String =
     """INSERT INTO battle_ability_skill_rules (
       |  rule_id, skill_kind, range, distance, radius, cast_range,
@@ -42,6 +81,9 @@ private[services] object BattleAbilityRuleTable {
 
   def upsertAll(connection: Connection, rules: Vector[BattleSkillRuleDefinition]): IO[Unit] =
     rules.traverse_(rule => IO.blocking(upsert(connection, rule)))
+
+  def upsertDefaultSkillRules(connection: Connection): IO[Unit] =
+    upsertAll(connection, DefaultSkillRules)
 
   def upsertPickup(connection: Connection, config: BattlePickupRuleConfig): IO[Unit] =
     IO.blocking {
@@ -135,6 +177,7 @@ private[services] object BattleAbilityRuleTable {
     val blink = required(byKind.get(SkillKind.Blink), "Blink")
     val dash = required(byKind.get(SkillKind.Dash), "Dash")
     val freeze = required(byKind.get(SkillKind.Freeze), "Freeze")
+    val critical = byKind.get(SkillKind.Critical)
     BattleSkillRuleSet(
       blink = BlinkConfig(required(blink.range, "Blink.range"), blink.runtime),
       dash = DashConfig(required(dash.distance, "Dash.distance"), dash.runtime),
@@ -142,7 +185,8 @@ private[services] object BattleAbilityRuleTable {
         radius = required(freeze.radius, "Freeze.radius"),
         castRange = required(freeze.castRange, "Freeze.castRange"),
         runtime = freeze.runtime
-      )
+      ),
+      critical = CriticalConfig(critical.map(_.runtime).getOrElse(DefaultCriticalRuntime))
     )
   }
 

@@ -1,23 +1,16 @@
 import type Phaser from "phaser";
-import type { Vec2 } from "../../../../../objects/battle/types";
-
-export type FloatingTone = "neutral" | "success" | "warning" | "error";
-
-type TrackTransient = <TObject extends Phaser.GameObjects.GameObject>(object: TObject) => TObject;
-type DestroyTransient = (object: Phaser.GameObjects.GameObject) => void;
-
-interface FloatingTextVfxPresenterDependencies {
-  scene: Phaser.Scene;
-  trackTransient: TrackTransient;
-  destroyTransient: DestroyTransient;
-}
-
-const FLOATING_TEXT_PALETTE: Record<FloatingTone, string> = {
-  neutral: "#c4ccd6",
-  success: "#7dff9d",
-  warning: "#ffd36e",
-  error: "#ff9a9a"
-};
+import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/objects/core/BattleCoreScalars";
+import {
+  resolveFloatingTextColor,
+  resolveFloatingTextCreationPlan,
+  resolveFloatingTextTweenPlan
+} from "./functions/FloatingTextVfxRules";
+import type {
+  DestroyTransient,
+  FloatingTextVfxPresenterDependencies,
+  FloatingTone,
+  TrackTransient
+} from "./objects/FloatingTextVfxObjects";
 
 export class FloatingTextVfxPresenter {
   private readonly scene: Phaser.Scene;
@@ -35,24 +28,26 @@ export class FloatingTextVfxPresenter {
   }
 
   public createFloatingText(position: Vec2, text: string, color: string): void {
+    const creationPlan = resolveFloatingTextCreationPlan(position, text, color);
+    const tweenPlan = resolveFloatingTextTweenPlan(position);
     const label = this.trackTransient(
       this.scene.add
-        .text(position.x, position.y - 10, text, {
-          fontFamily: "Consolas",
-          fontSize: "18px",
-          color
+        .text(creationPlan.position.x, creationPlan.position.y, creationPlan.text, {
+          fontFamily: creationPlan.style.fontFamily,
+          fontSize: creationPlan.style.fontSize,
+          color: creationPlan.style.color
         })
-        .setOrigin(0.5, 1)
-        .setDepth(80)
-        .setStroke("#12212b", 3)
+        .setOrigin(creationPlan.style.origin.x, creationPlan.style.origin.y)
+        .setDepth(creationPlan.style.depth)
+        .setStroke(creationPlan.style.strokeColor, creationPlan.style.strokeThickness)
     );
 
     this.scene.tweens.add({
       targets: label,
-      y: position.y - 42,
-      alpha: 0,
-      duration: 620,
-      ease: "Cubic.Out",
+      y: tweenPlan.y,
+      alpha: tweenPlan.alpha,
+      duration: tweenPlan.durationMs,
+      ease: tweenPlan.ease,
       onComplete: () => this.destroyTransient(label)
     });
   }
@@ -62,6 +57,6 @@ export class FloatingTextVfxPresenter {
     text: string,
     tone: FloatingTone = "neutral"
   ): void {
-    this.createFloatingText(position, text, FLOATING_TEXT_PALETTE[tone]);
+    this.createFloatingText(position, text, resolveFloatingTextColor(tone));
   }
 }

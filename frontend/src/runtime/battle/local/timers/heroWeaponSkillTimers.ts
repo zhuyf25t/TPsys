@@ -1,6 +1,13 @@
-import type { Hero, WeaponState } from "../../../../objects/battle/types";
-import { STAMINA_RECOVER_PER_SECOND } from "../../game/constants";
-import { WEAPON_DEFINITIONS } from "../../game/weapons";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import { STAMINA_RECOVER_PER_SECOND } from "../../game/objects/BattleGameConstants";
+import { advanceWeaponTimers } from "../../microservices/combat/functions/BattleWeaponTimerRules";
+import { advanceWeaponSwitchTimerState } from "../../microservices/combat/functions/BattleWeaponSwitchRules";
+import { advanceBattleSkillTimer } from "../../microservices/abilities/functions/BattleSkillStateRules";
+import {
+  advanceBattleHeroJumpCooldownMs,
+  recoverBattleNonLocalHeroStamina,
+  resolveBattleDeadHeroRuntimeState
+} from "../../microservices/actors/functions/BattlePlayerRuntimeRules";
 
 export interface HeroWeaponSkillTimersContext {
   deltaMs: number;
@@ -18,7 +25,6 @@ export interface HeroWeaponSkillTimersResult {
   pendingWeaponIndex: number | null;
 }
 
-/** 中文名：推进英雄武器技能timers（advanceHeroWeaponSkillTimers）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function advanceHeroWeaponSkillTimers(context: HeroWeaponSkillTimersContext): HeroWeaponSkillTimersResult {
   const deltaMs = Math.max(0, context.deltaMs);
   const deltaSeconds = deltaMs / 1000;
@@ -26,31 +32,45 @@ export function advanceHeroWeaponSkillTimers(context: HeroWeaponSkillTimersConte
   advancePickupNoticeCooldowns(context.pickupNoticeCooldowns, deltaMs);
 
   context.heroes.forEach((hero) => {
-    hero.jumpCooldownMs = Math.max(0, hero.jumpCooldownMs - deltaMs);
+    hero.jumpCooldownMs = advanceBattleHeroJumpCooldownMs(hero.jumpCooldownMs, deltaMs);
 
     hero.weapons.forEach((weapon) => {
-      advanceWeaponTimers(weapon, deltaMs, deltaSeconds);
+      advanceWeaponTimers({ weapon, deltaMs, deltaSeconds });
     });
 
-    hero.skills.forEach((skill) => {
-      skill.cooldownMs = Math.max(0, skill.cooldownMs - deltaMs);
-      skill.activeMs = Math.max(0, skill.activeMs - deltaMs);
-    });
+    hero.skills = hero.skills.map((skill) => advanceBattleSkillTimer(skill, deltaMs));
 
-    if (!hero.alive) {
-      hero.velocity = { x: 0, y: 0 };
-      hero.preparedSkill = null;
+    const deadRuntimeState = resolveBattleDeadHeroRuntimeState(hero);
+    if (deadRuntimeState) {
+      Object.assign(hero, deadRuntimeState);
       return;
     }
 
-    if (hero.heroId !== context.playerHeroId) {
-      hero.stamina = Math.min(hero.maxStamina, hero.stamina + STAMINA_RECOVER_PER_SECOND * deltaSeconds * 0.5);
-    }
+    hero.stamina = recoverBattleNonLocalHeroStamina({
+      hero,
+      playerHeroId: context.playerHeroId,
+      deltaMs,
+      staminaRecoverPerSecond: STAMINA_RECOVER_PER_SECOND
+    });
   });
 
-  const switchState = advanceWeaponSwitchState(context.heroes, context.playerHeroId, deltaMs, context.weaponSwitchRemainingMs, context.weaponSwitchTotalMs, context.pendingWeaponIndex);
+  const player = context.heroes.find((hero) => hero.heroId === context.playerHeroId);
+  const weaponSwitchState = advanceWeaponSwitchTimerState({
+    deltaMs,
+    weaponCount: player?.weapons.length ?? 0,
+    weaponSwitchRemainingMs: context.weaponSwitchRemainingMs,
+    weaponSwitchTotalMs: context.weaponSwitchTotalMs,
+    pendingWeaponIndex: context.pendingWeaponIndex
+  });
+  if (player && weaponSwitchState.completedWeaponIndex !== null) {
+    player.currentWeaponIndex = weaponSwitchState.completedWeaponIndex;
+  }
 
-  return switchState;
+  return {
+    weaponSwitchRemainingMs: weaponSwitchState.weaponSwitchRemainingMs,
+    weaponSwitchTotalMs: weaponSwitchState.weaponSwitchTotalMs,
+    pendingWeaponIndex: weaponSwitchState.pendingWeaponIndex
+  };
 }
 
 function advancePickupNoticeCooldowns(pickupNoticeCooldowns: Map<string, number>, deltaMs: number): void {
@@ -63,94 +83,4 @@ function advancePickupNoticeCooldowns(pickupNoticeCooldowns: Map<string, number>
 
     pickupNoticeCooldowns.set(key, nextValue);
   });
-}
-
-function advanceWeaponTimers(weapon: WeaponState, deltaMs: number, deltaSeconds: number): void {
-  const definition = WEAPON_DEFINITIONS[weapon.weaponKind];
-  const previousReloadRemaining = weapon.reloadRemaining;
-
-  weapon.cooldownRemaining = Math.max(0, weapon.cooldownRemaining - deltaMs);
-  weapon.reloadRemaining = Math.max(0, weapon.reloadRemaining - deltaMs);
-  weapon.overheatRemaining = Math.max(0, weapon.overheatRemaining - deltaMs);
-
-  if (previousReloadRemaining > 0 && weapon.reloadRemaining === 0 && weapon.magazineSize > 0 && weapon.ammoInMagazine < weapon.magazineSize) {
-    finishReload(weapon);
-  }
-
-  if (weapon.weaponKind === "Gatling") {
-    weapon.heat = Math.max(0, weapon.heat - definition.coolRatePerSecond * deltaSeconds);
-    if (weapon.overheated && weapon.overheatRemaining === 0) {
-      weapon.overheated = false;
-    }
-    return;
-  }
-
-  weapon.heat = 0;
-  weapon.overheated = false;
-  weapon.overheatRemaining = 0;
-}
-
-function finishReload(weapon: WeaponState): void {
-  const definition = WEAPON_DEFINITIONS[weapon.weaponKind];
-  if (definition.usesHeat || weapon.reserveAmmo === null || weapon.reserveAmmo <= 0) {
-    return;
-  }
-
-  const missingAmmo = weapon.magazineSize - weapon.ammoInMagazine;
-  if (missingAmmo <= 0) {
-    return;
-  }
-
-  const transferredAmmo = Math.min(missingAmmo, weapon.reserveAmmo);
-  weapon.ammoInMagazine += transferredAmmo;
-  weapon.reserveAmmo -= transferredAmmo;
-}
-
-function advanceWeaponSwitchState(
-  heroes: Hero[],
-  playerHeroId: string,
-  deltaMs: number,
-  weaponSwitchRemainingMs: number,
-  weaponSwitchTotalMs: number,
-  pendingWeaponIndex: number | null
-): HeroWeaponSkillTimersResult {
-  if (weaponSwitchRemainingMs <= 0) {
-    return { weaponSwitchRemainingMs: 0, weaponSwitchTotalMs: 0, pendingWeaponIndex: null };
-  }
-
-  const nextRemaining = Math.max(0, weaponSwitchRemainingMs - deltaMs);
-  if (nextRemaining > 0) {
-    return {
-      weaponSwitchRemainingMs: nextRemaining,
-      weaponSwitchTotalMs,
-      pendingWeaponIndex
-    };
-  }
-
-  if (pendingWeaponIndex === null) {
-    return {
-      weaponSwitchRemainingMs: 0,
-      weaponSwitchTotalMs: 0,
-      pendingWeaponIndex: null
-    };
-  }
-
-  const player = heroes.find((hero) => hero.heroId === playerHeroId);
-  if (player) {
-    player.currentWeaponIndex = clampWeaponIndex(pendingWeaponIndex, player.weapons.length);
-  }
-
-  return {
-    weaponSwitchRemainingMs: 0,
-    weaponSwitchTotalMs: 0,
-    pendingWeaponIndex: null
-  };
-}
-
-function clampWeaponIndex(index: number, weaponCount: number): number {
-  if (weaponCount <= 0) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(index, weaponCount - 1));
 }

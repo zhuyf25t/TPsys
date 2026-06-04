@@ -1,5 +1,8 @@
 package services.battle.microservices.projections.services
 
+import cats.effect.IO
+import cats.syntax.all.*
+
 import io.circe.Encoder
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.syntax.*
@@ -33,53 +36,69 @@ private[battle] final case class BattleReplayFramesJson(frameCount: Int, json: S
 
 private[battle] object BattleReplayFramesJsonRenderer {
   /** 中文名：渲染回放帧 JSON（render replay frames JSON）。游戏职责：把权威 battle state/replay frames 转成前端战报播放器使用的 wire JSON；这里只做 DTO 转换和编码，不推进战斗业务。 */
-  def render(state: BattleAggregateState, durationMs: DurationMillis): BattleReplayFramesJson = {
+  def render(state: BattleAggregateState, durationMs: DurationMillis): IO[BattleReplayFramesJson] = {
     val frames =
       if state.replayFrames.nonEmpty then
         BattleReplayFrameTimelineRules.normalizeReplayFrames(state.replayFrames, durationMs)
-          .map(frame => replayFramePayload(state, frame))
+          .flatMap(_.traverse(frame => replayFramePayload(state, frame)))
       else fallbackReplayFramePayloads(state, durationMs)
 
-    BattleReplayFramesJson(
-      frameCount = frames.length,
-      json = frames.asJson.noSpaces
-    )
+    frames.map { values =>
+      BattleReplayFramesJson(
+        frameCount = values.length,
+        json = values.asJson.noSpaces
+      )
+    }
   }
 
   private def fallbackReplayFramePayloads(
     state: BattleAggregateState,
     durationMs: DurationMillis
-  ): Vector[BattleReplayFramePayload] = {
-    val timeline = BattleReplayFrameTimelineRules.fallbackTimeline(state.events, durationMs)
-    timeline.frameElapsedMs.map(elapsedMs => replayFramePayload(state, elapsedMs, timeline.finalElapsedMs))
-  }
+  ): IO[Vector[BattleReplayFramePayload]] =
+    BattleReplayFrameTimelineRules.fallbackTimeline(state.events, durationMs).flatMap { timeline =>
+      timeline.frameElapsedMs.traverse(elapsedMs => replayFramePayload(state, elapsedMs, timeline.finalElapsedMs))
+    }
 
   private def replayFramePayload(
     state: BattleAggregateState,
     frame: BattleReplayFrameState
-  ): BattleReplayFramePayload =
-    replayFramePayload(
-      elapsedMs = frame.elapsedMs,
-      worldSize = state.worldSize,
-      heroes = frame.heroes.sortBy(_.seat.value).map(heroFramePayload),
-      projectiles = frame.projectiles.map(projectileFramePayload),
-      pickups = frame.pickups.map(pickupFramePayload),
-      eventMessages = eventMessages(state, frame.elapsedMs)
-    )
+  ): IO[BattleReplayFramePayload] =
+    for
+      heroes <- frame.heroes.sortBy(_.seat.value).traverse(heroFramePayload)
+      projectiles <- frame.projectiles.traverse(projectileFramePayload)
+      pickups <- frame.pickups.traverse(pickupFramePayload)
+      messages <- eventMessages(state, frame.elapsedMs)
+      payload <- replayFramePayload(
+        elapsedMs = frame.elapsedMs,
+        worldSize = state.worldSize,
+        heroes = heroes,
+        projectiles = projectiles,
+        pickups = pickups,
+        eventMessages = messages
+      )
+    yield payload
 
   private def replayFramePayload(
     state: BattleAggregateState,
     elapsedMs: ElapsedMillis,
     finalElapsedMs: ElapsedMillis
-  ): BattleReplayFramePayload =
-    replayFramePayload(
-      elapsedMs = elapsedMs,
-      worldSize = state.worldSize,
-      heroes = state.players.sortBy(_.seat.value).map(player => heroFramePayload(player, elapsedMs, finalElapsedMs)),
-      projectiles = if elapsedMs == finalElapsedMs then state.projectiles.map(projectileFramePayload) else Vector.empty,
-      pickups = state.pickups.map(pickupFramePayload),
-      eventMessages = eventMessages(state, elapsedMs)
-    )
+  ): IO[BattleReplayFramePayload] =
+    for
+      heroes <- state.players.sortBy(_.seat.value).traverse(player => heroFramePayload(player, elapsedMs, finalElapsedMs))
+      projectiles <-
+        if elapsedMs == finalElapsedMs then state.projectiles.traverse(projectileFramePayload)
+        else IO.pure(Vector.empty)
+      pickups <- state.pickups.traverse(pickupFramePayload)
+      messages <- eventMessages(state, elapsedMs)
+      payload <- replayFramePayload(
+        elapsedMs = elapsedMs,
+        worldSize = state.worldSize,
+        heroes = heroes,
+        projectiles = projectiles,
+        pickups = pickups,
+        eventMessages = messages
+      )
+    yield payload
 
   private def replayFramePayload(
     elapsedMs: ElapsedMillis,
@@ -88,17 +107,19 @@ private[battle] object BattleReplayFramesJsonRenderer {
     projectiles: Vector[BattleReplayProjectilePayload],
     pickups: Vector[BattleReplayPickupPayload],
     eventMessages: Vector[String]
-  ): BattleReplayFramePayload =
-    BattleReplayFramePayload(
-      elapsedMs = elapsedMs.value,
-      worldSize = vectorPayload(worldSize),
-      heroes = heroes,
-      projectiles = projectiles,
-      pickups = pickups,
-      eventMessages = eventMessages
-    )
+  ): IO[BattleReplayFramePayload] =
+    vectorPayload(worldSize).map { worldSizePayload =>
+      BattleReplayFramePayload(
+        elapsedMs = elapsedMs.value,
+        worldSize = worldSizePayload,
+        heroes = heroes,
+        projectiles = projectiles,
+        pickups = pickups,
+        eventMessages = eventMessages
+      )
+    }
 
-  private def heroFramePayload(hero: BattleReplayHeroFrameState): BattleReplayHeroPayload =
+  private def heroFramePayload(hero: BattleReplayHeroFrameState): IO[BattleReplayHeroPayload] =
     heroFramePayload(
       playerId = hero.playerId,
       heroId = hero.heroId,
@@ -118,7 +139,7 @@ private[battle] object BattleReplayFramesJsonRenderer {
     player: BattlePlayerState,
     elapsedMs: ElapsedMillis,
     finalElapsedMs: ElapsedMillis
-  ): BattleReplayHeroPayload = {
+  ): IO[BattleReplayHeroPayload] = {
     val aliveAtFrame =
       if elapsedMs == finalElapsedMs then player.alive
       else player.eliminatedAtMs.forall(_.value > elapsedMs.value)
@@ -151,11 +172,14 @@ private[battle] object BattleReplayFramesJsonRenderer {
     facing: FacingRadians,
     currentWeaponKind: WeaponKind,
     eliminatedAtMs: Option[ElapsedMillis]
-  ): BattleReplayHeroPayload =
-    BattleReplayHeroPayload(
+  ): IO[BattleReplayHeroPayload] =
+    for
+      display <- replayDisplayName(displayName, handle, playerId)
+      positionPayload <- vectorPayload(position)
+    yield BattleReplayHeroPayload(
       heroId = heroId.value,
-      displayName = replayDisplayName(displayName, handle, playerId),
-      position = vectorPayload(position),
+      displayName = display,
+      position = positionPayload,
       hp = if alive then math.max(0, hp.value) else 0,
       maxHp = math.max(1, maxHp.value),
       alive = alive,
@@ -166,7 +190,7 @@ private[battle] object BattleReplayFramesJsonRenderer {
       eliminatedAtMs = eliminatedAtMs.map(_.value)
     )
 
-  private def projectileFramePayload(projectile: BattleReplayProjectileFrameState): BattleReplayProjectilePayload =
+  private def projectileFramePayload(projectile: BattleReplayProjectileFrameState): IO[BattleReplayProjectilePayload] =
     projectileFramePayload(
       projectileId = projectile.projectileId,
       projectileKind = projectile.projectileKind,
@@ -176,7 +200,7 @@ private[battle] object BattleReplayFramesJsonRenderer {
       splashRadius = projectile.splashRadius
     )
 
-  private def projectileFramePayload(projectile: BattleProjectileState): BattleReplayProjectilePayload =
+  private def projectileFramePayload(projectile: BattleProjectileState): IO[BattleReplayProjectilePayload] =
     projectileFramePayload(
       projectileId = projectile.projectileId,
       projectileKind = projectile.projectileKind,
@@ -193,18 +217,20 @@ private[battle] object BattleReplayFramesJsonRenderer {
     facing: FacingRadians,
     ttlMs: DurationMillis,
     splashRadius: Radius
-  ): BattleReplayProjectilePayload =
-    BattleReplayProjectilePayload(
-      projectileId = projectileId.value,
-      kind = ProjectileKind.wireValue(projectileKind),
-      position = vectorPayload(position),
-      facing = facing.value,
-      alive = true,
-      ttlMs = math.max(0L, ttlMs.value),
-      splashRadius = math.max(0.0, splashRadius.value)
-    )
+  ): IO[BattleReplayProjectilePayload] =
+    vectorPayload(position).map { positionPayload =>
+      BattleReplayProjectilePayload(
+        projectileId = projectileId.value,
+        kind = ProjectileKind.wireValue(projectileKind),
+        position = positionPayload,
+        facing = facing.value,
+        alive = true,
+        ttlMs = math.max(0L, ttlMs.value),
+        splashRadius = math.max(0.0, splashRadius.value)
+      )
+    }
 
-  private def pickupFramePayload(pickup: BattleReplayPickupFrameState): BattleReplayPickupPayload =
+  private def pickupFramePayload(pickup: BattleReplayPickupFrameState): IO[BattleReplayPickupPayload] =
     pickupFramePayload(
       pickupId = pickup.pickupId,
       pickupKind = pickup.pickupKind,
@@ -213,7 +239,7 @@ private[battle] object BattleReplayFramesJsonRenderer {
       available = pickup.available
     )
 
-  private def pickupFramePayload(pickup: BattlePickupState): BattleReplayPickupPayload =
+  private def pickupFramePayload(pickup: BattlePickupState): IO[BattleReplayPickupPayload] =
     pickupFramePayload(
       pickupId = pickup.pickupId,
       pickupKind = pickup.pickupKind,
@@ -228,33 +254,41 @@ private[battle] object BattleReplayFramesJsonRenderer {
     weaponKind: Option[WeaponKind],
     position: BattleVector2,
     available: Boolean
-  ): BattleReplayPickupPayload =
-    weaponKind.map(WeaponKind.wireValue).filter(_.trim.nonEmpty) match {
-      case Some(weaponKind) =>
-        BattleReplayWeaponPickupPayload(
-          id = pickupId.value,
-          kind = replayPickupKind(pickupKind),
-          position = vectorPayload(position),
-          available = available,
-          weaponKind = weaponKind
-        )
-      case None =>
-        BattleReplaySimplePickupPayload(
-          id = pickupId.value,
-          kind = replayPickupKind(pickupKind),
-          position = vectorPayload(position),
-          available = available
-        )
-    }
+  ): IO[BattleReplayPickupPayload] =
+    for
+      pickupKindLabel <- replayPickupKind(pickupKind)
+      positionPayload <- vectorPayload(position)
+      payload <- weaponKind.map(WeaponKind.wireValue).filter(_.trim.nonEmpty) match {
+        case Some(weaponKind) =>
+          IO.pure[BattleReplayPickupPayload](
+            BattleReplayWeaponPickupPayload(
+              id = pickupId.value,
+              kind = pickupKindLabel,
+              position = positionPayload,
+              available = available,
+              weaponKind = weaponKind
+            )
+          )
+        case None =>
+          IO.pure[BattleReplayPickupPayload](
+            BattleReplaySimplePickupPayload(
+              id = pickupId.value,
+              kind = pickupKindLabel,
+              position = positionPayload,
+              available = available
+            )
+          )
+      }
+    yield payload
 
-  private def eventMessages(state: BattleAggregateState, elapsedMs: ElapsedMillis): Vector[String] =
-    state.events
+  private def eventMessages(state: BattleAggregateState, elapsedMs: ElapsedMillis): IO[Vector[String]] =
+    IO.pure(state.events
       .filter(_.elapsedMs.value <= elapsedMs.value)
       .sortBy(_.elapsedMs.value)
       .takeRight(6)
-      .map(_.message)
+      .map(_.message))
 
-  private def replayDisplayName(displayName: DisplayName, handle: PlayerHandle, playerId: PlayerId): String = {
+  private def replayDisplayName(displayName: DisplayName, handle: PlayerHandle, playerId: PlayerId): IO[String] = IO.pure {
     val display = displayName.value.trim
     if display.nonEmpty then display
     else
@@ -262,14 +296,14 @@ private[battle] object BattleReplayFramesJsonRenderer {
       if handleValue.nonEmpty then handleValue else playerId.value
   }
 
-  private def replayPickupKind(kind: PickupKind): String =
-    kind match {
+  private def replayPickupKind(kind: PickupKind): IO[String] =
+    IO.pure(kind match {
       case PickupKind.Weapon => "weapon"
       case PickupKind.Medkit => "medkit"
-    }
+    })
 
-  private def vectorPayload(vector: BattleVector2): BattleReplayVectorPayload =
-    BattleReplayVectorPayload(x = vector.x, y = vector.y)
+  private def vectorPayload(vector: BattleVector2): IO[BattleReplayVectorPayload] =
+    IO.pure(BattleReplayVectorPayload(x = vector.x, y = vector.y))
 
   private final case class BattleReplayFramePayload(
     elapsedMs: Long,

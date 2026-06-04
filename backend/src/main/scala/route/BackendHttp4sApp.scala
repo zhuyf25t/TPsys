@@ -36,7 +36,7 @@ object BackendHttp4sApp extends IOApp.Simple {
     yield ()
 
   private def runtimeResource(env: Map[String, String]): Resource[IO, BackendRuntime] =
-    Resource.make(IO.blocking(BackendRuntime.fromEnvironment(env)))(_ => IO.blocking(PostgresSupport.closeAll()))
+    BackendRuntime.resource(env)
 
   private def httpApiServices(runtime: BackendRuntime): HttpApiServices =
     HttpApiServices(

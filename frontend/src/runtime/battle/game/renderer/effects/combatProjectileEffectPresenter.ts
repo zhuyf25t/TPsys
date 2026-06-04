@@ -1,66 +1,54 @@
-import type { GameSnapshot, Vec2 } from "../../../../../objects/battle/types";
-import { normalizeVector } from "../../../local/geometry/sceneGeometry";
-import { type CombatProjectileEffect } from "../../../local/combat/combatFrameController";
-
-export interface CombatProjectileEffectPresenterCallbacks {
-  createPulse(position: Vec2, radius: number, color: number): void;
-  createImpactSpark(position: Vec2, color: number): void;
-  createShockwave(position: Vec2, startRadius: number, endRadius: number, color: number, duration: number): void;
-  createFloatingText(position: Vec2, text: string, color: string): void;
-  flashHero(heroId: string, color: number): void;
-  shakeCamera(duration: number, intensity: number): void;
-  stopPlayerMotion(): void;
-  setPlayerActorDisabled(): void;
-  applyKnockback(heroId: string, direction: Vec2, strength: number): void;
-  pushEvent(type: GameSnapshot["events"][number]["type"], message: string): void;
-}
+import { resolveCombatProjectileEffectPresentationPlan } from "./functions/CombatProjectileEffectPresentationRules";
+import type {
+  CombatProjectileEffectPresentationAction,
+  CombatProjectileEffectPresenterCallbacks,
+  PresentCombatProjectileEffectInput
+} from "./objects/CombatProjectileEffectPresenterObjects";
 
 /** 中文名：presentcombat投射物effect（presentCombatProjectileEffect）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
-export function presentCombatProjectileEffect(input: {
-  effect: CombatProjectileEffect;
-  snapshot: GameSnapshot;
-  callbacks: CombatProjectileEffectPresenterCallbacks;
-}): void {
+export function presentCombatProjectileEffect(input: PresentCombatProjectileEffectInput): void {
   const { effect, snapshot, callbacks } = input;
+  const presentationPlan = resolveCombatProjectileEffectPresentationPlan({ effect, snapshot });
 
-  if (effect.type === "rocket-trail") {
-    callbacks.createPulse(effect.position, 10, 0xffb36f);
-    callbacks.createImpactSpark(effect.position, 0xffb36f);
-    return;
-  }
+  presentationPlan.actions.forEach((action) => {
+    presentCombatProjectileEffectAction(action, callbacks);
+  });
+}
 
-  if (effect.type === "no-damage") {
-    return;
-  }
-
-  if (effect.type === "rocket-explosion") {
-    callbacks.createShockwave(effect.origin, 28, effect.splashRadius, 0xffb677, 250);
-    callbacks.createImpactSpark(effect.origin, 0xffd57a);
-    callbacks.shakeCamera(110, 0.0022);
-    return;
-  }
-
-  callbacks.createFloatingText(effect.targetPosition, `-${effect.damage}`, "#ff9a9a");
-  callbacks.createImpactSpark(effect.targetPosition, 0xffe2ba);
-  callbacks.flashHero(effect.targetHeroId, 0xffffff);
-
-  if (effect.event) {
-    callbacks.pushEvent(effect.event.type, effect.event.message);
-  }
-
-  if (effect.killed && effect.targetHeroId === snapshot.playerHeroId) {
-    callbacks.stopPlayerMotion();
-    callbacks.setPlayerActorDisabled();
-  }
-
-  if (effect.projectileKind === "rocket-explosion" && effect.origin && effect.targetHeroId !== effect.ownerHeroId) {
-    const target = snapshot.heroes.find((hero) => hero.heroId === effect.targetHeroId);
-    if (target && target.alive) {
-      callbacks.applyKnockback(
-        target.heroId,
-        normalizeVector({ x: target.position.x - effect.origin.x, y: target.position.y - effect.origin.y }),
-        110
-      );
-    }
+function presentCombatProjectileEffectAction(
+  action: CombatProjectileEffectPresentationAction,
+  callbacks: CombatProjectileEffectPresenterCallbacks
+): void {
+  switch (action.kind) {
+    case "pulse":
+      callbacks.createPulse(action.position, action.radius, action.color);
+      return;
+    case "impactSpark":
+      callbacks.createImpactSpark(action.position, action.color);
+      return;
+    case "shockwave":
+      callbacks.createShockwave(action.position, action.startRadius, action.endRadius, action.color, action.durationMs);
+      return;
+    case "floatingText":
+      callbacks.createFloatingText(action.position, action.text, action.color);
+      return;
+    case "flashHero":
+      callbacks.flashHero(action.heroId, action.color);
+      return;
+    case "pushEvent":
+      callbacks.pushEvent(action.eventType, action.message);
+      return;
+    case "shakeCamera":
+      callbacks.shakeCamera(action.durationMs, action.intensity);
+      return;
+    case "stopPlayerMotion":
+      callbacks.stopPlayerMotion();
+      return;
+    case "setPlayerActorDisabled":
+      callbacks.setPlayerActorDisabled();
+      return;
+    case "knockback":
+      callbacks.applyKnockback(action.heroId, action.direction, action.strength);
+      return;
   }
 }

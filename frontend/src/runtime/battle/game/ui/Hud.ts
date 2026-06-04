@@ -21,10 +21,13 @@ export interface HudWeaponEntry {
 
 export interface HudSkillEntry {
   key: string;
+  icon: string;
   name: string;
   state: string;
   ready: boolean;
   prepared: boolean;
+  cooldownProgress: number;
+  activeProgress: number;
 }
 
 export interface HudStatusEntry {
@@ -46,6 +49,14 @@ export interface HudMinimapDot {
   color: string;
 }
 
+export interface HudMinimapGasZone {
+  x: number;
+  y: number;
+  radius: number;
+  nextRadius: number;
+  phase: "waiting" | "advancing" | "final";
+}
+
 export interface HudMinimapData {
   worldWidth: number;
   worldHeight: number;
@@ -53,6 +64,7 @@ export interface HudMinimapData {
   obstacles: HudMinimapRect[];
   clearanceObstacles?: HudMinimapRect[];
   centerLimitRect?: HudMinimapRect;
+  gasZone: HudMinimapGasZone | null;
   pickups: HudMinimapDot[];
   heroes: HudMinimapDot[];
 }
@@ -76,6 +88,7 @@ export interface HudState {
   leaderboard: HudLeaderboardEntry[];
   feed: HudFeedEntry[];
   minimap: HudMinimapData;
+  mapExpanded: boolean;
   debugLines: string[];
 }
 
@@ -161,7 +174,7 @@ function ensureHudStyle(): void {
     #hud-root .hud-panel {
       position: absolute;
       pointer-events: none;
-      padding: 7px 8px;
+      padding: 9px 10px;
       border: 1px solid var(--hud-edge);
       border-radius: 4px;
       background:
@@ -177,24 +190,24 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-title {
-      margin-bottom: 5px;
+      margin-bottom: 6px;
       color: var(--hud-gold);
-      font-size: 10px;
+      font-size: 11px;
       letter-spacing: 0.14em;
       text-transform: uppercase;
       text-shadow: 0 0 7px rgba(243, 195, 106, 0.24);
     }
 
     #hud-root .hud-line {
-      font-size: 10px;
-      line-height: 1.28;
+      font-size: 12px;
+      line-height: 1.32;
       color: #e8eef3;
       white-space: pre-wrap;
     }
 
     #hud-root .hud-bar-shell {
-      width: 202px;
-      height: 10px;
+      width: 238px;
+      height: 12px;
       margin-top: 4px;
       margin-bottom: 8px;
       border-radius: 999px;
@@ -215,14 +228,71 @@ function ensureHudStyle(): void {
 
     #hud-root .hud-minimap {
       display: block;
-      width: 112px;
-      height: 112px;
-      margin-bottom: 6px;
+      width: 196px;
+      height: 196px;
+      margin-bottom: 8px;
       border: 1px solid var(--hud-edge-cool);
       background: rgba(8, 25, 34, 0.88);
       box-shadow:
         inset 0 0 0 1px rgba(255, 255, 255, 0.035),
         0 0 0 1px rgba(0, 0, 0, 0.5);
+      image-rendering: pixelated;
+    }
+
+    #hud-root .hud-expanded-map-panel {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(72vw, 760px);
+      max-width: calc(100vw - 48px);
+      padding: 12px;
+      display: none;
+      gap: 8px;
+      border: 1px solid rgba(255, 209, 112, 0.54);
+      border-radius: 5px;
+      background:
+        linear-gradient(135deg, rgba(255, 198, 92, 0.22) 0 10px, transparent 10px),
+        linear-gradient(315deg, rgba(105, 223, 246, 0.18) 0 10px, transparent 10px),
+        linear-gradient(180deg, rgba(22, 26, 30, 0.96), rgba(4, 8, 12, 0.94));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 0 0 1px rgba(0, 0, 0, 0.58),
+        0 24px 70px rgba(0, 0, 0, 0.58),
+        0 0 34px rgba(255, 182, 68, 0.15);
+    }
+
+    #hud-root .hud-expanded-map-panel.visible {
+      display: grid;
+    }
+
+    #hud-root .hud-expanded-map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #ffe6a4;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 10px rgba(255, 196, 88, 0.26);
+    }
+
+    #hud-root .hud-expanded-map-hint,
+    #hud-root .hud-expanded-map-legend {
+      color: #aeefff;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+
+    #hud-root .hud-expanded-map {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border: 1px solid rgba(105, 223, 246, 0.34);
+      background: rgba(8, 25, 34, 0.92);
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+        inset 0 0 28px rgba(105, 223, 246, 0.06);
       image-rendering: pixelated;
     }
 
@@ -234,14 +304,14 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-leaderboard-list {
-      max-height: 104px;
+      max-height: 132px;
       overflow: hidden;
     }
 
     #hud-root .hud-leaderboard-entry,
     #hud-root .hud-weapon-entry,
     #hud-root .hud-feed-entry {
-      font-size: 10px;
+      font-size: 12px;
       line-height: 1.22;
     }
 
@@ -324,7 +394,7 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-weapon-entry {
-      padding: 2px 5px;
+      padding: 4px 7px;
       border: 1px solid rgba(123, 141, 160, 0.24);
       border-radius: 3px;
       background: linear-gradient(180deg, rgba(37, 43, 49, 0.7), rgba(8, 11, 15, 0.8));
@@ -375,12 +445,12 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-status-entry {
-      padding: 2px 5px;
+      padding: 3px 7px;
       border: 1px solid rgba(255, 255, 255, 0.13);
       border-radius: 3px;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(0, 0, 0, 0.18));
       color: #dce7f2;
-      font-size: 9px;
+      font-size: 10px;
       font-weight: 700;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
     }
@@ -411,15 +481,19 @@ function ensureHudStyle(): void {
 
     #hud-root .hud-skills-grid {
       display: grid;
-      grid-template-columns: repeat(3, 42px);
-      gap: 4px;
+      grid-template-columns: repeat(3, 70px);
+      gap: 8px;
     }
 
     #hud-root .hud-skill-entry {
-      min-height: 40px;
-      padding: 4px;
+      position: relative;
+      min-height: 72px;
+      padding: 7px;
       border: 1px solid rgba(123, 141, 160, 0.26);
       border-radius: 3px;
+      overflow: hidden;
+      --hud-skill-progress: 0deg;
+      --hud-skill-fill: 0%;
       background:
         linear-gradient(135deg, rgba(243, 195, 106, 0.16) 0 5px, transparent 5px),
         linear-gradient(180deg, rgba(34, 39, 45, 0.78), rgba(8, 11, 15, 0.84));
@@ -428,6 +502,15 @@ function ensureHudStyle(): void {
       flex-direction: column;
       justify-content: space-between;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+    }
+
+    #hud-root .hud-skill-entry.cooldown,
+    #hud-root .hud-skill-entry.active {
+      color: #ffe0a1;
+      border-color: rgba(255, 201, 91, 0.56);
+      background:
+        linear-gradient(135deg, rgba(255, 201, 91, 0.2) 0 5px, transparent 5px),
+        linear-gradient(180deg, rgba(52, 42, 24, 0.9), rgba(10, 10, 11, 0.88));
     }
 
     #hud-root .hud-skill-entry.ready {
@@ -445,14 +528,59 @@ function ensureHudStyle(): void {
     }
 
     #hud-root .hud-skill-key {
-      font-size: 12px;
+      position: relative;
+      z-index: 1;
+      font-size: 16px;
       font-weight: 700;
+    }
+
+    #hud-root .hud-skill-icon {
+      position: relative;
+      z-index: 1;
+      font-size: 18px;
+      line-height: 1;
+      text-shadow: 0 0 8px rgba(255, 205, 96, 0.28);
     }
 
     #hud-root .hud-skill-name,
     #hud-root .hud-skill-state {
-      font-size: 9px;
-      line-height: 1.12;
+      position: relative;
+      z-index: 1;
+      font-size: 10px;
+      line-height: 1.15;
+    }
+
+    #hud-root .hud-skill-clock {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 226, 158, 0.28);
+      background:
+        radial-gradient(circle at center, rgba(8, 10, 12, 0.88) 0 47%, transparent 49%),
+        conic-gradient(rgba(255, 199, 86, 0.74) var(--hud-skill-progress), rgba(255, 255, 255, 0.08) 0);
+      opacity: 0.76;
+    }
+
+    #hud-root .hud-skill-bar {
+      position: absolute;
+      left: 7px;
+      right: 7px;
+      bottom: 6px;
+      height: 4px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    #hud-root .hud-skill-bar-fill {
+      width: var(--hud-skill-fill);
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(105, 223, 246, 0.72), rgba(255, 201, 91, 0.92));
+      transition: width 90ms linear;
     }
   `;
 
@@ -651,6 +779,12 @@ export class Hud {
   private minimapStaticCanvas: HTMLCanvasElement;
   private minimapStaticContext: CanvasRenderingContext2D;
   private minimapStaticLayerSignature = "";
+  private expandedMapPanel: HTMLDivElement;
+  private expandedMapCanvas: HTMLCanvasElement;
+  private expandedMapContext: CanvasRenderingContext2D;
+  private expandedMapStaticCanvas: HTMLCanvasElement;
+  private expandedMapStaticContext: CanvasRenderingContext2D;
+  private expandedMapStaticLayerSignature = "";
   private minimapRenderCount = 0;
   private minimapStaticLayerRedrawCount = 0;
   private readonly diagnosticsEnabled = isHudDiagnosticsEnabled();
@@ -689,8 +823,8 @@ export class Hud {
 
     this.skillGrid = createElement("div", "hud-skills-grid");
     this.minimapCanvas = createElement("canvas", "hud-minimap");
-    this.minimapCanvas.width = 140;
-    this.minimapCanvas.height = 140;
+    this.minimapCanvas.width = 196;
+    this.minimapCanvas.height = 196;
     const context = this.minimapCanvas.getContext("2d");
     if (!context) {
       throw new Error("HUD minimap canvas context unavailable");
@@ -704,6 +838,33 @@ export class Hud {
       throw new Error("HUD minimap static canvas context unavailable");
     }
     this.minimapStaticContext = staticContext;
+    this.expandedMapPanel = createElement("div", "hud-expanded-map-panel");
+    const expandedMapHeader = createElement("div", "hud-expanded-map-header");
+    expandedMapHeader.append(
+      createElement("span", undefined, "战术地图"),
+      createElement("span", "hud-expanded-map-hint", "松开 TAB 返回")
+    );
+    this.expandedMapCanvas = createElement("canvas", "hud-expanded-map");
+    this.expandedMapCanvas.width = 560;
+    this.expandedMapCanvas.height = 560;
+    const expandedMapContext = this.expandedMapCanvas.getContext("2d");
+    if (!expandedMapContext) {
+      throw new Error("HUD expanded map canvas context unavailable");
+    }
+    this.expandedMapContext = expandedMapContext;
+    this.expandedMapStaticCanvas = createElement("canvas");
+    this.expandedMapStaticCanvas.width = this.expandedMapCanvas.width;
+    this.expandedMapStaticCanvas.height = this.expandedMapCanvas.height;
+    const expandedMapStaticContext = this.expandedMapStaticCanvas.getContext("2d");
+    if (!expandedMapStaticContext) {
+      throw new Error("HUD expanded map static canvas context unavailable");
+    }
+    this.expandedMapStaticContext = expandedMapStaticContext;
+    this.expandedMapPanel.append(
+      expandedMapHeader,
+      this.expandedMapCanvas,
+      createElement("div", "hud-expanded-map-legend", "蓝色：你  /  红色：敌人  /  橙色：毒圈")
+    );
     this.leaderboardList = createElement("div", "hud-leaderboard-list");
     this.feedList = createElement("div", "hud-feed-list");
     this.feedPanel.append(createElement("div", "hud-title", "战斗日志"), this.feedList);
@@ -729,7 +890,15 @@ export class Hud {
     this.skillPanel.append(createElement("div", "hud-title", "技能"), this.skillGrid);
     this.rightTop.append(createElement("div", "hud-title", "小地图 / 排行"), this.minimapCanvas, this.leaderboardList);
 
-    this.overlay.append(this.timer, this.feedPanel, this.rightTop, this.leftBottom, this.weaponPanel, this.skillPanel);
+    this.overlay.append(
+      this.timer,
+      this.feedPanel,
+      this.rightTop,
+      this.leftBottom,
+      this.weaponPanel,
+      this.skillPanel,
+      this.expandedMapPanel
+    );
     this.layout(window.innerWidth, window.innerHeight);
   }
 
@@ -745,39 +914,42 @@ export class Hud {
     });
 
     Object.assign(this.rightTop.style, {
-      right: "14px",
-      top: "14px",
-      width: "132px"
+      right: "16px",
+      top: "16px",
+      width: "188px"
     });
 
     Object.assign(this.leftBottom.style, {
-      left: "14px",
-      bottom: "14px",
-      width: `${Math.min(216, Math.max(202, width - 40))}px`
+      left: "16px",
+      bottom: "16px",
+      width: `${Math.min(256, Math.max(242, width - 40))}px`
     });
 
     Object.assign(this.weaponPanel.style, {
-      right: "14px",
-      bottom: "14px",
-      width: "174px"
+      right: "16px",
+      bottom: "16px",
+      width: "214px"
     });
 
     Object.assign(this.skillPanel.style, {
-      right: "202px",
-      bottom: "14px",
-      width: "136px"
+      right: "250px",
+      bottom: "16px",
+      width: "190px"
     });
 
     if (width < 760) {
-      this.skillPanel.style.right = "14px";
-      this.skillPanel.style.bottom = "158px";
+      this.skillPanel.style.right = "16px";
+      this.skillPanel.style.bottom = "196px";
     }
 
     if (height < 720) {
-      this.rightTop.style.top = "48px";
+      this.rightTop.style.top = "50px";
     } else {
-      this.rightTop.style.top = "14px";
+      this.rightTop.style.top = "16px";
     }
+
+    const expandedMapSize = Math.round(Math.min(760, Math.max(300, Math.min(width - 48, height - 126))));
+    this.resizeExpandedMapCanvas(expandedMapSize);
   }
 
   public update(state: HudState): void {
@@ -803,11 +975,24 @@ export class Hud {
     this.renderSkillEntries(state.skillEntries);
     this.renderLeaderboard(state.leaderboard);
     this.renderFeed(state.feed);
-    this.renderMinimap(state.minimap);
+    this.renderMinimap(state.minimap, state.mapExpanded);
   }
 
   public destroy(): void {
     this.root.innerHTML = "";
+  }
+
+  private resizeExpandedMapCanvas(size: number): void {
+    const safeSize = Math.max(240, Math.round(size));
+    if (this.expandedMapCanvas.width === safeSize && this.expandedMapCanvas.height === safeSize) {
+      return;
+    }
+
+    this.expandedMapCanvas.width = safeSize;
+    this.expandedMapCanvas.height = safeSize;
+    this.expandedMapStaticCanvas.width = safeSize;
+    this.expandedMapStaticCanvas.height = safeSize;
+    this.expandedMapStaticLayerSignature = "";
   }
 
   private createPanel(): HTMLDivElement {
@@ -844,23 +1029,32 @@ export class Hud {
   private renderSkillEntries(entries: HudSkillEntry[]): void {
     reconcileChildrenCount(this.skillGrid, entries.length, () => {
       const cell = createElement("div", "hud-skill-entry");
+      const bar = createElement("div", "hud-skill-bar");
+      bar.appendChild(createElement("div", "hud-skill-bar-fill"));
       cell.append(
         createElement("div", "hud-skill-key"),
+        createElement("div", "hud-skill-icon"),
         createElement("div", "hud-skill-name"),
-        createElement("div", "hud-skill-state")
+        createElement("div", "hud-skill-state"),
+        createElement("div", "hud-skill-clock"),
+        bar
       );
       return cell;
     });
 
     entries.forEach((entry, index) => {
       const cell = this.skillGrid.children[index] as HTMLElement;
+      const progress = Math.max(0, Math.min(1, Math.max(entry.cooldownProgress, entry.activeProgress)));
       setClassNameIfChanged(
         cell,
-        `hud-skill-entry${entry.ready ? " ready" : ""}${entry.prepared ? " prepared" : ""}`
+        `hud-skill-entry${entry.ready ? " ready" : ""}${entry.prepared ? " prepared" : ""}${entry.cooldownProgress > 0 ? " cooldown" : ""}${entry.activeProgress > 0 ? " active" : ""}`
       );
+      setStylePropertyIfChanged(cell, "--hud-skill-progress", `${Math.round(progress * 360)}deg`);
+      setStylePropertyIfChanged(cell, "--hud-skill-fill", `${Math.round(progress * 100)}%`);
       setTextIfChanged(cell.children[0] as HTMLElement, entry.key);
-      setTextIfChanged(cell.children[1] as HTMLElement, entry.name);
-      setTextIfChanged(cell.children[2] as HTMLElement, entry.state);
+      setTextIfChanged(cell.children[1] as HTMLElement, entry.icon);
+      setTextIfChanged(cell.children[2] as HTMLElement, entry.name);
+      setTextIfChanged(cell.children[3] as HTMLElement, entry.state);
     });
   }
 
@@ -904,50 +1098,90 @@ export class Hud {
     });
   }
 
-  private renderMinimap(minimap: HudMinimapData): void {
+  private renderMinimap(minimap: HudMinimapData, expanded: boolean): void {
     this.minimapRenderCount += 1;
-    this.syncMinimapStaticCanvasSize();
-
-    const ctx = this.minimapContext;
-    const scaleX = this.minimapCanvas.width / minimap.worldWidth;
-    const scaleY = this.minimapCanvas.height / minimap.worldHeight;
-    const staticLayerSignature = buildMinimapStaticLayerSignature(
+    this.minimapStaticLayerSignature = this.renderMinimapCanvas(
       minimap,
-      this.minimapCanvas.width,
-      this.minimapCanvas.height
+      this.minimapCanvas,
+      this.minimapContext,
+      this.minimapStaticCanvas,
+      this.minimapStaticContext,
+      this.minimapStaticLayerSignature,
+      true
     );
+    setClassNameIfChanged(this.expandedMapPanel, `hud-expanded-map-panel${expanded ? " visible" : ""}`);
 
-    if (staticLayerSignature !== this.minimapStaticLayerSignature) {
-      this.renderMinimapStaticLayer(minimap, scaleX, scaleY);
-      this.minimapStaticLayerSignature = staticLayerSignature;
-      this.minimapStaticLayerRedrawCount += 1;
+    if (expanded) {
+      this.expandedMapStaticLayerSignature = this.renderMinimapCanvas(
+        minimap,
+        this.expandedMapCanvas,
+        this.expandedMapContext,
+        this.expandedMapStaticCanvas,
+        this.expandedMapStaticContext,
+        this.expandedMapStaticLayerSignature,
+        false
+      );
     }
 
-    ctx.clearRect(0, 0, this.minimapCanvas.width, this.minimapCanvas.height);
-    ctx.drawImage(this.minimapStaticCanvas, 0, 0);
-    this.renderMinimapDynamicLayer(minimap, scaleX, scaleY);
     this.publishMinimapDiagnostics(minimap);
   }
 
-  private syncMinimapStaticCanvasSize(): void {
-    if (
-      this.minimapStaticCanvas.width === this.minimapCanvas.width &&
-      this.minimapStaticCanvas.height === this.minimapCanvas.height
-    ) {
-      return;
+  private renderMinimapCanvas(
+    minimap: HudMinimapData,
+    canvas: HTMLCanvasElement,
+    context: CanvasRenderingContext2D,
+    staticCanvas: HTMLCanvasElement,
+    staticContext: CanvasRenderingContext2D,
+    currentStaticLayerSignature: string,
+    trackStaticRedraw: boolean
+  ): string {
+    const resized = this.syncMinimapStaticCanvasSize(canvas, staticCanvas);
+    const scaleX = canvas.width / minimap.worldWidth;
+    const scaleY = canvas.height / minimap.worldHeight;
+    const nextStaticLayerSignature = buildMinimapStaticLayerSignature(
+      minimap,
+      canvas.width,
+      canvas.height
+    );
+
+    if (resized || nextStaticLayerSignature !== currentStaticLayerSignature) {
+      this.renderMinimapStaticLayer(minimap, staticCanvas, staticContext, scaleX, scaleY);
+      if (trackStaticRedraw) {
+        this.minimapStaticLayerRedrawCount += 1;
+      }
     }
 
-    this.minimapStaticCanvas.width = this.minimapCanvas.width;
-    this.minimapStaticCanvas.height = this.minimapCanvas.height;
-    this.minimapStaticLayerSignature = "";
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(staticCanvas, 0, 0);
+    this.renderMinimapDynamicLayer(minimap, canvas, context, scaleX, scaleY);
+    return nextStaticLayerSignature;
   }
 
-  private renderMinimapStaticLayer(minimap: HudMinimapData, scaleX: number, scaleY: number): void {
-    const ctx = this.minimapStaticContext;
+  private syncMinimapStaticCanvasSize(canvas: HTMLCanvasElement, staticCanvas: HTMLCanvasElement): boolean {
+    if (
+      staticCanvas.width === canvas.width &&
+      staticCanvas.height === canvas.height
+    ) {
+      return false;
+    }
+
+    staticCanvas.width = canvas.width;
+    staticCanvas.height = canvas.height;
+    return true;
+  }
+
+  private renderMinimapStaticLayer(
+    minimap: HudMinimapData,
+    staticCanvas: HTMLCanvasElement,
+    context: CanvasRenderingContext2D,
+    scaleX: number,
+    scaleY: number
+  ): void {
+    const ctx = context;
     ctx.setLineDash([]);
-    ctx.clearRect(0, 0, this.minimapStaticCanvas.width, this.minimapStaticCanvas.height);
+    ctx.clearRect(0, 0, staticCanvas.width, staticCanvas.height);
     ctx.fillStyle = "rgba(14, 34, 46, 0.9)";
-    ctx.fillRect(0, 0, this.minimapStaticCanvas.width, this.minimapStaticCanvas.height);
+    ctx.fillRect(0, 0, staticCanvas.width, staticCanvas.height);
 
     ctx.fillStyle = "rgba(217, 154, 52, 0.13)";
     ctx.strokeStyle = "rgba(255, 214, 124, 0.18)";
@@ -985,10 +1219,18 @@ export class Hud {
     }
   }
 
-  private renderMinimapDynamicLayer(minimap: HudMinimapData, scaleX: number, scaleY: number): void {
-    const ctx = this.minimapContext;
+  private renderMinimapDynamicLayer(
+    minimap: HudMinimapData,
+    canvas: HTMLCanvasElement,
+    context: CanvasRenderingContext2D,
+    scaleX: number,
+    scaleY: number
+  ): void {
+    const ctx = context;
+    this.renderMinimapGasZone(minimap, canvas, ctx, scaleX, scaleY);
+
     ctx.strokeStyle = "rgba(255, 214, 124, 0.7)";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = canvas.width >= 360 ? 2 : 1;
     ctx.strokeRect(
       minimap.cameraRect.x * scaleX,
       minimap.cameraRect.y * scaleY,
@@ -996,17 +1238,60 @@ export class Hud {
       Math.max(10, minimap.cameraRect.height * scaleY)
     );
 
+    const pickupSize = canvas.width >= 360 ? 8 : 6;
     minimap.pickups.forEach((pickup) => {
       ctx.fillStyle = pickup.color;
-      ctx.fillRect(pickup.x * scaleX - 2, pickup.y * scaleY - 2, 4, 4);
+      ctx.fillRect(pickup.x * scaleX - pickupSize / 2, pickup.y * scaleY - pickupSize / 2, pickupSize, pickupSize);
     });
 
     minimap.heroes.forEach((hero) => {
       ctx.beginPath();
       ctx.fillStyle = hero.color;
-      ctx.arc(hero.x * scaleX, hero.y * scaleY, hero.radius, 0, Math.PI * 2);
+      ctx.arc(hero.x * scaleX, hero.y * scaleY, Math.max(canvas.width >= 360 ? 7 : 3.5, hero.radius * 1.45), 0, Math.PI * 2);
       ctx.fill();
+      if (hero.color === "#6ee4ff") {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+        ctx.lineWidth = canvas.width >= 360 ? 2 : 1;
+        ctx.stroke();
+      }
     });
+  }
+
+  private renderMinimapGasZone(
+    minimap: HudMinimapData,
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    scaleX: number,
+    scaleY: number
+  ): void {
+    const gas = minimap.gasZone;
+    if (!gas) {
+      return;
+    }
+
+    const alpha = gas.phase === "waiting" ? 0.1 : 0.28;
+    ctx.fillStyle = `rgba(255, 74, 0, ${alpha})`;
+    const outsideGasPath = new Path2D();
+    outsideGasPath.rect(0, 0, canvas.width, canvas.height);
+    outsideGasPath.ellipse(gas.x * scaleX, gas.y * scaleY, gas.radius * scaleX, gas.radius * scaleY, 0, 0, Math.PI * 2);
+    ctx.fill(outsideGasPath, "evenodd");
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255, 88, 24, 0.95)";
+    ctx.lineWidth = canvas.width >= 360 ? 5 : 2;
+    ctx.ellipse(gas.x * scaleX, gas.y * scaleY, gas.radius * scaleX, gas.radius * scaleY, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (gas.nextRadius !== gas.radius) {
+      ctx.save();
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255, 216, 124, 0.72)";
+      ctx.lineWidth = canvas.width >= 360 ? 2 : 1;
+      ctx.ellipse(gas.x * scaleX, gas.y * scaleY, gas.nextRadius * scaleX, gas.nextRadius * scaleY, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   private publishMinimapDiagnostics(minimap: HudMinimapData): void {

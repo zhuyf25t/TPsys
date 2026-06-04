@@ -1,7 +1,8 @@
-import type { GameEvent, GameSnapshot } from "../../../../objects/battle/types";
-import { FEED_EVENT_TTL_MS } from "../../game/constants";
+import type { BattleGameEventState as GameEvent } from "../../../../objects/battle/microservices/runtime/objects/event/BattleGameEventState";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import { FEED_EVENT_TTL_MS } from "../../game/objects/BattleGameConstants";
 import { advanceEventFeedClock } from "./eventFeedClock";
-import { advanceFreezeFields } from "../skills/freezeFieldController";
+import { advanceFreezeFields } from "../../microservices/abilities/functions/BattleSlowFieldRuntimeRules";
 
 export class BattleTemporalFrameBridge {
   private eventSequence = 0;

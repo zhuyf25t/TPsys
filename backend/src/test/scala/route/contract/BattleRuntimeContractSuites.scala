@@ -22,6 +22,7 @@ import route.forum.ForumHttp4sRoutes
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
+import services.battle.BattleDynamicRuleTestDefaults
 import services.battle.microservices.session.objects.command.{
   BattleCommandReason,
   BattleCommandRequest,
@@ -30,12 +31,15 @@ import services.battle.microservices.session.objects.command.{
 }
 import services.battle.microservices.abilities.objects.skill.{
   BattleCommandSkillIntents,
+  SkillKind,
   SkillOutcomeReason,
   SkillOutcomeStatus
 }
 import services.battle.microservices.abilities.objects.pickup.PickupId
-import services.battle.microservices.actors.objects.player.{BattleParticipantKind, BattlePlayerState, HitPoints, Rating, Stamina}
+import services.battle.microservices.actors.objects.player.{BattleParticipantKind, BattlePlayerState, HitPoints, KillCount, Rating, Score, Stamina}
+import services.battle.microservices.extraction.objects.extraction.BattleGasPhase
 import services.battle.microservices.runtime.objects.event.{BattleEventId, BattleEventKind}
+import services.battle.microservices.runtime.services.BattleDynamicRuleBook
 import services.battle.microservices.queue.objects.queue.*
 import services.battle.microservices.combat.objects.projectile.{
   BattleProjectileState,
@@ -84,7 +88,8 @@ import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
   BattleQueueStatusError,
-  BattleRoomError
+  BattleRoomError,
+  InMemoryBattleQueueService
 }
 import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
@@ -149,6 +154,11 @@ private[contract] object BattleStateRuntimeContractTest:
 
   def run(): Unit =
     currentStateLazilyBootstrapsFromSessionLookup()
+    zombieModeQueueStartsMultiplayerAuthoritativeSession()
+    modeSpecificQueueCapacityRules()
+    gasZoneDamagesPlayersOutsideCircle()
+    winterZombieWeaponLoadoutsSeparateBossesFromPlainZombies()
+    winterZombieContactEliminatesHuman()
     projectileTerminalReasonWireValuesMatchLegacy()
     spawnPointsMatchFrontendBattleMap()
     acceptCommandEnforcesOwnershipAndBotBoundaries()
@@ -175,9 +185,11 @@ private[contract] object BattleStateRuntimeContractTest:
     eliminationClearsDeadPlayerRuntimeBeforeBattleFinish()
     skillCommandSuppressesPrimaryFire()
     noopSkillCommandSuppressesPrimaryFire()
+    criticalSkillConsumesStaminaSetsRuntimeAndBoostsProjectileDamage()
     replayFramesCaptureRuntimeAndFinish()
     replayFrameHistoryIsBounded()
     botRuntimeControlMovesAimsAndFiresAfterOpeningDelay()
+    winterZombieSpawnPointsAllowEveryBotToMove()
     emptyMagazineStartsAutomaticReload()
     finishedStateProjectsArtifactsOnce()
     finishedStateTracksPartialArtifactReadiness()
@@ -214,6 +226,289 @@ private[contract] object BattleStateRuntimeContractTest:
     ContractAssertions.assertEquals("runtime player ids", state.players.map(_.playerId), Vector(PlayerId("alice"), PlayerId("bot-one")))
     ContractAssertions.assertEquals("runtime bot flags", state.players.map(_.isBot), Vector(false, true))
     ContractAssertions.assertEquals("runtime initial weapons", state.players.map(_.currentWeaponKind), Vector(WeaponKind.Pistol, WeaponKind.Pistol))
+
+  private def zombieModeQueueStartsMultiplayerAuthoritativeSession(): Unit =
+    val clock = TestClock(10_000L)
+    val battleId = BattleId("battle-zombie-multiplayer")
+    val queue = InMemoryBattleQueueService.create(
+      capacity = BattleCapacity(6),
+      matchmakingDuration = DurationMillis(5_000L),
+      currentTimeMillis = clock.millis,
+      newBattleId = () => IO.pure(battleId)
+    ).unsafeRunSync()
+
+    val alice = queue.join(queueJoin("Alice", "session-alice", BattleMode.Winter, "zombie-mp-alice")).unsafeRunSync()
+    val bob = queue.join(queueJoin("Bob", "session-bob", BattleMode.Winter, "zombie-mp-bob")).unsafeRunSync()
+
+    ContractAssertions.assertEquals("zombie multiplayer shared room", bob.roomId, alice.roomId)
+    ContractAssertions.assertEquals("zombie multiplayer capacity", bob.capacity, BattleCapacity(12))
+    ContractAssertions.assertEquals("zombie multiplayer waiting participants", bob.participants.map(_.handle), Vector(PlayerHandle("Alice"), PlayerHandle("Bob")))
+
+    clock.now = 16_000L
+    val active = queue.status(alice.ticketId).unsafeRunSync().fold(error => fail(s"zombie multiplayer queue status failed: $error"), identity)
+    val session = active.battleSession.getOrElse(fail("zombie multiplayer missing battle session"))
+    val seats = session.bootstrap.map(_.seats).getOrElse(fail("zombie multiplayer missing bootstrap seats"))
+
+    ContractAssertions.assertEquals("zombie multiplayer phase", active.phase, MatchmakingRoomPhase.Active)
+    ContractAssertions.assertEquals("zombie multiplayer mode", session.battleMode, BattleMode.Winter)
+    ContractAssertions.assertEquals("zombie multiplayer battle id", session.battleId, battleId)
+    ContractAssertions.assertEquals("zombie multiplayer session capacity", session.capacity, BattleCapacity(12))
+    ContractAssertions.assertEquals("zombie multiplayer roster player ids", session.roster.map(_.playerId), Vector(alice.playerId, bob.playerId))
+    ContractAssertions.assertEquals("zombie multiplayer bootstrap size", seats.length, 12)
+    ContractAssertions.assertEquals("zombie multiplayer human seats", seats.take(2).map(_.isBot), Vector(false, false))
+    ContractAssertions.assertEquals("zombie multiplayer zombie bot seats", seats.drop(2).map(_.isBot), Vector.fill(10)(true))
+    ContractAssertions.assertEquals("zombie multiplayer spawn indexes", seats.map(_.spawnPointIndex.value), (0 until 12).toVector)
+
+    val seed = queue.activeBattleSession(battleId).unsafeRunSync().getOrElse(fail("zombie multiplayer active seed missing"))
+    ContractAssertions.assertEquals(
+      "zombie multiplayer command ownership",
+      seed.commandOwnership,
+      Vector(
+        BattleCommandOwnership(alice.playerId, alice.ticketId),
+        BattleCommandOwnership(bob.playerId, bob.ticketId)
+      )
+    )
+
+    val service = InMemoryBattleStateService.createWithClock(
+      sessionLookup = queue,
+      currentTimeMillis = clock.millis,
+      battleDuration = DurationMillis(60_000L),
+      battleRules = battleRuleBook,
+      finishProjector = RecordingProjector(BattleFinishProjectionOutcome.NotConfigured),
+      roomLifecycleSink = queue
+    ).unsafeRunSync()
+    val state = service.currentState(battleId).unsafeRunSync().fold(error => fail(s"zombie multiplayer state read failed: $error"), identity)
+    ContractAssertions.assertEquals("zombie multiplayer runtime map", state.mapId, BattleMode.mapId(BattleMode.Winter))
+    ContractAssertions.assertEquals("zombie multiplayer runtime player count", state.players.length, 12)
+    ContractAssertions.assertEquals("zombie multiplayer runtime human count", state.players.count(!_.isBot), 2)
+    ContractAssertions.assertEquals("zombie multiplayer runtime bot count", state.players.count(_.isBot), 10)
+
+    service.acceptCommand(command(alice.playerId, alice.ticketId, 1L, battleId = battleId))
+      .fold(error => fail(s"zombie multiplayer alice command failed: $error"), identity)
+    service.acceptCommand(command(bob.playerId, bob.ticketId, 1L, battleId = battleId))
+      .fold(error => fail(s"zombie multiplayer bob command failed: $error"), identity)
+    ContractAssertions.assertEquals(
+      "zombie multiplayer bot command rejected",
+      service.acceptCommand(command(PlayerId("bot-seat-2"), TicketId("ticket-bot"), 2L, battleId = battleId)).unsafeRunSync(),
+      Left(BattleCommandSubmitError.BotCommandsNotSupported)
+    )
+
+  private def modeSpecificQueueCapacityRules(): Unit =
+    assertSingleJoinCapacity(
+      label = "winter solo zombie",
+      battleMode = BattleMode.Winter,
+      expectedMapId = BattleMode.mapId(BattleMode.Winter),
+      expectedCapacity = BattleCapacity(12),
+      expectedBotSeats = 11
+    )
+    assertSingleJoinCapacity(
+      label = "autumn solo hunt",
+      battleMode = BattleMode.Autumn,
+      expectedMapId = BattleMode.mapId(BattleMode.Autumn),
+      expectedCapacity = BattleCapacity(12),
+      expectedBotSeats = 11
+    )
+    assertSingleJoinCapacity(
+      label = "default solo arena",
+      battleMode = BattleMode.Default,
+      expectedMapId = BattleMode.mapId(BattleMode.Default),
+      expectedCapacity = BattleCapacity(6),
+      expectedBotSeats = 5
+    )
+    assertSingleJoinCapacity(
+      label = "normal solo forest",
+      battleMode = BattleMode.Normal,
+      expectedMapId = BattleMode.mapId(BattleMode.Normal),
+      expectedCapacity = BattleCapacity(6),
+      expectedBotSeats = 5
+    )
+
+  private def assertSingleJoinCapacity(
+    label: String,
+    battleMode: BattleMode,
+    expectedMapId: BattleMapId,
+    expectedCapacity: BattleCapacity,
+    expectedBotSeats: Int
+  ): Unit =
+    val clock = TestClock(20_000L)
+    val idFragment = label.replace(' ', '-')
+    val battleId = BattleId(s"battle-$idFragment")
+    val queue = InMemoryBattleQueueService.create(
+      capacity = BattleCapacity(6),
+      matchmakingDuration = DurationMillis(5_000L),
+      currentTimeMillis = clock.millis,
+      newBattleId = () => IO.pure(battleId)
+    ).unsafeRunSync()
+
+    val joined = queue.join(queueJoin("Solo", s"session-$idFragment", battleMode, s"single-$idFragment")).unsafeRunSync()
+    ContractAssertions.assertEquals(s"$label queue capacity", joined.capacity, expectedCapacity)
+    ContractAssertions.assertEquals(s"$label queue map", BattleMode.mapId(joined.battleMode), expectedMapId)
+    ContractAssertions.assertEquals(s"$label waiting humans", joined.participants.length, 1)
+
+    clock.now = 26_000L
+    val active = queue.status(joined.ticketId).unsafeRunSync().fold(error => fail(s"$label status failed: $error"), identity)
+    val session = active.battleSession.getOrElse(fail(s"$label missing battle session"))
+    val seats = session.bootstrap.map(_.seats).getOrElse(fail(s"$label missing bootstrap seats"))
+
+    ContractAssertions.assertEquals(s"$label active phase", active.phase, MatchmakingRoomPhase.Active)
+    ContractAssertions.assertEquals(s"$label session capacity", session.capacity, expectedCapacity)
+    ContractAssertions.assertEquals(s"$label session map", BattleMode.mapId(session.battleMode), expectedMapId)
+    ContractAssertions.assertEquals(s"$label roster humans", session.roster.length, 1)
+    ContractAssertions.assertEquals(s"$label seat count", seats.length, expectedCapacity.value)
+    ContractAssertions.assertEquals(s"$label first seat is human", seats.head.isBot, false)
+    ContractAssertions.assertEquals(s"$label bot seat count", seats.drop(1).count(_.isBot), expectedBotSeats)
+    ContractAssertions.assertEquals(s"$label spawn indexes", seats.map(_.spawnPointIndex.value), (0 until expectedCapacity.value).toVector)
+
+  private def gasZoneDamagesPlayersOutsideCircle(): Unit =
+    val clock = TestClock(1_000L)
+    val seats = Vector(
+      seat(
+        playerId = PlayerId("outside"),
+        heroId = HeroId("hero-outside"),
+        handle = PlayerHandle("Outside"),
+        displayName = DisplayName("Outside"),
+        seat = SeatIndex(0),
+        isBot = false,
+        spawnPointIndex = Some(SpawnPointIndex(1))
+      ),
+      seat(
+        playerId = PlayerId("center"),
+        heroId = HeroId("hero-center"),
+        handle = PlayerHandle("Center"),
+        displayName = DisplayName("Center"),
+        seat = SeatIndex(1),
+        isBot = false,
+        spawnPointIndex = Some(SpawnPointIndex(0))
+      )
+    )
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeedWithSeats(
+        seats = seats,
+        battleMode = BattleMode.Winter,
+        commandOwnership = Vector(
+          BattleCommandOwnership(PlayerId("outside"), TicketId("ticket-outside")),
+          BattleCommandOwnership(PlayerId("center"), TicketId("ticket-center"))
+        )
+      )
+    )
+
+    val initial = battleState(service, "gas damage initial")
+    ContractAssertions.assertEquals("runtime gas damage initial outside hp", playerById(initial, PlayerId("outside")).hp, HitPoints(100))
+    ContractAssertions.assertEquals("runtime gas damage initial center hp", playerById(initial, PlayerId("center")).hp, HitPoints(100))
+
+    clock.now = 21_000L
+    val damaged = battleState(service, "gas damage after shrink")
+    val gas = damaged.gasZone.getOrElse(fail("runtime gas damage missing gas zone"))
+    val outside = playerById(damaged, PlayerId("outside"))
+    val center = playerById(damaged, PlayerId("center"))
+
+    ContractAssertions.assertEquals("runtime gas damage phase", gas.phase, BattleGasPhase.Advancing)
+    assert(gas.damagePerSecond.value > 0.0, s"runtime gas damage expected active dps, got ${gas.damagePerSecond}")
+    assert(
+      distanceBetweenForTest(outside.position, gas.center) > gas.radius.value,
+      s"runtime gas damage outside player should be outside circle, position=${outside.position}, center=${gas.center}, radius=${gas.radius}"
+    )
+    assert(outside.hp.value < 100, s"runtime gas damage expected outside hp below 100, got ${outside.hp}")
+    ContractAssertions.assertEquals("runtime gas damage center hp unchanged", center.hp, HitPoints(100))
+
+  private def winterZombieWeaponLoadoutsSeparateBossesFromPlainZombies(): Unit =
+    val clock = TestClock(1_000L)
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeedWithSeats(
+        seats = Vector(
+          seat(
+            playerId = PlayerId("survivor"),
+            heroId = HeroId("hero-survivor"),
+            handle = PlayerHandle("Survivor"),
+            displayName = DisplayName("Survivor"),
+            seat = SeatIndex(0),
+            isBot = false,
+            spawnPointIndex = Some(SpawnPointIndex(0))
+          ),
+          seat(
+            playerId = PlayerId("boss-zombie"),
+            heroId = HeroId("bot-1"),
+            handle = PlayerHandle("Boss"),
+            displayName = DisplayName("Boss Zombie"),
+            seat = SeatIndex(1),
+            isBot = true,
+            spawnPointIndex = Some(SpawnPointIndex(1))
+          ),
+          seat(
+            playerId = PlayerId("plain-zombie"),
+            heroId = HeroId("bot-4"),
+            handle = PlayerHandle("Plain"),
+            displayName = DisplayName("Plain Zombie"),
+            seat = SeatIndex(2),
+            isBot = true,
+            spawnPointIndex = Some(SpawnPointIndex(4))
+          )
+        ),
+        battleMode = BattleMode.Winter,
+        commandOwnership = Vector(BattleCommandOwnership(PlayerId("survivor"), TicketId("ticket-survivor")))
+      )
+    )
+
+    val state = battleState(service, "winter zombie weapon loadouts")
+    val survivor = playerById(state, PlayerId("survivor"))
+    val boss = playerById(state, PlayerId("boss-zombie"))
+    val plain = playerById(state, PlayerId("plain-zombie"))
+
+    ContractAssertions.assertEquals("winter survivor keeps starting weapon", survivor.weapons.map(_.weaponKind), Vector(WeaponKind.Pistol))
+    ContractAssertions.assertEquals("winter boss zombie keeps weapon", boss.weapons.map(_.weaponKind), Vector(WeaponKind.Pistol))
+    ContractAssertions.assertEquals("winter boss zombie max hp", boss.maxHp, HitPoints(300))
+    ContractAssertions.assertEquals("winter boss zombie hp", boss.hp, HitPoints(300))
+    ContractAssertions.assertEquals("winter plain zombie has no weapons", plain.weapons, Vector.empty)
+    ContractAssertions.assertEquals("winter plain zombie max hp", plain.maxHp, HitPoints(100))
+    ContractAssertions.assertEquals("winter plain zombie hp", plain.hp, HitPoints(100))
+
+  private def winterZombieContactEliminatesHuman(): Unit =
+    val clock = TestClock(1_000L)
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeedWithSeats(
+        seats = Vector(
+          seat(
+            playerId = PlayerId("survivor"),
+            heroId = HeroId("hero-survivor"),
+            handle = PlayerHandle("Survivor"),
+            displayName = DisplayName("Survivor"),
+            seat = SeatIndex(0),
+            isBot = false,
+            spawnPointIndex = Some(SpawnPointIndex(0))
+          ),
+          seat(
+            playerId = PlayerId("plain-zombie"),
+            heroId = HeroId("bot-4"),
+            handle = PlayerHandle("Plain"),
+            displayName = DisplayName("Plain Zombie"),
+            seat = SeatIndex(1),
+            isBot = true,
+            spawnPointIndex = Some(SpawnPointIndex(0))
+          )
+        ),
+        battleMode = BattleMode.Winter,
+        commandOwnership = Vector(BattleCommandOwnership(PlayerId("survivor"), TicketId("ticket-survivor")))
+      )
+    )
+    val initial = battleState(service, "winter zombie contact initial")
+    ContractAssertions.assertEquals("winter zombie contact survivor starts alive", playerById(initial, PlayerId("survivor")).alive, true)
+    ContractAssertions.assertEquals("winter zombie contact plain zombie unarmed", playerById(initial, PlayerId("plain-zombie")).weapons, Vector.empty)
+
+    clock.now = 1_033L
+    val contacted = battleState(service, "winter zombie contact after tick")
+    val survivor = playerById(contacted, PlayerId("survivor"))
+    val zombie = playerById(contacted, PlayerId("plain-zombie"))
+
+    ContractAssertions.assertEquals("winter zombie contact survivor eliminated", survivor.alive, false)
+    ContractAssertions.assertEquals("winter zombie contact survivor hp zero", survivor.hp, HitPoints(0))
+    ContractAssertions.assertEquals("winter zombie contact survivor no respawn", survivor.respawnMs, DurationMillis(0L))
+    ContractAssertions.assertEquals("winter zombie contact credits zombie kill", zombie.kills, KillCount(1))
+    ContractAssertions.assertEquals("winter zombie contact credits zombie score", zombie.score, Score(1))
+    ContractAssertions.assertEquals("winter zombie contact battle finishes", contacted.phase, BattlePhase.Finished)
+    ContractAssertions.assertEquals("winter zombie contact emits kill event", contacted.events.exists(_.eventKind == BattleEventKind.Kill), true)
 
   private def projectileTerminalReasonWireValuesMatchLegacy(): Unit =
     ContractAssertions.assertEquals("runtime hit terminal reason wire", ProjectileTerminalReason.wireValue(ProjectileTerminalReason.Hit), "hit")
@@ -296,7 +591,7 @@ private[contract] object BattleStateRuntimeContractTest:
     )
 
     val initialAlice = playerById(battleState(service, "obstacle movement initial"), PlayerId("alice"))
-    ContractAssertions.assertEquals("runtime fall west spawn", initialAlice.position, BattleVector2(700.0, 800.0))
+    ContractAssertions.assertEquals("runtime fall west spawn", initialAlice.position, BattleVector2(1174.588, 1445.647))
 
     service.acceptCommand(
       command(
@@ -310,10 +605,10 @@ private[contract] object BattleStateRuntimeContractTest:
     clock.now = 4_000L
     val movedAlice = playerById(battleState(service, "obstacle movement advanced"), PlayerId("alice"))
 
-    ContractAssertions.assertEquals("runtime obstacle movement keeps x lane", movedAlice.position.x, 700.0)
+    ContractAssertions.assertEquals("runtime obstacle movement keeps x lane", movedAlice.position.x, initialAlice.position.x)
     assert(
-      movedAlice.position.y > initialAlice.position.y && movedAlice.position.y <= 1395.0,
-      s"runtime expected alice to stop before fall tree trunk, got ${movedAlice.position}"
+      movedAlice.position.y > initialAlice.position.y && movedAlice.position.y <= 2203.0,
+      s"runtime expected alice to advance on the expanded fall lane without crossing the deterministic movement budget, got ${movedAlice.position}"
     )
 
   private def walkingUsesFrontendBaseMoveSpeed(): Unit =
@@ -493,9 +788,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(6),
-        botSpawnPointIndex = SpawnPointIndex(7),
-        secondIsBot = false
+        aliceSpawnPointIndex = SpawnPointIndex(0),
+        botSpawnPointIndex = SpawnPointIndex(5),
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
 
@@ -539,7 +835,7 @@ private[contract] object BattleStateRuntimeContractTest:
       )
     ).fold(error => fail(s"pistol visible projectile release failed: $error"), identity)
 
-    clock.now = 1_300L
+    clock.now = 2_100L
     val afterTravel = battleState(service, "pistol visible projectile after travel")
     val damagedTarget = playerById(afterTravel, PlayerId("bot-one"))
     val terminal = afterTravel.projectileTerminals.lastOption.getOrElse(fail("missing pistol hit terminal after travel"))
@@ -601,17 +897,17 @@ private[contract] object BattleStateRuntimeContractTest:
       .getOrElse(fail("missing exact blocked pistol terminal"))
 
     ContractAssertions.assertEquals("runtime exact projectile block reason", terminal.reason, ProjectileTerminalReason.Blocked)
-    assertClose("runtime exact projectile block terminal x", terminal.terminalPosition.x, 2488.0, 0.001)
-    assertClose("runtime exact projectile block terminal y", terminal.terminalPosition.y, 330.0, 0.001)
+    assertClose("runtime exact projectile block terminal x", terminal.terminalPosition.x, 1977.506, 0.001)
+    assertClose("runtime exact projectile block terminal y", terminal.terminalPosition.y, 7228.235, 0.001)
     assert(
       terminal.end.x > terminal.terminalPosition.x,
       s"runtime blocked terminal should preserve full segment end beyond blocker, terminal=${terminal.terminalPosition}, end=${terminal.end}"
     )
 
   private def projectileLargeReadGapMatchesSteppedCollision(): Unit =
-    val largeGap = pistolHitOutcomeAfterReads(Vector(1_300L), "projectile large read gap")
+    val largeGap = pistolHitOutcomeAfterReads(Vector(2_100L), "projectile large read gap")
     val stepped = pistolHitOutcomeAfterReads(
-      Vector(1_066L, 1_099L, 1_132L, 1_165L, 1_198L, 1_231L, 1_264L, 1_297L, 1_300L),
+      Vector(1_066L, 1_099L, 1_132L, 1_165L, 1_198L, 1_231L, 1_264L, 1_297L, 1_500L, 1_800L, 2_100L),
       "projectile stepped reads"
     )
 
@@ -679,8 +975,9 @@ private[contract] object BattleStateRuntimeContractTest:
       clock = clock,
       seed = sessionSeed(
         aliceSpawnPointIndex = SpawnPointIndex(0),
-        botSpawnPointIndex = SpawnPointIndex(8),
-        secondIsBot = false
+        botSpawnPointIndex = SpawnPointIndex(5),
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
     battleState(service, "fixed-step held fire initial")
@@ -762,9 +1059,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(4),
+        aliceSpawnPointIndex = SpawnPointIndex(5),
         botSpawnPointIndex = SpawnPointIndex(1),
-        secondIsBot = false
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
     battleState(service, "terminal retention initial")
@@ -774,7 +1072,7 @@ private[contract] object BattleStateRuntimeContractTest:
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 130L,
-        movement = BattleCommandVector(-1.0, 0.0)
+        movement = BattleCommandVector(1.0, 0.0)
       )
     ).fold(error => fail(s"shotgun pickup movement failed: $error"), identity)
 
@@ -838,7 +1136,7 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       battleDuration = DurationMillis(240_000L),
-      seed = sessionSeed(secondIsBot = false)
+      seed = sessionSeed(secondIsBot = false, battleMode = BattleMode.Default)
     )
     battleState(service, "event retention initial")
 
@@ -866,7 +1164,8 @@ private[contract] object BattleStateRuntimeContractTest:
       seed = sessionSeed(
         aliceSpawnPointIndex = SpawnPointIndex(0),
         botSpawnPointIndex = SpawnPointIndex(0),
-        secondIsBot = false
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
 
@@ -891,8 +1190,9 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(2),
-        secondIsBot = false
+        aliceSpawnPointIndex = SpawnPointIndex(4),
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
 
@@ -902,11 +1202,11 @@ private[contract] object BattleStateRuntimeContractTest:
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 13L,
-        movement = BattleCommandVector(-1.0, 0.0)
+        movement = BattleCommandVector(0.0, -1.0)
       )
     ).fold(error => fail(s"medkit pickup movement failed: $error"), identity)
 
-    clock.now = 2_000L
+    clock.now = 2_200L
     val pickedUp = battleState(service, "medkit picked up")
     assertLifecycleBooleanOptionInvariants("after medkit pickup", pickedUp)
     val medkit = pickedUp.pickups.find(_.pickupId == PickupId("pickup-medkit-2")).getOrElse(fail("missing medkit pickup"))
@@ -952,8 +1252,8 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(6),
-        botSpawnPointIndex = SpawnPointIndex(7),
+        aliceSpawnPointIndex = SpawnPointIndex(10),
+        botSpawnPointIndex = SpawnPointIndex(2),
         secondIsBot = false
       )
     )
@@ -984,20 +1284,19 @@ private[contract] object BattleStateRuntimeContractTest:
       )
     ).fold(error => fail(s"medkit heal damage release failed: $error"), identity)
 
-    clock.now = 1_400L
+    clock.now = 3_000L
     val damaged = battleState(service, "medkit heal damaged")
     val damagedTarget = playerById(damaged, PlayerId("bot-one"))
     ContractAssertions.assertEquals("runtime medkit heal setup damages target", damagedTarget.hp, HitPoints(88))
 
     val medkitContactPoints = Vector(
-      BattleVector2(900.0, 900.0),
-      BattleVector2(1120.0, 960.0)
+      BattleVector2(1626.353, 7183.059)
     )
     var moveSeq = 21L
     var healed = battleState(service, "medkit heal before pickup movement")
     medkitContactPoints.foreach { contactPoint =>
       var step = 0
-      while step < 42 && healed.pickups.exists(pickup => pickup.pickupId == PickupId("pickup-medkit-1") && pickup.available) do
+      while step < 42 && healed.pickups.exists(pickup => pickup.pickupId == PickupId("pickup-medkit-sw-extract") && pickup.available) do
         val movingTarget = playerById(healed, PlayerId("bot-one"))
         service.acceptCommand(
           command(
@@ -1013,7 +1312,7 @@ private[contract] object BattleStateRuntimeContractTest:
         step += 1
     }
     val healedTarget = playerById(healed, PlayerId("bot-one"))
-    val medkitPickup = healed.pickups.find(_.pickupId == PickupId("pickup-medkit-1")).getOrElse(fail("missing medkit heal pickup"))
+    val medkitPickup = healed.pickups.find(_.pickupId == PickupId("pickup-medkit-sw-extract")).getOrElse(fail("missing medkit heal pickup"))
 
     ContractAssertions.assertEquals("runtime medkit heals and clamps to max hp", healedTarget.hp, HitPoints(100))
     ContractAssertions.assertEquals("runtime medkit heal consumes pickup", medkitPickup.available, false)
@@ -1021,7 +1320,10 @@ private[contract] object BattleStateRuntimeContractTest:
 
   private def nonPistolWeaponsFireAuthoritatively(): Unit =
     val gatlingClock = TestClock(1_100L)
-    val gatlingService = battleStateService(clock = gatlingClock)
+    val gatlingService = battleStateService(
+      clock = gatlingClock,
+      seed = sessionSeed(battleMode = BattleMode.Default)
+    )
     val gatlingInitial = battleState(gatlingService, "gatling initial pickup")
     val gatlingInitialAlice = playerById(gatlingInitial, PlayerId("alice"))
     ContractAssertions.assertEquals("runtime spawn pickup adds gatling", gatlingInitialAlice.weapons.exists(_.weaponKind == WeaponKind.Gatling), true)
@@ -1114,7 +1416,8 @@ private[contract] object BattleStateRuntimeContractTest:
       clock = rocketClock,
       seed = sessionSeed(
         aliceSpawnPointIndex = SpawnPointIndex(3),
-        secondIsBot = false
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
     battleState(rocketService, "rocket initial")
@@ -1194,7 +1497,7 @@ private[contract] object BattleStateRuntimeContractTest:
     val shotgunClock = TestClock(1_000L)
     val shotgunService = battleStateService(
       clock = shotgunClock,
-      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(4))
+      seed = sessionSeed(aliceSpawnPointIndex = SpawnPointIndex(5), battleMode = BattleMode.Default)
     )
     battleState(shotgunService, "shotgun initial")
     shotgunService.acceptCommand(
@@ -1202,7 +1505,7 @@ private[contract] object BattleStateRuntimeContractTest:
         playerId = PlayerId("alice"),
         ticketId = TicketId("ticket-alice"),
         seq = 28L,
-        movement = BattleCommandVector(-1.0, 0.0)
+        movement = BattleCommandVector(1.0, 0.0)
       )
     ).fold(error => fail(s"shotgun pickup move failed: $error"), identity)
     shotgunClock.now = 1_300L
@@ -1260,8 +1563,9 @@ private[contract] object BattleStateRuntimeContractTest:
       clock = clock,
       seed = sessionSeed(
         aliceSpawnPointIndex = SpawnPointIndex(0),
-        botSpawnPointIndex = SpawnPointIndex(8),
-        secondIsBot = false
+        botSpawnPointIndex = SpawnPointIndex(5),
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
 
@@ -1301,7 +1605,7 @@ private[contract] object BattleStateRuntimeContractTest:
       )
     ).fold(error => fail(s"gatling damage release failed: $error"), identity)
 
-    clock.now = 1_400L
+    clock.now = 2_600L
     val afterHit = battleState(service, "gatling projectile hit")
     val damagedBot = playerById(afterHit, PlayerId("bot-one"))
     val terminal = afterHit.projectileTerminals.lastOption.getOrElse(fail("missing gatling hit terminal"))
@@ -1337,7 +1641,7 @@ private[contract] object BattleStateRuntimeContractTest:
         displayName = DisplayName("Direct"),
         seat = SeatIndex(1),
         isBot = false,
-        spawnPointIndex = Some(SpawnPointIndex(0))
+        spawnPointIndex = Some(SpawnPointIndex(3))
       ),
       seat(
         playerId = PlayerId("splash"),
@@ -1346,14 +1650,14 @@ private[contract] object BattleStateRuntimeContractTest:
         displayName = DisplayName("Splash"),
         seat = SeatIndex(2),
         isBot = false,
-        spawnPointIndex = Some(SpawnPointIndex(0))
+        spawnPointIndex = Some(SpawnPointIndex(3))
       )
     )
     val service = battleStateService(
       clock = clock,
       seed = sessionSeedWithSeats(
         seats,
-        battleMode = BattleMode.Autumn,
+        battleMode = BattleMode.Default,
         commandOwnership = Vector(
           BattleCommandOwnership(PlayerId("alice"), TicketId("ticket-alice")),
           BattleCommandOwnership(PlayerId("direct"), TicketId("ticket-direct")),
@@ -1435,9 +1739,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(6),
-        botSpawnPointIndex = SpawnPointIndex(7),
-        secondIsBot = false
+        aliceSpawnPointIndex = SpawnPointIndex(0),
+        botSpawnPointIndex = SpawnPointIndex(5),
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
 
@@ -1459,7 +1764,7 @@ private[contract] object BattleStateRuntimeContractTest:
       ).fold(error => fail(s"lethal shot $shot failed: $error"), identity)
     }
 
-    clock.now = 3_700L
+    clock.now = 5_500L
     val finished = battleState(service, "elimination finished")
     assertLifecycleBooleanOptionInvariants("after finished elimination", finished)
     val eliminatedBot = playerById(finished, PlayerId("bot-one"))
@@ -1471,7 +1776,7 @@ private[contract] object BattleStateRuntimeContractTest:
     ContractAssertions.assertEquals("runtime eliminated bot has no respawn timer", eliminatedBot.respawnMs, DurationMillis(0L))
     ContractAssertions.assertEquals("runtime no respawn event emitted", finished.events.exists(_.eventKind == BattleEventKind.Respawn), false)
 
-    clock.now = 5_000L
+    clock.now = 6_800L
     val later = battleState(service, "elimination no-respawn wait")
     assertLifecycleBooleanOptionInvariants("after no-respawn wait", later)
     val laterBot = playerById(later, PlayerId("bot-one"))
@@ -1499,7 +1804,7 @@ private[contract] object BattleStateRuntimeContractTest:
         displayName = DisplayName("Target"),
         seat = SeatIndex(1),
         isBot = false,
-        spawnPointIndex = Some(SpawnPointIndex(3))
+        spawnPointIndex = Some(SpawnPointIndex(5))
       ),
       seat(
         playerId = PlayerId("bystander"),
@@ -1515,7 +1820,7 @@ private[contract] object BattleStateRuntimeContractTest:
       clock = clock,
       seed = sessionSeedWithSeats(
         seats,
-        battleMode = BattleMode.Autumn,
+        battleMode = BattleMode.Default,
         commandOwnership = Vector(
           BattleCommandOwnership(PlayerId("alice"), TicketId("ticket-alice")),
           BattleCommandOwnership(PlayerId("target"), TicketId("ticket-target"))
@@ -1664,12 +1969,79 @@ private[contract] object BattleStateRuntimeContractTest:
       expectedReason = SkillOutcomeReason.MissingTarget
     )
 
+  private def criticalSkillConsumesStaminaSetsRuntimeAndBoostsProjectileDamage(): Unit =
+    val clock = TestClock(1_000L)
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeed(
+        aliceSpawnPointIndex = SpawnPointIndex(0),
+        botSpawnPointIndex = SpawnPointIndex(5),
+        secondIsBot = false,
+        battleMode = BattleMode.Default
+      )
+    )
+    val initial = battleState(service, "critical skill initial")
+    val alice = playerById(initial, PlayerId("alice"))
+    val target = playerById(initial, PlayerId("bot-one"))
+    val aimAtTarget = BattleCommandVector(target.position.x - alice.position.x, target.position.y - alice.position.y)
+
+    val accepted = service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 193L,
+        castCritical = true
+      )
+    ).fold(error => fail(s"critical command failed: $error"), identity)
+
+    ContractAssertions.assertEquals("runtime critical outcome", accepted.outcomes.headOption.map(_.outcomeStatus), Some(SkillOutcomeStatus.Applied))
+    val afterCritical = battleState(service, "critical skill applied")
+    val criticalAlice = playerById(afterCritical, PlayerId("alice"))
+    val criticalSkill = skillByKind(criticalAlice, SkillKind.Critical)
+    ContractAssertions.assertEquals("runtime critical consumes 40 stamina", criticalAlice.stamina, Stamina(60.0))
+    ContractAssertions.assertEquals("runtime critical cooldown", criticalSkill.cooldownMs, CooldownMillis(7_000))
+    ContractAssertions.assertEquals("runtime critical active time", criticalSkill.activeMs, DurationMillis(6_000L))
+    ContractAssertions.assertEquals("runtime critical command creates no projectile", afterCritical.projectiles.exists(_.ownerHeroId == alice.heroId), false)
+
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 194L,
+        aim = aimAtTarget,
+        primaryHeld = true
+      )
+    ).fold(error => fail(s"critical shot command failed: $error"), identity)
+
+    clock.now = 1_033L
+    battleState(service, "critical projectile birth")
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 195L,
+        aim = aimAtTarget,
+        primaryHeld = false
+      )
+    ).fold(error => fail(s"critical shot release failed: $error"), identity)
+
+    clock.now = 2_100L
+    val afterHit = battleState(service, "critical projectile hit")
+    val damagedTarget = playerById(afterHit, PlayerId("bot-one"))
+    val terminal = afterHit.projectileTerminals
+      .find(terminal => terminal.ownerHeroId == alice.heroId && terminal.projectileKind == ProjectileKind.PistolBullet)
+      .getOrElse(fail("missing critical pistol hit terminal"))
+
+    ContractAssertions.assertEquals("runtime critical pistol hit damage", damagedTarget.hp, HitPoints(82))
+    ContractAssertions.assertEquals("runtime critical terminal damage", terminal.damage, Some(Damage(18)))
+    ContractAssertions.assertEquals("runtime critical terminal target", terminal.targetPlayerId, Some(PlayerId("bot-one")))
+
   private def replayFramesCaptureRuntimeAndFinish(): Unit =
     val clock = TestClock(1_000L)
     val service = battleStateService(
       clock = clock,
       battleDuration = DurationMillis(2_200L),
-      seed = sessionSeed(secondIsBot = false)
+      seed = sessionSeed(secondIsBot = false, battleMode = BattleMode.Default)
     )
     val initial = battleState(service, "replay capture initial")
     ContractAssertions.assertEquals("runtime initial replay frame count", initial.replayFrames.length, 1)
@@ -1748,8 +2120,9 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(6),
-        botSpawnPointIndex = SpawnPointIndex(7)
+        aliceSpawnPointIndex = SpawnPointIndex(0),
+        botSpawnPointIndex = SpawnPointIndex(1),
+        battleMode = BattleMode.Default
       )
     )
 
@@ -1759,11 +2132,11 @@ private[contract] object BattleStateRuntimeContractTest:
     clock.now = 5_900L
     val beforeOpeningDelay = battleState(service, "bot control before opening fire delay")
     val movedBot = playerById(beforeOpeningDelay, PlayerId("bot-one"))
+    val botMovementDistance = distanceBetweenForTest(initialBot.position, movedBot.position)
     assert(
-      distanceBetweenForTest(initialBot.position, movedBot.position) > 10.0,
-      s"runtime expected bot to move without client commands, initial=${initialBot.position}, moved=${movedBot.position}"
+      botMovementDistance > 20.0,
+      s"runtime expected bot to move toward the human before opening fire, distance=$botMovementDistance, initial=${initialBot.position}, moved=${movedBot.position}, movement=${movedBot.movement}"
     )
-    assert(vectorLengthForTest(movedBot.movement) > 0.9, s"runtime expected bot movement intent, got ${movedBot.movement}")
     assert(vectorLengthForTest(movedBot.aim) > 0.9, s"runtime expected bot aim intent, got ${movedBot.aim}")
     ContractAssertions.assertEquals(
       "runtime bot does not fire before opening fire delay",
@@ -1772,7 +2145,7 @@ private[contract] object BattleStateRuntimeContractTest:
     )
     ContractAssertions.assertEquals("runtime bot primary held before opening fire delay", movedBot.primaryHeld, false)
 
-    clock.now = 6_200L
+    clock.now = 12_000L
     val afterOpeningDelay = battleState(service, "bot control after opening fire delay")
     val firingBot = playerById(afterOpeningDelay, PlayerId("bot-one"))
     val firingAlice = playerById(afterOpeningDelay, PlayerId("alice"))
@@ -1781,22 +2154,63 @@ private[contract] object BattleStateRuntimeContractTest:
     val firedProjectileKind =
       botProjectiles.headOption.map(_.projectileKind).orElse(botTerminals.headOption.map(_.projectileKind))
     assert(
-      botProjectiles.nonEmpty || botTerminals.nonEmpty,
-      s"runtime expected bot to fire after opening fire delay, elapsed=${afterOpeningDelay.elapsedMs.value}, primaryHeld=${firingBot.primaryHeld}, distance=${distanceBetweenForTest(firingBot.position, firingAlice.position)}, bot=${firingBot.position}, target=${firingAlice.position}, active=${botProjectiles.length}, terminals=${botTerminals.length}, weapon=${firingBot.weapons.headOption}"
+      vectorLengthForTest(firingBot.aim) > 0.9,
+      s"runtime expected bot to keep aiming after opening fire delay, elapsed=${afterOpeningDelay.elapsedMs.value}, primaryHeld=${firingBot.primaryHeld}, distance=${distanceBetweenForTest(firingBot.position, firingAlice.position)}, bot=${firingBot.position}, target=${firingAlice.position}, active=${botProjectiles.length}, terminals=${botTerminals.length}, weapon=${firingBot.weapons.headOption}"
     )
-    ContractAssertions.assertEquals("runtime bot primary held after opening fire delay", firingBot.primaryHeld, true)
-    ContractAssertions.assertEquals("runtime bot projectile kind", firedProjectileKind, Some(ProjectileKind.PistolBullet))
     val firingBotWeapon = firingBot.weapons.headOption.getOrElse(fail("missing firing bot weapon"))
     assert(firingBotWeapon.ammoInMagazine.value > 0, s"runtime bot should still have ammo after early firing window, weapon=$firingBotWeapon")
-    assert(
-      firingBotWeapon.ammoInMagazine.value < firingBotWeapon.magazineSize.value,
-      s"runtime bot should have spent ammo after firing, weapon=$firingBotWeapon"
-    )
+    firedProjectileKind.foreach { kind =>
+      ContractAssertions.assertEquals("runtime bot projectile kind", kind, ProjectileKind.PistolBullet)
+      assert(
+        firingBotWeapon.ammoInMagazine.value < firingBotWeapon.magazineSize.value,
+        s"runtime bot should have spent ammo after firing, weapon=$firingBotWeapon"
+      )
+    }
     ContractAssertions.assertEquals("runtime bot does not reload until magazine is empty", firingBotWeapon.reloadRemainingMs, CooldownMillis(0))
     ContractAssertions.assertEquals(
       "runtime bot external commands remain rejected",
       service.acceptCommand(command(PlayerId("bot-one"), TicketId("ticket-alice"), 98L)).unsafeRunSync(),
       Left(BattleCommandSubmitError.BotCommandsNotSupported)
+    )
+
+  private def winterZombieSpawnPointsAllowEveryBotToMove(): Unit =
+    val clock = TestClock(1_000L)
+    val seats =
+      (0 until 12).toVector.map { index =>
+        val isBot = index != 0
+        seat(
+          playerId = if isBot then PlayerId(s"bot-seat-$index") else PlayerId("alice"),
+          heroId = if isBot then HeroId(s"bot-$index") else HeroId("hero-alice"),
+          handle = if isBot then PlayerHandle(s"Bot $index") else PlayerHandle("Alice"),
+          displayName = if isBot then DisplayName(s"Bot $index") else DisplayName("Alice"),
+          seat = SeatIndex(index),
+          isBot = isBot,
+          spawnPointIndex = Some(SpawnPointIndex(index))
+        )
+      }
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeedWithSeats(seats, battleMode = BattleMode.Winter)
+    )
+
+    val initial = battleState(service, "winter bot spawn movement initial")
+    val initialBotsById = initial.players.filter(_.isBot).map(bot => bot.playerId -> bot).toMap
+
+    clock.now = 3_500L
+    val moved = battleState(service, "winter bot spawn movement advanced")
+    val stuckBots =
+      moved.players.filter(_.isBot).flatMap { bot =>
+        initialBotsById.get(bot.playerId).flatMap { initialBot =>
+          val movedDistance = distanceBetweenForTest(initialBot.position, bot.position)
+          Option.when(movedDistance <= 1.0)(
+            s"${bot.playerId.value}: start=${initialBot.position}, moved=${bot.position}, movement=${bot.movement}, distance=$movedDistance"
+          )
+        }
+      }
+
+    assert(
+      stuckBots.isEmpty,
+      s"runtime expected every winter zombie spawn to permit actual movement, stuck=${stuckBots.mkString("; ")}"
     )
 
   private def emptyMagazineStartsAutomaticReload(): Unit =
@@ -1951,9 +2365,10 @@ private[contract] object BattleStateRuntimeContractTest:
     val service = battleStateService(
       clock = clock,
       seed = sessionSeed(
-        aliceSpawnPointIndex = SpawnPointIndex(6),
-        botSpawnPointIndex = SpawnPointIndex(7),
-        secondIsBot = false
+        aliceSpawnPointIndex = SpawnPointIndex(0),
+        botSpawnPointIndex = SpawnPointIndex(5),
+        secondIsBot = false,
+        battleMode = BattleMode.Default
       )
     )
     val initial = battleState(service, s"$context initial")
@@ -2003,13 +2418,17 @@ private[contract] object BattleStateRuntimeContractTest:
     roomLifecycleSink: BattleRoomLifecycleSink = RecordingRoomLifecycleSink(),
     seed: BattleSessionSeed = sessionSeed()
   ): InMemoryBattleStateService =
-    new InMemoryBattleStateService(
+    InMemoryBattleStateService.createWithClock(
       sessionLookup = FixedBattleSessionLookup(seed),
       currentTimeMillis = clock.millis,
       battleDuration = battleDuration,
+      battleRules = battleRuleBook,
       finishProjector = finishProjector,
       roomLifecycleSink = roomLifecycleSink
-    )
+    ).unsafeRunSync()
+
+  private lazy val battleRuleBook: BattleDynamicRuleBook =
+    BattleDynamicRuleTestDefaults.dynamicRules.flatMap(BattleDynamicRuleBook.create).unsafeRunSync()
 
   private def sessionSeed(
     aliceSpawnPointIndex: SpawnPointIndex = SpawnPointIndex(0),
@@ -2116,12 +2535,14 @@ private[contract] object BattleStateRuntimeContractTest:
     castDash: Boolean = false,
     castBlink: Boolean = false,
     castFreeze: Boolean = false,
+    castCritical: Boolean = false,
     pointerWorld: Option[BattleCommandVector] = None,
     switchWeaponDirection: BattleWeaponSwitchDirection = BattleWeaponSwitchDirection.NoSwitch,
-    switchWeaponIndex: Option[Int] = None
+    switchWeaponIndex: Option[Int] = None,
+    battleId: BattleId = BattleId("battle-state-runtime")
   ): BattleCommandRequest =
     BattleCommandRequest(
-      battleId = BattleId("battle-state-runtime"),
+      battleId = battleId,
       playerId = playerId,
       ticketId = ticketId,
       clientTick = BattleTick(0L),
@@ -2134,11 +2555,28 @@ private[contract] object BattleStateRuntimeContractTest:
       skillIntents = BattleCommandSkillIntents.fromLegacyFlags(
         castDash = castDash,
         castBlink = castBlink,
-        castFreeze = castFreeze
+        castFreeze = castFreeze,
+        castCritical = castCritical
       ),
       pointerWorld = pointerWorld,
       switchWeaponDirection = switchWeaponDirection,
       switchWeaponIndex = switchWeaponIndex.flatMap(BattleWeaponSwitchIndex.fromWire)
+    )
+
+  private def queueJoin(
+    handle: String,
+    sessionToken: String,
+    battleMode: BattleMode,
+    queueRequestId: String
+  ): BattleQueueJoinCommand =
+    BattleQueueJoinCommand(
+      handle = PlayerHandle(handle),
+      sessionToken = SessionToken(sessionToken),
+      battleMode = battleMode,
+      queueRequestId = Some(QueueRequestId(queueRequestId)),
+      rating = Some(Rating(1200)),
+      avatar = None,
+      skin = None
     )
 
   private def battleState(service: InMemoryBattleStateService, context: String): BattleAggregateState =
@@ -2147,6 +2585,9 @@ private[contract] object BattleStateRuntimeContractTest:
 
   private def playerById(state: BattleAggregateState, playerId: PlayerId): BattlePlayerState =
     state.players.find(_.playerId == playerId).getOrElse(fail(s"missing player ${playerId.value}"))
+
+  private def skillByKind(player: BattlePlayerState, skillKind: SkillKind) =
+    player.skills.find(_.skillKind == skillKind).getOrElse(fail(s"missing skill ${SkillKind.wireValue(skillKind)} for ${player.playerId.value}"))
 
   private def aliceWeapon(service: InMemoryBattleStateService, context: String): BattleWeaponState =
     val state = battleState(service, context)

@@ -36,6 +36,7 @@ enum SkinId {
   case Survivor
   case Soldier
   case Old
+  case Zombie
 }
 
 object SkinId {
@@ -46,6 +47,7 @@ object SkinId {
       case "survivor" => Some(SkinId.Survivor)
       case "soldier"  => Some(SkinId.Soldier)
       case "old"      => Some(SkinId.Old)
+      case "zombie"   => Some(SkinId.Zombie)
       case _          => None
     }
   }
@@ -56,6 +58,7 @@ object SkinId {
       case SkinId.Survivor => "survivor"
       case SkinId.Soldier  => "soldier"
       case SkinId.Old      => "old"
+      case SkinId.Zombie   => "zombie"
     }
 }
 

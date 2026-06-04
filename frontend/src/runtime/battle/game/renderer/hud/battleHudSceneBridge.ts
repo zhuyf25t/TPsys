@@ -1,26 +1,13 @@
-import type { GameSnapshot, Vec2 } from "../../../../../objects/battle/types";
-import { WEAPON_PICKUP_RADIUS } from "../../constants";
-import { getSelectedSkillSlots } from "../../../../../apis/battle/loadoutGateway";
-import type { HudMinimapRect } from "../../ui/Hud";
+import { WEAPON_PICKUP_RADIUS } from "../../objects/BattleGameConstants";
+import { getSelectedSkillSlots } from "../../../loadout/BattleLoadoutStore";
 import { formatMatchTime } from "../../../game/presenters/battleDisplayCatalog";
-import { findNearbyItemPickup, findNearbyPickup } from "../../../local/pickups/pickupLifecycle";
+import { findNearbyItemPickup, findNearbyWeaponPickup } from "../../../microservices/abilities/functions/BattlePickupRules";
 import { Hud } from "../../ui/Hud";
-import { createHudState, type HudPresenterObstacleBounds } from "../../presenters/hudPresenter";
-import { getCurrentWeapon } from "../../../local/weapons/weaponActionController";
+import { createHudState } from "../../presenters/hudPresenter";
+import { getCurrentWeapon } from "../../../microservices/combat/functions/BattleWeaponInventoryRules";
+import type { BattleHudSceneBridgeContext } from "./objects/BattleHudSceneBridgeObjects";
 
 const HUD_UPDATE_INTERVAL_MS = 75;
-
-export interface BattleHudSceneBridgeContext {
-  snapshot: GameSnapshot;
-  fps: number;
-  weaponSwitchRemainingMs: number;
-  sharedAuthoritativeHud: boolean;
-  playerDisplayPosition?: Vec2;
-  camera: {
-    worldView: HudMinimapRect;
-  };
-  obstacleBounds: readonly HudPresenterObstacleBounds[];
-}
 
 export class BattleHudSceneBridge {
   private readonly hud: Hud;
@@ -46,7 +33,7 @@ export class BattleHudSceneBridge {
     }
     this.markHudRendered(snapshot.elapsedMs);
 
-    const { fps, weaponSwitchRemainingMs, sharedAuthoritativeHud, playerDisplayPosition, camera, obstacleBounds } = context;
+    const { fps, weaponSwitchRemainingMs, sharedAuthoritativeHud, playerDisplayPosition, camera, obstacleBounds, mapExpanded } = context;
     const playerHero = snapshot.heroes.find((hero) => hero.heroId === snapshot.playerHeroId);
     if (!playerHero) {
       throw new Error(`Missing player hero ${snapshot.playerHeroId}`);
@@ -61,17 +48,16 @@ export class BattleHudSceneBridge {
       timer: formatMatchTime(snapshot.elapsedMs),
       weaponSwitchRemainingMs,
       sharedAuthoritativeHud,
-      nearbyWeaponPickup: findNearbyPickup(nearbyPickupPosition, snapshot.weaponPickups, WEAPON_PICKUP_RADIUS),
+      nearbyWeaponPickup: findNearbyWeaponPickup(nearbyPickupPosition, snapshot.weaponPickups, WEAPON_PICKUP_RADIUS),
       nearbyItemPickup: findNearbyItemPickup(nearbyPickupPosition, snapshot.itemPickups, WEAPON_PICKUP_RADIUS),
-      skillBindings: sharedAuthoritativeHud
-        ? []
-        : getSelectedSkillSlots().map((slot) => ({
-            key: slot.key,
-            skillId: slot.skillId,
-            label: slot.label
-          })),
+      skillBindings: getSelectedSkillSlots().map((slot) => ({
+        key: slot.key,
+        skillId: slot.skillId,
+        label: slot.label
+      })),
       cameraRect: camera.worldView,
-      obstacleBounds
+      obstacleBounds,
+      mapExpanded
     });
 
     this.hud.update(hudState);

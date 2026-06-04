@@ -1,4 +1,4 @@
-import { loadBattleResults, type BackendBattleResultRecord } from "../battle/battleResultsApi";
+import { loadBattleResults, type BackendBattleResultRecord } from "../battle/microservices/results/api/BattleResultsApi";
 import { buildContributionSnapshotForHandle } from "../governance/contributionGateway";
 import { loadContributionAdjustments } from "../governance/governanceGateway";
 import { loadIdentityAccounts, type IdentityAccountSummary } from "./identityApi";

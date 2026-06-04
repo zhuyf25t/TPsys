@@ -1,18 +1,20 @@
 import {
   postBattleRoomHeartbeatAPIMessage,
-  postBattleRoomSnapshotAPIMessage,
-  type BattleRoomHeartbeatAPIMessageRequest
-} from "../../../apis/battle/battleApiMessageClient";
+  postBattleRoomSnapshotAPIMessage
+} from "../../../apis/battle/microservices/queue/api/BattleQueueApiMessageClient";
+import type { BattleRoomHeartbeatAPIMessageRequest } from "../../../objects/battle/microservices/queue/api/room/BattleRoomHeartbeatApiTypes";
 import type {
   BattleModeIdDto,
   BattleQueueParticipantResponseDto,
   BattleSessionBootstrapResponseDto,
   BattleSessionBootstrapSeatResponseDto,
   BattleSessionDescriptorResponseDto,
-  BattleSessionRosterEntryResponseDto,
+  BattleSessionRosterEntryResponseDto
+} from "../../../objects/battle/microservices/queue/api/shared/BattleLobbySharedApiTypes";
+import type {
   RealtimeRoomSnapshotResponseDto
-} from "../../../objects/battle/contracts/apiMessages";
-import { battleModeDisplayLabel } from "../battleModeDisplayLabels";
+} from "../../../objects/battle/microservices/queue/api/room/BattleRoomSnapshotApiTypes";
+import { battleModeDisplayLabel } from "../../../objects/battle/objects/core/BattleModeDisplayLabels";
 
 export type RealtimeRoomPhase = "waiting" | "active" | "finished" | "unknown";
 

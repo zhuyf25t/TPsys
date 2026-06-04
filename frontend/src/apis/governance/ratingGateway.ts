@@ -1,4 +1,4 @@
-import { loadBattleResults, type BackendBattleResultRecord } from "../battle/battleResultsApi";
+import { loadBattleResults, type BackendBattleResultRecord } from "../battle/microservices/results/api/BattleResultsApi";
 import { loadIdentityAccounts, type IdentityAccountSummary } from "../identity/identityApi";
 import { isPlayableIdentityHandle, normalizePlayerHandleKey } from "../../objects/identity/identityHandlePolicy";
 

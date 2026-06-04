@@ -1,5 +1,7 @@
 package services.battle.microservices.queue.services
 
+import cats.effect.IO
+
 import BattleQueueSnapshots.toQueueSnapshot
 import services.battle.microservices.queue.objects.queue.*
 
@@ -21,16 +23,19 @@ private[battle] object BattleQueueRequestReuseRules {
     queueRequestId: QueueRequestId,
     battleMode: BattleMode,
     now: EpochMillis
-  ): BattleQueueRequestReuseResult =
+  ): IO[BattleQueueRequestReuseResult] =
     queueRequests.get(queueRequestId) match {
       case None =>
-        BattleQueueRequestReuseResult(snapshot = None, queueRequests = queueRequests)
+        IO.pure(BattleQueueRequestReuseResult(snapshot = None, queueRequests = queueRequests))
       case Some(ticketId) =>
-        val snapshot = waitingSnapshot(tickets, rooms, ticketId, now).filter(_.battleMode == battleMode)
-        val nextQueueRequests =
-          if snapshot.isEmpty then queueRequests.removed(queueRequestId)
-          else queueRequests
-        BattleQueueRequestReuseResult(snapshot = snapshot, queueRequests = nextQueueRequests)
+        for
+          waiting <- waitingSnapshot(tickets, rooms, ticketId, now)
+          snapshot <- IO.pure(waiting.filter(_.battleMode == battleMode))
+          nextQueueRequests <- IO.pure(
+            if snapshot.isEmpty then queueRequests.removed(queueRequestId)
+            else queueRequests
+          )
+        yield BattleQueueRequestReuseResult(snapshot = snapshot, queueRequests = nextQueueRequests)
     }
 
   private def waitingSnapshot(
@@ -38,16 +43,24 @@ private[battle] object BattleQueueRequestReuseRules {
     rooms: Map[RoomId, QueueRoom],
     ticketId: TicketId,
     now: EpochMillis
-  ): Option[BattleQueueSnapshot] =
+  ): IO[Option[BattleQueueSnapshot]] =
     tickets.get(ticketId) match {
       case None =>
-        None
+        IO.pure(None)
       case Some(record) =>
-        rooms.get(record.roomId).filter(_.isWaiting) match {
+        rooms.get(record.roomId) match {
           case None =>
-            None
+            IO.pure(None)
           case Some(room) =>
-            room.participants.find(_.ticketId == ticketId).map(entry => toQueueSnapshot(room, entry, now))
+            room.isWaiting.flatMap {
+              case false =>
+                IO.pure(None)
+              case true =>
+                room.participants.find(_.ticketId == ticketId) match {
+                  case Some(entry) => toQueueSnapshot(room, entry, now).map(Some(_))
+                  case None        => IO.pure(None)
+                }
+            }
         }
     }
 }

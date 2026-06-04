@@ -1,13 +1,15 @@
 package services.battle.microservices.runtime.services
 
+import cats.effect.IO
+
 import services.battle.microservices.actors.services.BattleInputRules
 import services.battle.microservices.actors.objects.player.BattlePlayerState
 import services.battle.microservices.abilities.objects.pickup.BattlePickupState
 import services.battle.microservices.combat.objects.projectile.BattleProjectileState
 import services.battle.microservices.combat.objects.weapon.{BattleWeaponState, WeaponKind}
 import services.battle.microservices.combat.services.BattleWeaponRules
-import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
 import services.battle.microservices.projections.objects.replay.BattleReplayFrameState
+import services.battle.microservices.world.objects.world.BattleArenaContext
 import services.battle.microservices.world.services.{BattleArenaCatalog, BattleInitialLayout}
 import services.battle.microservices.abilities.services.BattleSkillCommandRules.CommandApplication
 import services.battle.microservices.runtime.services.BattleReplayFrameRecorder
@@ -25,59 +27,54 @@ import services.battle.objects.{
 }
 
 object BattleEngine {
-  val DefaultBattleDuration: DurationMillis =
-    BattleRuntimeRuleBook.runtime.defaultBattleDuration
+  def DefaultBattleDuration(battleRules: BattleDynamicRuleBook): IO[DurationMillis] =
+    battleRules.runtime.map(_.defaultBattleDuration)
 
-  val TickStep: DurationMillis =
-    BattleRuntimeRuleBook.runtime.tickStep
+  def TickStep(battleRules: BattleDynamicRuleBook): IO[DurationMillis] =
+    battleRules.runtime.map(_.tickStep)
 
-  def WorldSize: BattleVector2 =
-    BattleArenaCatalog.WorldSize
+  def worldSize(mapId: BattleMapId, battleRules: BattleDynamicRuleBook): IO[BattleVector2] =
+    BattleArenaCatalog.contextFor(mapId, battleRules).map(_.worldSize)
 
   val ZeroVector: BattleVector2 =
-    BattleArenaCatalog.ZeroVector
+    BattleArenaContext.ZeroVector
 
-  def withMap[A](mapId: BattleMapId)(work: => A): A =
-    BattleArenaCatalog.withMap(mapId)(work)
+  def initialPickups(mapId: BattleMapId, battleRules: BattleDynamicRuleBook): IO[Vector[BattlePickupState]] =
+    BattleInitialLayout.initialPickups(mapId, battleRules)
 
-  def initialPickups: Vector[BattlePickupState] =
-    BattleInitialLayout.initialPickups
+  def spawnPointFor(mapId: BattleMapId, index: SpawnPointIndex, battleRules: BattleDynamicRuleBook): IO[BattleVector2] =
+    BattleInitialLayout.spawnPointFor(mapId, index, battleRules)
 
-  def spawnPointFor(index: SpawnPointIndex): BattleVector2 =
-    BattleInitialLayout.spawnPointFor(index)
-
-  def createWeaponState(weaponKind: WeaponKind): BattleWeaponState =
-    BattleWeaponRules.createWeaponState(weaponKind)
+  def createWeaponState(weaponKind: WeaponKind, battleRules: BattleDynamicRuleBook): IO[BattleWeaponState] =
+    BattleWeaponRules.createWeaponState(weaponKind, battleRules)
 
   def captureReplayFrame(
     elapsedMs: ElapsedMillis,
     players: Vector[BattlePlayerState],
     projectiles: Vector[BattleProjectileState],
     pickups: Vector[BattlePickupState]
-  ): BattleReplayFrameState =
+  ): IO[BattleReplayFrameState] =
     BattleReplayFrameRecorder.captureFrame(elapsedMs, players, projectiles, pickups)
 
   def advanceStateStep(
     state: BattleAggregateState,
     requestedDeltaMs: Long,
-    now: EpochMillis
-  ): BattleAggregateState =
-    withMap(state.mapId) {
-      BattleRuntimeStepRules.advanceStateStep(state, requestedDeltaMs, now)
-    }
+    now: EpochMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] =
+    BattleRuntimeStepRules.advanceStateStep(state, requestedDeltaMs, now, battleRules)
 
-  def finishedAtForRoom(state: BattleAggregateState): EpochMillis =
-    BattleRuntimeFinishRules.finishedAtForRoom(state)
+  def finishedAtForRoom(state: BattleAggregateState, battleRules: BattleDynamicRuleBook): IO[EpochMillis] =
+    BattleRuntimeFinishRules.finishedAtForRoom(state, battleRules)
 
-  def lastClientCommandSeq(state: BattleAggregateState, playerId: PlayerId): ClientCommandSeq =
+  def lastClientCommandSeq(state: BattleAggregateState, playerId: PlayerId): IO[ClientCommandSeq] =
     BattleInputRules.lastClientCommandSeq(state, playerId)
 
   def applyCommand(
     state: BattleAggregateState,
     player: BattlePlayerState,
-    request: BattleCommandRequest
-  ): CommandApplication =
-    withMap(state.mapId) {
-      BattleCommandApplicationRules.applyCommand(state, player, request)
-    }
+    request: BattleCommandRequest,
+    battleRules: BattleDynamicRuleBook
+  ): IO[CommandApplication] =
+    BattleCommandApplicationRules.applyCommand(state, player, request, battleRules)
 }

@@ -1,26 +1,25 @@
 package services
 
-import cats.effect.IO
-import cats.effect.unsafe.implicits.global
+import cats.effect.{IO, Resource}
 import cats.syntax.all.*
 
 import services.battle.objects.DurationMillis
-import services.battle.microservices.abilities.database.{BattlePickupRuleBook, BattleSkillRuleBook}
 import services.battle.microservices.abilities.database.{BattleAbilityRuleTable, BattleAbilityRuleTableInitializer}
-import services.battle.microservices.actors.database.BattleBotRuleBook
 import services.battle.microservices.actors.database.{BattleActorRuleTable, BattleActorRuleTableInitializer}
-import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
 import services.battle.microservices.runtime.database.{BattleRuntimeRuleTable, BattleRuntimeRuleTableInitializer}
-import services.battle.microservices.world.database.BattleWorldRuleBook
-import services.battle.microservices.world.database.{BattleWorldRuleTable, BattleWorldRuleTableInitializer}
+import services.battle.microservices.world.database.{
+  BattleWorldDefaultMapRuleSeeder,
+  BattleWorldRuleTable,
+  BattleWorldRuleTableInitializer
+}
 import services.battle.microservices.results.database.BattleResultTableInitializer
 import services.battle.microservices.session.services.{
   BattleStateService,
   InMemoryBattleStateService
 }
-import services.battle.microservices.combat.database.BattleCombatRuleBook
 import services.battle.microservices.combat.database.{BattleCombatRuleTable, BattleCombatRuleTableInitializer}
 import services.battle.microservices.projections.services.{BattleMailPublisherPort, BattleReplayWriterPort, DefaultBattleFinishProjector}
+import services.battle.microservices.runtime.services.{BattleDynamicRuleBook, BattleDynamicRules}
 import services.battle.microservices.queue.services.{
   BattleQueueJoinAuthorizationService,
   BattleQueueService,
@@ -61,9 +60,19 @@ final case class BackendRuntime(
 )
 
 object BackendRuntime {
-  def fromEnvironment(env: Map[String, String]): BackendRuntime = {
-    val config = BackendConfig.unsafeFromEnvironment(env)
-    initializeBattleDynamicRules(config)
+  def resource(env: Map[String, String]): Resource[IO, BackendRuntime] =
+    Resource.make(fromEnvironment(env))(_ => IO.blocking(PostgresSupport.closeAll()))
+
+  def fromEnvironment(env: Map[String, String]): IO[BackendRuntime] =
+    for
+      config <- IO.blocking(BackendConfig.unsafeFromEnvironment(env))
+      loadedBattleRules <- loadBattleDynamicRules(config)
+      battleRules <- BattleDynamicRuleBook.create(loadedBattleRules)
+      runtime <- create(config, battleRules)
+    yield runtime
+
+  private def create(config: BackendConfig, battleRules: BattleDynamicRuleBook): IO[BackendRuntime] =
+    InMemoryBattleQueueService.create().flatMap { battleQueueService =>
     val battleConnection = battlePostgresConnection(config)
     val healthService = StaticHealthService(ServiceName.Backend, config.port, config.storage.mode)
     val repositories = BackendRepositories.fromStorage(config.storage)
@@ -73,7 +82,6 @@ object BackendRuntime {
       sessionTokenGenerator = UuidSessionTokenGenerator(),
       passwordHasher = Pbkdf2PasswordHasher()
     )
-    val battleQueueService = InMemoryBattleQueueService()
     val battleJoinAuthorizationService = DefaultBattleQueueJoinAuthorizationService(identityService)
     val replayService = DefaultReplayService(repositories.replay, () => System.currentTimeMillis())
     val mailService = DefaultMailService(repositories.mail, () => System.currentTimeMillis())
@@ -90,12 +98,6 @@ object BackendRuntime {
       replayWriter = battleReplayWriter,
       mailPublisher = battleMailPublisher
     )
-    val battleStateService = InMemoryBattleStateService(
-      battleQueueService,
-      battleDurationFor,
-      battleFinishProjector,
-      battleQueueService
-    )
     val botProfileService = DefaultBotProfileService(repositories.botProfiles)
     val friendRequestService = DefaultFriendRequestService(
       repositories.friendRequests,
@@ -105,59 +107,71 @@ object BackendRuntime {
     val forumService = DefaultForumService(repositories.forum, () => System.currentTimeMillis())
     val governanceService = DefaultGovernanceService(repositories.governance, repositories.mail, () => System.currentTimeMillis())
 
-    BackendRuntime(
-      config = config,
-      healthService = healthService,
-      battleQueueService = battleQueueService,
-      battleJoinAuthorizationService = battleJoinAuthorizationService,
-      battleStateService = battleStateService,
-      identityService = identityService,
-      replayService = replayService,
-      mailService = mailService,
-      botProfileService = botProfileService,
-      friendRequestService = friendRequestService,
-      forumService = forumService,
-      contributionAdjustmentService = governanceService,
-      governanceNotificationService = governanceService
-    )
-  }
-
-  private def initializeBattleDynamicRules(config: BackendConfig): Unit =
-    config.storage match {
-      case StorageConfig.Postgres(connectionSettings) =>
-        PostgresSupport.withConnection(connectionSettings) { connection =>
-          val loadRules =
-            for {
-              _ <- BattleWorldRuleTableInitializer.initialize(connection)
-              worldRules <- BattleWorldRuleTable.load(connection)
-              _ <- IO.blocking(BattleWorldRuleBook.replace(worldRules))
-              _ <- BattleRuntimeRuleTableInitializer.initialize(connection)
-              runtimeRules <- BattleRuntimeRuleTable.load(connection)
-              _ <- IO.blocking(BattleRuntimeRuleBook.replace(runtimeRules))
-              _ <- BattleCombatRuleTableInitializer.initialize(connection)
-              combatRules <- BattleCombatRuleTable.list(connection)
-              _ <- IO.raiseWhen(combatRules.isEmpty)(
-                IllegalStateException("PostgreSQL table battle_combat_weapon_rules has no rows.")
-              )
-              _ <- IO.blocking(BattleCombatRuleBook.replaceAll(combatRules))
-              _ <- BattleAbilityRuleTableInitializer.initialize(connection)
-              skillRules <- BattleAbilityRuleTable.loadRuleSet(connection)
-              _ <- IO.blocking(BattleSkillRuleBook.replace(skillRules))
-              pickupRules <- BattleAbilityRuleTable.loadActivePickup(connection)
-              _ <- IO.blocking(BattlePickupRuleBook.replace(pickupRules))
-              _ <- BattleActorRuleTableInitializer.initialize(connection)
-              botRules <- BattleActorRuleTable.loadActive(connection)
-              _ <- IO.blocking(BattleBotRuleBook.replace(botRules))
-              _ <- BattleResultTableInitializer.initialize(connection)
-            } yield ()
-          loadRules.unsafeRunSync()
-        }
-      case StorageConfig.InMemory | StorageConfig.File(_) =>
-        throw IllegalStateException("Battle dynamic rules require PostgreSQL storage.")
+    battleDurationFor(battleRules).flatMap { battleDuration =>
+      InMemoryBattleStateService
+        .create(
+        battleQueueService,
+        battleDuration,
+        battleRules,
+        battleFinishProjector,
+        battleQueueService
+      )
+      .map { battleStateService =>
+        BackendRuntime(
+          config = config,
+          healthService = healthService,
+          battleQueueService = battleQueueService,
+          battleJoinAuthorizationService = battleJoinAuthorizationService,
+          battleStateService = battleStateService,
+          identityService = identityService,
+          replayService = replayService,
+          mailService = mailService,
+          botProfileService = botProfileService,
+          friendRequestService = friendRequestService,
+          forumService = forumService,
+          contributionAdjustmentService = governanceService,
+          governanceNotificationService = governanceService
+        )
+      }
+    }
     }
 
-  private def battleDurationFor: DurationMillis =
-    BattleRuntimeRuleBook.runtime.defaultBattleDuration
+  private def loadBattleDynamicRules(config: BackendConfig): IO[BattleDynamicRules] =
+    config.storage match {
+      case StorageConfig.Postgres(connectionSettings) =>
+        PostgresSupport.withConnectionIO(connectionSettings) { connection =>
+          for {
+            _ <- BattleWorldRuleTableInitializer.initialize(connection)
+            _ <- BattleWorldDefaultMapRuleSeeder.upsertDefaultMaps(connection)
+            worldRules <- BattleWorldRuleTable.load(connection)
+            _ <- BattleRuntimeRuleTableInitializer.initialize(connection)
+            runtimeRules <- BattleRuntimeRuleTable.load(connection)
+            _ <- BattleCombatRuleTableInitializer.initialize(connection)
+            combatRules <- BattleCombatRuleTable.list(connection)
+            _ <- BattleAbilityRuleTableInitializer.initialize(connection)
+            _ <- BattleAbilityRuleTable.upsertDefaultSkillRules(connection)
+            skillRules <- BattleAbilityRuleTable.loadRuleSet(connection)
+            pickupRules <- BattleAbilityRuleTable.loadActivePickup(connection)
+            _ <- BattleActorRuleTableInitializer.initialize(connection)
+            _ <- BattleActorRuleTable.upsertDefaultBotRules(connection)
+            botRules <- BattleActorRuleTable.loadActive(connection)
+            _ <- BattleResultTableInitializer.initialize(connection)
+            battleRules <- BattleDynamicRules.fromLoaded(
+              worldRuleSet = worldRules,
+              runtimeRuleSet = runtimeRules,
+              combatRules = combatRules,
+              skillRuleSet = skillRules,
+              pickupRuleConfig = pickupRules,
+              botRuleConfig = botRules
+            )
+          } yield battleRules
+        }
+      case StorageConfig.InMemory | StorageConfig.File(_) =>
+        IO.raiseError(IllegalStateException("Battle dynamic rules require PostgreSQL storage."))
+    }
+
+  private def battleDurationFor(battleRules: BattleDynamicRuleBook): IO[DurationMillis] =
+    battleRules.runtime.map(_.defaultBattleDuration)
 
   private def battlePostgresConnection(config: BackendConfig): PostgresConnectionSettings =
     config.storage match {

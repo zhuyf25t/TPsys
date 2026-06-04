@@ -1,0 +1,2 @@
+export type Damage = number;
+

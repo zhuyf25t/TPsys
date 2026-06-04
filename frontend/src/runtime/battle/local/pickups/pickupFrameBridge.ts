@@ -1,8 +1,10 @@
-import type { GameSnapshot, Hero, Vec2 } from "../../../../objects/battle/types";
-import { AUTO_PICKUP_RADIUS } from "../../game/constants";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import { AUTO_PICKUP_RADIUS } from "../../game/objects/BattleGameConstants";
 import { advancePickupLifecycle } from "./pickupLifecycle";
 import { handleAutomaticPickupScene } from "./automaticPickupSceneHandler";
-import type { ObstacleBounds, OccludableView } from "../../game/renderer/arena/arenaBuilder";
+import type { ObstacleBounds, OccludableView } from "../../game/renderer/arena/objects/ArenaBuilderObjects";
 
 export interface PickupFrameBridgeInput {
   getSnapshot(): GameSnapshot;

@@ -1,5 +1,5 @@
-import type { GameSnapshot } from "../../../../objects/battle/types";
-import { FLOOR_TILE_SIZE, HERO_RADIUS } from "../constants";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import { FLOOR_TILE_SIZE, HERO_RADIUS } from "../objects/BattleGameConstants";
 import type { HudMinimapData, HudMinimapRect } from "../ui/Hud";
 
 export interface MinimapObstacleBounds {
@@ -19,7 +19,7 @@ export interface MinimapPresenterInput {
   obstacleBounds: readonly MinimapObstacleBounds[];
 }
 
-/** 中文名：创建minimap数据（createMinimapData）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** 涓枃鍚嶏細鍒涘缓minimap鏁版嵁锛坈reateMinimapData锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔垬鏂楀煙涓粍缁囨垬鏂楃晫闈€佺姸鎬併€佽緭鍏ユ垨娓叉煋鏁版嵁锛屼繚鎸佸鎴风鐜╂硶琛ㄨ揪涓庡悗绔绾︿竴鑷淬€?*/
 export function createMinimapData(input: MinimapPresenterInput): HudMinimapData {
   const { snapshot, cameraRect, obstacleBounds } = input;
   const clampedCameraX = clamp(cameraRect.x, 0, snapshot.worldSize.x);
@@ -60,6 +60,15 @@ export function createMinimapData(input: MinimapPresenterInput): HudMinimapData 
       width: Math.max(0, snapshot.worldSize.x - (FLOOR_TILE_SIZE + HERO_RADIUS) * 2),
       height: Math.max(0, snapshot.worldSize.y - (FLOOR_TILE_SIZE + HERO_RADIUS) * 2)
     },
+    gasZone: snapshot.gasZone
+      ? {
+          x: snapshot.gasZone.center.x,
+          y: snapshot.gasZone.center.y,
+          radius: snapshot.gasZone.radius,
+          nextRadius: snapshot.gasZone.nextRadius,
+          phase: snapshot.gasZone.phase
+        }
+      : null,
     pickups: [
       ...snapshot.weaponPickups.filter((pickup) => pickup.available).map((pickup) => ({
         x: pickup.position.x,

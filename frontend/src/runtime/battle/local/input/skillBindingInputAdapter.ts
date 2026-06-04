@@ -1,6 +1,6 @@
-import type { LoadoutSkillId, SkillSlotKey } from "../../../../apis/battle/loadoutGateway";
+import type { LoadoutSkillId, SkillSlotKey } from "../../loadout/BattleLoadoutStore";
 
-export type SkillBindingAction = "Blink" | "Dash" | "Freeze";
+export type SkillBindingAction = "Blink" | "Dash" | "Freeze" | "Critical";
 
 export type SkillSlotPressMap = Record<SkillSlotKey, boolean>;
 
@@ -12,7 +12,8 @@ export function readSkillBindingPresses(
   const pressed: Record<SkillBindingAction, boolean> = {
     Blink: false,
     Dash: false,
-    Freeze: false
+    Freeze: false,
+    Critical: false
   };
 
   for (const key of ["Q", "E", "R"] as SkillSlotKey[]) {

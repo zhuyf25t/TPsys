@@ -1,5 +1,7 @@
 package services.battle.microservices.runtime.services
 
+import cats.effect.IO
+
 import services.battle.microservices.actors.objects.player.{BattlePlayerState, HitPoints}
 import services.battle.microservices.abilities.objects.pickup.BattlePickupState
 import services.battle.microservices.combat.objects.projectile.BattleProjectileState
@@ -28,10 +30,15 @@ private[battle] object BattleReplayFrameRecorder {
     finished: Boolean,
     replayFrameSampleInterval: DurationMillis,
     retainedReplayFrameCount: BattleHistoryCount
-  ): Vector[BattleReplayFrameState] =
-    if hasRuntimeEvents || finished || shouldRecordIntervalFrame(frames, elapsedMs, replayFrameSampleInterval) then
-      appendFrame(frames, elapsedMs, players, projectiles, pickups, retainedReplayFrameCount)
-    else frames
+  ): IO[Vector[BattleReplayFrameState]] =
+    for
+      shouldRecord <-
+        if hasRuntimeEvents || finished then IO.pure(true)
+        else shouldRecordIntervalFrame(frames, elapsedMs, replayFrameSampleInterval)
+      nextFrames <-
+        if shouldRecord then appendFrame(frames, elapsedMs, players, projectiles, pickups, retainedReplayFrameCount)
+        else IO.pure(frames)
+    yield nextFrames
 
   def appendFrame(
     frames: Vector[BattleReplayFrameState],
@@ -40,19 +47,19 @@ private[battle] object BattleReplayFrameRecorder {
     projectiles: Vector[BattleProjectileState],
     pickups: Vector[BattlePickupState],
     retainedReplayFrameCount: BattleHistoryCount
-  ): Vector[BattleReplayFrameState] =
-    retainFrames(
-      frames.filterNot(_.elapsedMs == elapsedMs) :+ captureFrame(elapsedMs, players, projectiles, pickups),
-      retainedReplayFrameCount
-    )
+  ): IO[Vector[BattleReplayFrameState]] =
+    for
+      frame <- captureFrame(elapsedMs, players, projectiles, pickups)
+      retained <- retainFrames(frames.filterNot(_.elapsedMs == elapsedMs) :+ frame, retainedReplayFrameCount)
+    yield retained
 
   def captureFrame(
     elapsedMs: ElapsedMillis,
     players: Vector[BattlePlayerState],
     projectiles: Vector[BattleProjectileState],
     pickups: Vector[BattlePickupState]
-  ): BattleReplayFrameState =
-    BattleReplayFrameState(
+  ): IO[BattleReplayFrameState] =
+    IO.pure(BattleReplayFrameState(
       elapsedMs = ElapsedMillis(math.max(0L, elapsedMs.value)),
       heroes = players.sortBy(_.seat.value).map { player =>
         BattleReplayHeroFrameState(
@@ -92,22 +99,22 @@ private[battle] object BattleReplayFrameRecorder {
           pickupAvailability = pickup.pickupAvailability
         )
       }
-    )
+    ))
 
   private def shouldRecordIntervalFrame(
     frames: Vector[BattleReplayFrameState],
     elapsedMs: ElapsedMillis,
     replayFrameSampleInterval: DurationMillis
-  ): Boolean =
-    elapsedMs.value > 0L && {
+  ): IO[Boolean] =
+    IO.pure(elapsedMs.value > 0L && {
       val latestElapsedMs = frames.map(_.elapsedMs.value).maxOption.getOrElse(0L)
       elapsedMs.value / replayFrameSampleInterval.value > latestElapsedMs / replayFrameSampleInterval.value
-    }
+    })
 
   private def retainFrames(
     frames: Vector[BattleReplayFrameState],
     retainedReplayFrameCount: BattleHistoryCount
-  ): Vector[BattleReplayFrameState] = {
+  ): IO[Vector[BattleReplayFrameState]] = IO.pure {
     val distinctFrames = frames.sortBy(_.elapsedMs.value).foldLeft(Vector.empty[BattleReplayFrameState]) {
       case (accumulator, frame) if accumulator.lastOption.exists(_.elapsedMs == frame.elapsedMs) =>
         accumulator.dropRight(1) :+ frame

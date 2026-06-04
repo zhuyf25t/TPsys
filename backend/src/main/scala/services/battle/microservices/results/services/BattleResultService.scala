@@ -17,49 +17,54 @@ import system.policies.HandlePolicy
 
 object BattleResultService {
   def list(connection: Connection, query: BattleResultListQuery): IO[Vector[BattleResultRecord]] =
-    IO.blocking {
-      listPlayableRecords(query) { limit =>
-        BattleResultTable.list(connection, query.handle, query.battleId, limit)
-      }
+    listPlayableRecords(query) { limit =>
+      BattleResultTable.list(connection, query.handle, query.battleId, limit)
     }
 
   def record(
     connection: Connection,
     command: BattleResultRecordCommand
   ): IO[Either[BattleResultRecordValidationError, BattleResultRecord]] =
-    validateRecordHandle(command.handle) match {
+    validateRecordHandle(command.handle).flatMap {
       case Left(error) =>
         IO.pure(Left(error))
       case Right(handle) =>
-        val record = buildRecord(command, handle)
-        PostgresSupport
-          .withTransactionIO(connection)(IO.blocking(BattleResultTable.save(connection, record)))
-          .map(Right(_))
+        for
+          record <- buildRecord(command, handle)
+          saved <- PostgresSupport.withTransactionIO(connection)(BattleResultTable.save(connection, record))
+        yield Right(saved)
     }
 
   private def listPlayableRecords(
     query: BattleResultListQuery
-  )(load: Int => Vector[BattleResultRecord]): Vector[BattleResultRecord] = {
+  )(load: Int => IO[Vector[BattleResultRecord]]): IO[Vector[BattleResultRecord]] = {
     val safeLimit = math.max(0, math.min(query.limit.value, 100))
     query.handle match {
       case Some(owner) if !HandlePolicy.isPlayableIdentityHandle(owner.value) =>
-        Vector.empty
+        IO.pure(Vector.empty)
       case _ =>
         load(safeLimit * 3)
-          .filter(record => HandlePolicy.isPlayableIdentityHandle(record.handle.value))
-          .take(safeLimit)
+          .map(
+            _.filter(record => HandlePolicy.isPlayableIdentityHandle(record.handle.value))
+              .take(safeLimit)
+          )
     }
   }
 
-  private def validateRecordHandle(handle: PlayerHandle): Either[BattleResultRecordValidationError, PlayerHandle] = {
+  private def validateRecordHandle(handle: PlayerHandle): IO[Either[BattleResultRecordValidationError, PlayerHandle]] = IO.pure {
     val trimmed = HandlePolicy.trim(handle.value)
     if trimmed.isEmpty then Left(BattleResultRecordValidationError.InvalidHandle)
     else if HandlePolicy.isVisitorLikeHandle(trimmed) then Left(BattleResultRecordValidationError.VisitorNotAllowed)
     else PlayerHandle.forLookup(trimmed).toRight(BattleResultRecordValidationError.InvalidHandle)
   }
 
-  private def buildRecord(command: BattleResultRecordCommand, handle: PlayerHandle): BattleResultRecord =
-    BattleResultRecord(
+  private def buildRecord(command: BattleResultRecordCommand, handle: PlayerHandle): IO[BattleResultRecord] =
+    for
+      currentLoadout <- command.currentLoadout match {
+        case Some(value) => nonEmpty(value)
+        case None        => IO.pure(None)
+      }
+    yield BattleResultRecord(
       battleId = command.battleId,
       handle = handle,
       displayName = command.displayName,
@@ -78,9 +83,9 @@ object BattleResultService {
       highlightLine = command.highlightLine,
       playersLine = command.playersLine,
       timelineHint = command.timelineHint,
-      currentLoadout = command.currentLoadout.flatMap(nonEmpty)
+      currentLoadout = currentLoadout
     )
 
-  private def nonEmpty(value: String): Option[String] =
-    Option(value).map(_.trim).filter(_.nonEmpty)
+  private def nonEmpty(value: String): IO[Option[String]] =
+    IO.pure(Option(value).map(_.trim).filter(_.nonEmpty))
 }

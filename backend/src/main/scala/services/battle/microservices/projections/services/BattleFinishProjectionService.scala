@@ -29,22 +29,23 @@ final class DefaultBattleFinishProjector(
     if state.phase != BattlePhase.Finished then IO.pure(BattleFinishProjectionOutcome.NotConfigured)
     else
       (for
+        humanPlayers <- BattleFinishProjectionPlanner.humanPlayersByPlacement(state)
         previousRatings <- previousRatingsFor(
           state.battleId,
-          BattleFinishProjectionPlanner.humanPlayersByPlacement(state)
+          humanPlayers
         )
-        plan <- IO.pure(BattleFinishProjectionPlanner.build(state, previousRatings))
+        plan <- BattleFinishProjectionPlanner.build(state, previousRatings)
         resultOutcome <-
           if BattleArtifactStatus.isResultReady(state.artifactStatus) then IO.pure(BattleProjectionArtifactWriteOutcome.Projected)
           else writeArtifact("result", state.battleId, plan, resultArtifactWriter)
         replayOutcome <-
           if BattleArtifactStatus.isReplayReady(state.artifactStatus) then IO.pure(BattleProjectionArtifactWriteOutcome.Projected)
           else writeArtifact("replay", state.battleId, plan, replayArtifactWriter)
-        outcome <- IO.pure(BattleProjectionArtifactWriteOutcome.combine(resultOutcome, replayOutcome))
+        outcome <- BattleProjectionArtifactWriteOutcome.combine(resultOutcome, replayOutcome)
       yield outcome).handleErrorWith {
         case NonFatal(error) =>
-          val message = failureMessage(error)
           for
+            message <- failureMessage(error)
             _ <- failureReporter.reportFailure(state.battleId, message)
           yield BattleFinishProjectionOutcome.Failed(message)
       }
@@ -65,8 +66,8 @@ final class DefaultBattleFinishProjector(
       _ <- write
     yield BattleProjectionArtifactWriteOutcome.Projected).handleErrorWith {
       case NonFatal(error) =>
-        val message = failureMessage(error)
         for
+          message <- failureMessage(error)
           _ <- failureReporter.reportFailure(battleId, s"$label: $message")
         yield BattleProjectionArtifactWriteOutcome.Failed(message)
     }
@@ -80,19 +81,19 @@ final class DefaultBattleFinishProjector(
         ratings <- previous
         rating <- fetchPreviousRating(battleId, player.handle)
       yield ratings :+ (player.handle -> rating)
-    }.map(BattlePreviousRatings.fromRatings)
+    }.flatMap(BattlePreviousRatings.fromRatings)
 
   private def fetchPreviousRating(battleId: BattleId, handle: PlayerHandle): IO[Rating] =
-    IO.blocking {
-      PostgresSupport
-        .withConnection(connectionSettings)(connection => BattleResultTable.list(connection, Some(handle), None, 25))
-        .filterNot(_.battleId == battleId)
+    PostgresSupport
+      .withConnectionIO(connectionSettings)(connection => BattleResultTable.list(connection, Some(handle), None, 25))
+      .map {
+        _.filterNot(_.battleId == battleId)
         .headOption
         .map(_.ratingAfter)
         .getOrElse(BattleSettlementScoringRules.DefaultRating)
-    }
+      }
 
-  private def failureMessage(error: Throwable): String = {
+  private def failureMessage(error: Throwable): IO[String] = IO.pure {
     val detail = Option(error.getMessage).map(_.trim).filter(_.nonEmpty).getOrElse(error.getClass.getSimpleName)
     s"${error.getClass.getSimpleName}: $detail"
   }
@@ -116,8 +117,8 @@ private[battle] object BattleProjectionArtifactWriteOutcome {
   def combine(
     resultOutcome: BattleProjectionArtifactWriteOutcome,
     replayOutcome: BattleProjectionArtifactWriteOutcome
-  ): BattleFinishProjectionOutcome =
-    (resultOutcome, replayOutcome) match {
+  ): IO[BattleFinishProjectionOutcome] =
+    IO.pure((resultOutcome, replayOutcome) match {
       case (BattleProjectionArtifactWriteOutcome.Projected, BattleProjectionArtifactWriteOutcome.Projected) =>
         BattleFinishProjectionOutcome.Projected
       case (BattleProjectionArtifactWriteOutcome.Projected, BattleProjectionArtifactWriteOutcome.Failed(message)) =>
@@ -129,5 +130,5 @@ private[battle] object BattleProjectionArtifactWriteOutcome {
             BattleProjectionArtifactWriteOutcome.Failed(replayMessage)
           ) =>
         BattleFinishProjectionOutcome.Failed(s"result: $resultMessage; replay: $replayMessage")
-    }
+    })
 }

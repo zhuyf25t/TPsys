@@ -16,17 +16,21 @@ private[battle] final class BattleResultProjectionArtifactWriter(
   mailPublisher: BattleMailPublisherPort
 ) extends BattleFinishProjectionArtifactWriter {
   override def write(plan: BattleFinishProjectionPlan): IO[Unit] =
-    plan.settlements.toVector.foldLeft(IO.unit) { case (previous, settlement) =>
-      for
-        _ <- previous
-        saved <- IO.blocking {
-          PostgresSupport.withTransactionConnection(connectionSettings) { connection =>
-            BattleResultTable.save(connection, settlement.result)
+    plan.settlements.toVector.flatMap { settlements =>
+      settlements.foldLeft(IO.unit) { case (previous, settlement) =>
+        for
+          _ <- previous
+          saved <- PostgresSupport.withConnectionIO(connectionSettings) { connection =>
+            PostgresSupport.withTransactionIO(connection)(BattleResultTable.save(connection, settlement.result))
           }
-        }
-        _ <- mailPublisher.publish(BattleFinishProjectionMailFactory.battleMail(saved))
-        _ <- if saved.ratingDelta.value != 0 then mailPublisher.publish(BattleFinishProjectionMailFactory.ratingMail(saved)) else IO.unit
-      yield ()
+          battleMail <- BattleFinishProjectionMailFactory.battleMail(saved)
+          _ <- mailPublisher.publish(battleMail)
+          _ <-
+            if saved.ratingDelta.value != 0 then
+              BattleFinishProjectionMailFactory.ratingMail(saved).flatMap(mailPublisher.publish)
+            else IO.unit
+        yield ()
+      }
     }
 }
 

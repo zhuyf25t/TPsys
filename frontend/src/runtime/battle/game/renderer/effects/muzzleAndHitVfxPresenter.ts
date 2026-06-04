@@ -1,18 +1,29 @@
 import Phaser from "phaser";
-import type { Vec2 } from "../../../../../objects/battle/types";
-
-type TrackTransient = <TObject extends Phaser.GameObjects.GameObject>(object: TObject) => TObject;
-type DestroyTransient = (object: Phaser.GameObjects.GameObject) => void;
-type CreateRingPulse = (position: Vec2, radius: number, color: number) => void;
-
-interface MuzzleAndHitVfxPresenterDependencies {
-  scene: Phaser.Scene;
-  trackTransient: TrackTransient;
-  destroyTransient: DestroyTransient;
-  createRingPulse: CreateRingPulse;
-}
-
-const MAX_MUZZLE_SPARKS = 8;
+import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/objects/core/BattleCoreScalars";
+import {
+  resolveMuzzleAndHitHitConfirmVfxPlan,
+  resolveMuzzleAndHitImpactSparkRandomSamplingPlan,
+  resolveMuzzleAndHitImpactSparkVfxPlan,
+  resolveMuzzleAndHitMuzzleBurstRandomSamplingPlan,
+  resolveMuzzleAndHitMuzzleBurstVfxPlan,
+  resolveMuzzleAndHitProjectileDissipateVfxPlan,
+  resolveMuzzleAndHitShockwaveVfxPlan
+} from "./functions/MuzzleAndHitVfxRules";
+import type {
+  CreateRingPulse,
+  DestroyTransient,
+  MuzzleAndHitCircleVfxShapePlan,
+  MuzzleAndHitGraphicsCommandPlan,
+  MuzzleAndHitGraphicsVfxPlan,
+  MuzzleAndHitImpactSparkRandomSamplingPlan,
+  MuzzleAndHitImpactSparkSample,
+  MuzzleAndHitMuzzleBurstRandomSamplingPlan,
+  MuzzleAndHitMuzzleBurstSample,
+  MuzzleAndHitRectangleVfxShapePlan,
+  MuzzleAndHitTweenPlan,
+  MuzzleAndHitVfxPresenterDependencies,
+  TrackTransient
+} from "./objects/MuzzleAndHitVfxObjects";
 
 export class MuzzleAndHitVfxPresenter {
   private readonly scene: Phaser.Scene;
@@ -33,109 +44,35 @@ export class MuzzleAndHitVfxPresenter {
   }
 
   public createImpactSpark(position: Vec2, color: number): void {
-    const burst = this.trackTransient(
-      this.scene.add
-        .circle(position.x, position.y, 5, color, 0.84)
-        .setDepth(67)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
-    burst.setStrokeStyle(1, 0xffffff, 0.46);
-    this.scene.tweens.add({
-      targets: burst,
-      alpha: 0,
-      scale: 1.8,
-      duration: 105,
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(burst)
+    const samplingPlan = resolveMuzzleAndHitImpactSparkRandomSamplingPlan();
+    const plan = resolveMuzzleAndHitImpactSparkVfxPlan({
+      position,
+      color,
+      samples: this.createImpactSparkSamples(samplingPlan)
     });
+    const burst = createMuzzleAndHitVfxCircle(this.scene, this.trackTransient, plan.burst.shape);
+    addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, burst, plan.burst.tween);
 
-    for (let index = 0; index < 5; index += 1) {
-      const angle = (Math.PI * 2 * index) / 5 + Phaser.Math.FloatBetween(-0.2, 0.2);
-      const sparkLength = Phaser.Math.Between(7, 12);
-      const spark = this.trackTransient(
-        this.scene.add
-          .rectangle(position.x, position.y, sparkLength, 2, color, 0.92)
-          .setOrigin(0, 0.5)
-          .setRotation(angle)
-          .setDepth(66)
-          .setBlendMode(Phaser.BlendModes.ADD)
-      );
-      this.scene.tweens.add({
-        targets: spark,
-        x: position.x + Math.cos(angle) * Phaser.Math.Between(14, 24),
-        y: position.y + Math.sin(angle) * Phaser.Math.Between(14, 24),
-        alpha: 0,
-        scaleX: 0.28,
-        scaleY: 0.7,
-        duration: 125,
-        ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(spark)
-      });
-    }
+    plan.sparks.forEach((sparkPlan) => {
+      const spark = createMuzzleAndHitVfxRectangle(this.scene, this.trackTransient, sparkPlan.shape);
+      addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, spark, sparkPlan.tween);
+    });
   }
 
   public createProjectileDissipate(position: Vec2, color: number): void {
-    const ring = this.trackTransient(
-      this.scene.add
-        .circle(position.x, position.y, 6, color, 0)
-        .setDepth(65)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
-    ring.setStrokeStyle(1, color, 0.34);
-    this.scene.tweens.add({
-      targets: ring,
-      alpha: 0,
-      scale: 1.75,
-      duration: 130,
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(ring)
-    });
+    const plan = resolveMuzzleAndHitProjectileDissipateVfxPlan({ position, color });
+    const ring = createMuzzleAndHitVfxCircle(this.scene, this.trackTransient, plan.ring.shape);
+    addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, ring, plan.ring.tween);
 
-    const mote = this.trackTransient(
-      this.scene.add
-        .circle(position.x, position.y, 2, color, 0.42)
-        .setDepth(66)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
-    this.scene.tweens.add({
-      targets: mote,
-      alpha: 0,
-      scale: 0.3,
-      duration: 95,
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(mote)
-    });
+    const mote = createMuzzleAndHitVfxCircle(this.scene, this.trackTransient, plan.mote.shape);
+    addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, mote, plan.mote.tween);
   }
 
   public createHitConfirm(position: Vec2, color: number): void {
-    const marker = this.trackTransient(this.scene.add.graphics().setDepth(82));
-    marker.setPosition(position.x, position.y);
-    marker.setBlendMode(Phaser.BlendModes.ADD);
-    marker.lineStyle(2, color, 0.92);
-    marker.strokeCircle(0, 0, 10);
-    marker.lineStyle(1, 0xffffff, 0.58);
-    marker.strokeCircle(0, 0, 5);
-    marker.fillStyle(color, 0.26);
-    marker.fillCircle(0, 0, 3);
-    marker.lineStyle(1, color, 0.72);
-    marker.lineBetween(0, -15, 4, -11);
-    marker.lineBetween(4, -11, 0, -7);
-    marker.lineBetween(0, -7, -4, -11);
-    marker.lineBetween(-4, -11, 0, -15);
-    marker.lineStyle(2, color, 0.92);
-    marker.lineBetween(-13, 0, -5, 0);
-    marker.lineBetween(5, 0, 13, 0);
-    marker.lineBetween(0, -13, 0, -5);
-    marker.lineBetween(0, 5, 0, 13);
-
-    this.scene.tweens.add({
-      targets: marker,
-      alpha: 0,
-      scale: 1.35,
-      duration: 155,
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(marker)
-    });
+    const plan = resolveMuzzleAndHitHitConfirmVfxPlan({ position, color });
+    const marker = createMuzzleAndHitVfxGraphics(this.scene, this.trackTransient, plan.graphics);
+    applyMuzzleAndHitGraphicsCommands(marker, plan.graphics.commands);
+    addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, marker, plan.tween);
   }
 
   public createMuzzleBurst(
@@ -145,95 +82,26 @@ export class MuzzleAndHitVfxPresenter {
     sparks: number,
     direction: Vec2
   ): void {
-    const facing = normalizeDirection(direction);
-    const perpendicular = perpendicularDirection(facing);
-    const rotation = Math.atan2(facing.y, facing.x);
-    this.createRingPulse(position, radius, color);
-
-    const core = this.trackTransient(
-      this.scene.add
-        .circle(
-          position.x + facing.x * 3,
-          position.y + facing.y * 3,
-          Math.max(4, radius * 0.42),
-          color,
-          0.86
-        )
-        .setDepth(67)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
-    core.setStrokeStyle(1, 0xffffff, 0.52);
-    this.scene.tweens.add({
-      targets: core,
-      alpha: 0,
-      scale: 1.75,
-      duration: 95,
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(core)
+    const samplingPlan = resolveMuzzleAndHitMuzzleBurstRandomSamplingPlan({ sparks, radius });
+    const plan = resolveMuzzleAndHitMuzzleBurstVfxPlan({
+      position,
+      color,
+      radius,
+      direction,
+      samples: this.createMuzzleBurstSamples(samplingPlan)
     });
+    this.createRingPulse(plan.ringPulse.position, plan.ringPulse.radius, plan.ringPulse.color);
 
-    const flash = this.trackTransient(
-      this.scene.add
-        .rectangle(
-          position.x,
-          position.y,
-          Math.max(18, radius * 1.9),
-          Math.max(4, radius * 0.48),
-          color,
-          0.78
-        )
-        .setOrigin(0, 0.5)
-        .setRotation(rotation)
-        .setDepth(66)
-        .setBlendMode(Phaser.BlendModes.ADD)
-    );
-    this.scene.tweens.add({
-      targets: flash,
-      alpha: 0,
-      scaleX: 0.48,
-      scaleY: 1.6,
-      duration: 110,
-      ease: "Quad.Out",
-      onComplete: () => this.destroyTransient(flash)
+    const core = createMuzzleAndHitVfxCircle(this.scene, this.trackTransient, plan.core.shape);
+    addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, core, plan.core.tween);
+
+    const flash = createMuzzleAndHitVfxRectangle(this.scene, this.trackTransient, plan.flash.shape);
+    addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, flash, plan.flash.tween);
+
+    plan.sparks.forEach((sparkPlan) => {
+      const spark = createMuzzleAndHitVfxRectangle(this.scene, this.trackTransient, sparkPlan.shape);
+      addMuzzleAndHitVfxTween(this.scene, this.destroyTransient, spark, sparkPlan.tween);
     });
-
-    const sparkCount = Math.min(Math.max(0, sparks), MAX_MUZZLE_SPARKS);
-    for (let index = 0; index < sparkCount; index += 1) {
-      const spread = Phaser.Math.FloatBetween(-0.68, 0.68);
-      const sparkDirection = normalizeDirection({
-        x: facing.x + perpendicular.x * spread,
-        y: facing.y + perpendicular.y * spread
-      });
-      const sparkAngle = Math.atan2(sparkDirection.y, sparkDirection.x);
-      const distance = Phaser.Math.Between(18, 34) + Math.round(radius * 0.15);
-      const lateralDrift = Phaser.Math.FloatBetween(-radius * 0.28, radius * 0.28);
-      const spark = this.trackTransient(
-        this.scene.add
-          .rectangle(
-            position.x + facing.x * 4,
-            position.y + facing.y * 4,
-            Phaser.Math.Between(6, 12),
-            2,
-            color,
-            0.88
-          )
-          .setOrigin(0, 0.5)
-          .setRotation(sparkAngle)
-          .setDepth(65)
-          .setBlendMode(Phaser.BlendModes.ADD)
-      );
-      this.scene.tweens.add({
-        targets: spark,
-        x: position.x + sparkDirection.x * distance + perpendicular.x * lateralDrift,
-        y: position.y + sparkDirection.y * distance + perpendicular.y * lateralDrift,
-        alpha: 0,
-        scaleX: 0.32,
-        scaleY: 0.76,
-        duration: 150 + Phaser.Math.Between(0, 45),
-        ease: "Quad.Out",
-        onComplete: () => this.destroyTransient(spark)
-      });
-    }
   }
 
   public createShockwave(
@@ -243,37 +111,188 @@ export class MuzzleAndHitVfxPresenter {
     color: number,
     duration: number
   ): void {
+    const plan = resolveMuzzleAndHitShockwaveVfxPlan({
+      position,
+      startRadius,
+      endRadius,
+      color,
+      durationMs: duration
+    });
     const wave = this.trackTransient(
-      this.scene.add.circle(position.x, position.y, startRadius, color, 0.16).setDepth(46)
+      this.scene.add
+        .circle(
+          plan.shape.position.x,
+          plan.shape.position.y,
+          plan.shape.radius,
+          plan.shape.color,
+          plan.shape.fillAlpha
+        )
+        .setDepth(plan.shape.depth)
     );
-    wave.setStrokeStyle(3, color, 0.84);
+    wave.setStrokeStyle(plan.shape.strokeWidth, plan.shape.strokeColor, plan.shape.strokeAlpha);
     this.scene.tweens.add({
       targets: wave,
-      scaleX: endRadius / startRadius,
-      scaleY: endRadius / startRadius,
-      alpha: 0,
-      duration,
-      ease: "Quad.Out",
+      scaleX: plan.tween.scaleX,
+      scaleY: plan.tween.scaleY,
+      alpha: plan.tween.alpha,
+      duration: plan.tween.durationMs,
+      ease: plan.tween.ease,
       onComplete: () => this.destroyTransient(wave)
+    });
+  }
+
+  private createImpactSparkSamples(
+    samplingPlan: MuzzleAndHitImpactSparkRandomSamplingPlan
+  ): MuzzleAndHitImpactSparkSample[] {
+    return Array.from({ length: samplingPlan.sparkCount }, () => ({
+      angleJitterRadians: Phaser.Math.FloatBetween(
+        samplingPlan.minAngleJitterRadians,
+        samplingPlan.maxAngleJitterRadians
+      ),
+      sparkLength: Phaser.Math.Between(samplingPlan.minSparkLength, samplingPlan.maxSparkLength),
+      xTravelDistance: Phaser.Math.Between(samplingPlan.minTravelDistance, samplingPlan.maxTravelDistance),
+      yTravelDistance: Phaser.Math.Between(samplingPlan.minTravelDistance, samplingPlan.maxTravelDistance)
+    }));
+  }
+
+  private createMuzzleBurstSamples(
+    samplingPlan: MuzzleAndHitMuzzleBurstRandomSamplingPlan
+  ): MuzzleAndHitMuzzleBurstSample[] {
+    return Array.from({ length: samplingPlan.sparkCount }, () => {
+      const spread = Phaser.Math.FloatBetween(samplingPlan.minSpread, samplingPlan.maxSpread);
+      const distance =
+        Phaser.Math.Between(samplingPlan.minDistance, samplingPlan.maxDistance) +
+        samplingPlan.distanceRadiusBonus;
+      const lateralDrift = Phaser.Math.FloatBetween(
+        samplingPlan.minLateralDrift,
+        samplingPlan.maxLateralDrift
+      );
+      const sparkLength = Phaser.Math.Between(samplingPlan.minSparkLength, samplingPlan.maxSparkLength);
+      const durationJitterMs = Phaser.Math.Between(
+        samplingPlan.minDurationJitterMs,
+        samplingPlan.maxDurationJitterMs
+      );
+
+      return {
+        spread,
+        distance,
+        lateralDrift,
+        sparkLength,
+        durationJitterMs
+      };
     });
   }
 }
 
-function normalizeDirection(direction: Vec2): Vec2 {
-  const length = Math.hypot(direction.x, direction.y);
-  if (length <= 0.0001) {
-    return { x: 1, y: 0 };
+function createMuzzleAndHitVfxCircle(
+  scene: Phaser.Scene,
+  trackTransient: TrackTransient,
+  shape: MuzzleAndHitCircleVfxShapePlan
+): Phaser.GameObjects.Arc {
+  const circle = trackTransient(
+    scene.add
+      .circle(shape.position.x, shape.position.y, shape.radius, shape.color, shape.fillAlpha)
+      .setDepth(shape.depth)
+      .setBlendMode(Phaser.BlendModes.ADD)
+  );
+  if (shape.stroke) {
+    circle.setStrokeStyle(shape.stroke.width, shape.stroke.color, shape.stroke.alpha);
   }
 
-  return {
-    x: direction.x / length,
-    y: direction.y / length
-  };
+  return circle;
 }
 
-function perpendicularDirection(direction: Vec2): Vec2 {
-  return {
-    x: -direction.y,
-    y: direction.x
+function createMuzzleAndHitVfxRectangle(
+  scene: Phaser.Scene,
+  trackTransient: TrackTransient,
+  shape: MuzzleAndHitRectangleVfxShapePlan
+): Phaser.GameObjects.Rectangle {
+  return trackTransient(
+    scene.add
+      .rectangle(shape.position.x, shape.position.y, shape.width, shape.height, shape.color, shape.alpha)
+      .setOrigin(shape.origin.x, shape.origin.y)
+      .setRotation(shape.rotation)
+      .setDepth(shape.depth)
+      .setBlendMode(Phaser.BlendModes.ADD)
+  );
+}
+
+function createMuzzleAndHitVfxGraphics(
+  scene: Phaser.Scene,
+  trackTransient: TrackTransient,
+  graphicsPlan: MuzzleAndHitGraphicsVfxPlan
+): Phaser.GameObjects.Graphics {
+  return trackTransient(
+    scene.add
+      .graphics()
+      .setDepth(graphicsPlan.depth)
+      .setPosition(graphicsPlan.position.x, graphicsPlan.position.y)
+      .setBlendMode(Phaser.BlendModes.ADD)
+  );
+}
+
+function applyMuzzleAndHitGraphicsCommands(
+  graphics: Phaser.GameObjects.Graphics,
+  commands: readonly MuzzleAndHitGraphicsCommandPlan[]
+): void {
+  commands.forEach((command) => {
+    switch (command.kind) {
+      case "lineStyle":
+        graphics.lineStyle(command.width, command.color, command.alpha);
+        return;
+      case "fillStyle":
+        graphics.fillStyle(command.color, command.alpha);
+        return;
+      case "strokeCircle":
+        graphics.strokeCircle(command.x, command.y, command.radius);
+        return;
+      case "fillCircle":
+        graphics.fillCircle(command.x, command.y, command.radius);
+        return;
+      case "lineBetween":
+        graphics.lineBetween(command.x1, command.y1, command.x2, command.y2);
+        return;
+    }
+  });
+}
+
+function addMuzzleAndHitVfxTween(
+  scene: Phaser.Scene,
+  destroyTransient: DestroyTransient,
+  target: Phaser.GameObjects.GameObject,
+  tween: MuzzleAndHitTweenPlan
+): void {
+  const tweenConfig: Phaser.Types.Tweens.TweenBuilderConfig = {
+    targets: target,
+    duration: tween.durationMs,
+    ease: tween.ease,
+    onComplete: () => destroyTransient(target)
   };
+
+  applyOptionalMuzzleAndHitVfxTweenValues(tweenConfig, tween);
+  scene.tweens.add(tweenConfig);
+}
+
+function applyOptionalMuzzleAndHitVfxTweenValues(
+  tweenConfig: Phaser.Types.Tweens.TweenBuilderConfig,
+  tween: MuzzleAndHitTweenPlan
+): void {
+  if (tween.x !== undefined) {
+    tweenConfig.x = tween.x;
+  }
+  if (tween.y !== undefined) {
+    tweenConfig.y = tween.y;
+  }
+  if (tween.alpha !== undefined) {
+    tweenConfig.alpha = tween.alpha;
+  }
+  if (tween.scale !== undefined) {
+    tweenConfig.scale = tween.scale;
+  }
+  if (tween.scaleX !== undefined) {
+    tweenConfig.scaleX = tween.scaleX;
+  }
+  if (tween.scaleY !== undefined) {
+    tweenConfig.scaleY = tween.scaleY;
+  }
 }

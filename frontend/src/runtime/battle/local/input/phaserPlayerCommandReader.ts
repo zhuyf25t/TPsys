@@ -1,7 +1,8 @@
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
 import Phaser from "phaser";
-import type { PlayerCommand, Vec2 } from "../../../../objects/battle/types";
-import { getSelectedSkillBindings } from "../../../../apis/battle/loadoutGateway";
-import { createPlayerCommand } from "../../authoritative/inputCommandMapper";
+import type { BattlePlayerCommand as PlayerCommand } from "../../../../objects/battle/microservices/session/objects/command/BattlePlayerCommand";
+import { getSelectedSkillBindings } from "../../loadout/BattleLoadoutStore";
+import { createPlayerCommand } from "../../microservices/session/functions/BattlePlayerCommandMapper";
 import type { ControlKeys } from "./controlKeys";
 import { readSkillBindingPresses } from "./skillBindingInputAdapter";
 
@@ -45,6 +46,7 @@ export function readPhaserPlayerCommand({
     toggleBlink: skillPresses.Blink,
     toggleFreeze: skillPresses.Freeze,
     castDash: skillPresses.Dash,
+    castCritical: skillPresses.Critical || Phaser.Input.Keyboard.JustDown(controls.critical),
     reloadPressed: Phaser.Input.Keyboard.JustDown(controls.reload)
   });
 }

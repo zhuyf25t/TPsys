@@ -1,14 +1,18 @@
-import type { GameSnapshot, Vec2 } from "../../../../../objects/battle/types";
-import type { BattleRuntimeAuthoritativeFrame } from "../authoritativeBattleStateBridge";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import type { BattleRuntimeAuthoritativeFrame } from "../../../microservices/session/functions/BattleRuntimeAuthoritativeFrameBuilder";
 import {
-  createHeroFeedbackState,
-  createItemPickupFeedbackState,
-  createWeaponPickupFeedbackState,
   presentAuthoritativePickupFeedback,
-  presentHeroFeedback,
-  type HeroFeedbackState,
-  type PickupFeedbackState
+  presentHeroFeedback
 } from "./heroAndPickupFeedbackPresenter";
+import {
+  createBattleHeroFeedbackState,
+  type BattleHeroFeedbackState as HeroFeedbackState
+} from "../../../microservices/actors/functions/BattleHeroFeedbackRules";
+import {
+  createBattleItemPickupFeedbackState,
+  createBattleWeaponPickupFeedbackState,
+  type BattlePickupFeedbackState as PickupFeedbackState
+} from "../../../microservices/abilities/functions/BattlePickupFeedbackRules";
 import {
   presentAuthoritativeProjectileTerminalCorrectionTracer,
   presentAuthoritativeProjectileTerminalReasonVfx,
@@ -16,8 +20,7 @@ import {
   presentProjectileTerminalCorrectionTracer,
   presentProjectileTerminalDissipateVfx,
   presentProjectileTerminalRocketImpactVfx,
-  presentProjectileTerminalTracer,
-  type ProjectileTerminalVfxPresenterCallbacks
+  presentProjectileTerminalTracer
 } from "./projectileTerminalVfxPresenter";
 import {
   AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_PER_UPDATE_LIMIT,
@@ -28,9 +31,7 @@ import {
   createAuthoritativeProjectileTerminalFeedbackState,
   createAuthoritativeProjectileTerminalKey,
   createProjectileFeedbackState,
-  isLocalAuthoritativeProjectileTerminal,
   isLocalProjectileTerminal,
-  resolveAuthoritativeFrameElapsedWatermark,
   resolveAuthoritativeProjectileTerminalQueueDropKey,
   resolveProjectileDirection,
   selectAuthoritativeProjectileTerminalVfxKeys,
@@ -38,23 +39,22 @@ import {
   type AuthoritativeProjectileTerminalFeedbackState,
   type AuthoritativeProjectileTerminalVfxBudgetReason,
   type ProjectileFeedbackState
-} from "./projectileTerminalFeedbackPolicy";
+} from "../../../microservices/combat/functions/BattleProjectileFeedbackRules";
+import {
+  collectBattleLiveProjectileIds,
+  hasBattlePlayedAuthoritativeProjectileTerminalForProjectile,
+  resolveBattleAuthoritativeProjectileTerminalFreshnessBaseline,
+  resolveBattleBoundedFeedbackKeyMemoryUpdate,
+  resolveBattleReadyAuthoritativeProjectileTerminals,
+  shouldPresentBattleAuthoritativeTerminalTracer
+} from "../../../microservices/combat/functions/BattleProjectileFeedbackQueueRules";
 import {
   recordAuthoritativeProjectileTerminalDiagnostics,
   recordProjectileTerminalDiagnostics,
-  shouldRecordProjectileTerminalDiagnostics
+  recordSkippedAuthoritativeProjectileTerminalDiagnostics
 } from "./projectileTerminalDiagnosticsRecorder";
 import { presentAuthoritativeRemoteProjectileBirthFeedback } from "./remoteProjectileBirthFeedbackPresenter";
-
-export interface BattleFeedbackSceneBridgeOptions extends ProjectileTerminalVfxPresenterCallbacks {
-  getSnapshot(): GameSnapshot;
-  getHeroDisplayPosition(heroId: string): Vec2 | null;
-  getProjectileDisplayPosition(projectileId: string): Vec2 | null;
-  flashHero(heroId: string, color: number): void;
-  showFloatingText(position: Vec2, text: string, tone: "neutral" | "success" | "warning" | "error"): void;
-  createHitConfirm(position: Vec2, color: number): void;
-  shakeCamera(duration: number, intensity: number): void;
-}
+import type { BattleFeedbackSceneBridgeOptions } from "./objects/BattleFeedbackSceneBridgeObjects";
 
 export class BattleFeedbackSceneBridge {
   private initialized = false;
@@ -67,14 +67,18 @@ export class BattleFeedbackSceneBridge {
   private playedAuthoritativeProjectileTerminalQueue: string[] = [];
   private seenLiveProjectileIds = new Set<string>();
   private seenLiveProjectileIdQueue: string[] = [];
-  private scratchLiveProjectileIds = new Set<string>();
   private previousSharedAuthoritativeRuntime = false;
   private authoritativeProjectileTerminalFreshnessBaselineElapsedMs: number | null = null;
 
   public constructor(private readonly options: BattleFeedbackSceneBridgeOptions) {}
 
   public applyAuthoritativeFrame(frame: BattleRuntimeAuthoritativeFrame): void {
-    const freshnessBaselineElapsedMs = this.resolveAuthoritativeProjectileTerminalFreshnessBaseline(frame);
+    const freshnessBaselineElapsedMs = resolveBattleAuthoritativeProjectileTerminalFreshnessBaseline({
+      frame,
+      initialized: this.initialized,
+      currentBaselineElapsedMs: this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs
+    });
+    this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs = freshnessBaselineElapsedMs;
     if (!this.initialized || frame.projectileTerminals.length === 0) {
       return;
     }
@@ -136,7 +140,6 @@ export class BattleFeedbackSceneBridge {
       presentAuthoritativeRemoteProjectileBirthFeedback({
         snapshot,
         previousProjectileStates: this.projectileStates,
-        getHeroDisplayPosition: (heroId) => this.options.getHeroDisplayPosition(heroId),
         callbacks: this.options
       });
       if (this.previousSharedAuthoritativeRuntime) {
@@ -148,16 +151,18 @@ export class BattleFeedbackSceneBridge {
   }
 
   private presentAuthoritativeProjectileTerminalFeedback(snapshot: GameSnapshot): void {
-    const liveProjectileIds = this.scratchLiveProjectileIds;
-    liveProjectileIds.clear();
-    snapshot.projectiles.forEach((projectile) => {
-      liveProjectileIds.add(projectile.projectileId);
-    });
+    const liveProjectileIds = collectBattleLiveProjectileIds(snapshot.projectiles);
 
     this.presentQueuedAuthoritativeProjectileTerminals(snapshot, liveProjectileIds);
 
     this.projectileStates.forEach((previous, projectileId) => {
-      if (liveProjectileIds.has(projectileId) || this.hasPlayedAuthoritativeProjectileTerminalForProjectile(projectileId)) {
+      if (
+        liveProjectileIds.has(projectileId) ||
+        hasBattlePlayedAuthoritativeProjectileTerminalForProjectile({
+          playedTerminalKeys: this.playedAuthoritativeProjectileTerminals,
+          projectileId
+        })
+      ) {
         return;
       }
 
@@ -178,35 +183,22 @@ export class BattleFeedbackSceneBridge {
   }
 
   private presentQueuedAuthoritativeProjectileTerminals(snapshot: GameSnapshot, liveProjectileIds: Set<string>): void {
-    const readyTerminals: Array<{
-      terminalKey: string;
-      terminal: AuthoritativeProjectileTerminalFeedbackState;
-      previous: ProjectileFeedbackState | undefined;
-    }> = [];
-
-    this.authoritativeProjectileTerminals.forEach((terminal, terminalKey) => {
-      if (this.playedAuthoritativeProjectileTerminals.has(terminalKey)) {
-        this.authoritativeProjectileTerminals.delete(terminalKey);
-        return;
-      }
-
-      if (liveProjectileIds.has(terminal.projectileId)) {
-        return;
-      }
-
-      readyTerminals.push({
-        terminalKey,
-        terminal,
-        previous: this.projectileStates.get(terminal.projectileId)
-      });
+    const readyResolution = resolveBattleReadyAuthoritativeProjectileTerminals({
+      queuedTerminals: this.authoritativeProjectileTerminals,
+      playedTerminalKeys: this.playedAuthoritativeProjectileTerminals,
+      liveProjectileIds,
+      projectileStates: this.projectileStates
+    });
+    readyResolution.staleTerminalKeys.forEach((terminalKey) => {
+      this.authoritativeProjectileTerminals.delete(terminalKey);
     });
 
     const vfxTerminalKeys = selectAuthoritativeProjectileTerminalVfxKeys(
-      readyTerminals,
+      readyResolution.readyTerminals,
       AUTHORITATIVE_PROJECTILE_TERMINAL_VFX_PER_UPDATE_LIMIT
     );
 
-    readyTerminals.forEach(({ terminalKey, terminal, previous }) => {
+    readyResolution.readyTerminals.forEach(({ terminalKey, terminal, previous }) => {
       const shouldPlayVfx = vfxTerminalKeys.has(terminalKey);
       recordAuthoritativeProjectileTerminalDiagnostics({
         terminal,
@@ -218,7 +210,13 @@ export class BattleFeedbackSceneBridge {
 
       if (shouldPlayVfx) {
         const color = PROJECTILE_SPARK_COLORS[terminal.kind];
-        if (shouldPresentAuthoritativeTerminalTracer(terminal, previous, snapshot.playerHeroId)) {
+        if (
+          shouldPresentBattleAuthoritativeTerminalTracer({
+            terminal,
+            previous,
+            playerHeroId: snapshot.playerHeroId
+          })
+        ) {
           presentAuthoritativeProjectileTerminalTracer({ terminal, previous, color, callbacks: this.options });
           presentAuthoritativeProjectileTerminalCorrectionTracer({ terminal, previous, color, callbacks: this.options });
         }
@@ -234,23 +232,21 @@ export class BattleFeedbackSceneBridge {
     this.heroStates.clear();
     snapshot.heroes.forEach((hero) => {
       const displayPosition = this.options.getHeroDisplayPosition(hero.heroId);
-      this.heroStates.set(hero.heroId, createHeroFeedbackState(hero, displayPosition ?? hero.position));
+      this.heroStates.set(hero.heroId, createBattleHeroFeedbackState(hero, displayPosition ?? hero.position));
     });
 
     this.weaponPickupStates.clear();
     snapshot.weaponPickups.forEach((pickup) => {
-      this.weaponPickupStates.set(pickup.weaponId, createWeaponPickupFeedbackState(pickup));
+      this.weaponPickupStates.set(pickup.pickupId, createBattleWeaponPickupFeedbackState(pickup));
     });
 
     this.itemPickupStates.clear();
     snapshot.itemPickups.forEach((pickup) => {
-      this.itemPickupStates.set(pickup.pickupId, createItemPickupFeedbackState(pickup));
+      this.itemPickupStates.set(pickup.pickupId, createBattleItemPickupFeedbackState(pickup));
     });
 
-    const liveProjectileIds = this.scratchLiveProjectileIds;
-    liveProjectileIds.clear();
+    const liveProjectileIds = collectBattleLiveProjectileIds(snapshot.projectiles);
     snapshot.projectiles.forEach((projectile) => {
-      liveProjectileIds.add(projectile.projectileId);
       this.rememberSeenLiveProjectileId(projectile.projectileId);
       const displayPosition = this.options.getProjectileDisplayPosition(projectile.projectileId);
       const feedbackPosition = displayPosition ?? projectile.position;
@@ -281,33 +277,45 @@ export class BattleFeedbackSceneBridge {
   }
 
   private rememberSeenLiveProjectileId(projectileId: string): void {
-    if (this.seenLiveProjectileIds.has(projectileId)) {
+    const update = resolveBattleBoundedFeedbackKeyMemoryUpdate({
+      key: projectileId,
+      rememberedKeys: this.seenLiveProjectileIds,
+      keyQueue: this.seenLiveProjectileIdQueue,
+      limit: REMEMBERED_LIVE_PROJECTILE_ID_LIMIT
+    });
+    if (!update.shouldRemember) {
       return;
     }
 
     this.seenLiveProjectileIds.add(projectileId);
     this.seenLiveProjectileIdQueue.push(projectileId);
-    while (this.seenLiveProjectileIdQueue.length > REMEMBERED_LIVE_PROJECTILE_ID_LIMIT) {
+    update.expiredKeys.forEach(() => {
       const expiredProjectileId = this.seenLiveProjectileIdQueue.shift();
       if (expiredProjectileId) {
         this.seenLiveProjectileIds.delete(expiredProjectileId);
       }
-    }
+    });
   }
 
   private rememberPlayedAuthoritativeProjectileTerminal(terminalKey: string): void {
-    if (this.playedAuthoritativeProjectileTerminals.has(terminalKey)) {
+    const update = resolveBattleBoundedFeedbackKeyMemoryUpdate({
+      key: terminalKey,
+      rememberedKeys: this.playedAuthoritativeProjectileTerminals,
+      keyQueue: this.playedAuthoritativeProjectileTerminalQueue,
+      limit: PLAYED_AUTHORITATIVE_PROJECTILE_TERMINAL_LIMIT
+    });
+    if (!update.shouldRemember) {
       return;
     }
 
     this.playedAuthoritativeProjectileTerminals.add(terminalKey);
     this.playedAuthoritativeProjectileTerminalQueue.push(terminalKey);
-    while (this.playedAuthoritativeProjectileTerminalQueue.length > PLAYED_AUTHORITATIVE_PROJECTILE_TERMINAL_LIMIT) {
+    update.expiredKeys.forEach(() => {
       const expiredTerminalKey = this.playedAuthoritativeProjectileTerminalQueue.shift();
       if (expiredTerminalKey) {
         this.playedAuthoritativeProjectileTerminals.delete(expiredTerminalKey);
       }
-    }
+    });
   }
 
   private enqueueAuthoritativeProjectileTerminal(
@@ -346,60 +354,13 @@ export class BattleFeedbackSceneBridge {
     terminal: AuthoritativeProjectileTerminalFeedbackState,
     vfxBudgetReason: AuthoritativeProjectileTerminalVfxBudgetReason
   ): void {
-    if (!shouldRecordProjectileTerminalDiagnostics()) {
-      return;
-    }
-
-    recordAuthoritativeProjectileTerminalDiagnostics({
+    recordSkippedAuthoritativeProjectileTerminalDiagnostics({
       terminal,
       previous: this.projectileStates.get(terminal.projectileId),
-      snapshot: this.options.getSnapshot(),
+      getSnapshot: () => this.options.getSnapshot(),
       getHeroDisplayPosition: (heroId) => this.options.getHeroDisplayPosition(heroId),
       vfxBudgetReason
     });
   }
 
-  private hasPlayedAuthoritativeProjectileTerminalForProjectile(projectileId: string): boolean {
-    for (const terminalKey of this.playedAuthoritativeProjectileTerminals) {
-      if (terminalKey.startsWith(`${projectileId}:`)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  private resolveAuthoritativeProjectileTerminalFreshnessBaseline(frame: BattleRuntimeAuthoritativeFrame): number {
-    const frameElapsedMs = resolveAuthoritativeFrameElapsedWatermark(frame);
-    if (this.initialized && this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs !== null) {
-      return this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs;
-    }
-
-    if (this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs === null) {
-      this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs = frameElapsedMs;
-      return frameElapsedMs;
-    }
-
-    if (!this.initialized) {
-      this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs = Math.max(
-        this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs,
-        frameElapsedMs
-      );
-    }
-
-    return this.authoritativeProjectileTerminalFreshnessBaselineElapsedMs;
-  }
-}
-
-function shouldPresentAuthoritativeTerminalTracer(
-  terminal: AuthoritativeProjectileTerminalFeedbackState,
-  previous: ProjectileFeedbackState | undefined,
-  playerHeroId: string
-): boolean {
-  if (!isLocalAuthoritativeProjectileTerminal(terminal, playerHeroId)) {
-    return true;
-  }
-
-  // Fast local shots can hit before a live projectile frame is rendered; keep one short tracer at impact.
-  return previous === undefined;
 }

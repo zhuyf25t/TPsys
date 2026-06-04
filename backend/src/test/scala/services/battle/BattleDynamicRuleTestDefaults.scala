@@ -2,36 +2,36 @@ package services.battle
 
 import java.nio.file.{Files, Path, Paths}
 
+import cats.effect.IO
 import io.circe.Decoder
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.parser.decode
 
-import services.battle.microservices.abilities.database.{BattlePickupRuleBook, BattleSkillRuleBook}
 import services.battle.microservices.abilities.objects.abilities.*
-import services.battle.microservices.actors.database.BattleBotRuleBook
 import services.battle.microservices.actors.objects.actors.*
 import services.battle.microservices.actors.objects.player.{HitPoints, Stamina}
-import services.battle.microservices.combat.database.BattleCombatRuleBook
 import services.battle.microservices.combat.objects.combat.*
-import services.battle.microservices.runtime.database.BattleRuntimeRuleBook
 import services.battle.microservices.runtime.objects.runtime.*
-import services.battle.microservices.world.database.BattleWorldRuleBook
+import services.battle.microservices.runtime.services.BattleDynamicRules
 import services.battle.microservices.world.objects.world.*
 import services.battle.microservices.combat.objects.projectile.ProjectileKind
 import services.battle.microservices.combat.objects.weapon.{BattleWeaponHeat, BattleWeaponHeatRatePerSecond, WeaponKind}
 import services.battle.microservices.abilities.objects.pickup.{PickupId, PickupKind}
 import services.battle.microservices.abilities.objects.skill.SkillKind
+import services.battle.microservices.extraction.objects.extraction.*
 import services.battle.objects.core.*
 import services.battle.microservices.abilities.objects.pickup.BattlePickupDefinition
 
 object BattleDynamicRuleTestDefaults:
-  def install(): Unit =
-    BattleWorldRuleBook.replace(worldRules)
-    BattleRuntimeRuleBook.replace(runtimeRules)
-    BattleCombatRuleBook.replaceAll(weaponRules)
-    BattleSkillRuleBook.replace(skillRules)
-    BattlePickupRuleBook.replace(pickupRules)
-    BattleBotRuleBook.replace(botRules)
+  def dynamicRules: IO[BattleDynamicRules] =
+    BattleDynamicRules.fromLoaded(
+      worldRuleSet = worldRules,
+      runtimeRuleSet = runtimeRules,
+      combatRules = weaponRules,
+      skillRuleSet = skillRules,
+      pickupRuleConfig = pickupRules,
+      botRuleConfig = botRules
+    )
 
   private def worldRules: BattleWorldRuleSet =
     BattleWorldRuleSet(
@@ -158,7 +158,7 @@ object BattleDynamicRuleTestDefaults:
     BattleSkillRuleSet(
       blink = BlinkConfig(
         range = SkillDistance(250.0),
-        runtime = BattleSkillRuntime(CooldownMillis(2200), DurationMillis(240L))
+        runtime = BattleSkillRuntime(CooldownMillis(7000), DurationMillis(240L))
       ),
       dash = DashConfig(
         distance = SkillDistance(180.0),
@@ -167,7 +167,10 @@ object BattleDynamicRuleTestDefaults:
       freeze = FreezeConfig(
         radius = Radius(150.0),
         castRange = SkillDistance(520.0),
-        runtime = BattleSkillRuntime(CooldownMillis(12000), DurationMillis(10000L))
+        runtime = BattleSkillRuntime(CooldownMillis(10000), DurationMillis(10000L))
+      ),
+      critical = CriticalConfig(
+        runtime = BattleSkillRuntime(CooldownMillis(7000), DurationMillis(6000L))
       )
     )
 
@@ -180,7 +183,7 @@ object BattleDynamicRuleTestDefaults:
 
   private val botRules: BattleBotRuleConfig =
     BattleBotRuleConfig(
-      moveSpeed = BattleBotMoveSpeed(108.0),
+      moveSpeed = BattleBotMoveSpeed(180.0),
       preferredRange = Radius(260.0),
       preferredRangeAdvanceMargin = Radius(80.0),
       preferredRangeRetreatMargin = Radius(90.0),
@@ -276,7 +279,10 @@ object BattleDynamicRuleTestDefaults:
         payload.obstacles.flatMap(obstacleFromMapObject) ++
           payload.trees.map(obstacleFromTree) ++
           payload.buildings.flatMap(obstaclesFromBuilding),
-      pickupDefinitions = payload.itemPickups.map(itemPickupDefinition) ++ payload.weaponPickups.map(weaponPickupDefinition)
+      pickupDefinitions = payload.itemPickups.map(itemPickupDefinition) ++ payload.weaponPickups.map(weaponPickupDefinition),
+      extractionZones = payload.extractionZones.getOrElse(Vector.empty).map(extractionZoneDefinition),
+      lootCaches = payload.lootCaches.getOrElse(Vector.empty).map(lootCacheDefinition),
+      gasPlan = payload.gasPlan.map(gasPlanDefinition)
     )
   }
 
@@ -327,6 +333,39 @@ object BattleDynamicRuleTestDefaults:
       position = pickup.position.toDomain
     )
 
+  private def extractionZoneDefinition(zone: BattleMapExtractionZoneJson): BattleExtractionZoneDefinition =
+    BattleExtractionZoneDefinition(
+      zoneId = BattleExtractionZoneId(zone.zoneId),
+      position = zone.position.toDomain,
+      radius = Radius(zone.radius),
+      availableFrom = ElapsedMillis(math.max(0L, zone.availableFromMs)),
+      channelDuration = DurationMillis(math.max(1L, zone.channelDurationMs))
+    )
+
+  private def lootCacheDefinition(cache: BattleMapLootCacheJson): BattleLootCacheDefinition =
+    BattleLootCacheDefinition(
+      cacheId = BattleLootCacheId(cache.cacheId),
+      position = cache.position.toDomain,
+      radius = Radius(cache.radius),
+      searchDuration = DurationMillis(math.max(1L, cache.searchDurationMs)),
+      scoreValue = BattleLootScoreValue(math.max(0, cache.scoreValue))
+    )
+
+  private def gasPlanDefinition(plan: BattleMapGasPlanJson): BattleGasPlanDefinition =
+    BattleGasPlanDefinition(
+      center = plan.center.toDomain,
+      stages = plan.stages.zipWithIndex.map { case (stage, index) =>
+        BattleGasStageDefinition(
+          stageIndex = BattleGasStageIndex(index),
+          startsAt = ElapsedMillis(math.max(0L, stage.startsAtMs)),
+          duration = DurationMillis(math.max(1L, stage.durationMs)),
+          fromRadius = Radius(math.max(0.0, stage.fromRadius)),
+          toRadius = Radius(math.max(0.0, stage.toRadius)),
+          damagePerSecond = BattleGasDamagePerSecond(math.max(0.0, stage.damagePerSecond))
+        )
+      }
+    )
+
   private def required[A](value: Option[A], label: String): A =
     value.getOrElse(throw IllegalStateException(s"Invalid battle map payload value: $label"))
 
@@ -363,7 +402,10 @@ private final case class BattleMapPayloadJson(
   obstacles: Vector[BattleMapObstacleJson],
   buildings: Vector[BattleMapBuildingJson],
   weaponPickups: Vector[BattleMapWeaponPickupJson],
-  itemPickups: Vector[BattleMapItemPickupJson]
+  itemPickups: Vector[BattleMapItemPickupJson],
+  extractionZones: Option[Vector[BattleMapExtractionZoneJson]],
+  lootCaches: Option[Vector[BattleMapLootCacheJson]],
+  gasPlan: Option[BattleMapGasPlanJson]
 )
 
 private object BattleMapPayloadJson:
@@ -454,3 +496,44 @@ private final case class BattleMapItemPickupJson(
 
 private object BattleMapItemPickupJson:
   given Decoder[BattleMapItemPickupJson] = deriveDecoder
+
+private final case class BattleMapExtractionZoneJson(
+  zoneId: String,
+  position: BattleMapVectorJson,
+  radius: Double,
+  availableFromMs: Long,
+  channelDurationMs: Long
+)
+
+private object BattleMapExtractionZoneJson:
+  given Decoder[BattleMapExtractionZoneJson] = deriveDecoder
+
+private final case class BattleMapLootCacheJson(
+  cacheId: String,
+  position: BattleMapVectorJson,
+  radius: Double,
+  searchDurationMs: Long,
+  scoreValue: Int
+)
+
+private object BattleMapLootCacheJson:
+  given Decoder[BattleMapLootCacheJson] = deriveDecoder
+
+private final case class BattleMapGasStageJson(
+  startsAtMs: Long,
+  durationMs: Long,
+  fromRadius: Double,
+  toRadius: Double,
+  damagePerSecond: Double
+)
+
+private object BattleMapGasStageJson:
+  given Decoder[BattleMapGasStageJson] = deriveDecoder
+
+private final case class BattleMapGasPlanJson(
+  center: BattleMapVectorJson,
+  stages: Vector[BattleMapGasStageJson]
+)
+
+private object BattleMapGasPlanJson:
+  given Decoder[BattleMapGasPlanJson] = deriveDecoder

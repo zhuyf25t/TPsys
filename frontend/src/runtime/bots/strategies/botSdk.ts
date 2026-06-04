@@ -1,13 +1,10 @@
-import type {
-  Hero,
-  ItemPickup,
-  PlayerCommand,
-  SkillState,
-  SlowField,
-  Vec2,
-  WeaponPickup,
-  WeaponState
-} from "../../../objects/battle/types";
+﻿import type { BattleItemPickupState as ItemPickup, BattleWeaponPickupState as WeaponPickup } from "../../../objects/battle/microservices/abilities/objects/pickup/BattlePickupState";
+import type { BattleStateSkillResponseDto as SkillState } from "../../../objects/battle/microservices/session/api/state/BattleStatePlayerResponseApiTypes";
+import type { BattleSlowFieldState as SlowField } from "../../../objects/battle/microservices/abilities/objects/skill/BattleSlowFieldState";
+import type { BattleVector2 as Vec2 } from "../../../objects/battle/objects/core/BattleCoreScalars";
+import type { BattleWeaponState as WeaponState } from "../../../objects/battle/microservices/combat/objects/weapon/BattleWeaponState";
+import type { BattleHeroViewState as Hero } from "../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import type { BattlePlayerCommand as PlayerCommand } from "../../../objects/battle/microservices/session/objects/command/BattlePlayerCommand";
 import { getBotProfileById, type BotProfile } from "../registry/botRegistry";
 
 export interface BotVec2Observation {
@@ -20,11 +17,11 @@ export interface BotWeaponObservation {
   readonly ammoInMagazine: number;
   readonly magazineSize: number;
   readonly reserveAmmo: number | null;
-  readonly cooldownRemaining: number;
-  readonly reloadRemaining: number;
+  readonly fireCooldownMs: number;
+  readonly reloadRemainingMs: number;
   readonly heat: number;
   readonly overheated: boolean;
-  readonly overheatRemaining: number;
+  readonly overheatRemainingMs: number;
 }
 
 export interface BotSkillObservation {
@@ -58,7 +55,7 @@ export interface BotHeroObservation {
 }
 
 export interface BotWeaponPickupObservation {
-  readonly weaponId: string;
+  readonly pickupId: string;
   readonly weaponKind: WeaponPickup["weaponKind"];
   readonly position: BotVec2Observation;
   readonly available: boolean;
@@ -111,6 +108,7 @@ export interface BotCommandObservation {
   readonly toggleBlink: boolean;
   readonly toggleFreeze: boolean;
   readonly castDash: boolean;
+  readonly castCritical: boolean;
   readonly reloadPressed: boolean;
 }
 
@@ -163,7 +161,7 @@ type CommandFieldMap = Partial<Record<keyof PlayerCommand, unknown>>;
 const registeredBotStrategies = new Map<string, BotCommandStrategy>();
 const warnedStrategyFailures = new Set<string>();
 
-/** 中文名：构建机器人decisioncontext（buildBotDecisionContext）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細鏋勫缓鏈哄櫒浜篸ecisioncontext锛坆uildBotDecisionContext锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function buildBotDecisionContext(input: BuildBotDecisionContextInput): BotDecisionContext {
   const profile = input.profile ?? getBotProfileById(input.bot.heroId) ?? null;
   const profileObservation = profile ? copyBotProfile(profile) : null;
@@ -192,7 +190,7 @@ export function buildBotDecisionContext(input: BuildBotDecisionContextInput): Bo
   };
 }
 
-/** 中文名：register机器人strategy（registerBotStrategy）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細register鏈哄櫒浜簊trategy锛坮egisterBotStrategy锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function registerBotStrategy(strategy: BotCommandStrategy): void {
   const strategyId = normalizeBotStrategyKey(strategy.strategyId);
   if (!strategyId) {
@@ -207,18 +205,18 @@ export function registerBotStrategy(strategy: BotCommandStrategy): void {
   registeredBotStrategies.set(strategyId, strategy);
 }
 
-/** 中文名：unregister机器人strategy（unregisterBotStrategy）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細unregister鏈哄櫒浜簊trategy锛坲nregisterBotStrategy锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function unregisterBotStrategy(strategyId: string): boolean {
   const normalizedStrategyId = normalizeBotStrategyKey(strategyId);
   return normalizedStrategyId ? registeredBotStrategies.delete(normalizedStrategyId) : false;
 }
 
-/** 中文名：列表机器人strategyids（listBotStrategyIds）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細鍒楄〃鏈哄櫒浜簊trategyids锛坙istBotStrategyIds锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function listBotStrategyIds(): readonly string[] {
   return [...registeredBotStrategies.keys()].sort();
 }
 
-/** 中文名：解析机器人strategy命令（resolveBotStrategyCommand）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細瑙ｆ瀽鏈哄櫒浜簊trategy鍛戒护锛坮esolveBotStrategyCommand锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function resolveBotStrategyCommand(context: BotDecisionContext, fallbackCommand?: PlayerCommand): PlayerCommand {
   const fallback = fallbackCommand ?? commandObservationToPlayerCommand(context.defaultCommand);
   const strategy = resolveRegisteredBotStrategy(context);
@@ -238,7 +236,7 @@ export function resolveBotStrategyCommand(context: BotDecisionContext, fallbackC
   }
 }
 
-/** 中文名：规范化机器人命令（normalizeBotCommand）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細瑙勮寖鍖栨満鍣ㄤ汉鍛戒护锛坣ormalizeBotCommand锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function normalizeBotCommand(command: BotCommandStrategyDecision, fallbackCommand: PlayerCommand): PlayerCommand {
   const fallback = copyPlayerCommand(fallbackCommand);
   const source = isRecord(command) ? (command as CommandFieldMap) : null;
@@ -260,11 +258,12 @@ export function normalizeBotCommand(command: BotCommandStrategyDecision, fallbac
     toggleBlink: normalizeBoolean(source.toggleBlink, fallback.toggleBlink),
     toggleFreeze: normalizeBoolean(source.toggleFreeze, fallback.toggleFreeze),
     castDash: normalizeBoolean(source.castDash, fallback.castDash),
+    castCritical: normalizeBoolean(source.castCritical, fallback.castCritical),
     reloadPressed: normalizeBoolean(source.reloadPressed, fallback.reloadPressed)
   };
 }
 
-/** 中文名：规范化机器人strategykey（normalizeBotStrategyKey）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
+/** 涓枃鍚嶏細瑙勮寖鍖栨満鍣ㄤ汉strategykey锛坣ormalizeBotStrategyKey锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔?bot 鍩熶腑缁勭粐鏈哄櫒浜虹瓥鐣ャ€佺洰鏍囬€夋嫨鍜屾垬鏈喅绛栵紝杈呭姪鏈湴鎴栨紨绀烘垬鏂椾綋楠屻€?*/
 export function normalizeBotStrategyKey(value: string | null | undefined): string | null {
   if (!value) {
     return null;
@@ -341,11 +340,11 @@ function copyWeapon(weapon: WeaponState): BotWeaponObservation {
     ammoInMagazine: weapon.ammoInMagazine,
     magazineSize: weapon.magazineSize,
     reserveAmmo: weapon.reserveAmmo,
-    cooldownRemaining: weapon.cooldownRemaining,
-    reloadRemaining: weapon.reloadRemaining,
+    fireCooldownMs: weapon.fireCooldownMs,
+    reloadRemainingMs: weapon.reloadRemainingMs,
     heat: weapon.heat,
     overheated: weapon.overheated,
-    overheatRemaining: weapon.overheatRemaining
+    overheatRemainingMs: weapon.overheatRemainingMs
   };
 }
 
@@ -359,7 +358,7 @@ function copySkill(skill: SkillState): BotSkillObservation {
 
 function copyWeaponPickup(pickup: WeaponPickup): BotWeaponPickupObservation {
   return {
-    weaponId: pickup.weaponId,
+    pickupId: pickup.pickupId,
     weaponKind: pickup.weaponKind,
     position: copyVec2(pickup.position),
     available: pickup.available,
@@ -406,6 +405,7 @@ function commandObservationToPlayerCommand(command: BotCommandObservation): Play
     toggleBlink: command.toggleBlink,
     toggleFreeze: command.toggleFreeze,
     castDash: command.castDash,
+    castCritical: command.castCritical,
     reloadPressed: command.reloadPressed
   };
 }
@@ -424,6 +424,7 @@ function copyPlayerCommand(command: PlayerCommand): PlayerCommand {
     toggleBlink: command.toggleBlink,
     toggleFreeze: command.toggleFreeze,
     castDash: command.castDash,
+    castCritical: command.castCritical,
     reloadPressed: command.reloadPressed
   };
 }

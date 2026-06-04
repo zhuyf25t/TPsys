@@ -1,79 +1,59 @@
-import { QuickPreviewOverlay } from "../../components/ui/QuickPreviewOverlay";
 import { BattleChrome } from "./components/BattleChrome";
-import { buildBattleDrawer } from "./non-game/battleDrawerPresenter";
-import { QUICK_LEFT, QUICK_RIGHT } from "./hooks/battlePageTypes";
-import { BattleGameScreen } from "./game-screen/BattleGameScreen";
-import { BattleEntryBlockedOverlay } from "./non-game/BattleEntryBlockedOverlay";
-import { BattleSettlementOverlay } from "./non-game/BattleSettlementOverlay";
-import { MatchingOverlay } from "./non-game/MatchingOverlay";
+import { BattleDrawerLayer } from "./components/BattleDrawerLayer";
+import { BattleGameScreen } from "./components/BattleGameScreen";
+import { BattleMatchingLayer } from "./components/BattleMatchingLayer";
+import { BattleSettlementLayer } from "./components/BattleSettlementLayer";
+import { buildBattleQuickAccessButtons } from "./functions/buildBattleQuickAccessButtons";
 import { useBattlePageRuntime } from "./hooks/useBattlePageRuntime";
 
 /** 中文名：战斗页面（BattlePage）。游戏职责：连接匹配、Phaser runtime、HUD、抽屉和结算层。 */
 export function BattlePage() {
   const runtime = useBattlePageRuntime();
-
-  const settlementOverlay =
-    runtime.matchPhase === "settled" && runtime.currentResultSummary ? (
-      <BattleSettlementOverlay summary={runtime.currentResultSummary} replayId={runtime.currentReplayId} onNewMatch={runtime.startNewMatch} />
-    ) : null;
-
-  const drawerOverlay = runtime.activeDrawer ? (
-    <QuickPreviewOverlay
-      {...buildBattleDrawer(
-        runtime.activeDrawer,
-        runtime.replaySummaries,
-        runtime.discussionSummaries,
-        runtime.mailSummaries,
-        runtime.ratingEntries,
-        runtime.friendRequestPreview,
-        runtime.markDrawerMailRead
-      )}
-      onClose={runtime.closeDrawer}
-    />
-  ) : null;
-  const shouldShowDrawerButtons = runtime.matchPhase !== "playing" && !runtime.entryBlockNotice;
-  const leftButtons = shouldShowDrawerButtons
-    ? QUICK_LEFT.map((item) => ({
-        label: item.label,
-        iconKey: item.iconKey,
-        onClick: () => runtime.openDrawer(item.id)
-      }))
-    : [];
-  const rightButtons = shouldShowDrawerButtons
-    ? QUICK_RIGHT.map((item) => ({
-        label: item.label,
-        iconKey: item.iconKey,
-        onClick: () => runtime.openDrawer(item.id),
-        badgeCount:
-          item.id === "mails"
-            ? runtime.unreadMailCount
-            : item.id === "social"
-              ? runtime.friendRequestPreview.badgeCount
-              : undefined
-      }))
-    : [];
+  const quickAccessButtons = buildBattleQuickAccessButtons({
+    matchPhase: runtime.matchPhase,
+    entryBlockNotice: runtime.entryBlockNotice,
+    unreadMailCount: runtime.unreadMailCount,
+    friendRequestBadgeCount: runtime.friendRequestPreview.badgeCount,
+    openDrawer: runtime.openDrawer
+  });
 
   return (
     <BattleChrome
       phase={runtime.matchPhase}
-      leftButtons={leftButtons}
-      rightButtons={rightButtons}
+      leftButtons={quickAccessButtons.leftButtons}
+      rightButtons={quickAccessButtons.rightButtons}
       matchingOverlay={
-        runtime.entryBlockNotice ? (
-          <BattleEntryBlockedOverlay message={runtime.entryBlockNotice} />
-        ) : runtime.matchPhase === "matching" ? (
-          <MatchingOverlay
-            countdownMs={runtime.matchCountdownMs}
-            loadout={runtime.loadout}
-            queueState={runtime.queueState}
-            selectedBattleModeId={runtime.selectedBattleModeId}
-            battleModeOptions={runtime.battleModeOptions}
-            onBattleModeChange={runtime.selectBattleMode}
-          />
-        ) : null
+        <BattleMatchingLayer
+          entryBlockNotice={runtime.entryBlockNotice}
+          matchPhase={runtime.matchPhase}
+          countdownMs={runtime.matchCountdownMs}
+          loadout={runtime.loadout}
+          queueState={runtime.queueState}
+          selectedBattleModeId={runtime.selectedBattleModeId}
+          battleModeOptions={runtime.battleModeOptions}
+          onBattleModeChange={runtime.selectBattleMode}
+        />
       }
-      settlementOverlay={settlementOverlay}
-      drawerOverlay={drawerOverlay}
+      settlementOverlay={
+        <BattleSettlementLayer
+          matchPhase={runtime.matchPhase}
+          summary={runtime.currentResultSummary}
+          replayId={runtime.currentReplayId}
+          onNewMatch={runtime.startNewMatch}
+        />
+      }
+      drawerOverlay={
+        <BattleDrawerLayer
+          activeDrawer={runtime.activeDrawer}
+          replaySummaries={runtime.replaySummaries}
+          discussionSummaries={runtime.discussionSummaries}
+          mailSummaries={runtime.mailSummaries}
+          ratingEntries={runtime.ratingEntries}
+          friendRequestPreview={runtime.friendRequestPreview}
+          onUnreadMailSelect={runtime.markDrawerMailRead}
+          onClose={runtime.closeDrawer}
+        />
+      }
     >
       <BattleGameScreen
         entryBlockNotice={runtime.entryBlockNotice}

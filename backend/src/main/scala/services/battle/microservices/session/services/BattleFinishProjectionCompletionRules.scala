@@ -1,23 +1,25 @@
 package services.battle.microservices.session.services
 
+import cats.effect.IO
+
 import services.battle.microservices.results.objects.result.BattleFinishProjectionOutcome
 
 private[battle] object BattleFinishProjectionCompletionRules {
-  /** 中文名：完成结束投影（complete）。游戏职责：把战�?回放生成结果写回 session 中保存的权威战斗状态�?*/
   def complete(
     storedBattle: StoredBattle,
     outcome: BattleFinishProjectionOutcome
-  ): StoredBattle = {
-    val artifactStatus = BattleFinishProjectionStatusRules.artifactStatusAfterProjection(
-      storedBattle.state.artifactStatus,
-      outcome
-    )
-    storedBattle.copy(
-      state = storedBattle.state.copy(artifactStatus = artifactStatus),
-      finishProjectionStatus = BattleFinishProjectionStatusRules.finishProjectionStatusAfter(
+  ): IO[StoredBattle] =
+    for
+      artifactStatus <- BattleFinishProjectionStatusRules.artifactStatusAfterProjection(
+        storedBattle.state.artifactStatus,
+        outcome
+      )
+      finishProjectionStatus <- BattleFinishProjectionStatusRules.finishProjectionStatusAfter(
         outcome,
         artifactStatus
       )
+    yield storedBattle.copy(
+      state = storedBattle.state.copy(artifactStatus = artifactStatus),
+      finishProjectionStatus = finishProjectionStatus
     )
-  }
 }

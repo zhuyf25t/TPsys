@@ -31,6 +31,7 @@ object BattleCommandRequestPayload {
       castDash <- optional[Boolean](cursor, "castDash", BattleCommandRequestField.CastDash)
       castBlink <- optional[Boolean](cursor, "castBlink", BattleCommandRequestField.CastBlink)
       castFreeze <- optional[Boolean](cursor, "castFreeze", BattleCommandRequestField.CastFreeze)
+      castCritical <- optional[Boolean](cursor, "castCritical", BattleCommandRequestField.CastCritical)
       pointerWorld <- optionalVector(cursor, "pointerWorld", BattleCommandRequestField.PointerWorld)
       switchWeaponDirection <- required[Int](cursor, "switchWeaponDirection", BattleCommandRequestField.SwitchWeaponDirection)
         .map(BattleWeaponSwitchDirection.fromWire)
@@ -50,7 +51,8 @@ object BattleCommandRequestPayload {
       skillIntents = BattleCommandSkillIntents.fromLegacyFlags(
         castDash = castDash.getOrElse(false),
         castBlink = castBlink.getOrElse(false),
-        castFreeze = castFreeze.getOrElse(false)
+        castFreeze = castFreeze.getOrElse(false),
+        castCritical = castCritical.getOrElse(false)
       ),
       pointerWorld = pointerWorld,
       switchWeaponDirection = switchWeaponDirection,

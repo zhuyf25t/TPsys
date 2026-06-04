@@ -9,7 +9,7 @@ enum BattleMode {
 
 object BattleMode {
   def default: BattleMode =
-    BattleMode.Default
+    BattleMode.Winter
 
   def wireValue(value: BattleMode): String =
     value match {
@@ -44,20 +44,20 @@ object BattleMode {
   def modeLabel(value: BattleMode): BattleModeLabel =
     BattleModeLabel.fromWire(
       value match {
-        case BattleMode.Default => "竞技模式"
-        case BattleMode.Autumn  => "秋季模式"
-        case BattleMode.Winter  => "冬季模式"
-        case BattleMode.Normal  => "岛屿模式"
+        case BattleMode.Default => "\u7ade\u6280\u6a21\u5f0f"
+        case BattleMode.Autumn  => "\u79cb\u5b63\u6a21\u5f0f"
+        case BattleMode.Winter  => "\u4e27\u5c38\u6a21\u5f0f"
+        case BattleMode.Normal  => "\u68ee\u6797\u6a21\u5f0f"
       }
     )
 
   def mapLabel(value: BattleMode): BattleMapLabel =
     BattleMapLabel.fromWire(
       value match {
-        case BattleMode.Default => "竞技场"
-        case BattleMode.Autumn  => "秋季地图"
-        case BattleMode.Winter  => "冬季地图"
-        case BattleMode.Normal  => "岛屿地图"
+        case BattleMode.Default => "\u7ade\u6280\u5730\u56fe"
+        case BattleMode.Autumn  => "\u79cb\u5b63\u5730\u56fe"
+        case BattleMode.Winter  => "Suroi \u51ac\u5b63\u5730\u56fe"
+        case BattleMode.Normal  => "\u68ee\u6797\u5730\u56fe"
       }
     )
 }

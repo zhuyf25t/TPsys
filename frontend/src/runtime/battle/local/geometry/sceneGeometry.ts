@@ -1,10 +1,10 @@
-import type { Vec2 } from "../../../../objects/battle/types";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
 import {
   findMotionDestination,
   collidesWithObstacles as motionCollidesWithObstacles,
   intersectsObstacle as motionIntersectsObstacle,
   type MotionObstacleShape
-} from "../movement/motionController";
+} from "../../microservices/world/functions/BattleMotionRules";
 
 export interface SceneGeometryObstacleBounds {
   position: Vec2;

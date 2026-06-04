@@ -1,7 +1,11 @@
-import type { GameSnapshot, Hero } from "../../../../objects/battle/types";
-import type { ReplayFrame } from "../../../../objects/replay/replayTypes";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import type { BattleReplayFrameState as ReplayFrame } from "../../../../objects/battle/microservices/projections/objects/replay/BattleReplayFrameState";
 import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalReplayPlayback } from "../../../../apis/replay/local/localReplayStore";
-import { compactReplayFrames, hasMeaningfulReplayFrames } from "../../../../objects/replay/replayRecorder";
+import {
+  compactReplayFrames,
+  hasMeaningfulReplayFrames
+} from "../../microservices/projections/functions/BattleReplayFrameRecorder";
 import { getCurrentAuthHandle, getCurrentAuthUser } from "../../../../apis/identity/authGateway";
 import {
   isPlayableIdentityHandle,
@@ -10,12 +14,12 @@ import {
 } from "../../../../objects/identity/identityHandlePolicy";
 import { syncBattleResultToBackend } from "./battleResultSync";
 import { syncReplayToBackend } from "../../../../apis/replay/replaySyncApi";
-import { finalizeBattleReplayFrames } from "../session/battleFinalizationReplay";
+import { finalizeBattleReplayFrames } from "../../microservices/projections/functions/BattleFinalizationReplayRules";
 import {
   createBotOnlyBattleClosure,
   type BotOnlyBattleClosure
-} from "../session/botOnlyBattleClosure";
-import { BATTLE_MATCH_DURATION_MS as RULE_BATTLE_MATCH_DURATION_MS } from "../../../../objects/battle/battleRules";
+} from "../../microservices/projections/functions/BattleBotOnlyClosureReplayRules";
+import { BATTLE_MATCH_DURATION_MS as RULE_BATTLE_MATCH_DURATION_MS } from "../../../../objects/battle/objects/core/BattleCoreRules";
 
 export const BATTLE_MATCH_DURATION_MS = RULE_BATTLE_MATCH_DURATION_MS;
 const STORAGE_KEY = "slay-demo.truthful-battle-data.v2";

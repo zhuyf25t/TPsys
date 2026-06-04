@@ -1,4 +1,4 @@
-import type { Vec2 } from "../../../objects/battle/types";
+import type { BattleVector2 as Vec2 } from "../../../objects/battle/objects/core/BattleCoreScalars";
 
 /** 中文名：英雄seed（heroSeed）。游戏职责：在前端 bot 域中组织机器人策略、目标选择和战术决策，辅助本地或演示战斗体验。 */
 export function heroSeed(heroId: string): number {

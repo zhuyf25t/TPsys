@@ -1,5 +1,5 @@
 import { getCurrentAuthHandle } from "../identity/authGateway";
-import { loadBattleResults, type BackendBattleResultRecord } from "../battle/battleResultsApi";
+import { loadBattleResults, type BackendBattleResultRecord } from "../battle/microservices/results/api/BattleResultsApi";
 import { loadIdentityAccounts, type IdentityAccountSummary } from "../identity/identityApi";
 import { loadContributionAdjustments } from "./governanceGateway";
 

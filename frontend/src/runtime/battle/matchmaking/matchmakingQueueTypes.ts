@@ -1,5 +1,5 @@
 import { getBotProfileBySlot } from "../../bots/registry/botRegistry";
-import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCHMAKING_DURATION_MS } from "../../../objects/battle/battleRules";
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCHMAKING_DURATION_MS } from "../../../objects/battle/objects/core/BattleCoreRules";
 import type {
   BattleModeIdDto,
   BattleQueueParticipantResponseDto,
@@ -7,7 +7,7 @@ import type {
   BattleSessionBootstrapSeatResponseDto,
   BattleSessionDescriptorResponseDto,
   BattleSessionRosterEntryResponseDto
-} from "../../../objects/battle/contracts/apiMessages";
+} from "../../../objects/battle/microservices/queue/api/shared/BattleLobbySharedApiTypes";
 
 export interface MatchmakingQueueParticipant extends BattleQueueParticipantResponseDto {}
 
@@ -122,10 +122,10 @@ export function createLocalMatchmakingQueueState(handle: string): MatchmakingQue
     playerId: localPlayerId,
     roomId: `local-room-${seed}`,
     matchId: `local-room-${seed}`,
-    modeId: "default",
-    modeLabel: "默认模式",
-    mapId: "default-industrial-arena",
-    mapLabel: "默认地图",
+    modeId: "winter",
+    modeLabel: "\u4e27\u5c38\u6a21\u5f0f",
+    mapId: "winter-hunt-v1",
+    mapLabel: "Suroi \u51ac\u5b63\u5730\u56fe",
     createdAt: now,
     startsAt: now + MATCHMAKING_DURATION_MS,
     deadline: now + MATCHMAKING_DURATION_MS,

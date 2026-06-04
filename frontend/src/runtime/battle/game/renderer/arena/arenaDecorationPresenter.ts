@@ -1,174 +1,241 @@
 import Phaser from "phaser";
-import type { Vec2 } from "../../../../../objects/battle/types";
+import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/objects/core/BattleCoreScalars";
 import {
   CRATE_TEXTURE_KEY,
   getActiveBattleMap,
   isNaturalBattleMapTheme,
   ROCK_TEXTURE_KEY,
   STONE_TRIM_TEXTURE_KEY,
-  WALL_TEXTURE_KEY,
-  type BattleMapThemeId
-} from "../../constants";
-import { getItemPickupSpawnPoints, getWeaponPickupSpawnPoints } from "../../assets/battleContentCatalog";
-import type { OccludableSprite, OccludableView } from "./arenaBuilder";
+  WALL_TEXTURE_KEY
+} from "../../objects/BattleGameConstants";
+import { getItemPickupSpawnPoints, getWeaponPickupSpawnPoints } from "../../../microservices/world/functions/BattleWorldInitialLayout";
+import type { OccludableSprite, OccludableView } from "./objects/ArenaBuilderObjects";
+import type {
+  ArenaDecorationElementPlan,
+  ArenaDecorationEllipsePlan,
+  ArenaDecorationImagePlan,
+  ArenaDecorationPatternPlan,
+  ArenaDecorationPresentationPlan,
+  ArenaDecorationRectanglePlan,
+  ArenaDecorationTextureRole,
+  ArenaPickupPadPresentationPlan
+} from "./objects/ArenaDecorationObjects";
+import {
+  resolveIndustrialArenaDecorationPresentationPlan,
+  resolveIndustrialPickupPadPresentationPlan,
+  resolveNaturalPickupPadPresentationPlan
+} from "./functions/ArenaDecorationRules";
 
-const ARENA_ENERGY_ACCENT_COLOR = 0x58d6ff;
-
-/** 中文名：创建拾取物pads（createPickupPads）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** 涓枃鍚嶏細鍒涘缓鎷惧彇鐗﹑ads锛坈reatePickupPads锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔垬鏂楀煙涓粍缁囨垬鏂楃晫闈€佺姸鎬併€佽緭鍏ユ垨娓叉煋鏁版嵁锛屼繚鎸佸鎴风鐜╂硶琛ㄨ揪涓庡悗绔绾︿竴鑷淬€?*/
 export function createPickupPads(scene: Phaser.Scene): void {
-  if (isNaturalBattleMapTheme(getActiveBattleMap().themeId)) {
-    createNaturalPickupPads(scene, getActiveBattleMap().themeId);
+  const activeMap = getActiveBattleMap();
+  const weaponPickupSpawnPoints = getWeaponPickupSpawnPoints();
+  const itemPickupSpawnPoints = getItemPickupSpawnPoints();
+  const plan = isNaturalBattleMapTheme(activeMap.themeId)
+    ? resolveNaturalPickupPadPresentationPlan(activeMap.themeId, weaponPickupSpawnPoints, itemPickupSpawnPoints)
+    : resolveIndustrialPickupPadPresentationPlan(weaponPickupSpawnPoints, itemPickupSpawnPoints);
+
+  renderPickupPadPresentationPlan(scene, plan);
+}
+
+function renderPickupPadPresentationPlan(scene: Phaser.Scene, plan: ArenaPickupPadPresentationPlan): void {
+  plan.patterns.forEach((pattern) => {
+    createDecorationPattern(scene, pattern);
+  });
+
+  plan.rectangles.forEach((rectangle) => {
+    createDecorationRectangle(scene, rectangle);
+  });
+
+  plan.ellipses.forEach((ellipse) => {
+    createDecorationEllipse(scene, ellipse);
+  });
+}
+
+function createDecorationPattern(scene: Phaser.Scene, plan: ArenaDecorationPatternPlan): void {
+  const sprite = scene.add
+    .tileSprite(plan.position.x, plan.position.y, plan.size.x, plan.size.y, textureKeyForDecorationRole(plan.textureRole))
+    .setDepth(plan.depth)
+    .setAlpha(plan.alpha);
+
+  if (plan.tint !== undefined) {
+    sprite.setTint(plan.tint);
+  }
+}
+
+function createDecorationRectangle(scene: Phaser.Scene, plan: ArenaDecorationRectanglePlan): void {
+  const rectangle = scene.add
+    .rectangle(plan.position.x, plan.position.y, plan.size.x, plan.size.y, plan.color, plan.alpha)
+    .setDepth(plan.depth);
+
+  if (plan.stroke !== undefined) {
+    rectangle.setStrokeStyle(plan.stroke.width, plan.stroke.color, plan.stroke.alpha);
+  }
+}
+
+function createDecorationEllipse(scene: Phaser.Scene, plan: ArenaDecorationEllipsePlan): void {
+  scene.add.ellipse(plan.position.x, plan.position.y, plan.size.x, plan.size.y, plan.color, plan.alpha).setDepth(plan.depth);
+}
+
+function createDecorationImage(scene: Phaser.Scene, plan: ArenaDecorationImagePlan, occludables: OccludableView[]): void {
+  const image = scene.add
+    .image(plan.position.x, plan.position.y, textureKeyForDecorationRole(plan.textureRole))
+    .setScale(plan.scale)
+    .setDepth(plan.depth);
+
+  if (plan.tint !== undefined) {
+    image.setTint(plan.tint);
+  }
+
+  image.setAlpha(plan.alpha);
+
+  if (plan.occludableBaseAlpha !== undefined) {
+    registerDecorativeOccludable(image, plan.occludableBaseAlpha, occludables);
+  }
+}
+
+function textureKeyForDecorationRole(textureRole: ArenaDecorationTextureRole): string {
+  switch (textureRole) {
+    case "crate":
+      return CRATE_TEXTURE_KEY;
+    case "rock":
+      return ROCK_TEXTURE_KEY;
+    case "stoneTrim":
+      return STONE_TRIM_TEXTURE_KEY;
+    case "wall":
+      return WALL_TEXTURE_KEY;
+  }
+}
+/** 涓枃鍚嶏細鍒涘缓绔炴妧鍦篸ecorations锛坈reateArenaDecorations锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ墠绔垬鏂楀煙涓粍缁囨垬鏂楃晫闈€佺姸鎬併€佽緭鍏ユ垨娓叉煋鏁版嵁锛屼繚鎸佸鎴风鐜╂硶琛ㄨ揪涓庡悗绔绾︿竴鑷淬€?*/
+export function createArenaDecorations(scene: Phaser.Scene, occludables: OccludableView[]): void {
+  renderArenaDecorationPresentationPlan(scene, resolveIndustrialArenaDecorationPresentationPlan(), occludables);
+}
+
+function renderArenaDecorationPresentationPlan(
+  scene: Phaser.Scene,
+  plan: ArenaDecorationPresentationPlan,
+  occludables: OccludableView[]
+): void {
+  plan.elements.forEach((element) => {
+    createArenaDecorationElement(scene, element, occludables);
+  });
+}
+
+function createArenaDecorationElement(
+  scene: Phaser.Scene,
+  element: ArenaDecorationElementPlan,
+  occludables: OccludableView[]
+): void {
+  switch (element.kind) {
+    case "rectangle":
+      createDecorationRectangle(scene, element.rectangle);
+      return;
+    case "image":
+      createDecorationImage(scene, element.image, occludables);
+      return;
+  }
+}
+
+export function createWinterZombieSetPieces(scene: Phaser.Scene, occludables: OccludableView[]): void {
+  if (getActiveBattleMap().themeId !== "winter") {
     return;
   }
 
-  getWeaponPickupSpawnPoints().forEach((point) => {
-    scene.add.tileSprite(point.position.x, point.position.y + 8, 112, 82, STONE_TRIM_TEXTURE_KEY).setDepth(-12).setTint(0x29343a).setAlpha(0.98);
-    scene.add
-      .rectangle(point.position.x, point.position.y + 8, 118, 88, 0x11181c, 0.18)
-      .setStrokeStyle(2, 0xd99a34, 0.72)
-      .setDepth(-11);
-    scene.add
-      .rectangle(point.position.x, point.position.y + 8, 86, 50, 0xf0bd58, 0.06)
-      .setStrokeStyle(1, 0xf0bd58, 0.46)
-      .setDepth(-10);
+  const worldSize = getActiveBattleMap().worldSize;
+  createCrashedAircraftSite(scene, { x: worldSize.x * 0.76, y: worldSize.y * 0.2 }, occludables);
+  createMedicalLabSite(scene, { x: worldSize.x * 0.19, y: worldSize.y * 0.75 }, occludables);
+}
+
+function createCrashedAircraftSite(scene: Phaser.Scene, position: Vec2, occludables: OccludableView[]): void {
+  scene.add.image(position.x - 18, position.y + 18, "suroi-zombie-explosion-decal").setDisplaySize(220, 140).setDepth(25).setAlpha(0.72);
+  scene.add.ellipse(position.x + 16, position.y + 28, 230, 96, 0x09110c, 0.32).setRotation(-0.42).setDepth(26);
+
+  const aircraft = scene.add
+    .image(position.x, position.y, "suroi-zombie-airdrop-plane")
+    .setDisplaySize(205, 92)
+    .setRotation(-0.52)
+    .setDepth(61)
+    .setTint(0x3b4649)
+    .setAlpha(0.94);
+  registerDecorativeOccludable(aircraft, 0.94, occludables);
+
+  scene.add.image(position.x - 92, position.y + 52, "suroi-zombie-used-flare").setDisplaySize(52, 22).setRotation(-0.3).setDepth(34);
+  createPulsingLight(scene, position.x - 92, position.y + 52, 0xff4f45, 34, 0.2, 0.88, 760);
+  createSmokeColumn(scene, position.x + 54, position.y - 18, 1.1);
+  createSmokeColumn(scene, position.x - 20, position.y + 20, 0.8);
+}
+
+function createMedicalLabSite(scene: Phaser.Scene, position: Vec2, occludables: OccludableView[]): void {
+  scene.add.ellipse(position.x + 8, position.y + 16, 314, 210, 0x0a1616, 0.3).setDepth(17);
+  scene.add.image(position.x, position.y, "suroi-zombie-lab-floor").setDisplaySize(292, 184).setDepth(24).setAlpha(0.98);
+  scene.add.image(position.x - 62, position.y + 52, "suroi-zombie-blood-decal").setDisplaySize(76, 54).setRotation(0.4).setDepth(35).setAlpha(0.82);
+  scene.add.image(position.x + 58, position.y + 26, "suroi-zombie-large-medical-bed").setDisplaySize(88, 40).setRotation(-0.08).setDepth(42);
+  scene.add.image(position.x - 72, position.y - 24, "suroi-zombie-small-medical-bed").setDisplaySize(66, 34).setRotation(0.2).setDepth(42);
+  scene.add.image(position.x + 104, position.y - 58, "suroi-zombie-hazel-crate").setDisplaySize(50, 50).setDepth(43);
+
+  const tankPositions: readonly Vec2[] = [
+    { x: position.x - 12, y: position.y - 56 },
+    { x: position.x + 36, y: position.y - 54 },
+    { x: position.x + 82, y: position.y - 18 }
+  ];
+  tankPositions.forEach((tank, index) => {
+    scene.add.rectangle(tank.x, tank.y, 18, 46, 0x9cff6f, 0.18).setDepth(44).setStrokeStyle(2, 0xb7ff7a, 0.5);
+    createPulsingLight(scene, tank.x, tank.y, 0x9cff6f, 45, 0.16, 0.48, 950 + index * 120);
   });
 
-  getItemPickupSpawnPoints().forEach((point) => {
-    scene.add
-      .tileSprite(point.position.x, point.position.y + 8, 100, 76, STONE_TRIM_TEXTURE_KEY)
-      .setDepth(-12)
-      .setTint(0x21343c)
-      .setAlpha(0.96);
-    scene.add
-      .rectangle(point.position.x, point.position.y + 8, 106, 82, 0x0d1a1e, 0.18)
-      .setStrokeStyle(2, ARENA_ENERGY_ACCENT_COLOR, 0.72)
-      .setDepth(-11);
-    scene.add
-      .rectangle(point.position.x, point.position.y + 8, 72, 44, 0x8ff3ff, 0.06)
-      .setStrokeStyle(1, 0x8ff3ff, 0.4)
-      .setDepth(-10);
+  const ceiling = scene.add
+    .image(position.x, position.y - 6, "suroi-zombie-lab-ceiling")
+    .setDisplaySize(296, 188)
+    .setDepth(73)
+    .setAlpha(0.92)
+    .setTint(0xdaf5f2);
+  registerDecorativeOccludable(ceiling, 0.92, occludables);
+
+  createPulsingLight(scene, position.x - 128, position.y - 82, 0xff4f45, 75, 0.2, 0.82, 620);
+  createPulsingLight(scene, position.x + 122, position.y + 80, 0x7dff56, 75, 0.14, 0.58, 880);
+}
+
+function createPulsingLight(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  color: number,
+  depth: number,
+  minAlpha: number,
+  maxAlpha: number,
+  durationMs: number
+): void {
+  const light = scene.add.circle(x, y, 22, color, minAlpha).setDepth(depth).setBlendMode(Phaser.BlendModes.ADD);
+  scene.tweens.add({
+    targets: light,
+    alpha: maxAlpha,
+    scale: 1.45,
+    duration: durationMs,
+    yoyo: true,
+    repeat: -1,
+    ease: "Sine.easeInOut"
   });
 }
 
-interface NaturalPickupPadPalette {
-  weaponShadow: number;
-  weaponOuter: number;
-  weaponInner: number;
-  itemShadow: number;
-  itemOuter: number;
-  itemInner: number;
-}
-
-function createNaturalPickupPads(scene: Phaser.Scene, themeId: BattleMapThemeId): void {
-  const palette = naturalPickupPadPalette(themeId);
-
-  getWeaponPickupSpawnPoints().forEach((point) => {
-    scene.add.ellipse(point.position.x + 5, point.position.y + 9, 104, 68, palette.weaponShadow, 0.18).setDepth(19);
-    scene.add.ellipse(point.position.x, point.position.y + 4, 98, 58, palette.weaponOuter, 0.2).setDepth(20);
-    scene.add.ellipse(point.position.x, point.position.y + 4, 68, 34, palette.weaponInner, 0.12).setDepth(21);
-  });
-
-  getItemPickupSpawnPoints().forEach((point) => {
-    scene.add.ellipse(point.position.x + 5, point.position.y + 9, 92, 62, palette.itemShadow, 0.18).setDepth(19);
-    scene.add.ellipse(point.position.x, point.position.y + 4, 84, 50, palette.itemOuter, 0.22).setDepth(20);
-    scene.add.ellipse(point.position.x, point.position.y + 4, 58, 30, palette.itemInner, 0.12).setDepth(21);
-  });
-}
-
-function naturalPickupPadPalette(themeId: BattleMapThemeId): NaturalPickupPadPalette {
-  switch (themeId) {
-    case "winter":
-      return {
-        weaponShadow: 0x8aa7b4,
-        weaponOuter: 0xdceef5,
-        weaponInner: 0xffffff,
-        itemShadow: 0x7ea5b4,
-        itemOuter: 0xb9dbe8,
-        itemInner: 0xedfbff
-      };
-    case "normal":
-      return {
-        weaponShadow: 0x243018,
-        weaponOuter: 0x7d8b3c,
-        weaponInner: 0xd4b85a,
-        itemShadow: 0x1f301d,
-        itemOuter: 0x4f7b42,
-        itemInner: 0x9fdd7a
-      };
-    case "fall":
-      return {
-        weaponShadow: 0x2b2f1d,
-        weaponOuter: 0xa57634,
-        weaponInner: 0xe0b15e,
-        itemShadow: 0x20301f,
-        itemOuter: 0x527546,
-        itemInner: 0x9be77d
-      };
-    case "industrial":
-      return {
-        weaponShadow: 0x2b2f1d,
-        weaponOuter: 0xa57634,
-        weaponInner: 0xe0b15e,
-        itemShadow: 0x20301f,
-        itemOuter: 0x527546,
-        itemInner: 0x9be77d
-      };
+function createSmokeColumn(scene: Phaser.Scene, x: number, y: number, scale: number): void {
+  for (let index = 0; index < 5; index += 1) {
+    const puff = scene.add
+      .ellipse(x + index * 9, y - index * 18, 42 * scale + index * 9, 26 * scale + index * 7, 0x1f2a2b, 0.16)
+      .setDepth(74 + index)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY);
+    scene.tweens.add({
+      targets: puff,
+      x: puff.x + 20,
+      y: puff.y - 22,
+      alpha: 0.04,
+      scale: 1.35,
+      duration: 2200 + index * 260,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
   }
 }
-
-/** 中文名：创建竞技场decorations（createArenaDecorations）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
-export function createArenaDecorations(scene: Phaser.Scene, occludables: OccludableView[]): void {
-  const pylons: readonly Vec2[] = [
-    { x: 320, y: 320 },
-    { x: 2240, y: 320 },
-    { x: 320, y: 1280 },
-    { x: 2240, y: 1280 },
-    { x: 736, y: 224 },
-    { x: 1824, y: 224 },
-    { x: 736, y: 1376 },
-    { x: 1824, y: 1376 }
-  ];
-
-  const machinery: readonly Vec2[] = [
-    { x: 896, y: 448 },
-    { x: 1664, y: 448 },
-    { x: 896, y: 1152 },
-    { x: 1664, y: 1152 },
-    { x: 640, y: 640 },
-    { x: 1920, y: 640 },
-    { x: 640, y: 960 },
-    { x: 1920, y: 960 }
-  ];
-
-  const lowDeckPlates: readonly Vec2[] = [
-    { x: 544, y: 576 },
-    { x: 2016, y: 576 },
-    { x: 544, y: 1024 },
-    { x: 2016, y: 1024 },
-    { x: 1280, y: 224 },
-    { x: 1280, y: 1376 }
-  ];
-
-  pylons.forEach((position) => {
-    scene.add.rectangle(position.x + 8, position.y + 16, 82, 96, 0x020405, 0.36).setDepth(43);
-    const pylon = scene.add.image(position.x, position.y, WALL_TEXTURE_KEY).setScale(1.16).setDepth(54).setTint(0x1b252c).setAlpha(0.96);
-    scene.add.rectangle(position.x, position.y + 30, 78, 7, ARENA_ENERGY_ACCENT_COLOR, 0.2).setDepth(55);
-    registerDecorativeOccludable(pylon, 0.96, occludables);
-  });
-
-  machinery.forEach((position) => {
-    scene.add.rectangle(position.x + 10, position.y + 12, 74, 58, 0x020405, 0.32).setDepth(42);
-    const machine = scene.add.image(position.x, position.y, ROCK_TEXTURE_KEY).setScale(1.08).setDepth(53).setTint(0x2b363b).setAlpha(0.92);
-    scene.add.rectangle(position.x, position.y - 24, 44, 4, 0xd99a34, 0.22).setDepth(54);
-    registerDecorativeOccludable(machine, 0.92, occludables);
-  });
-
-  lowDeckPlates.forEach((position) => {
-    scene.add.image(position.x, position.y, CRATE_TEXTURE_KEY).setScale(1.1).setDepth(11).setTint(0x1f2b31).setAlpha(0.78);
-    scene.add.rectangle(position.x, position.y, 74, 6, 0x5fd9ff, 0.14).setDepth(12);
-  });
-}
-
 function registerDecorativeOccludable(sprite: OccludableSprite, baseAlpha: number, occludables: OccludableView[]): void {
   const bounds = sprite.getBounds();
   occludables.push({

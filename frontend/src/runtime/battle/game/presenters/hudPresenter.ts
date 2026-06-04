@@ -1,15 +1,11 @@
-import type {
-  GameEvent,
-  GameSnapshot,
-  Hero,
-  ItemPickup,
-  SkillKind,
-  SkillState,
-  WeaponPickup,
-  WeaponState
-} from "../../../../objects/battle/types";
-import { WEAPON_PICKUP_RADIUS } from "../constants";
-import { getSkillState } from "../skills";
+import type { BattleGameEventState as GameEvent } from "../../../../objects/battle/microservices/runtime/objects/event/BattleGameEventState";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
+import type { BattleItemPickupState as ItemPickup, BattleWeaponPickupState as WeaponPickup } from "../../../../objects/battle/microservices/abilities/objects/pickup/BattlePickupState";
+import type { BattleWeaponState as WeaponState } from "../../../../objects/battle/microservices/combat/objects/weapon/BattleWeaponState";
+import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
+import type { SkillKind } from "../../../../objects/battle/microservices/abilities/objects/skill/SkillKind";
+import { WEAPON_PICKUP_RADIUS } from "../objects/BattleGameConstants";
+import { getSkillState, SKILL_DEFINITIONS } from "../../microservices/abilities/functions/BattleSkillStateRules";
 import type {
   HudFeedEntry,
   HudLeaderboardEntry,
@@ -43,9 +39,10 @@ export interface HudPresenterInput {
   skillBindings: HudSkillBinding[];
   cameraRect: HudMinimapRect;
   obstacleBounds: readonly HudPresenterObstacleBounds[];
+  mapExpanded: boolean;
 }
 
-/** 中文名：创建hud状态（createHudState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
+/** ???:??hud??(createHudState)?????:????????????????????????,??????????????????*/
 export function createHudState(input: HudPresenterInput): HudState {
   const {
     snapshot,
@@ -59,7 +56,8 @@ export function createHudState(input: HudPresenterInput): HudState {
     nearbyItemPickup,
     skillBindings,
     cameraRect,
-    obstacleBounds
+    obstacleBounds,
+    mapExpanded
   } = input;
 
   if (sharedAuthoritativeHud) {
@@ -83,11 +81,12 @@ export function createHudState(input: HudPresenterInput): HudState {
         nearbyItemPickup
       ),
       weaponEntries: buildAuthoritativeWeaponEntries(playerHero),
-      skillEntries: buildAuthoritativeSkillEntries(playerHero),
+      skillEntries: buildSkillEntries(playerHero, skillBindings),
       statusEntries: buildStatusEntries(playerHero, currentWeapon, weaponSwitchRemainingMs, sharedAuthoritativeHud, nearbyWeaponPickup, nearbyItemPickup),
       leaderboard: buildLeaderboard(snapshot.heroes, playerHero),
       feed: buildFeed(snapshot.events),
       minimap: createMinimapData({ snapshot, cameraRect, obstacleBounds }),
+      mapExpanded,
       debugLines: []
     };
   }
@@ -101,7 +100,7 @@ export function createHudState(input: HudPresenterInput): HudState {
     maxHp: playerHero.maxHp,
     stamina: playerHero.stamina,
     maxStamina: playerHero.maxStamina,
-    currentWeaponName: playerHero.alive ? getWeaponDisplayLabel(currentWeapon.weaponKind) : "已出局",
+    currentWeaponName: playerHero.alive ? getWeaponDisplayLabel(currentWeapon.weaponKind) : "???",
     currentWeaponAmmo: formatCurrentWeaponAmmo(currentWeapon),
     currentWeaponState: formatCurrentWeaponState(playerHero, currentWeapon, weaponSwitchRemainingMs),
     pickupHint: formatPickupHint(nearbyWeaponPickup, nearbyItemPickup),
@@ -111,6 +110,7 @@ export function createHudState(input: HudPresenterInput): HudState {
     leaderboard: buildLeaderboard(snapshot.heroes, playerHero),
     feed: buildFeed(snapshot.events),
     minimap: createMinimapData({ snapshot, cameraRect, obstacleBounds }),
+    mapExpanded,
     debugLines: []
   };
 }
@@ -127,7 +127,7 @@ function buildStatusEntries(
 
   if (!playerHero.alive) {
     entries.push({
-      label: "一命模式：已淘汰",
+      label: "????:???",
       tone: "danger"
     });
     return entries;
@@ -135,27 +135,27 @@ function buildStatusEntries(
 
   const hpRatio = playerHero.hp / playerHero.maxHp;
   if (hpRatio <= 0.3) {
-    entries.push({ label: "生命危险", tone: "danger" });
+    entries.push({ label: "????", tone: "danger" });
   } else if (hpRatio <= 0.55) {
-    entries.push({ label: "注意受击", tone: "warning" });
+    entries.push({ label: "????", tone: "warning" });
   }
 
   if (nearbyWeaponPickup) {
-    entries.push({ label: `可拾取 ${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)}`, tone: "success" });
+    entries.push({ label: `??? ${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)}`, tone: "success" });
   } else if (nearbyItemPickup) {
-    entries.push({ label: `可拾取 ${getItemPickupDisplayLabel(nearbyItemPickup.kind)}`, tone: "success" });
+    entries.push({ label: `??? ${getItemPickupDisplayLabel(nearbyItemPickup.kind)}`, tone: "success" });
   }
 
   if (weaponSwitchRemainingMs > 0) {
-    entries.push({ label: "切枪中", tone: "info" });
-  } else if (currentWeapon.reloadRemaining > 0) {
-    entries.push({ label: "换弹中", tone: "warning" });
+    entries.push({ label: "???", tone: "info" });
+  } else if (currentWeapon.reloadRemainingMs > 0) {
+    entries.push({ label: "???", tone: "warning" });
   } else if (currentWeapon.weaponKind === "Gatling" && currentWeapon.overheated) {
-    entries.push({ label: "武器过热", tone: "danger" });
+    entries.push({ label: "????", tone: "danger" });
   } else if (currentWeapon.weaponKind !== "Gatling" && currentWeapon.ammoInMagazine <= 0) {
-    entries.push({ label: (currentWeapon.reserveAmmo ?? 0) > 0 ? "弹匣已空" : "弹药耗尽", tone: "danger" });
+    entries.push({ label: (currentWeapon.reserveAmmo ?? 0) > 0 ? "????" : "????", tone: "danger" });
   } else {
-    entries.push({ label: sharedAuthoritativeHud ? "服务器同步" : "本地战斗", tone: "info" });
+    entries.push({ label: sharedAuthoritativeHud ? "?????" : "????", tone: "info" });
   }
 
   return entries.slice(0, 4);
@@ -163,41 +163,11 @@ function buildStatusEntries(
 
 function buildAuthoritativeWeaponEntries(playerHero: Hero): HudWeaponEntry[] {
   return playerHero.weapons.map((weapon, index) => ({
-    label: `${index === playerHero.currentWeaponIndex ? ">" : " "} 服务器${getWeaponDisplayLabel(weapon.weaponKind)} | ${formatAuthoritativeWeaponAmmo(weapon)} | ${formatAuthoritativeWeaponStateText(weapon)}`,
+    label: `${index === playerHero.currentWeaponIndex ? ">" : " "} ???${getWeaponDisplayLabel(weapon.weaponKind)} | ${formatAuthoritativeWeaponAmmo(weapon)} | ${formatAuthoritativeWeaponStateText(weapon)}`,
     current: index === playerHero.currentWeaponIndex,
     warning: isWeaponWarning(weapon),
     tone: getHudWeaponTone(weapon.weaponKind)
   }));
-}
-
-function buildAuthoritativeSkillEntries(playerHero: Hero): HudSkillEntry[] {
-  return (["Blink", "Dash", "Freeze"] as const).map((kind) => {
-    const skill = playerHero.skills.find((entry) => entry.kind === kind) ?? { kind, cooldownMs: 0, activeMs: 0 };
-    const prepared = (kind === "Blink" || kind === "Freeze") && playerHero.preparedSkill === kind;
-    return {
-      key: kind === "Blink" ? "Q" : kind === "Dash" ? "E" : "R",
-      name: `服务器${getSkillDisplayLabel(kind)}`,
-      state: formatAuthoritativeSkillState(skill, prepared),
-      ready: skill.cooldownMs <= 0 && skill.activeMs <= 0,
-      prepared
-    };
-  });
-}
-
-function formatAuthoritativeSkillState(skill: SkillState, prepared: boolean): string {
-  if (skill.activeMs > 0) {
-    return `生效中 ${(skill.activeMs / 1000).toFixed(1)} 秒`;
-  }
-
-  if (skill.cooldownMs > 0) {
-    return `冷却 ${(skill.cooldownMs / 1000).toFixed(1)} 秒`;
-  }
-
-  if (prepared) {
-    return "准备中：左键释放";
-  }
-
-  return "就绪";
 }
 
 function formatAuthoritativePickupHint(
@@ -210,16 +180,16 @@ function formatAuthoritativePickupHint(
   const weaponPickup =
     nearbyWeaponPickup ?? findNearbyAuthoritativeWeaponPickup(playerHero.position, weaponPickups, WEAPON_PICKUP_RADIUS);
   if (weaponPickup) {
-    return `附近有服务器${getWeaponDisplayLabel(weaponPickup.weaponKind)}；接触后加入武器栏，滚轮切换`;
+    return `??????${getWeaponDisplayLabel(weaponPickup.weaponKind)};????????,????`;
   }
 
   const pickup =
     nearbyItemPickup ?? findNearbyAuthoritativeMedkit(playerHero.position, itemPickups, WEAPON_PICKUP_RADIUS);
   if (pickup) {
-    return "附近有服务器医疗包；接触后自动拾取";
+    return "?????????;???????";
   }
 
-  return "服务器医疗包和武器补给已显示；接触武器后会切换当前装备";
+  return "??????????????;????????????";
 }
 
 function findNearbyAuthoritativeWeaponPickup(
@@ -269,12 +239,12 @@ function findNearbyAuthoritativeMedkit(
 }
 
 function formatAuthoritativeWeaponName(playerHero: Hero, currentWeapon: WeaponState): string {
-  return playerHero.alive ? `服务器${getWeaponDisplayLabel(currentWeapon.weaponKind)}` : "已淘汰";
+  return playerHero.alive ? `???${getWeaponDisplayLabel(currentWeapon.weaponKind)}` : "???";
 }
 
 function formatAuthoritativeWeaponAmmo(currentWeapon: WeaponState): string {
   if (currentWeapon.weaponKind === "Gatling") {
-    return `热量 ${Math.round(currentWeapon.heat)} / 100`;
+    return `?? ${Math.round(currentWeapon.heat)} / 100`;
   }
 
   return `${currentWeapon.ammoInMagazine} / ${currentWeapon.reserveAmmo ?? 0}`;
@@ -282,7 +252,7 @@ function formatAuthoritativeWeaponAmmo(currentWeapon: WeaponState): string {
 
 function formatAuthoritativeWeaponState(playerHero: Hero, currentWeapon: WeaponState): string {
   if (!playerHero.alive) {
-    return "已淘汰";
+    return "???";
   }
 
   return formatAuthoritativeWeaponStateText(currentWeapon);
@@ -291,46 +261,33 @@ function formatAuthoritativeWeaponState(playerHero: Hero, currentWeapon: WeaponS
 function formatAuthoritativeWeaponStateText(currentWeapon: WeaponState): string {
   if (currentWeapon.weaponKind === "Gatling") {
     if (currentWeapon.overheated) {
-      return "过热";
+      return "??";
     }
 
-    if (currentWeapon.overheatRemaining > 0) {
-      return `散热 ${(Math.max(0, currentWeapon.overheatRemaining) / 1000).toFixed(1)} 秒`;
+    if (currentWeapon.overheatRemainingMs > 0) {
+      return `?? ${(Math.max(0, currentWeapon.overheatRemainingMs) / 1000).toFixed(1)} ?`;
     }
   }
 
-  if (currentWeapon.reloadRemaining > 0) {
-    return `换弹 ${(Math.max(0, currentWeapon.reloadRemaining) / 1000).toFixed(1)} 秒`;
+  if (currentWeapon.reloadRemainingMs > 0) {
+    return `?? ${(Math.max(0, currentWeapon.reloadRemainingMs) / 1000).toFixed(1)} ?`;
   }
 
-  return `冷却 ${(Math.max(0, currentWeapon.cooldownRemaining) / 1000).toFixed(1)} 秒`;
+  return `?? ${(Math.max(0, currentWeapon.fireCooldownMs) / 1000).toFixed(1)} ?`;
 }
 
 function isWeaponWarning(weapon: WeaponState): boolean {
   return weapon.weaponKind === "Gatling"
-    ? weapon.overheated || weapon.overheatRemaining > 0
+    ? weapon.overheated || weapon.overheatRemainingMs > 0
     : weapon.ammoInMagazine <= 0 && (weapon.reserveAmmo ?? 0) <= 0;
-}
-
-function getSkillDisplayLabel(kind: SkillKind): string {
-  switch (kind) {
-    case "Blink":
-      return "闪现";
-    case "Dash":
-      return "冲刺";
-    case "Freeze":
-      return "冻结";
-    default:
-      return kind;
-  }
 }
 
 function buildWeaponEntries(playerHero: Hero): HudWeaponEntry[] {
   return playerHero.weapons.map((weapon, index) => ({
     label:
       weapon.weaponKind === "Gatling"
-        ? `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} · 热量 ${Math.round(weapon.heat)} / 100`
-        : `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} · ${weapon.ammoInMagazine} / ${weapon.reserveAmmo ?? 0}`,
+        ? `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} ??? ${Math.round(weapon.heat)} / 100`
+        : `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} ?${weapon.ammoInMagazine} / ${weapon.reserveAmmo ?? 0}`,
     current: index === playerHero.currentWeaponIndex,
     warning:
       weapon.weaponKind === "Gatling"
@@ -360,24 +317,54 @@ function buildSkillEntries(playerHero: Hero, skillBindings: HudSkillBinding[]): 
 
     return {
       key: binding.key,
+      icon: getSkillIcon(binding.skillId),
       name: binding.label,
-      state: formatSkillState(playerHero, binding.skillId, skill.cooldownMs),
-      ready: skill.cooldownMs <= 0,
-      prepared: playerHero.preparedSkill === binding.skillId
+      state: formatSkillState(playerHero, binding.skillId, skill.cooldownMs, skill.activeMs),
+      ready: skill.cooldownMs <= 0 && skill.activeMs <= 0,
+      prepared: playerHero.preparedSkill === binding.skillId,
+      cooldownProgress: skillProgress(skill.cooldownMs, SKILL_DEFINITIONS[binding.skillId].cooldownMs),
+      activeProgress: skillProgress(skill.activeMs, SKILL_DEFINITIONS[binding.skillId].activeMs)
     };
   });
 }
 
-function formatSkillState(playerHero: Hero, skillId: SkillKind, cooldownMs: number): string {
+function formatSkillState(playerHero: Hero, skillId: SkillKind, cooldownMs: number, activeMs: number): string {
+  if (activeMs > 0) {
+    return `持续 ${(activeMs / 1000).toFixed(1)}s`;
+  }
+
   if (cooldownMs > 0) {
-    return `${(cooldownMs / 1000).toFixed(1)}秒`;
+    return `CD ${(cooldownMs / 1000).toFixed(1)}s`;
   }
 
   if (playerHero.preparedSkill === skillId) {
-    return "准备中";
+    return "已瞄准";
   }
 
-  return "可用";
+  return "就绪";
+}
+
+function skillProgress(remainingMs: number, totalMs: number): number {
+  if (!Number.isFinite(remainingMs) || !Number.isFinite(totalMs) || totalMs <= 0 || remainingMs <= 0) {
+    return 0;
+  }
+
+  return clamp(remainingMs / totalMs, 0, 1);
+}
+
+function getSkillIcon(kind: SkillKind): string {
+  switch (kind) {
+    case "Blink":
+      return "闪";
+    case "Dash":
+      return "冲";
+    case "Freeze":
+      return "冰";
+    case "Critical":
+      return "暴";
+    default:
+      return "?";
+  }
 }
 
 function buildLeaderboard(heroes: GameSnapshot["heroes"], playerHero: Hero): HudLeaderboardEntry[] {
@@ -420,44 +407,44 @@ function buildFeed(events: GameEvent[]): HudFeedEntry[] {
 
 function formatCurrentWeaponAmmo(currentWeapon: WeaponState): string {
   return currentWeapon.weaponKind === "Gatling"
-    ? `热量 ${Math.round(currentWeapon.heat)} / 100`
+    ? `?? ${Math.round(currentWeapon.heat)} / 100`
     : `${currentWeapon.ammoInMagazine} / ${currentWeapon.reserveAmmo ?? 0}`;
 }
 
 function formatCurrentWeaponState(playerHero: Hero, currentWeapon: WeaponState, weaponSwitchRemainingMs: number): string {
   if (!playerHero.alive) {
-    return "已出局";
+    return "???";
   }
 
   if (weaponSwitchRemainingMs > 0) {
-    return `正在切枪 ${(weaponSwitchRemainingMs / 1000).toFixed(1)}秒`;
+    return `???? ${(weaponSwitchRemainingMs / 1000).toFixed(1)}?`;
   }
 
   if (currentWeapon.weaponKind === "Gatling") {
-    return currentWeapon.overheated ? `过热 ${(currentWeapon.overheatRemaining / 1000).toFixed(1)}秒` : "自动射击";
+    return currentWeapon.overheated ? `?? ${(currentWeapon.overheatRemainingMs / 1000).toFixed(1)}?` : "????";
   }
 
-  if (currentWeapon.reloadRemaining > 0) {
-    return `正在换弹 ${(currentWeapon.reloadRemaining / 1000).toFixed(1)}秒`;
+  if (currentWeapon.reloadRemainingMs > 0) {
+    return `???? ${(currentWeapon.reloadRemainingMs / 1000).toFixed(1)}?`;
   }
 
-  if (currentWeapon.cooldownRemaining > 0) {
-    return `冷却 ${(currentWeapon.cooldownRemaining / 1000).toFixed(1)}秒`;
+  if (currentWeapon.fireCooldownMs > 0) {
+    return `?? ${(currentWeapon.fireCooldownMs / 1000).toFixed(1)}?`;
   }
 
-  return "就绪";
+  return "??";
 }
 
 function formatPickupHint(nearbyWeaponPickup: WeaponPickup | null, nearbyItemPickup: ItemPickup | null): string {
   if (nearbyWeaponPickup) {
-    return `附近武器：${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)} · 加入武器栏`;
+    return `??????{getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)} ??????`;
   }
 
   if (nearbyItemPickup) {
-    return `附近补给：${getItemPickupDisplayLabel(nearbyItemPickup.kind)} · 自动拾取`;
+    return `??????{getItemPickupDisplayLabel(nearbyItemPickup.kind)} ?????`;
   }
 
-  return "滚轮切换武器 · T 换弹";
+  return "?????? ?T ??";
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -3,22 +3,27 @@ import path from "node:path";
 import process from "node:process";
 
 const repoRoot = process.cwd();
-const backendRoot = path.join(repoRoot, "backend", "src", "main", "scala", "slaydemo", "backend");
-const frontendDomainRoot = path.join(repoRoot, "frontend", "src", "domains");
+const backendServicesRoot = path.join(repoRoot, "backend", "src", "main", "scala", "services");
+const frontendApiRoot = path.join(repoRoot, "frontend", "src", "apis");
+const frontendObjectRoot = path.join(repoRoot, "frontend", "src", "objects");
 const frontendRoot = path.join(repoRoot, "frontend", "src");
 const failures = [];
 
 const expectedBusinessDomains = ["battle", "bots", "forum", "governance", "identity", "mail", "replay", "social"];
-const allowedBackendInfrastructureDomains = ["shared"];
+const expectedBattleApiClients = ["queue", "results", "session"];
 const forbiddenFrontendBusinessAliases = [
-  "api",
   "auth",
   "contribution",
+  "domains",
+  "features",
   "home",
+  "hooks",
+  "lib",
   "loadout",
   "mails",
   "profile",
-  "rating"
+  "rating",
+  "shared"
 ];
 
 function fail(message) {
@@ -78,43 +83,77 @@ function compareSets(label, expected, actual) {
   }
 }
 
-if (!isDirectory(backendRoot)) {
-  fail(`Missing backend root: ${path.relative(repoRoot, backendRoot)}`);
-}
-if (!isDirectory(frontendDomainRoot)) {
-  fail(`Missing frontend domain root: ${path.relative(repoRoot, frontendDomainRoot)}`);
-}
-
-const backendTopLevelDirs = listDirectoryNames(backendRoot);
-const backendBusinessDomains = backendTopLevelDirs.filter((entry) => !allowedBackendInfrastructureDomains.includes(entry));
-const frontendDomains = listDirectoryNames(frontendDomainRoot);
-
-compareSets("backend business domain", expectedBusinessDomains, backendBusinessDomains);
-compareSets("frontend domain", expectedBusinessDomains, frontendDomains);
-
-for (const infrastructureDomain of allowedBackendInfrastructureDomains) {
-  if (!backendTopLevelDirs.includes(infrastructureDomain)) {
-    fail(`Backend infrastructure domain missing: ${infrastructureDomain}`);
+function assertDirectory(target, label) {
+  if (!isDirectory(target)) {
+    fail(`Missing ${label}: ${path.relative(repoRoot, target)}`);
   }
 }
+
+function assertHasFiles(target, extensions, label) {
+  const count = extensions.reduce((total, extension) => total + listFilesByExtension(target, extension).length, 0);
+  if (count === 0) {
+    fail(`${label} has no source files: ${path.relative(repoRoot, target)}`);
+  }
+}
+
+assertDirectory(backendServicesRoot, "backend services root");
+assertDirectory(frontendApiRoot, "frontend API root");
+assertDirectory(frontendObjectRoot, "frontend object root");
+
+const backendServices = listDirectoryNames(backendServicesRoot);
+const frontendApiServices = listDirectoryNames(frontendApiRoot);
+const frontendObjectServices = listDirectoryNames(frontendObjectRoot);
+
+compareSets("backend service", expectedBusinessDomains, backendServices);
+compareSets("frontend API service", expectedBusinessDomains, frontendApiServices);
+compareSets("frontend object service", expectedBusinessDomains, frontendObjectServices);
 
 for (const domain of expectedBusinessDomains) {
-  const backendDomainPath = path.join(backendRoot, domain);
-  const frontendDomainPath = path.join(frontendDomainRoot, domain);
+  const backendDomainPath = path.join(backendServicesRoot, domain);
+  const frontendApiPath = path.join(frontendApiRoot, domain);
+  const frontendObjectPath = path.join(frontendObjectRoot, domain);
 
-  if (listFilesByExtension(backendDomainPath, ".scala").length === 0) {
-    fail(`Backend domain has no Scala source files: ${domain}`);
-  }
-  if (listFilesByExtension(frontendDomainPath, ".ts").length + listFilesByExtension(frontendDomainPath, ".tsx").length === 0) {
-    fail(`Frontend domain has no TypeScript source files: ${domain}`);
-  }
+  assertHasFiles(backendDomainPath, [".scala"], `Backend service ${domain}`);
+  assertHasFiles(frontendApiPath, [".ts", ".tsx"], `Frontend API service ${domain}`);
+  assertHasFiles(frontendObjectPath, [".ts", ".tsx"], `Frontend object service ${domain}`);
 }
 
 const frontendTopLevelDirs = listDirectoryNames(frontendRoot);
 for (const alias of forbiddenFrontendBusinessAliases) {
-  if (frontendTopLevelDirs.includes(alias) || frontendDomains.includes(alias)) {
+  if (frontendTopLevelDirs.includes(alias)) {
     fail(`Forbidden frontend pseudo-domain still exists: ${alias}`);
   }
+}
+
+const backendBattleMicroservicesRoot = path.join(backendServicesRoot, "battle", "microservices");
+const frontendBattleObjectMicroservicesRoot = path.join(frontendObjectRoot, "battle", "microservices");
+const frontendBattleApiMicroservicesRoot = path.join(frontendApiRoot, "battle", "microservices");
+
+const backendBattleMicroservices = listDirectoryNames(backendBattleMicroservicesRoot);
+compareSets(
+  "battle object microservice",
+  backendBattleMicroservices,
+  listDirectoryNames(frontendBattleObjectMicroservicesRoot)
+);
+for (const microservice of backendBattleMicroservices) {
+  assertHasFiles(
+    path.join(frontendBattleObjectMicroservicesRoot, microservice),
+    [".ts", ".tsx"],
+    `Frontend battle object microservice ${microservice}`
+  );
+}
+
+compareSets(
+  "battle API client microservice",
+  expectedBattleApiClients,
+  listDirectoryNames(frontendBattleApiMicroservicesRoot)
+);
+for (const microservice of expectedBattleApiClients) {
+  assertHasFiles(
+    path.join(frontendBattleApiMicroservicesRoot, microservice),
+    [".ts", ".tsx"],
+    `Frontend battle API client microservice ${microservice}`
+  );
 }
 
 if (failures.length > 0) {

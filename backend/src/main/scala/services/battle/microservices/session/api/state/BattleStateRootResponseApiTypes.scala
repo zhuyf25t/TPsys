@@ -4,6 +4,7 @@ import io.circe.{Encoder, Json}
 import io.circe.syntax.*
 import services.battle.objects.{BattleArtifactStatus, BattlePhase}
 import services.battle.objects.core.BattleAggregateState
+import services.battle.microservices.extraction.api.state.BattleExtractionStateResponse.given
 
 import BattleStateVectorResponse.given
 import BattleStateProjectileResponse.given
@@ -36,6 +37,9 @@ object BattleStateRootResponse {
           "projectileTerminals" -> state.projectileTerminals.asJson,
           "slowFields" -> state.slowFields.asJson,
           "pickups" -> state.pickups.asJson,
+          "gasZone" -> state.gasZone.asJson,
+          "extraction" -> state.extraction.asJson,
+          "lootCaches" -> state.lootCaches.asJson,
           "events" -> state.events.asJson,
           "winnerPlayerId" -> state.winnerPlayerId.filter(_.value.trim.nonEmpty).map(_.value).asJson,
           "winnerHeroId" -> state.winnerHeroId.filter(_.value.trim.nonEmpty).map(_.value).asJson

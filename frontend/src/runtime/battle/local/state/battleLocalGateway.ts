@@ -8,7 +8,7 @@ import {
   type LocalBattleLiveSummary,
   type LocalBattleReturnSummary
 } from "./battleTruthStore";
-import type { GameSnapshot } from "../../../../objects/battle/types";
+import type { BattleGameSnapshot as GameSnapshot } from "../../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
 
 export {
   BATTLE_MATCH_DURATION_MS,

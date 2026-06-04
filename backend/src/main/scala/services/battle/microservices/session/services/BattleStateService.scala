@@ -2,9 +2,10 @@ package services.battle.microservices.session.services
 
 import scala.util.control.NonFatal
 
-import cats.effect.IO
+import cats.effect.{IO, Ref, Resource}
+import cats.syntax.all.*
 
-import services.battle.microservices.runtime.services.BattleEngine
+import services.battle.microservices.runtime.services.{BattleDynamicRuleBook, BattleEngine}
 import services.battle.objects.BattlePhase
 import services.battle.microservices.session.objects.command.{BattleCommandAccepted, BattleCommandRequest}
 import services.battle.objects.core.{BattleAggregateState, BattleId, DurationMillis, EpochMillis, PlayerId, RoomId}
@@ -59,34 +60,34 @@ object NoopBattleRoomLifecycleSink extends BattleRoomLifecycleSink {
   override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] = IO.unit
 }
 
-final class InMemoryBattleStateService(
+final class InMemoryBattleStateService private (
   sessionLookup: BattleSessionLookup,
   currentTimeMillis: () => Long,
   battleDuration: DurationMillis,
+  battleRules: BattleDynamicRuleBook,
   finishProjector: BattleFinishProjector,
-  roomLifecycleSink: BattleRoomLifecycleSink
+  roomLifecycleSink: BattleRoomLifecycleSink,
+  battles: Ref[IO, Map[BattleId, StoredBattle]]
 ) extends BattleStateService {
-  private val lock = Object()
-  private var battles: Map[BattleId, StoredBattle] = Map.empty
+  private final case class AdvancedStoredBattle(
+    storedBattle: StoredBattle,
+    projectionCandidate: Option[BattleAggregateState],
+    roomFinished: Option[BattleRoomFinishedNotification]
+  )
+
+  private final case class CommandSubmissionUpdate(
+    storedBattle: StoredBattle,
+    submission: CommandSubmission
+  )
 
   /** 中文名：当前状态（currentState）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   override def currentState(battleId: BattleId): IO[Either[BattleStateReadError, BattleAggregateState]] =
     for
       now <- IO.blocking(EpochMillis(currentTimeMillis()))
       maybeStoredBattle <- findOrInitialize(battleId, now)
-      readAndNotification <- maybeStoredBattle match {
-        case None =>
-          IO.pure((StateRead(Left(BattleStateReadError.BattleNotFound), None), None))
-        case Some(storedBattle) =>
-          IO.blocking {
-            lock.synchronized {
-              val currentStoredBattle = battles.getOrElse(battleId, storedBattle)
-              val (advanced, projectionCandidate, roomFinished) = advanceStoredBattle(currentStoredBattle, now)
-              battles = battles.updated(battleId, advanced)
-              (StateRead(Right(advanced.state), projectionCandidate), roomFinished)
-            }
-          }
-      }
+      readAndNotification <- maybeStoredBattle.fold(
+        battleNotFoundRead
+      )(storedBattle => advanceAndCommitRead(battleId, storedBattle, now))
       (read, roomFinished) = readAndNotification
       _ <- notifyRoomFinished(roomFinished)
       result <- read.projectionCandidate match {
@@ -104,40 +105,9 @@ final class InMemoryBattleStateService(
     for
       now <- IO.blocking(EpochMillis(currentTimeMillis()))
       maybeStoredBattle <- findOrInitialize(request.battleId, now)
-      submissionAndNotification <- maybeStoredBattle match {
-        case None =>
-          IO.pure((CommandSubmission(Left(BattleCommandSubmitError.BattleNotFound), None), None))
-        case Some(storedBattle) =>
-          IO.blocking {
-            lock.synchronized {
-              val currentStoredBattle = battles.getOrElse(request.battleId, storedBattle)
-              val (advanced, projectionCandidate, roomFinished) = advanceStoredBattle(currentStoredBattle, now)
-              val submission =
-                advanced.state.players.find(_.playerId == request.playerId) match {
-                  case None =>
-                    storeCommandSubmission(request, advanced, Left(BattleCommandSubmitError.PlayerNotFound), projectionCandidate)
-                  case Some(player) if player.isBot =>
-                    storeCommandSubmission(request, advanced, Left(BattleCommandSubmitError.BotCommandsNotSupported), projectionCandidate)
-                  case Some(_) if advanced.commandOwnershipByPlayerId.get(request.playerId).forall(_ != request.ticketId) =>
-                    storeCommandSubmission(request, advanced, Left(BattleCommandSubmitError.CommandNotAuthorized), projectionCandidate)
-                  case Some(player) if advanced.state.phase != BattlePhase.Active || !player.alive =>
-                    val ignored = BattleCommandAcceptanceFactory.ignored(advanced.state, player, now)
-                    storeCommandSubmission(request, advanced, Right(ignored), projectionCandidate)
-                  case Some(player) =>
-                    val applied = BattleEngine.applyCommand(advanced.state, player, request)
-                    val nextState = applied.state
-                    val accepted = BattleCommandAcceptanceFactory.applied(
-                      state = nextState,
-                      playerId = request.playerId,
-                      serverTime = now,
-                      outcomes = applied.outcomes
-                    )
-                    storeCommandSubmission(request, advanced.copy(state = nextState), Right(accepted), projectionCandidate)
-                }
-              (submission, roomFinished)
-            }
-          }
-      }
+      submissionAndNotification <- maybeStoredBattle.fold(
+        battleNotFoundSubmission
+      )(storedBattle => acceptAndCommitCommand(request, storedBattle, now))
       (submission, roomFinished) = submissionAndNotification
       _ <- notifyRoomFinished(roomFinished)
       _ <- submission.projectionCandidate match {
@@ -147,7 +117,7 @@ final class InMemoryBattleStateService(
     yield submission.result
 
   private def findOrInitialize(battleId: BattleId, now: EpochMillis): IO[Option[StoredBattle]] =
-    IO.blocking(lock.synchronized(battles.get(battleId))).flatMap {
+    battles.get.map(_.get(battleId)).flatMap {
       case Some(storedBattle) =>
         IO.pure(Some(storedBattle))
       case None =>
@@ -157,14 +127,20 @@ final class InMemoryBattleStateService(
             case None =>
               IO.pure(None)
             case Some(seed) =>
-              IO.blocking {
-                lock.synchronized {
-                  battles.get(battleId).orElse {
-                    val storedBattle = BattleStoredBattleInitializationRules.fromSeed(seed, battleDuration, now)
-                    battles = battles.updated(battleId, storedBattle)
-                    Some(storedBattle)
+              battles.get.map(_.get(battleId)).flatMap {
+                case Some(storedBattle) =>
+                  IO.pure(Some(storedBattle))
+                case None =>
+                  BattleStoredBattleInitializationRules.fromSeed(seed, battleDuration, now, battleRules).flatMap { initialized =>
+                    battles.modify { currentBattles =>
+                      currentBattles.get(battleId) match {
+                        case Some(existing) =>
+                          (currentBattles, Some(existing))
+                        case None =>
+                          (currentBattles.updated(battleId, initialized), Some(initialized))
+                      }
+                    }
                   }
-                }
               }
           }
         yield maybeStoredBattle
@@ -173,11 +149,66 @@ final class InMemoryBattleStateService(
   private def advanceStoredBattle(
     storedBattle: StoredBattle,
     now: EpochMillis
-  ): (StoredBattle, Option[BattleAggregateState], Option[BattleRoomFinishedNotification]) = {
-    val advanced = BattleStoredBattleAdvanceRules.advance(storedBattle, now)
-    val (storedAfterPreparation, projectionCandidate) = prepareProjection(advanced.storedBattle)
-    (storedAfterPreparation, projectionCandidate, advanced.roomFinished)
+  ): IO[AdvancedStoredBattle] =
+    for
+      advanced <- BattleStoredBattleAdvanceRules.advance(storedBattle, now, battleRules)
+      prepared <- prepareProjection(advanced.storedBattle)
+    yield AdvancedStoredBattle(prepared.storedBattle, prepared.projectionCandidate, advanced.roomFinished)
+
+  private def advanceAndCommitRead(
+    battleId: BattleId,
+    fallback: StoredBattle,
+    now: EpochMillis
+  ): IO[(StateRead, Option[BattleRoomFinishedNotification])] = {
+    def loop: IO[(StateRead, Option[BattleRoomFinishedNotification])] =
+      for
+        snapshot <- latestStoredBattle(battleId, fallback)
+        advanced <- advanceStoredBattle(snapshot, now)
+        committed <- commitStoredBattleIfCurrent(battleId, snapshot, advanced.storedBattle)
+        result <-
+          if committed then
+            stateRead(advanced.storedBattle.state, advanced.projectionCandidate).map(_ -> advanced.roomFinished)
+          else loop
+      yield result
+
+    loop
   }
+
+  private def acceptAndCommitCommand(
+    request: BattleCommandRequest,
+    fallback: StoredBattle,
+    now: EpochMillis
+  ): IO[(CommandSubmission, Option[BattleRoomFinishedNotification])] = {
+    def loop: IO[(CommandSubmission, Option[BattleRoomFinishedNotification])] =
+      for
+        snapshot <- latestStoredBattle(request.battleId, fallback)
+        advanced <- advanceStoredBattle(snapshot, now)
+        update <- buildCommandSubmission(request, advanced.storedBattle, advanced.projectionCandidate, now)
+        committed <- commitStoredBattleIfCurrent(request.battleId, snapshot, update.storedBattle)
+        result <- if committed then IO.pure((update.submission, advanced.roomFinished)) else loop
+      yield result
+
+    loop
+  }
+
+  private def latestStoredBattle(battleId: BattleId, fallback: StoredBattle): IO[StoredBattle] =
+    battles.get.map(_.getOrElse(battleId, fallback))
+
+  private def commitStoredBattleIfCurrent(
+    battleId: BattleId,
+    expected: StoredBattle,
+    updated: StoredBattle
+  ): IO[Boolean] =
+    battles.modify { currentBattles =>
+      currentBattles.get(battleId) match {
+        case Some(current) if current == expected =>
+          (currentBattles.updated(battleId, updated), true)
+        case None =>
+          (currentBattles.updated(battleId, updated), true)
+        case _ =>
+          (currentBattles, false)
+      }
+    }
 
   private def notifyRoomFinished(notification: Option[BattleRoomFinishedNotification]): IO[Unit] =
     notification match {
@@ -185,78 +216,211 @@ final class InMemoryBattleStateService(
       case None        => IO.unit
     }
 
-  private def prepareProjection(storedBattle: StoredBattle): (StoredBattle, Option[BattleAggregateState]) = {
-    val preparation = BattleFinishProjectionPreparationRules.prepare(storedBattle)
-    preparation.storedBattle -> preparation.projectionCandidate
-  }
+  private def battleNotFoundRead: IO[(StateRead, Option[BattleRoomFinishedNotification])] =
+    IO.pure((StateRead(Left(BattleStateReadError.BattleNotFound), None), None))
 
-  private def storeCommandSubmission(
+  private def battleNotFoundSubmission: IO[(CommandSubmission, Option[BattleRoomFinishedNotification])] =
+    IO.pure((CommandSubmission(Left(BattleCommandSubmitError.BattleNotFound), None), None))
+
+  private def stateRead(
+    state: BattleAggregateState,
+    projectionCandidate: Option[BattleAggregateState]
+  ): IO[StateRead] =
+    IO.pure(StateRead(Right(state), projectionCandidate))
+
+  private def prepareProjection(storedBattle: StoredBattle): IO[BattleFinishProjectionPreparation] =
+    BattleFinishProjectionPreparationRules.prepare(storedBattle)
+
+  private def buildCommandSubmission(
     request: BattleCommandRequest,
+    storedBattle: StoredBattle,
+    projectionCandidate: Option[BattleAggregateState],
+    now: EpochMillis
+  ): IO[CommandSubmissionUpdate] =
+    storedBattle.state.players.find(_.playerId == request.playerId) match {
+      case None =>
+        commandSubmissionUpdate(storedBattle, Left(BattleCommandSubmitError.PlayerNotFound), projectionCandidate)
+      case Some(player) if player.isBot =>
+        commandSubmissionUpdate(storedBattle, Left(BattleCommandSubmitError.BotCommandsNotSupported), projectionCandidate)
+      case Some(_) if storedBattle.commandOwnershipByPlayerId.get(request.playerId).forall(_ != request.ticketId) =>
+        commandSubmissionUpdate(storedBattle, Left(BattleCommandSubmitError.CommandNotAuthorized), projectionCandidate)
+      case Some(player) if storedBattle.state.phase != BattlePhase.Active || !player.alive =>
+        for
+          ignored <- BattleCommandAcceptanceFactory.ignored(storedBattle.state, player, now)
+          update <- commandSubmissionUpdate(storedBattle, Right(ignored), projectionCandidate)
+        yield update
+      case Some(player) =>
+        for
+          applied <- BattleEngine.applyCommand(storedBattle.state, player, request, battleRules)
+          accepted <- BattleCommandAcceptanceFactory.applied(
+            state = applied.state,
+            playerId = request.playerId,
+            serverTime = now,
+            outcomes = applied.outcomes
+          )
+          update <- commandSubmissionUpdate(storedBattle.copy(state = applied.state), Right(accepted), projectionCandidate)
+        yield update
+    }
+
+  private def commandSubmissionUpdate(
     storedBattle: StoredBattle,
     result: Either[BattleCommandSubmitError, BattleCommandAccepted],
     projectionCandidate: Option[BattleAggregateState]
-  ): CommandSubmission = {
-    battles = battles.updated(request.battleId, storedBattle)
-    CommandSubmission(result, projectionCandidate)
-  }
+  ): IO[CommandSubmissionUpdate] =
+    IO.pure(CommandSubmissionUpdate(storedBattle, CommandSubmission(result, projectionCandidate)))
 
   private def completeProjectionIO(battleId: BattleId, candidate: BattleAggregateState): IO[BattleAggregateState] =
     for
       outcome <- projectFinishArtifacts(candidate)
-      completed <- IO.blocking {
-        lock.synchronized {
-          battles.get(battleId) match {
-            case None =>
-              candidate
-            case Some(storedBattle) if storedBattle.finishProjectionStatus != BattleFinishProjectionStatus.InProgress =>
-              storedBattle.state
-            case Some(storedBattle) =>
-              val updated = BattleFinishProjectionCompletionRules.complete(storedBattle, outcome)
-              battles = battles.updated(battleId, updated)
-              updated.state
-          }
-        }
-      }
+      completed <- completeProjectionLoop(battleId, candidate, outcome)
     yield completed
+
+  private def completeProjectionLoop(
+    battleId: BattleId,
+    candidate: BattleAggregateState,
+    outcome: BattleFinishProjectionOutcome
+  ): IO[BattleAggregateState] =
+    battles.get.flatMap { currentBattles =>
+      currentBattles.get(battleId) match {
+        case None =>
+          IO.pure(candidate)
+        case Some(storedBattle) if storedBattle.finishProjectionStatus != BattleFinishProjectionStatus.InProgress =>
+          IO.pure(storedBattle.state)
+        case Some(storedBattle) =>
+          for
+            updated <- BattleFinishProjectionCompletionRules.complete(storedBattle, outcome)
+            committed <- commitProjectionCompletion(battleId, storedBattle, updated, candidate)
+            completed <- committed match {
+              case Some(state) => IO.pure(state)
+              case None        => completeProjectionLoop(battleId, candidate, outcome)
+            }
+          yield completed
+      }
+    }
+
+  private def commitProjectionCompletion(
+    battleId: BattleId,
+    expected: StoredBattle,
+    updated: StoredBattle,
+    missingFallback: BattleAggregateState
+  ): IO[Option[BattleAggregateState]] =
+    battles.modify { currentBattles =>
+      currentBattles.get(battleId) match {
+        case None =>
+          (currentBattles, Some(missingFallback))
+        case Some(current) if current == expected =>
+          (currentBattles.updated(battleId, updated), Some(updated.state))
+        case Some(current) if current.finishProjectionStatus != BattleFinishProjectionStatus.InProgress =>
+          (currentBattles, Some(current.state))
+        case Some(_) =>
+          (currentBattles, None)
+      }
+    }
 
   private def projectFinishArtifacts(candidate: BattleAggregateState): IO[BattleFinishProjectionOutcome] =
     finishProjector.project(candidate).handleErrorWith {
       case NonFatal(error) =>
-        IO.pure(BattleFinishProjectionOutcome.Failed(BattleFailureMessageFormatter.throwableMessage(error)))
+        BattleFailureMessageFormatter.throwableMessage(error).map(BattleFinishProjectionOutcome.Failed(_))
     }
 
 }
 object InMemoryBattleStateService {
-  val DefaultBattleDuration: DurationMillis = BattleEngine.DefaultBattleDuration
+  def DefaultBattleDuration(battleRules: BattleDynamicRuleBook): IO[DurationMillis] =
+    BattleEngine.DefaultBattleDuration(battleRules)
 
-  /** 中文名：应用（apply）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
-  def apply(sessionLookup: BattleSessionLookup): InMemoryBattleStateService =
-    apply(sessionLookup, DefaultBattleDuration)
+  def apply(
+    sessionLookup: BattleSessionLookup,
+    battleRules: BattleDynamicRuleBook
+  ): IO[InMemoryBattleStateService] =
+    create(sessionLookup, battleRules)
 
-  /** 中文名：应用（apply）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
-  def apply(sessionLookup: BattleSessionLookup, battleDuration: DurationMillis): InMemoryBattleStateService =
-    apply(sessionLookup, battleDuration, NoopBattleFinishProjector)
-
-  /** 中文名：应用（apply）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   def apply(
     sessionLookup: BattleSessionLookup,
     battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[InMemoryBattleStateService] =
+    create(sessionLookup, battleDuration, battleRules)
+
+  def apply(
+    sessionLookup: BattleSessionLookup,
+    battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook,
     finishProjector: BattleFinishProjector
-  ): InMemoryBattleStateService =
-    apply(sessionLookup, battleDuration, finishProjector, NoopBattleRoomLifecycleSink)
+  ): IO[InMemoryBattleStateService] =
+    create(sessionLookup, battleDuration, battleRules, finishProjector)
 
-  /** 中文名：应用（apply）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   def apply(
     sessionLookup: BattleSessionLookup,
     battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook,
     finishProjector: BattleFinishProjector,
     roomLifecycleSink: BattleRoomLifecycleSink
-  ): InMemoryBattleStateService =
-    new InMemoryBattleStateService(
+  ): IO[InMemoryBattleStateService] =
+    create(sessionLookup, battleDuration, battleRules, finishProjector, roomLifecycleSink)
+
+  def create(
+    sessionLookup: BattleSessionLookup,
+    battleRules: BattleDynamicRuleBook
+  ): IO[InMemoryBattleStateService] =
+    DefaultBattleDuration(battleRules).flatMap(create(sessionLookup, _, battleRules))
+
+  def create(
+    sessionLookup: BattleSessionLookup,
+    battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[InMemoryBattleStateService] =
+    create(sessionLookup, battleDuration, battleRules, NoopBattleFinishProjector)
+
+  def create(
+    sessionLookup: BattleSessionLookup,
+    battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook,
+    finishProjector: BattleFinishProjector
+  ): IO[InMemoryBattleStateService] =
+    create(sessionLookup, battleDuration, battleRules, finishProjector, NoopBattleRoomLifecycleSink)
+
+  def create(
+    sessionLookup: BattleSessionLookup,
+    battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook,
+    finishProjector: BattleFinishProjector,
+    roomLifecycleSink: BattleRoomLifecycleSink
+  ): IO[InMemoryBattleStateService] =
+    createWithClock(
       sessionLookup = sessionLookup,
       currentTimeMillis = () => System.currentTimeMillis(),
       battleDuration = battleDuration,
+      battleRules = battleRules,
       finishProjector = finishProjector,
       roomLifecycleSink = roomLifecycleSink
     )
+
+  def resource(
+    sessionLookup: BattleSessionLookup,
+    battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook,
+    finishProjector: BattleFinishProjector,
+    roomLifecycleSink: BattleRoomLifecycleSink
+  ): Resource[IO, InMemoryBattleStateService] =
+    Resource.eval(create(sessionLookup, battleDuration, battleRules, finishProjector, roomLifecycleSink))
+
+  def createWithClock(
+    sessionLookup: BattleSessionLookup,
+    currentTimeMillis: () => Long,
+    battleDuration: DurationMillis,
+    battleRules: BattleDynamicRuleBook,
+    finishProjector: BattleFinishProjector,
+    roomLifecycleSink: BattleRoomLifecycleSink
+  ): IO[InMemoryBattleStateService] =
+    Ref.of[IO, Map[BattleId, StoredBattle]](Map.empty).map { battleRef =>
+      new InMemoryBattleStateService(
+        sessionLookup = sessionLookup,
+        currentTimeMillis = currentTimeMillis,
+        battleDuration = battleDuration,
+        battleRules = battleRules,
+        finishProjector = finishProjector,
+        roomLifecycleSink = roomLifecycleSink,
+        battles = battleRef
+      )
+    }
 }

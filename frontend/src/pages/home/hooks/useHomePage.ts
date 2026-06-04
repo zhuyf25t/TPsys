@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from "react";
-import { getLoadoutSummary } from "../../../apis/battle/loadoutGateway";
+import { getLoadoutSummary } from "../../../runtime/battle/loadout/BattleLoadoutStore";
 import { fetchDiscussionSummaries, getDiscussionSummaries } from "../../../apis/forum/forumGateway";
 import {
   getContributionEntries,
@@ -30,7 +30,7 @@ import {
   loadRemoteFriendRequests,
   REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS
 } from "../../../apis/social/friendRequestGateway";
-import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../../../objects/battle/battleRules";
+import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../../../objects/battle/objects/core/BattleCoreRules";
 import { buildFriendRequestPreview, type FriendRequestPreviewModel } from "../../friend-requests/components/friendRequestPreviewPresenter";
 import type { LobbyPreviewSet, LobbyQuickAction, LobbyQuickKey, LobbyShellProps, LobbyTopStatusItem } from "../../../components/ui/LobbyShell";
 import { useLobbyData } from "../../shared/hooks/useLobbyData";
@@ -179,7 +179,7 @@ export function useHomePage(): HomePageState {
 
   return {
     authMode,
-    battleModeDetail: `${BATTLE_ARENA_PLAYER_CAPACITY} 人竞技场 / ${BATTLE_MATCH_DURATION_LABEL}`,
+    battleModeDetail: `\u4e27\u5c38\u6a21\u5f0f / ${BATTLE_ARENA_PLAYER_CAPACITY} \u4eba / ${BATTLE_MATCH_DURATION_LABEL}`,
     closeAuthOverlay,
     completeAuth: closeAuthOverlay,
     contributionLeaderboard: contributionEntries.map((entry) => ({ rank: entry.rank, handle: entry.handle, value: entry.totalActions })),
@@ -187,7 +187,7 @@ export function useHomePage(): HomePageState {
     currentRatingLabel,
     loadoutPrimary: loadout.primary,
     loadoutSkillsLabel: loadout.skills.join(" / "),
-    lobbySubtitle: `快节奏 3v3 竞技场 / ${BATTLE_ARENA_PLAYER_CAPACITY} 人钢铁大厅待命`,
+    lobbySubtitle: `\u4e27\u5c38\u6a21\u5f0f / ${BATTLE_ARENA_PLAYER_CAPACITY} \u4eba\u96ea\u5730\u6218\u6597`,
     openRegister,
     playerAvatarSrc: loadout.skinImageSrc,
     playerBadge: authUser ? buildHandleBadge(resolvedHandle) : "P1",

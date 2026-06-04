@@ -1,5 +1,8 @@
 package services.battle.microservices.queue.services
 
+import cats.effect.IO
+import cats.syntax.all.*
+
 import services.battle.microservices.queue.objects.queue.*
 
 import services.bots.objects.DemoBotProfiles
@@ -29,7 +32,7 @@ private[battle] final case class BattleRoomBootstrapParticipant(
 
 private[battle] object BattleRoomBootstrapper {
   private val HeroSlotIds: Vector[HeroId] =
-    Vector("player-1", "bot-1", "bot-2", "bot-3", "bot-4", "bot-5").map(HeroId.apply)
+    (Vector("player-1") ++ (1 to 11).toVector.map(index => s"bot-$index")).map(HeroId.apply)
 
   /** 中文名：创建会话（createSession）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
   def createSession(
@@ -39,9 +42,30 @@ private[battle] object BattleRoomBootstrapper {
     now: EpochMillis,
     capacity: BattleCapacity,
     participants: Vector[BattleRoomBootstrapParticipant]
-  ): BattleSessionDescriptor = {
-    val roster = participants.zipWithIndex.map { case (entry, index) =>
-      val participant = entry.participant
+  ): IO[BattleSessionDescriptor] =
+    for
+      roster <- participants.zipWithIndex.traverse { case (entry, index) => rosterEntry(entry, index) }
+      humanSeats <- participants.zipWithIndex.traverse { case (entry, index) => humanSeat(entry, index) }
+      botSeats <- (participants.length until capacity.value).toVector.traverse(buildBotSeat)
+      descriptor <- IO.pure(
+        BattleSessionDescriptor(
+          battleId = battleId,
+          battleMode = battleMode,
+          startedAt = startsAt,
+          serverTime = now,
+          roster = roster,
+          capacity = capacity,
+          bootstrap = Some(BattleSessionBootstrap(humanSeats ++ botSeats))
+        )
+      )
+    yield descriptor
+
+  private def rosterEntry(
+    entry: BattleRoomBootstrapParticipant,
+    index: Int
+  ): IO[BattleSessionRosterEntry] = {
+    val participant = entry.participant
+    IO.pure(
       BattleSessionRosterEntry(
         seat = SeatIndex(index),
         playerId = entry.playerId,
@@ -51,9 +75,15 @@ private[battle] object BattleRoomBootstrapper {
         avatar = participant.avatar,
         skin = participant.skin
       )
-    }
-    val humanSeats = participants.zipWithIndex.map { case (entry, index) =>
-      val participant = entry.participant
+    )
+  }
+
+  private def humanSeat(
+    entry: BattleRoomBootstrapParticipant,
+    index: Int
+  ): IO[BattleSessionBootstrapSeat] = {
+    val participant = entry.participant
+    IO.pure(
       BattleSessionBootstrapSeat(
         seat = SeatIndex(index),
         playerId = entry.playerId,
@@ -67,28 +97,16 @@ private[battle] object BattleRoomBootstrapper {
         avatar = participant.avatar,
         skin = participant.skin
       )
-    }
-    val botSeats =
-      (participants.length until capacity.value).toVector.map(buildBotSeat)
-
-    BattleSessionDescriptor(
-      battleId = battleId,
-      battleMode = battleMode,
-      startedAt = startsAt,
-      serverTime = now,
-      roster = roster,
-      capacity = capacity,
-      bootstrap = Some(BattleSessionBootstrap(humanSeats ++ botSeats))
     )
   }
 
-  private def buildBotSeat(index: Int): BattleSessionBootstrapSeat = {
+  private def buildBotSeat(index: Int): IO[BattleSessionBootstrapSeat] = {
     val profile = Option.when(index > 0)(index - 1).flatMap(DemoBotProfiles.all.lift)
     val handle = profile.map(_.handle).getOrElse(PlayerHandle(s"Bot $index"))
     val avatar = profile.flatMap(item => BattleAvatarKey.fromWire(item.skin.avatarKey.value))
     val skin = profile.flatMap(item => BattleSkinKey.fromWire(item.skin.avatarKey.value))
 
-    BattleSessionBootstrapSeat(
+    IO.pure(BattleSessionBootstrapSeat(
       seat = SeatIndex(index),
       playerId = PlayerId(s"bot-seat-$index"),
       heroId = HeroSlotIds.lift(index).getOrElse(HeroId(s"bot-$index")),
@@ -100,6 +118,6 @@ private[battle] object BattleRoomBootstrapper {
       rating = profile.map(profile => Rating(profile.initialRating.value)),
       avatar = avatar,
       skin = skin
-    )
+    ))
   }
 }

@@ -1,4 +1,4 @@
-import type { GameEvent } from "../../../../objects/battle/types";
+import type { BattleGameEventState as GameEvent } from "../../../../objects/battle/microservices/runtime/objects/event/BattleGameEventState";
 
 export interface EventFeedClockInput {
   events: GameEvent[];

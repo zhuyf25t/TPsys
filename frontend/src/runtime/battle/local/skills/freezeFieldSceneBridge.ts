@@ -1,5 +1,6 @@
-import type { SlowField, Vec2 } from "../../../../objects/battle/types";
-import { appendFreezeField } from "./freezeFieldController";
+import type { BattleSlowFieldState as SlowField } from "../../../../objects/battle/microservices/abilities/objects/skill/BattleSlowFieldState";
+import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
+import { appendFreezeField } from "../../microservices/abilities/functions/BattleSlowFieldRuntimeRules";
 
 type FloatingTone = "neutral" | "warning" | "error" | "success";
 

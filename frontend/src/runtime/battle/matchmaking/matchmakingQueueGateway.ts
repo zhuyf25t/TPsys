@@ -26,8 +26,9 @@ import type { BattleModeIdDto } from "../../../objects/battle/microservices/queu
 import type { BattleQueueLeaveResponseDto } from "../../../objects/battle/microservices/queue/api/queue/BattleQueueLeaveApiTypes";
 import type { BattleQueueSnapshotResponseDto } from "../../../objects/battle/microservices/queue/api/queue/BattleQueueStatusApiTypes";
 import { battleModeDisplayLabel } from "../../../objects/battle/objects/core/BattleModeDisplayLabels";
+import { BATTLE_RUNTIME_REQUEST_TIMEOUT_MS } from "../BattleRuntimeNetworkConfig";
 
-const QUEUE_REQUEST_TIMEOUT_MS = 1_250;
+const QUEUE_REQUEST_TIMEOUT_MS = BATTLE_RUNTIME_REQUEST_TIMEOUT_MS;
 
 export async function joinMatchmakingQueue(input: {
   handle: string;

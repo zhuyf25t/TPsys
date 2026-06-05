@@ -38,6 +38,7 @@ private[battle] object BattlePlayerRuntimeRules {
     BattleArenaCatalog.contextFor(state.mapId, battleRules).flatMap { arena =>
       state.players.traverse { player =>
         for
+          _ <- IO.cede
           withTimers <- advancePlayerTimers(player, deltaMs, previousElapsed, nextElapsed, battleRules)
           controlledPlayer <-
             if withTimers.alive && withTimers.isBot then applyBotControl(withTimers, state, arena, battleRules)

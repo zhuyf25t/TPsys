@@ -3,6 +3,7 @@ package services.battle.microservices.session.services
 import scala.util.control.NonFatal
 
 import cats.effect.{IO, Ref, Resource}
+import cats.effect.std.Semaphore
 import cats.syntax.all.*
 
 import services.battle.microservices.runtime.services.{BattleDynamicRuleBook, BattleEngine}
@@ -67,7 +68,8 @@ final class InMemoryBattleStateService private (
   battleRules: BattleDynamicRuleBook,
   finishProjector: BattleFinishProjector,
   roomLifecycleSink: BattleRoomLifecycleSink,
-  battles: Ref[IO, Map[BattleId, StoredBattle]]
+  battles: Ref[IO, Map[BattleId, StoredBattle]],
+  stateAdvanceLock: Semaphore[IO]
 ) extends BattleStateService {
   private final case class AdvancedStoredBattle(
     storedBattle: StoredBattle,
@@ -80,10 +82,24 @@ final class InMemoryBattleStateService private (
     submission: CommandSubmission
   )
 
+  private val FreshReadWindowMs = 750L
+
   /** 中文名：当前状态（currentState）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   override def currentState(battleId: BattleId): IO[Either[BattleStateReadError, BattleAggregateState]] =
     for
       now <- IO.blocking(EpochMillis(currentTimeMillis()))
+      freshState <- freshReadableState(battleId, now)
+      result <- freshState match {
+        case Some(state) => IO.pure(Right(state))
+        case None        => withSerializedStateAdvance(currentStateAt(battleId, now))
+      }
+    yield result
+
+  private def currentStateAt(
+    battleId: BattleId,
+    now: EpochMillis
+  ): IO[Either[BattleStateReadError, BattleAggregateState]] =
+    for
       maybeStoredBattle <- findOrInitialize(battleId, now)
       readAndNotification <- maybeStoredBattle.fold(
         battleNotFoundRead
@@ -98,23 +114,37 @@ final class InMemoryBattleStateService private (
       }
     yield result
 
+  private def freshReadableState(
+    battleId: BattleId,
+    now: EpochMillis
+  ): IO[Option[BattleAggregateState]] =
+    battles.get.map(_.get(battleId).flatMap { storedBattle =>
+      val ageMs = now.value - storedBattle.lastUpdatedAt.value
+      Option.when(ageMs >= 0L && ageMs <= FreshReadWindowMs)(storedBattle.state.copy(serverTime = now))
+    })
+
   /** 中文名：受理命令（acceptCommand）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   override def acceptCommand(
     request: BattleCommandRequest
   ): IO[Either[BattleCommandSubmitError, BattleCommandAccepted]] =
-    for
-      now <- IO.blocking(EpochMillis(currentTimeMillis()))
-      maybeStoredBattle <- findOrInitialize(request.battleId, now)
-      submissionAndNotification <- maybeStoredBattle.fold(
-        battleNotFoundSubmission
-      )(storedBattle => acceptAndCommitCommand(request, storedBattle, now))
-      (submission, roomFinished) = submissionAndNotification
-      _ <- notifyRoomFinished(roomFinished)
-      _ <- submission.projectionCandidate match {
-        case Some(candidate) => completeProjectionIO(candidate.battleId, candidate).void
-        case None            => IO.unit
-      }
-    yield submission.result
+    withSerializedStateAdvance {
+      for
+        now <- IO.blocking(EpochMillis(currentTimeMillis()))
+        maybeStoredBattle <- findOrInitialize(request.battleId, now)
+        submissionAndNotification <- maybeStoredBattle.fold(
+          battleNotFoundSubmission
+        )(storedBattle => acceptAndCommitCommand(request, storedBattle, now))
+        (submission, roomFinished) = submissionAndNotification
+        _ <- notifyRoomFinished(roomFinished)
+        _ <- submission.projectionCandidate match {
+          case Some(candidate) => completeProjectionIO(candidate.battleId, candidate).void
+          case None            => IO.unit
+        }
+      yield submission.result
+    }
+
+  private def withSerializedStateAdvance[A](operation: IO[A]): IO[A] =
+    stateAdvanceLock.permit.use(_ => operation)
 
   private def findOrInitialize(battleId: BattleId, now: EpochMillis): IO[Option[StoredBattle]] =
     battles.get.map(_.get(battleId)).flatMap {
@@ -159,20 +189,19 @@ final class InMemoryBattleStateService private (
     battleId: BattleId,
     fallback: StoredBattle,
     now: EpochMillis
-  ): IO[(StateRead, Option[BattleRoomFinishedNotification])] = {
-    def loop: IO[(StateRead, Option[BattleRoomFinishedNotification])] =
-      for
-        snapshot <- latestStoredBattle(battleId, fallback)
-        advanced <- advanceStoredBattle(snapshot, now)
-        committed <- commitStoredBattleIfCurrent(battleId, snapshot, advanced.storedBattle)
-        result <-
-          if committed then
-            stateRead(advanced.storedBattle.state, advanced.projectionCandidate).map(_ -> advanced.roomFinished)
-          else loop
-      yield result
-
-    loop
-  }
+  ): IO[(StateRead, Option[BattleRoomFinishedNotification])] =
+    for
+      snapshot <- latestStoredBattle(battleId, fallback)
+      advanced <- advanceStoredBattle(snapshot, now)
+      committed <- commitStoredBattleIfCurrent(battleId, snapshot, advanced.storedBattle)
+      result <-
+        if committed then
+          stateRead(advanced.storedBattle.state, advanced.projectionCandidate).map(_ -> advanced.roomFinished)
+        else
+          latestStoredBattle(battleId, fallback)
+            .flatMap(latest => stateRead(latest.state, None))
+            .map(_ -> None)
+    yield result
 
   private def acceptAndCommitCommand(
     request: BattleCommandRequest,
@@ -412,7 +441,10 @@ object InMemoryBattleStateService {
     finishProjector: BattleFinishProjector,
     roomLifecycleSink: BattleRoomLifecycleSink
   ): IO[InMemoryBattleStateService] =
-    Ref.of[IO, Map[BattleId, StoredBattle]](Map.empty).map { battleRef =>
+    for
+      battleRef <- Ref.of[IO, Map[BattleId, StoredBattle]](Map.empty)
+      stateAdvanceLock <- Semaphore[IO](1L)
+    yield
       new InMemoryBattleStateService(
         sessionLookup = sessionLookup,
         currentTimeMillis = currentTimeMillis,
@@ -420,7 +452,7 @@ object InMemoryBattleStateService {
         battleRules = battleRules,
         finishProjector = finishProjector,
         roomLifecycleSink = roomLifecycleSink,
-        battles = battleRef
+        battles = battleRef,
+        stateAdvanceLock = stateAdvanceLock
       )
-    }
 }

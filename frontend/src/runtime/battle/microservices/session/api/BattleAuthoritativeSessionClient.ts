@@ -43,6 +43,7 @@ import type { SkillOutcomeStatus as BattleSkillOutcomeStatusDto } from "../../..
 import type { ProjectileKind as BattleProjectileKindDto } from "../../../../../objects/battle/microservices/combat/objects/projectile/ProjectileKind";
 import type { ProjectileTerminalReason as BattleProjectileTerminalReasonDto } from "../../../../../objects/battle/microservices/combat/objects/projectile/ProjectileTerminalReason";
 import type { WeaponKind as BattleWeaponKindDto } from "../../../../../objects/battle/microservices/combat/objects/weapon/WeaponKind";
+import { BATTLE_RUNTIME_REQUEST_TIMEOUT_MS } from "../../../BattleRuntimeNetworkConfig";
 
 import {
   normalizeAim,
@@ -274,7 +275,7 @@ export interface AuthoritativeBattleStateStreamOptions {
   onFallback: () => void;
 }
 
-const BATTLE_REQUEST_TIMEOUT_MS = 1_250;
+const BATTLE_REQUEST_TIMEOUT_MS = BATTLE_RUNTIME_REQUEST_TIMEOUT_MS;
 const BATTLE_STATE_STREAM_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 
 export async function loadAuthoritativeBattleState(battleId: string): Promise<AuthoritativeBattleState | null> {

@@ -20,7 +20,8 @@ private[battle] object BattleStoredBattleAdvanceRules {
   private val StandardExactCatchUpStepLimit = 128L
   private val HighPopulationExactCatchUpStepLimit = 8L
   private val HighPopulationPlayerCount = 8
-  private val MaxCoalescedCatchUpSteps = 32
+  private val StandardCoalescedCatchUpStepLimit = 32
+  private val HighPopulationCoalescedCatchUpStepLimit = 8
   private val MinCoalescedCatchUpStepMs = 250L
 
   private final case class AdvancedStateFrame(
@@ -118,9 +119,9 @@ private[battle] object BattleStoredBattleAdvanceRules {
     val steppedThroughAt = safeNow.value - remainderMs
     val steppedStateIO = (0L until steps).foldLeft(IO.pure(state)) { case (currentStateIO, stepIndex) =>
       val stepNow = EpochMillis(steppedThroughAt - ((steps - stepIndex - 1L) * tickStepMs))
-      currentStateIO.flatMap(currentState => BattleEngine.advanceStateStep(currentState, tickStepMs, stepNow, battleRules))
+      currentStateIO.flatMap(currentState => advanceStateStepYielding(currentState, tickStepMs, stepNow, battleRules))
     }
-    steppedStateIO.flatMap(steppedState => BattleEngine.advanceStateStep(steppedState, 0L, safeNow, battleRules))
+    steppedStateIO.flatMap(steppedState => advanceStateStepYielding(steppedState, 0L, safeNow, battleRules))
   }
 
   private def advanceCoalescedState(
@@ -133,22 +134,35 @@ private[battle] object BattleStoredBattleAdvanceRules {
   ): IO[BattleAggregateState] = {
     val accumulatedMs = steps * tickStepMs + remainderMs
     val startedAt = safeNow.value - accumulatedMs
-    val stepPlans = coalescedStepDurations(accumulatedMs).scanLeft(startedAt -> 0L) {
+    val stepPlans = coalescedStepDurations(accumulatedMs, coalescedCatchUpStepLimitFor(state)).scanLeft(startedAt -> 0L) {
       case ((previousNow, _), deltaMs) => (previousNow + deltaMs) -> deltaMs
     }.tail
 
     stepPlans.foldLeft(IO.pure(state)) { case (currentStateIO, (stepNow, deltaMs)) =>
-      currentStateIO.flatMap(currentState => BattleEngine.advanceStateStep(currentState, deltaMs, EpochMillis(stepNow), battleRules))
+      currentStateIO.flatMap(currentState => advanceStateStepYielding(currentState, deltaMs, EpochMillis(stepNow), battleRules))
     }
   }
 
-  private def coalescedStepDurations(totalMs: Long): Vector[Long] = {
+  private def advanceStateStepYielding(
+    state: BattleAggregateState,
+    deltaMs: Long,
+    now: EpochMillis,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] =
+    IO.cede *> BattleEngine.advanceStateStep(state, deltaMs, now, battleRules)
+
+  private def coalescedCatchUpStepLimitFor(state: BattleAggregateState): Int =
+    if state.players.length >= HighPopulationPlayerCount then HighPopulationCoalescedCatchUpStepLimit
+    else StandardCoalescedCatchUpStepLimit
+
+  private def coalescedStepDurations(totalMs: Long, stepLimit: Int): Vector[Long] = {
     val boundedTotalMs = math.max(0L, totalMs)
+    val boundedStepLimit = math.max(1, stepLimit)
     if boundedTotalMs <= 0L then Vector.empty
     else {
       val adaptiveStepMs = math.max(
         MinCoalescedCatchUpStepMs,
-        math.ceil(boundedTotalMs.toDouble / MaxCoalescedCatchUpSteps.toDouble).toLong
+        math.ceil(boundedTotalMs.toDouble / boundedStepLimit.toDouble).toLong
       )
       val fullStepCount = (boundedTotalMs / adaptiveStepMs).toInt
       val remainderMs = boundedTotalMs % adaptiveStepMs

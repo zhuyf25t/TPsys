@@ -35,6 +35,7 @@ private[battle] object BattleProjectileRuntimeRules {
         currentIO.flatMap { current =>
           val travelMs = math.min(math.max(0L, deltaMs), math.max(0L, projectile.ttlMs.value))
           for
+            _ <- IO.cede
             slowed <- state.slowFields.existsM(field => distanceBetween(projectile.position, field.position).map(_ <= field.radius.value))
             speedFactor = if slowed then movementRules.slowFieldProjectileFactor.value else 1.0
             motion <- resolveProjectileMotion(

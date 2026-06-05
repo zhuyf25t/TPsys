@@ -1,5 +1,13 @@
 # Agent State
 
+## Latest Runtime Stabilization Ticket
+
+- `STAB-1`: stabilized 12-player winter zombie runtime under browser load.
+- Backend session reads now use a fresh-snapshot fast path, serialized state advancement, bounded high-population catch-up, and explicit `IO.cede` points in player/projectile/motion advancement.
+- Frontend battle queue/session request budgets now use a shared 5s runtime network config; authoritative polling/uplink and SSE stream cadence were reduced.
+- Verification passed: `sbt "-Dsbt.server.forcestart=true" compile`, `npx tsc -p frontend/tsconfig.json --noEmit`, `npm run demo:zombie-multiplayer`, `npm run demo:zombie-browser`.
+- Runtime left running: backend on 8080, Vite frontend on 5173 via `npm run dev -- --host`.
+
 ## Current Frontend Goal
 
 Optimize battle frontend structure using the `BorrowManage` sample as the target shape: page entry files should compose feature panels, complex areas should split into local `components/hooks/objects/functions`, and battle contracts/objects should mirror backend microservice ownership.

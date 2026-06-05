@@ -15,6 +15,7 @@ import type {
   RealtimeRoomSnapshotResponseDto
 } from "../../../objects/battle/microservices/queue/api/room/BattleRoomSnapshotApiTypes";
 import { battleModeDisplayLabel } from "../../../objects/battle/objects/core/BattleModeDisplayLabels";
+import { BATTLE_RUNTIME_REQUEST_TIMEOUT_MS } from "../BattleRuntimeNetworkConfig";
 
 export type RealtimeRoomPhase = "waiting" | "active" | "finished" | "unknown";
 
@@ -44,7 +45,7 @@ export interface RealtimeRoomHeartbeatRequest {
   handle?: string;
 }
 
-const REALTIME_ROOM_TIMEOUT_MS = 1_250;
+const REALTIME_ROOM_TIMEOUT_MS = BATTLE_RUNTIME_REQUEST_TIMEOUT_MS;
 
 export async function loadRealtimeRoomSnapshot(roomId: string): Promise<RealtimeRoomSnapshot | null> {
   const normalizedRoomId = roomId.trim();

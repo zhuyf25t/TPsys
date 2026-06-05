@@ -74,6 +74,7 @@ private[battle] object BattleMotionRules {
         else {
           val travel = math.min(clampedDistance, step.toDouble * arena.motionStepSize)
           for
+            _ <- if step % 8 == 0 then IO.cede else IO.unit
             offset <- scale(direction, travel)
             candidate <- add(position, offset)
             canOccupy <- canPlayerOccupy(candidate, radius, arena)

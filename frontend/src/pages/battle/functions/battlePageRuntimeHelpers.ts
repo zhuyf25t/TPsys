@@ -8,8 +8,9 @@ import {
 } from "../../../runtime/battle/microservices/projections/functions/BattleBotOnlyClosureReplayRules";
 import type { ActiveBattleSession } from "../objects/BattlePageState";
 import type { MatchmakingQueueState } from "../../../runtime/battle/matchmaking/matchmakingQueueTypes";
+import { BATTLE_RUNTIME_STARTUP_QUEUE_REFRESH_TIMEOUT_MS } from "../../../runtime/battle/BattleRuntimeNetworkConfig";
 
-export const START_BATTLE_QUEUE_REFRESH_TIMEOUT_MS = 400;
+export const START_BATTLE_QUEUE_REFRESH_TIMEOUT_MS = BATTLE_RUNTIME_STARTUP_QUEUE_REFRESH_TIMEOUT_MS;
 export const MATCH_START_RECHECK_MS = 25;
 export const BATTLE_COMPLETION_CHECK_INTERVAL_MS = 100;
 const ZOMBIE_BOT_SKIN_ID = "zombie";

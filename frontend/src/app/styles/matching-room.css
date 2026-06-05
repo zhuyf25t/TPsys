@@ -685,6 +685,32 @@
   font-weight: 900;
 }
 
+.matching-room__map-lock {
+  display: grid;
+  gap: 4px;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255, 205, 104, 0.28);
+  border-radius: 6px;
+  background: rgba(255, 193, 66, 0.07);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.matching-room__map-lock span {
+  color: #72dcff;
+  font-size: 10px;
+  font-weight: 1000;
+  letter-spacing: 0;
+}
+
+.matching-room__map-lock strong {
+  overflow: hidden;
+  color: #fff1cc;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .matching-room__timer-panel {
   justify-items: center;
 }

@@ -1,5 +1,9 @@
 import { getBotProfileBySlot } from "../../bots/registry/botRegistry";
-import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCHMAKING_DURATION_MS } from "../../../objects/battle/objects/core/BattleCoreRules";
+import {
+  BATTLE_ARENA_PLAYER_CAPACITY,
+  BATTLE_MATCHMAKING_DURATION_MS,
+  battleArenaPlayerCapacityForMode
+} from "../../../objects/battle/objects/core/BattleCoreRules";
 import type {
   BattleModeIdDto,
   BattleQueueParticipantResponseDto,
@@ -65,11 +69,25 @@ export interface MatchmakingSlotState {
 export const MATCHMAKING_SLOT_COUNT = BATTLE_ARENA_PLAYER_CAPACITY;
 const MATCHMAKING_DURATION_MS = BATTLE_MATCHMAKING_DURATION_MS;
 
+export function resolveMatchmakingSlotCount(
+  queueState: MatchmakingQueueState | null,
+  fallbackModeId?: BattleModeIdDto | null
+): number {
+  const explicitCapacity = Math.trunc(queueState?.capacity ?? Number.NaN);
+  if (Number.isFinite(explicitCapacity) && explicitCapacity > 0) {
+    return explicitCapacity;
+  }
+
+  return battleArenaPlayerCapacityForMode(queueState?.modeId ?? fallbackModeId ?? null);
+}
+
 /** 中文名：构建matchmakingslots（buildMatchmakingSlots）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildMatchmakingSlots(
   localHandle: string,
-  queueState: MatchmakingQueueState | null
+  queueState: MatchmakingQueueState | null,
+  fallbackModeId?: BattleModeIdDto | null
 ): MatchmakingSlotState[] {
+  const slotCount = resolveMatchmakingSlotCount(queueState, fallbackModeId);
   const normalizedLocalHandle = normalizeHandle(localHandle);
   const participants = dedupeParticipants(queueState?.participants ?? []);
   const localPlayerId = queueState?.playerId.trim() ?? "";
@@ -86,18 +104,18 @@ export function buildMatchmakingSlots(
   }
 
   const firstPlayerSlotNumber = slots.length + 1;
-  otherParticipants.slice(0, MATCHMAKING_SLOT_COUNT - slots.length).forEach((participant, index) => {
+  otherParticipants.slice(0, slotCount - slots.length).forEach((participant, index) => {
     slots.push(buildPlayerSeat(participant, firstPlayerSlotNumber + index));
   });
 
-  const remainingSeats = Math.max(0, MATCHMAKING_SLOT_COUNT - slots.length);
-  const botSeatCount = queueState?.source === "local" ? Math.max(0, remainingSeats - 1) : remainingSeats;
+  const remainingSeats = Math.max(0, slotCount - slots.length);
+  const botSeatCount = remainingSeats;
 
   for (let index = 0; index < botSeatCount; index += 1) {
     slots.push(buildBotSeat(index));
   }
 
-  while (slots.length < MATCHMAKING_SLOT_COUNT) {
+  while (slots.length < slotCount) {
     slots.push(buildEmptySeat(slots.length + 1));
   }
 
@@ -107,6 +125,8 @@ export function buildMatchmakingSlots(
 /** 中文名：创建本地matchmaking队列状态（createLocalMatchmakingQueueState）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createLocalMatchmakingQueueState(handle: string): MatchmakingQueueState {
   const now = Date.now();
+  const modeId: BattleModeIdDto = "winter";
+  const capacity = battleArenaPlayerCapacityForMode(modeId);
   const normalizedHandle = normalizeHandle(handle) || "player";
   const seed = buildLocalQueueSeed(now);
   const localPlayerId = `local-player-${seed}`;
@@ -122,7 +142,7 @@ export function createLocalMatchmakingQueueState(handle: string): MatchmakingQue
     playerId: localPlayerId,
     roomId: `local-room-${seed}`,
     matchId: `local-room-${seed}`,
-    modeId: "winter",
+    modeId,
     modeLabel: "\u4e27\u5c38\u6a21\u5f0f",
     mapId: "winter-hunt-v1",
     mapLabel: "Suroi \u51ac\u5b63\u5730\u56fe",
@@ -134,7 +154,7 @@ export function createLocalMatchmakingQueueState(handle: string): MatchmakingQue
     participants: [localParticipant],
     players: [localParticipant],
     queuedHandles: [normalizedHandle],
-    capacity: MATCHMAKING_SLOT_COUNT,
+    capacity,
     durationMs: MATCHMAKING_DURATION_MS,
     phase: "unknown",
     source: "local"

@@ -53,6 +53,7 @@ export interface LoadoutPageState {
   closeAuthOverlay: () => void;
   completeAuth: () => void;
   currentLoadoutLabel: string;
+  focusedSkill: LoadoutSkillOptionView;
   handleSkillClick: (skillId: LoadoutSkillId) => void;
   handleSlotClick: (slotKey: SkillSlotKey) => void;
   isAuthenticated: boolean;
@@ -70,23 +71,17 @@ export interface LoadoutPageState {
   selectedSlotBySkillId: Map<LoadoutSkillId, SkillSlotKey>;
   skillOptions: LoadoutSkillOptionView[];
   skillSlots: LoadoutSkillSlotView[];
+  selectedSkin: LoadoutSkinOptionView;
   skinOptions: LoadoutSkinOptionView[];
   tertiaryAction: NonNullable<LobbyShellProps["tertiaryAction"]>;
   unassignedSkillOptions: LoadoutSkillOptionView[];
 }
 
-const quickActions: LobbyQuickAction[] = [
-  { key: "replay", label: "回放", iconKey: "replay", anchor: "left" },
-  { key: "discussion", label: "论坛", iconKey: "discussion", anchor: "left" },
-  { key: "ranking", label: "排行", iconKey: "ranking", anchor: "left" },
-  { key: "mails", label: "邮件", iconKey: "mails", anchor: "right" },
-  { key: "social", label: "好友", iconKey: "social", anchor: "right" }
-];
-
 /** 中文名称：配装页Hook。游戏职责：封装战前技能、武器、皮肤和大厅预览状态。 */
 export function useLoadoutPage(): LoadoutPageState {
   const [authMode, setAuthMode] = useState<LoadoutAuthMode>(null);
   const [armedSlot, setArmedSlot] = useState<SkillSlotKey | null>(null);
+  const [focusedSkillId, setFocusedSkillId] = useState<LoadoutSkillId>("Dash");
 
   const authUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   useSyncExternalStore(subscribeLoadoutState, getLoadoutStateVersion, getLoadoutStateVersion);
@@ -95,6 +90,8 @@ export function useLoadoutPage(): LoadoutPageState {
   const skillSlots = getSelectedSkillSlots();
   const skillOptions = getLoadoutSkillOptions();
   const skinOptions = getAuthSkinOptions();
+  const focusedSkill = skillOptions.find((skill) => skill.id === focusedSkillId) ?? skillOptions[0]!;
+  const selectedSkin = skinOptions.find((skin) => skin.id === loadout.skinId) ?? skinOptions[0]!;
   const selectedSkillIds = new Set<LoadoutSkillId>(skillSlots.map((slot) => slot.skillId));
   const selectedSlotBySkillId = new Map<LoadoutSkillId, SkillSlotKey>(skillSlots.map((slot) => [slot.skillId, slot.key]));
   const unassignedSkillOptions = skillOptions.filter((skill) => !selectedSkillIds.has(skill.id));
@@ -107,7 +104,6 @@ export function useLoadoutPage(): LoadoutPageState {
     refreshIntervalMs: shouldRefreshRemoteMail ? REMOTE_MAIL_REFRESH_INTERVAL_MS : 0,
     refreshOnFocus: shouldRefreshRemoteMail
   });
-  const unreadMailCount = mailSummaries.filter((mail) => mail.unread).length;
   const friendRequestOwnerHandle = authUser?.handle;
   const friendRequestAuthKey = authUser ? `${authUser.handle}:${authUser.sessionToken ?? ""}` : "guest";
   const friendRequests = useLobbyData(
@@ -122,16 +118,14 @@ export function useLoadoutPage(): LoadoutPageState {
     }
   );
   const friendRequestPreview = buildFriendRequestPreview(friendRequests, friendRequestOwnerHandle);
-  const quickActionsWithBadges = quickActions.map((action) =>
-    action.key === "mails"
-      ? { ...action, badgeCount: unreadMailCount }
-      : action.key === "social"
-        ? { ...action, badgeCount: friendRequestPreview.badgeCount }
-        : action
-  );
   const ratingEntries = useLobbyData(() => getRatingEntries(), loadRatingEntries, [authUser?.handle]);
 
   function handleSlotClick(slotKey: SkillSlotKey): void {
+    const slot = skillSlots.find((candidate) => candidate.key === slotKey);
+    if (slot) {
+      setFocusedSkillId(slot.skillId);
+    }
+
     if (!armedSlot) {
       setArmedSlot(slotKey);
       return;
@@ -147,6 +141,8 @@ export function useLoadoutPage(): LoadoutPageState {
   }
 
   function handleSkillClick(skillId: LoadoutSkillId): void {
+    setFocusedSkillId(skillId);
+
     if (!armedSlot) {
       const owningSlot = skillSlots.find((slot) => slot.skillId === skillId);
       if (owningSlot) {
@@ -184,6 +180,7 @@ export function useLoadoutPage(): LoadoutPageState {
     closeAuthOverlay,
     completeAuth: closeAuthOverlay,
     currentLoadoutLabel: `${loadout.presetLabel} | ${loadout.skinLabel}`,
+    focusedSkill,
     handleSkillClick,
     handleSlotClick,
     isAuthenticated: Boolean(authUser),
@@ -192,7 +189,7 @@ export function useLoadoutPage(): LoadoutPageState {
     presets,
     previewSets: buildPreviewSets(replaySummaries, discussionSummaries, mailSummaries, ratingEntries, friendRequestPreview, authUser?.handle),
     primaryAction,
-    quickActions: quickActionsWithBadges,
+    quickActions: [],
     railItems: [
       { label: "ARENA", value: `${BATTLE_ARENA_PLAYER_CAPACITY} 人` },
       { label: "ROUND", value: BATTLE_MATCH_DURATION_LABEL },
@@ -203,6 +200,7 @@ export function useLoadoutPage(): LoadoutPageState {
     selectPreset: setLoadoutPreset,
     selectSkin: setLoadoutSkin,
     selectedSlotBySkillId,
+    selectedSkin,
     skillOptions,
     skillSlots,
     skinOptions,

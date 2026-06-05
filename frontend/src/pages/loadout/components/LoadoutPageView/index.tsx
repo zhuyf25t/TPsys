@@ -10,20 +10,20 @@ export function LoadoutPageView({
   closeAuthOverlay,
   completeAuth,
   currentLoadoutLabel,
+  focusedSkill,
   handleSkillClick,
   handleSlotClick,
   isAuthenticated,
   loadout,
-  presets,
   previewSets,
   primaryAction,
   quickActions,
   railItems,
   roundDurationLabel,
   secondaryAction,
-  selectPreset,
   selectSkin,
   selectedSlotBySkillId,
+  selectedSkin,
   skillOptions,
   skillSlots,
   skinOptions,
@@ -36,7 +36,7 @@ export function LoadoutPageView({
         layoutMode="solo"
         brand="LOADOUT"
         title="战前配装"
-        subtitle="选择 Q / E / R 技能槽、武器打法和皮肤，保持大厅游戏菜单体验。"
+        subtitle="选择 Q / E / R 技能槽和角色皮肤，进入战斗前确认技能说明与皮肤特色。"
         playerName={isAuthenticated ? loadout.handle : "访客"}
         playerBadge={isAuthenticated ? "P1" : "GUEST"}
         playerAvatarSrc={loadout.skinImageSrc}
@@ -132,31 +132,25 @@ export function LoadoutPageView({
                         </button>
                       ))
                     ) : (
-                      <span className="loadout-skill-bank__empty">当前仅开放 Blink / Dash / Freeze，三项均已入槽。</span>
+                      <span className="loadout-skill-bank__empty">三格技能已满。点击任意技能可查看说明，选中槽位后可替换携带。</span>
                     )}
                   </div>
                 </div>
               </div>
             </section>
 
-            <section className="loadout-console__section loadout-console__section--weapons">
+            <section className={`loadout-console__section loadout-console__section--details loadout-console__section--${focusedSkill.tone}`}>
               <header>
-                <small>Weapon Preset</small>
-                <strong>武器打法</strong>
+                <small>Skill Briefing</small>
+                <strong>技能说明</strong>
               </header>
-              <div className="loadout-console__cards">
-                {presets.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className={`loadout-card${preset.id === loadout.presetId ? " loadout-card--active" : ""}`}
-                    onClick={() => selectPreset(preset.id)}
-                  >
-                    <small>{preset.label}</small>
-                    <strong>{preset.primary}</strong>
-                    <span>{preset.description}</span>
-                  </button>
-                ))}
+              <div className="loadout-skill-detail">
+                <span className="loadout-skill-detail__icon">{focusedSkill.shortLabel}</span>
+                <div>
+                  <strong>{focusedSkill.label}</strong>
+                  <p>{focusedSkill.description}</p>
+                  <small>点击技能查看说明；选中 Q / E / R 槽位后点击技能即可替换携带。</small>
+                </div>
               </div>
             </section>
 
@@ -170,8 +164,14 @@ export function LoadoutPageView({
                   <button key={skin.id} type="button" className={`loadout-skin${skin.id === loadout.skinId ? " loadout-skin--active" : ""}`} onClick={() => selectSkin(skin.id)}>
                     <img src={skin.imageSrc} alt={skin.label} />
                     <span>{skin.label}</span>
+                    <small>{skin.traitLabel}</small>
                   </button>
                 ))}
+              </div>
+              <div className="loadout-skin-feature">
+                <strong>{selectedSkin.traitLabel}</strong>
+                <span>{selectedSkin.statLine}</span>
+                <p>{selectedSkin.traitDetail}</p>
               </div>
             </section>
 

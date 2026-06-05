@@ -13,6 +13,9 @@ export interface AuthSkinOption {
   textureKey: string;
   imageSrc: string;
   tint: number;
+  traitLabel: string;
+  traitDetail: string;
+  statLine: string;
 }
 
 export interface LocalAuthUser {
@@ -65,35 +68,50 @@ const SKIN_OPTIONS: readonly AuthSkinOption[] = [
     label: "蓝盾先锋",
     textureKey: "hero-player",
     imageSrc: "/assets/kenney-top-down-shooter/PNG/Man%20Blue/manBlue_hold.png",
-    tint: 0x7ae2ff
+    tint: 0x7ae2ff,
+    traitLabel: "稳定护甲",
+    traitDetail: "受击反馈更清晰，适合正面推进和新手演示。",
+    statLine: "护甲 +8% / 机动 标准"
   },
   {
     id: "survivor",
     label: "荒野幸存者",
     textureKey: "hero-survivor",
     imageSrc: "/assets/kenney-top-down-shooter/PNG/Survivor%201/survivor1_hold.png",
-    tint: 0x7dd87d
+    tint: 0x7dd87d,
+    traitLabel: "野外续航",
+    traitDetail: "体力恢复节奏更稳，适合秋季和森林地图长线拉扯。",
+    statLine: "体力回复 +10% / 护甲 -4%"
   },
   {
     id: "soldier",
     label: "突击士兵",
     textureKey: "hero-soldier",
     imageSrc: "/assets/kenney-top-down-shooter/PNG/Soldier%201/soldier1_hold.png",
-    tint: 0xffd36e
+    tint: 0xffd36e,
+    traitLabel: "火力压制",
+    traitDetail: "开火节奏更利落，适合默认模式的队伍推进。",
+    statLine: "换弹感知 +12% / 移速 -3%"
   },
   {
     id: "old",
     label: "老兵",
     textureKey: "hero-old",
     imageSrc: "/assets/kenney-top-down-shooter/PNG/Man%20Old/manOld_hold.png",
-    tint: 0xc8b6ff
+    tint: 0xc8b6ff,
+    traitLabel: "冷静瞄准",
+    traitDetail: "远距离读秒和技能节奏更适合稳健打法。",
+    statLine: "技能提示 +15% / 冲刺消耗 +4%"
   },
   {
     id: "zombie",
     label: "\u4e27\u5c38",
     textureKey: "hero-zombie",
     imageSrc: "/assets/kenney-top-down-shooter/PNG/Zombie%201/zoimbie1_hold.png",
-    tint: 0xb7f06a
+    tint: 0xb7f06a,
+    traitLabel: "感染伪装",
+    traitDetail: "在丧尸演示中辨识度高，适合展示尸潮主题。",
+    statLine: "视觉威慑 +20% / 护甲 标准"
   }
 ] as const;
 

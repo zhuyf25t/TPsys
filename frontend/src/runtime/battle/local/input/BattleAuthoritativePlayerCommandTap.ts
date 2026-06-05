@@ -81,7 +81,7 @@ export function installBattleAuthoritativePlayerCommandTap(
       pendingSceneCastDash = true;
       pendingUplinkCastDash = true;
     }
-    if (skillPresses.Critical || key === "control") {
+    if (skillPresses.Critical) {
       pendingSceneCastCritical = true;
       pendingUplinkCastCritical = true;
     }
@@ -198,7 +198,7 @@ export function installBattleAuthoritativePlayerCommandTap(
   };
 }
 
-function normalizeSkillTapKey(key: string, code?: string): "q" | "e" | "r" | "control" | null {
+function normalizeSkillTapKey(key: string, code?: string): "q" | "e" | "r" | null {
   const normalizedCode = code?.trim().toLowerCase();
   if (normalizedCode === "keyq") {
     return "q";
@@ -209,15 +209,11 @@ function normalizeSkillTapKey(key: string, code?: string): "q" | "e" | "r" | "co
   if (normalizedCode === "keyr") {
     return "r";
   }
-  if (normalizedCode === "controlleft" || normalizedCode === "controlright") {
-    return "control";
-  }
-
   const normalizedKey = key.trim().toLowerCase();
   if (normalizedKey === "q" || normalizedKey === "e" || normalizedKey === "r") {
     return normalizedKey;
   }
-  return normalizedKey === "control" || normalizedKey === "ctrl" ? "control" : null;
+  return null;
 }
 
 function clonePlayerCommand(command: PlayerCommand): PlayerCommand {

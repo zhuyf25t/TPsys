@@ -9,7 +9,6 @@ export interface ControlKeys {
   skillQ: Phaser.Input.Keyboard.Key;
   skillE: Phaser.Input.Keyboard.Key;
   skillR: Phaser.Input.Keyboard.Key;
-  critical: Phaser.Input.Keyboard.Key;
   map: Phaser.Input.Keyboard.Key;
   reload: Phaser.Input.Keyboard.Key;
   weapon1: Phaser.Input.Keyboard.Key;
@@ -31,7 +30,6 @@ export function createBattleControlKeys(input: Phaser.Input.InputPlugin): Contro
     skillQ: input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
     skillE: input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E),
     skillR: input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R),
-    critical: input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL),
     map: input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.TAB),
     reload: input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T),
     weapon1: input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),

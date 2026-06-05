@@ -210,6 +210,7 @@ export class GameScene extends Phaser.Scene {
         elapsedMs: this.snapshot.elapsedMs,
         deltaMs
       });
+      this.runtimeBridges.temporalFrameBridge.applyGasDamage(this.snapshot, deltaMs);
       return;
     }
 

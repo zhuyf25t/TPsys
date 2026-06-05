@@ -284,8 +284,11 @@ $accountB = Register-SmokeAccount -Handle $handleB
 Write-Pass "registered $($accountA.handle), $($accountB.handle)"
 
 Write-Step "battle results"
-$battleResults = Invoke-DemoApi -Path "/battle/results?limit=1"
-Assert-Condition (Test-HasProperty -Object $battleResults -Name "results") "/battle/results response is missing results."
+$battleResults = Invoke-DemoApi -Method "POST" -Path "/battleresultlist" -Body @{
+  userToken = $accountA.session
+  limit = 1
+}
+Assert-Condition (Test-HasProperty -Object $battleResults -Name "results") "/battleresultlist response is missing results."
 Write-Pass "battle results readable count=$(Get-ArrayCount -Value (Get-JsonArray -Object $battleResults -Name 'results'))"
 
 Write-Step "replay catalog"

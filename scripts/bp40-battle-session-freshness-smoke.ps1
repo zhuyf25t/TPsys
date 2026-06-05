@@ -32,6 +32,21 @@ function Invoke-Bp40Json {
   return Invoke-RestMethod @parameters
 }
 
+function Invoke-Bp40BattleMessage {
+  param(
+    [string]$Name,
+    [object]$Body
+  )
+
+  $payload = @{}
+  foreach ($property in $Body.PSObject.Properties) {
+    $payload[$property.Name] = $property.Value
+  }
+  $payload.userToken = $SmokeSession
+
+  return Invoke-Bp40Json "POST" "/$Name" $payload
+}
+
 function New-Bp40SmokeSession {
   $account = Invoke-Bp40Json "POST" "/identity/register" @{
     handle = $SmokeHandle
@@ -60,13 +75,13 @@ function Join-Bp40Queue {
     [string]$QueueRequestId
   )
 
-  return Invoke-Bp40Json "POST" "/battle/queue/join" @{
+  return Invoke-Bp40BattleMessage "battlequeuejoin" ([pscustomobject]@{
     handle = $SmokeHandle
     sessionToken = $SmokeSession
     queueRequestId = $QueueRequestId
     rating = "1200"
     skin = "blue"
-  }
+  })
 }
 
 function Wait-Bp40BattleSession {
@@ -76,7 +91,9 @@ function Wait-Bp40BattleSession {
 
   $status = $null
   for ($i = 0; $i -lt 60; $i++) {
-    $status = Invoke-Bp40Json "GET" "/battle/queue/status?ticketId=$([uri]::EscapeDataString($TicketId))"
+    $status = Invoke-Bp40BattleMessage "battlequeuestatus" ([pscustomobject]@{
+      ticketId = $TicketId
+    })
     if ($null -ne $status.battleSession) {
       return $status
     }
@@ -95,7 +112,9 @@ function Wait-Bp40ElapsedAtLeast {
 
   $state = $null
   for ($i = 0; $i -lt 40; $i++) {
-    $state = Invoke-Bp40Json "GET" "/battle/state/$([uri]::EscapeDataString($BattleId))"
+    $state = Invoke-Bp40BattleMessage "battlestateread" ([pscustomobject]@{
+      battleId = $BattleId
+    })
     if ([int64]$state.elapsedMs -ge $MinimumElapsedMs) {
       return $state
     }
@@ -112,7 +131,9 @@ function Read-Bp40State {
     [string]$BattleId
   )
 
-  return Invoke-Bp40Json "GET" "/battle/state/$([uri]::EscapeDataString($BattleId))"
+  return Invoke-Bp40BattleMessage "battlestateread" ([pscustomobject]@{
+    battleId = $BattleId
+  })
 }
 
 $roundOne = $null
@@ -136,7 +157,7 @@ try {
   if ($freshWaitingJoin.ticketId -eq $roundOne.ticketId -or $freshWaitingJoin.roomId -eq $roundOne.roomId) {
     throw "Fresh queueRequestId reused an existing waiting ticket/room: first=$($roundOne.ticketId)/$($roundOne.roomId), fresh=$($freshWaitingJoin.ticketId)/$($freshWaitingJoin.roomId)."
   }
-  Invoke-Bp40Json "POST" "/battle/queue/leave" @{ ticketId = $freshWaitingJoin.ticketId } | Out-Null
+  Invoke-Bp40BattleMessage "battlequeueleave" ([pscustomobject]@{ ticketId = $freshWaitingJoin.ticketId }) | Out-Null
   $freshWaitingJoin = $null
 
   $statusOne = Wait-Bp40BattleSession $roundOne.ticketId
@@ -173,12 +194,12 @@ try {
   Write-Host "round2RemainingMs=$remainingTwo"
 } finally {
   if ($null -ne $roundTwo -and (Test-HasField $roundTwo "ticketId")) {
-    try { Invoke-Bp40Json "POST" "/battle/queue/leave" @{ ticketId = $roundTwo.ticketId } | Out-Null } catch {}
+    try { Invoke-Bp40BattleMessage "battlequeueleave" ([pscustomobject]@{ ticketId = $roundTwo.ticketId }) | Out-Null } catch {}
   }
   if ($null -ne $freshWaitingJoin -and (Test-HasField $freshWaitingJoin "ticketId")) {
-    try { Invoke-Bp40Json "POST" "/battle/queue/leave" @{ ticketId = $freshWaitingJoin.ticketId } | Out-Null } catch {}
+    try { Invoke-Bp40BattleMessage "battlequeueleave" ([pscustomobject]@{ ticketId = $freshWaitingJoin.ticketId }) | Out-Null } catch {}
   }
   if ($null -ne $roundOne -and (Test-HasField $roundOne "ticketId")) {
-    try { Invoke-Bp40Json "POST" "/battle/queue/leave" @{ ticketId = $roundOne.ticketId } | Out-Null } catch {}
+    try { Invoke-Bp40BattleMessage "battlequeueleave" ([pscustomobject]@{ ticketId = $roundOne.ticketId }) | Out-Null } catch {}
   }
 }

@@ -46,7 +46,7 @@ export function readPhaserPlayerCommand({
     toggleBlink: skillPresses.Blink,
     toggleFreeze: skillPresses.Freeze,
     castDash: skillPresses.Dash,
-    castCritical: skillPresses.Critical || Phaser.Input.Keyboard.JustDown(controls.critical),
+    castCritical: skillPresses.Critical,
     reloadPressed: Phaser.Input.Keyboard.JustDown(controls.reload)
   });
 }

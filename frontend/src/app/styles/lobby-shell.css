@@ -486,7 +486,7 @@
   grid-template-columns: minmax(0, 1.25fr) minmax(220px, 0.8fr);
   grid-template-areas:
     "status status"
-    "skills weapons"
+    "skills details"
     "skills skins";
   gap: 12px;
   max-height: min(610px, calc(100vh - 230px));
@@ -549,8 +549,8 @@
   grid-area: skills;
 }
 
-.loadout-console__section--weapons {
-  grid-area: weapons;
+.loadout-console__section--details {
+  grid-area: details;
 }
 
 .loadout-console__section--skins {
@@ -737,6 +737,58 @@
   font-size: 0.82rem;
 }
 
+.loadout-skill-detail {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(3, 10, 18, 0.48));
+}
+
+.loadout-skill-detail__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #071018;
+  background: #ffbf59;
+  font-weight: 1000;
+}
+
+.loadout-console__section--cyan .loadout-skill-detail__icon {
+  background: #62ddff;
+}
+
+.loadout-console__section--ice .loadout-skill-detail__icon {
+  background: #a8dcff;
+}
+
+.loadout-skill-detail strong,
+.loadout-skin-feature strong {
+  color: #fff4d0;
+}
+
+.loadout-skill-detail p,
+.loadout-skin-feature p {
+  margin: 4px 0;
+  color: rgba(232, 241, 255, 0.78);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.loadout-skill-detail small,
+.loadout-skin small,
+.loadout-skin-feature span {
+  color: rgba(120, 226, 255, 0.82);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .loadout-console__cards {
   display: grid;
   gap: 7px;
@@ -788,9 +840,24 @@
   font-size: 0.74rem;
 }
 
+.loadout-skin small {
+  max-width: 76px;
+  text-align: center;
+  line-height: 1.15;
+}
+
 .loadout-skin--active {
   border-color: rgba(114, 229, 255, 0.56);
   background: rgba(57, 194, 255, 0.12);
+}
+
+.loadout-skin-feature {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(255, 207, 116, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 190, 82, 0.08);
 }
 
 .quick-overlay {
@@ -1146,8 +1213,19 @@
   line-height: 1.22;
 }
 
+.loadout-console--skill-pass .loadout-skill-detail {
+  grid-template-columns: 36px minmax(0, 1fr);
+  padding: 8px;
+}
+
+.loadout-console--skill-pass .loadout-skill-detail__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
 .loadout-console--skill-pass .loadout-skin {
-  min-width: 54px;
+  min-width: 64px;
   padding: 6px;
   gap: 4px;
   border-radius: 11px;

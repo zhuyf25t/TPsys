@@ -4,7 +4,7 @@ import { cn } from "../../../../../../components/ui/classNames";
 import type { BattlePlayModeId, BattlePlayModeOption } from "../../../../../../runtime/battle/microservices/world/services/BattleArenaCatalog";
 import {
   buildMatchmakingSlots,
-  MATCHMAKING_SLOT_COUNT,
+  resolveMatchmakingSlotCount,
   type MatchmakingQueueState,
   type MatchmakingSeatKind,
   type MatchmakingSlotState
@@ -34,7 +34,8 @@ export function MatchingOverlay({
   onBattleModeChange
 }: MatchingOverlayProps) {
   const roomParticipants = queueState?.participants ?? [];
-  const slots = buildMatchmakingSlots(loadout.handle, queueState);
+  const slotCount = resolveMatchmakingSlotCount(queueState, selectedBattleModeId);
+  const slots = buildMatchmakingSlots(loadout.handle, queueState, selectedBattleModeId);
   const roomIdLabel = queueState ? shortenRoomId(queueState.roomId).toUpperCase() : "分配房间中";
   const queueLabel = formatQueueLabel(queueState);
   const phaseLabel = formatPhaseLabel(queueState);
@@ -42,7 +43,7 @@ export function MatchingOverlay({
   const selectedMode = battleModeOptions.find((option) => option.modeId === selectedBattleModeId) ?? battleModeOptions[0];
   const mapLabel = translateMapLabel(queueState?.mapLabel ?? selectedMode?.mapLabel ?? "Battle Rift");
   const modeLabel = translateModeLabel(queueState?.modeLabel ?? selectedMode?.label ?? "Battle Rift");
-  const modeSelectionDisabled = queueState?.phase === "active";
+  const modeSelectionDisabled = Boolean(queueState);
   const progress = resolveCountdownProgress(countdownMs, queueState);
   const progressStyle = { "--matchmaking-progress": `${Math.round(progress * 360)}deg` } as CSSProperties;
 
@@ -103,7 +104,7 @@ export function MatchingOverlay({
             </div>
 
             <div className="matching-room__team-header">
-              <span>队伍 {Math.max(roomParticipants.length, 1)} / {MATCHMAKING_SLOT_COUNT}</span>
+              <span>队伍 {Math.max(roomParticipants.length, 1)} / {slotCount}</span>
               <em>{queueState ? "等待所有队员准备..." : "正在连接匹配服务..."}</em>
             </div>
 
@@ -155,19 +156,10 @@ export function MatchingOverlay({
                   <strong>{mapLabel}</strong>
                   <span>{modeLabel}</span>
                 </div>
-                <button
-                  type="button"
-                  className="matching-room__change-map"
-                  disabled={modeSelectionDisabled}
-                  onClick={() => {
-                    const nextOption = nextBattleModeOption(battleModeOptions, selectedBattleModeId);
-                    if (nextOption) {
-                      onBattleModeChange(nextOption.modeId);
-                    }
-                  }}
-                >
-                  切换地图
-                </button>
+                <div className="matching-room__map-lock">
+                  <span>当前地图已锁定</span>
+                  <strong>{mapLabel}</strong>
+                </div>
               </section>
 
               <section className="matching-room__console-panel matching-room__timer-panel">
@@ -175,9 +167,9 @@ export function MatchingOverlay({
                 <div className="matching-room__timer-ring" style={progressStyle}>
                   <strong>{countdownLabel}</strong>
                 </div>
-                <span className="matching-room__timer-caption">预计 {Math.max(roomParticipants.length, 1)} / {MATCHMAKING_SLOT_COUNT} 名玩家</span>
+                <span className="matching-room__timer-caption">预计 {Math.max(roomParticipants.length, 1)} / {slotCount} 名玩家</span>
                 <div className="matching-room__timer-bars" aria-hidden="true">
-                  {Array.from({ length: MATCHMAKING_SLOT_COUNT }).map((_, index) => (
+                  {Array.from({ length: slotCount }).map((_, index) => (
                     <i key={index} className={index < Math.max(roomParticipants.length, 1) ? "is-filled" : ""} />
                   ))}
                 </div>
@@ -394,16 +386,4 @@ function translateMapLabel(label: string): string {
     return "裂隙战区";
   }
   return label;
-}
-
-function nextBattleModeOption(
-  options: readonly BattlePlayModeOption[],
-  selectedBattleModeId: BattlePlayModeId
-): BattlePlayModeOption | undefined {
-  if (options.length === 0) {
-    return undefined;
-  }
-
-  const currentIndex = options.findIndex((option) => option.modeId === selectedBattleModeId);
-  return options[(currentIndex + 1 + options.length) % options.length];
 }

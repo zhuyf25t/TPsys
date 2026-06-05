@@ -3,25 +3,17 @@ import { BattleDrawerLayer } from "./components/BattleDrawerLayer";
 import { BattleGameScreen } from "./components/BattleGameScreen";
 import { BattleMatchingLayer } from "./components/BattleMatchingLayer";
 import { BattleSettlementLayer } from "./components/BattleSettlementLayer";
-import { buildBattleQuickAccessButtons } from "./functions/buildBattleQuickAccessButtons";
 import { useBattlePageRuntime } from "./hooks/useBattlePageRuntime";
 
 /** 中文名：战斗页面（BattlePage）。游戏职责：连接匹配、Phaser runtime、HUD、抽屉和结算层。 */
 export function BattlePage() {
   const runtime = useBattlePageRuntime();
-  const quickAccessButtons = buildBattleQuickAccessButtons({
-    matchPhase: runtime.matchPhase,
-    entryBlockNotice: runtime.entryBlockNotice,
-    unreadMailCount: runtime.unreadMailCount,
-    friendRequestBadgeCount: runtime.friendRequestPreview.badgeCount,
-    openDrawer: runtime.openDrawer
-  });
 
   return (
     <BattleChrome
       phase={runtime.matchPhase}
-      leftButtons={quickAccessButtons.leftButtons}
-      rightButtons={quickAccessButtons.rightButtons}
+      leftButtons={[]}
+      rightButtons={[]}
       matchingOverlay={
         <BattleMatchingLayer
           entryBlockNotice={runtime.entryBlockNotice}

@@ -29,7 +29,15 @@ export function ReplayDetailPageView({
   sendFeedback,
   setCommentBody,
   setFeedbackBody,
+  setSideCommentBody,
+  setSideCommentTargetId,
+  sideCommentBody,
+  sideCommentMessage,
+  sideCommentSending,
+  sideCommentTargetId,
+  sideCommentTargets,
   submitComment,
+  submitSideComment,
   timelineItems
 }: ReplayDetailPageState) {
   if (!replay) {
@@ -174,6 +182,39 @@ export function ReplayDetailPageView({
                 </div>
               ) : (
                 <p className="replay-comments__empty">游客模式不能评论，登录后可留下记录。</p>
+              )}
+            </section>
+
+            <section className="detail-card replay-comments replay-comments--side-channel">
+              <h3>旁路评论</h3>
+              <p className="replay-comments__empty">观看本局时，也可以给另一局回放留下队友批注。</p>
+              {sideCommentTargets.length ? (
+                <>
+                  <label className="replay-comments__target">
+                    <span>目标回放</span>
+                    <select value={sideCommentTargetId} onChange={(event) => setSideCommentTargetId(event.target.value)}>
+                      {sideCommentTargets.map((target) => (
+                        <option key={target.id} value={target.id}>
+                          {getReplayDisplayTitle(target)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="replay-comments__composer">
+                    <textarea value={sideCommentBody} onChange={(event) => setSideCommentBody(event.target.value)} placeholder="给另一局写一条评论" />
+                    <button
+                      type="button"
+                      className="button-link button-link--primary"
+                      onClick={submitSideComment}
+                      disabled={!sideCommentBody.trim() || sideCommentSending}
+                    >
+                      {sideCommentSending ? "发送中..." : "发送"}
+                    </button>
+                  </div>
+                  {sideCommentMessage ? <p className="replay-comments__empty">{sideCommentMessage}</p> : null}
+                </>
+              ) : (
+                <p className="replay-comments__empty">至少需要两条回放后才能旁路评论。</p>
               )}
             </section>
           </aside>

@@ -815,6 +815,23 @@
   font-size: 12px;
 }
 
+.replay-comments__target {
+  display: grid;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.replay-comments__target select {
+  min-width: 0;
+  border: 1px solid rgba(255, 214, 112, 0.16);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--text-0);
+  padding: 8px 9px;
+  font: inherit;
+}
+
 .replay-comments__composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 88px;

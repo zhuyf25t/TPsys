@@ -6,6 +6,7 @@ import {
   buildReplayRoomInsights,
   getReplaySummaryById,
   hasMeaningfulReplayFrames,
+  loadReplaySummaries,
   loadReplayPlaybackById,
   parseReplayPlayersLine,
   type ReplaySummary,
@@ -56,7 +57,15 @@ export interface ReplayDetailPageState {
   sendFeedback: () => Promise<void>;
   setCommentBody: (body: string) => void;
   setFeedbackBody: (body: string) => void;
+  setSideCommentBody: (body: string) => void;
+  setSideCommentTargetId: (replayId: string) => void;
+  sideCommentBody: string;
+  sideCommentMessage: string | null;
+  sideCommentSending: boolean;
+  sideCommentTargetId: string;
+  sideCommentTargets: ReplaySummary[];
   submitComment: () => void;
+  submitSideComment: () => void;
   timelineItems: ReplayTimelineMoment[];
 }
 
@@ -70,6 +79,11 @@ export function useReplayDetailPage(id: string | undefined, ratingHandle: string
   const [comments, setComments] = useState<ReplayCommentApiRecord[]>([]);
   const [commentBody, setCommentBody] = useState("");
   const [commentSending, setCommentSending] = useState(false);
+  const [sideReplaySummaries, setSideReplaySummaries] = useState<ReplaySummary[]>([]);
+  const [sideCommentTargetId, setSideCommentTargetId] = useState("");
+  const [sideCommentBody, setSideCommentBody] = useState("");
+  const [sideCommentSending, setSideCommentSending] = useState(false);
+  const [sideCommentMessage, setSideCommentMessage] = useState<string | null>(null);
   const [feedbackModal, setFeedbackModal] = useState<ReplayFeedbackModalState>(null);
   const [feedbackBody, setFeedbackBody] = useState("");
   const [feedbackSending, setFeedbackSending] = useState(false);
@@ -154,6 +168,22 @@ export function useReplayDetailPage(id: string | undefined, ratingHandle: string
     };
   }, [id]);
 
+  useEffect(() => {
+    let active = true;
+
+    void loadReplaySummaries().then((summaries) => {
+      if (!active || summaries == null) {
+        return;
+      }
+
+      setSideReplaySummaries(summaries);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const replay = useMemo(() => mergeReplaySummaryRatings(summaryReplay, loadedReplay), [loadedReplay, summaryReplay]);
   const insights = useMemo(() => (replay ? buildReplayRoomInsights(replay) : null), [replay]);
   const hasReplayFrames = Boolean(replay && replay.frames.length > 0);
@@ -164,6 +194,15 @@ export function useReplayDetailPage(id: string | undefined, ratingHandle: string
   }, []);
   const timelineItems = visibleTimeline.slice(-5);
   const resultRows = useMemo(() => buildResultRows(replay, insights?.roster ?? [], ratingHandle ?? authUser?.handle), [authUser?.handle, insights?.roster, ratingHandle, replay]);
+  const sideCommentTargets = useMemo(
+    () =>
+      sideReplaySummaries
+        .filter((summary) => summary.id !== id)
+        .sort(compareReplayRecency)
+        .slice(0, 4),
+    [id, sideReplaySummaries]
+  );
+  const selectedSideCommentTarget = sideCommentTargets.find((target) => target.id === sideCommentTargetId) ?? sideCommentTargets[0] ?? null;
 
   const submitComment = (): void => {
     if (!id || !authUser || !commentBody.trim()) {
@@ -189,6 +228,36 @@ export function useReplayDetailPage(id: string | undefined, ratingHandle: string
       })
       .finally(() => {
         setCommentSending(false);
+      });
+  };
+
+  const submitSideComment = (): void => {
+    if (!authUser) {
+      setSideCommentMessage("请先登录后再评论其他回放。");
+      return;
+    }
+
+    if (!selectedSideCommentTarget || !sideCommentBody.trim() || sideCommentSending) {
+      return;
+    }
+
+    setSideCommentSending(true);
+    void createReplayComment({
+      replayId: selectedSideCommentTarget.id,
+      authorHandle: authUser.handle,
+      body: sideCommentBody
+    })
+      .then((comment) => {
+        if (!comment) {
+          setSideCommentMessage("评论发送失败，请稍后重试。");
+          return;
+        }
+
+        setSideCommentBody("");
+        setSideCommentMessage(`已评论：${getReplayDisplayTitle(selectedSideCommentTarget)}`);
+      })
+      .finally(() => {
+        setSideCommentSending(false);
       });
   };
 
@@ -269,9 +338,30 @@ export function useReplayDetailPage(id: string | undefined, ratingHandle: string
     sendFeedback,
     setCommentBody,
     setFeedbackBody,
+    setSideCommentBody,
+    setSideCommentTargetId,
+    sideCommentBody,
+    sideCommentMessage,
+    sideCommentSending,
+    sideCommentTargetId: selectedSideCommentTarget?.id ?? "",
+    sideCommentTargets,
     submitComment,
+    submitSideComment,
     timelineItems
   };
+}
+
+function compareReplayRecency(left: ReplaySummary, right: ReplaySummary): number {
+  return getReplayRecency(right) - getReplayRecency(left);
+}
+
+function getReplayRecency(replay: ReplaySummary): number {
+  return Number.isFinite(replay.finishedAt) && replay.finishedAt > 0 ? replay.finishedAt : getReplayTimestamp(replay.id);
+}
+
+function getReplayTimestamp(id: string): number {
+  const match = id.match(/(\d{10,})/);
+  return match ? Number(match[1]) : 0;
 }
 
 function mergeReplaySummaryRatings(summary: ReplaySummary | null, playback: ReplayPlayback | null): ReplayPlayback | null {

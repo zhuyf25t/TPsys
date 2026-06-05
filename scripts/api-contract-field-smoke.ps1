@@ -25,23 +25,24 @@ function Invoke-ContractJson {
     [object]$Body = $null
   )
 
-  $uri = "$BaseUrl$Path"
+  $request = Convert-ContractRequest -Method $Method -Path $Path -Body $Body
+  $uri = "$BaseUrl$($request.Path)"
   $parameters = @{
-    Method = $Method
+    Method = $request.Method
     Uri = $uri
     Headers = @{ "Accept" = "application/json" }
     TimeoutSec = 8
   }
 
-  if ($null -ne $Body) {
+  if ($null -ne $request.Body) {
     $parameters.ContentType = "application/json"
-    $parameters.Body = ($Body | ConvertTo-Json -Depth 8 -Compress)
+    $parameters.Body = ($request.Body | ConvertTo-Json -Depth 8 -Compress)
   }
 
   try {
     return Invoke-RestMethod @parameters
   } catch {
-    throw "Request failed: $Method $uri :: $($_.Exception.Message)"
+    throw "Request failed: $($request.Method) $uri :: $($_.Exception.Message)"
   }
 }
 
@@ -52,17 +53,18 @@ function Invoke-ContractJsonExpectError {
     [object]$Body = $null
   )
 
-  $uri = "$BaseUrl$Path"
+  $request = Convert-ContractRequest -Method $Method -Path $Path -Body $Body
+  $uri = "$BaseUrl$($request.Path)"
   $parameters = @{
-    Method = $Method
+    Method = $request.Method
     Uri = $uri
     Headers = @{ "Accept" = "application/json" }
     TimeoutSec = 8
   }
 
-  if ($null -ne $Body) {
+  if ($null -ne $request.Body) {
     $parameters.ContentType = "application/json"
-    $parameters.Body = ($Body | ConvertTo-Json -Depth 8 -Compress)
+    $parameters.Body = ($request.Body | ConvertTo-Json -Depth 8 -Compress)
   }
 
   try {
@@ -94,6 +96,20 @@ function Invoke-ContractJsonExpectError {
 
       if (-not [string]::IsNullOrWhiteSpace($bodyText)) {
         $payload = $bodyText | ConvertFrom-Json
+        if (
+          $null -ne $payload -and
+          (Test-HasField $payload "message") -and
+          -not (Test-HasField $payload "error")
+        ) {
+          $payload | Add-Member -NotePropertyName "error" -NotePropertyValue $payload.message -Force
+        }
+        if ($null -ne $payload -and (Test-HasField $payload "message")) {
+          $legacyCode = Convert-BattleApiMessageToLegacyCode ([string]$payload.message)
+          if (-not [string]::IsNullOrWhiteSpace($legacyCode)) {
+            $payload | Add-Member -NotePropertyName "code" -NotePropertyValue $legacyCode -Force
+            $payload | Add-Member -NotePropertyName "error" -NotePropertyValue $legacyCode -Force
+          }
+        }
       }
     } catch {
       $payload = $null
@@ -104,6 +120,218 @@ function Invoke-ContractJsonExpectError {
       Payload = $payload
     }
   }
+}
+
+function Convert-ContractRequest {
+  param(
+    [string]$Method,
+    [string]$Path,
+    [object]$Body = $null
+  )
+
+  $pathOnly = Get-ContractPathOnly $Path
+  $convertedMethod = $Method
+  $convertedPath = $Path
+  $convertedBody = $Body
+
+  switch -Regex ($pathOnly) {
+    '^/battle/results$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battleresultlist"
+      $convertedBody = Add-BattleUserToken (Merge-ContractBody $Body @{
+        limit = Get-ContractQueryInt $Path "limit" 10
+      })
+      break
+    }
+    '^/battle/queue/join$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battlequeuejoin"
+      $convertedBody = Add-BattleUserToken (Copy-ContractBody $Body)
+      break
+    }
+    '^/battle/queue/status$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battlequeuestatus"
+      $convertedBody = Add-BattleUserToken (Merge-ContractBody $Body @{
+        ticketId = Get-ContractQueryValue $Path "ticketId"
+      })
+      break
+    }
+    '^/battle/queue/leave$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battlequeueleave"
+      $convertedBody = Add-BattleUserToken (Copy-ContractBody $Body)
+      break
+    }
+    '^/battle/rooms/snapshot$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battleroomsnapshot"
+      $convertedBody = Add-BattleUserToken (Merge-ContractBody $Body @{
+        roomId = Get-ContractQueryValue $Path "roomId"
+      })
+      break
+    }
+    '^/battle/rooms/heartbeat$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battleroomheartbeat"
+      $convertedBody = Add-BattleUserToken (Copy-ContractBody $Body)
+      break
+    }
+    '^/battle/commands$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battlecommand"
+      $convertedBody = Add-BattleUserToken (Copy-ContractBody $Body)
+      break
+    }
+  }
+
+  return [pscustomobject]@{
+    Method = $convertedMethod
+    Path = $convertedPath
+    Body = $convertedBody
+  }
+}
+
+function Get-ContractPathOnly {
+  param([string]$Path)
+
+  $queryStart = $Path.IndexOf("?")
+  if ($queryStart -lt 0) {
+    return $Path
+  }
+
+  return $Path.Substring(0, $queryStart)
+}
+
+function Get-ContractQueryValue {
+  param(
+    [string]$Path,
+    [string]$Name
+  )
+
+  $queryStart = $Path.IndexOf("?")
+  if ($queryStart -lt 0 -or $queryStart -ge ($Path.Length - 1)) {
+    return $null
+  }
+
+  $query = $Path.Substring($queryStart + 1)
+  foreach ($part in $query.Split("&")) {
+    if ([string]::IsNullOrWhiteSpace($part)) {
+      continue
+    }
+
+    $pair = $part.Split("=", 2)
+    $key = [uri]::UnescapeDataString($pair[0])
+    if ($key -ne $Name) {
+      continue
+    }
+
+    if ($pair.Count -lt 2) {
+      return ""
+    }
+
+    return [uri]::UnescapeDataString($pair[1])
+  }
+
+  return $null
+}
+
+function Get-ContractQueryInt {
+  param(
+    [string]$Path,
+    [string]$Name,
+    [int]$DefaultValue
+  )
+
+  $value = Get-ContractQueryValue $Path $Name
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $DefaultValue
+  }
+
+  $parsed = 0
+  if ([int]::TryParse([string]$value, [ref]$parsed)) {
+    return $parsed
+  }
+
+  return $DefaultValue
+}
+
+function Convert-BattleApiMessageToLegacyCode {
+  param([string]$Message)
+
+  switch -Regex ($Message) {
+    '^roomId is required\.?$' { return "invalid_room_id" }
+    '^Battle room was not found\.?$' { return "room_not_found" }
+    '^Invalid battle command field: PrimaryHeld\.?$' { return "missing_primary_held" }
+    '^Invalid battle command field: ReloadPressed\.?$' { return "missing_reload_pressed" }
+    '^Invalid battle command field: SwitchWeaponDirection\.?$' { return "missing_switch_weapon_direction" }
+    default { return "" }
+  }
+}
+
+function Copy-ContractBody {
+  param([object]$Body)
+
+  $copy = @{}
+  if ($null -eq $Body) {
+    return $copy
+  }
+
+  if ($Body -is [hashtable]) {
+    foreach ($key in $Body.Keys) {
+      $copy[$key] = $Body[$key]
+    }
+    return $copy
+  }
+
+  foreach ($property in $Body.PSObject.Properties) {
+    $copy[$property.Name] = $property.Value
+  }
+  return $copy
+}
+
+function Merge-ContractBody {
+  param(
+    [object]$Body,
+    [hashtable]$Defaults
+  )
+
+  $copy = Copy-ContractBody $Body
+  foreach ($key in $Defaults.Keys) {
+    if (-not $copy.ContainsKey($key) -and $null -ne $Defaults[$key]) {
+      $copy[$key] = $Defaults[$key]
+    }
+  }
+  return $copy
+}
+
+function Add-BattleUserToken {
+  param([hashtable]$Body)
+
+  $copy = Copy-ContractBody $Body
+  if ($copy.ContainsKey("userToken") -and -not [string]::IsNullOrWhiteSpace([string]$copy["userToken"])) {
+    return $copy
+  }
+
+  if ($copy.ContainsKey("sessionToken") -and -not [string]::IsNullOrWhiteSpace([string]$copy["sessionToken"])) {
+    $copy["userToken"] = [string]$copy["sessionToken"]
+    if ([string]::IsNullOrWhiteSpace([string]$Script:BattleApiUserToken)) {
+      $Script:BattleApiUserToken = [string]$copy["sessionToken"]
+    }
+    return $copy
+  }
+
+  $copy["userToken"] = Get-BattleApiUserToken
+  return $copy
+}
+
+function Get-BattleApiUserToken {
+  if ([string]::IsNullOrWhiteSpace([string]$Script:BattleApiUserToken)) {
+    $handle = New-BattleSmokeHandle "api"
+    $Script:BattleApiUserToken = Get-SmokeSessionToken $handle
+  }
+
+  return $Script:BattleApiUserToken
 }
 
 function Test-HasField {
@@ -318,7 +546,8 @@ function Join-AuthenticatedBattleQueue {
     [string]$Handle,
     [string]$Rating = "1200",
     [string]$Skin = "blue",
-    [string]$QueueRequestId = ""
+    [string]$QueueRequestId = "",
+    [string]$ModeId = "default"
   )
 
   $body = @{
@@ -329,6 +558,9 @@ function Join-AuthenticatedBattleQueue {
   }
   if (-not [string]::IsNullOrWhiteSpace($QueueRequestId)) {
     $body.queueRequestId = $QueueRequestId
+  }
+  if (-not [string]::IsNullOrWhiteSpace($ModeId)) {
+    $body.modeId = $ModeId
   }
 
   Invoke-ContractJson "POST" "/battle/queue/join" $body
@@ -376,6 +608,7 @@ $Script:BattleRunSuffix = $Script:BattleRunSuffix.Substring([Math]::Max(0, $Scri
 $Script:BattleHandleCounter = 0
 $Script:SmokePassword = "pass1234"
 $Script:RegisteredSmokeSessions = @{}
+$Script:BattleApiUserToken = ""
 $SmokeSource = "contract-smoke-source-$RunId"
 $SmokeTarget = "contract-smoke-target-$RunId"
 $SmokePlayer = "contract-smoke-player-$RunId"

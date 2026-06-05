@@ -2,6 +2,7 @@ import {
   postBattleCommandAPIMessage,
   postBattleStateReadAPIMessage
 } from "../../../../../apis/battle/microservices/session/api/BattleSessionApiMessageClient";
+import { buildApiUrl, normalizeApiBase } from "../../../../../system/api/apiUrl";
 import type { BattleCommandAPIMessageRequest } from "../../../../../objects/battle/microservices/session/api/command/BattleCommandRequestApiTypes";
 import type {
   BattleCommandAcceptedResponseDto,
@@ -274,6 +275,7 @@ export interface AuthoritativeBattleStateStreamOptions {
 }
 
 const BATTLE_REQUEST_TIMEOUT_MS = 1_250;
+const BATTLE_STATE_STREAM_API_BASE = normalizeApiBase(import.meta.env.VITE_BATTLE_API_BASE ?? "", "/api");
 
 export async function loadAuthoritativeBattleState(battleId: string): Promise<AuthoritativeBattleState | null> {
   const normalizedBattleId = battleId.trim();
@@ -294,9 +296,49 @@ export function openAuthoritativeBattleStateStream(
   battleId: string,
   options: AuthoritativeBattleStateStreamOptions
 ): AuthoritativeBattleStateStreamHandle | null {
-  void battleId;
-  void options;
-  return null;
+  const normalizedBattleId = battleId.trim();
+  if (!normalizedBattleId || typeof window === "undefined" || typeof window.EventSource === "undefined") {
+    return null;
+  }
+
+  let closed = false;
+  let fallbackNotified = false;
+  const stream = new window.EventSource(
+    buildApiUrl(BATTLE_STATE_STREAM_API_BASE, `/battle/state/stream?battleId=${encodeURIComponent(normalizedBattleId)}`)
+  );
+
+  const notifyFallback = (): void => {
+    if (closed || fallbackNotified) {
+      return;
+    }
+
+    fallbackNotified = true;
+    stream.close();
+    options.onFallback();
+  };
+
+  stream.addEventListener("state", (event) => {
+    try {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as unknown;
+      const state = normalizeAuthoritativeBattleState(payload);
+      if (!state) {
+        notifyFallback();
+        return;
+      }
+
+      options.onState(state);
+    } catch {
+      notifyFallback();
+    }
+  });
+  stream.onerror = notifyFallback;
+
+  return {
+    close: () => {
+      closed = true;
+      stream.close();
+    }
+  };
 }
 
 export async function sendAuthoritativeBattleCommand(

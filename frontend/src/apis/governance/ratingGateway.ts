@@ -69,7 +69,7 @@ function buildRatingEntriesFromBattleResults(records: BackendBattleResultRecord[
     const wins = sorted.filter((record) => record.placement === 1).length;
     const recentForm = sorted
       .slice(0, 5)
-      .map((record) => (record.placement === 1 ? "W" : "L"))
+      .map((record) => (record.placement === 1 ? "胜" : "负"))
       .join(" ");
 
     return {

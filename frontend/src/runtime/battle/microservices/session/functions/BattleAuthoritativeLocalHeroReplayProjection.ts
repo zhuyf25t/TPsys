@@ -35,6 +35,7 @@ export interface AuthoritativeLocalHeroReplayProjection {
 export interface AuthoritativeLocalHeroPendingDashPrediction {
   readonly destination: Vec2;
   readonly expiresAtMs: number;
+  readonly mismatchAllowedUntilMs: number;
 }
 
 export interface AuthoritativeLocalHeroPendingBlinkPrediction {
@@ -56,6 +57,8 @@ export type BattleAuthoritativeLocalHeroReplayObstacleShape =
 export interface BattleAuthoritativeLocalHeroReplayConfig {
   readonly maxReplayCommandDeltaMs: number;
   readonly maxReplayTotalDeltaMs: number;
+  readonly acknowledgedReplayGraceMs?: number;
+  readonly maxReplayDistanceFromAuthoritative?: number;
   readonly baseMoveSpeed: number;
   readonly heroMaxStamina: number;
   readonly sprintMultiplier: number;
@@ -202,17 +205,21 @@ export function resolveBattleAuthoritativeLocalHeroReplayProjection({
   }
 
   const acknowledgedSeq = Math.max(0, Math.trunc(lastClientCommandSeq));
-  const unacknowledgedCommands = commandHistory.filter((entry) => entry.clientCommandSeq > acknowledgedSeq);
+  const replayCommands = resolveReplayCommands({
+    commandHistory,
+    acknowledgedSeq,
+    nowMs,
+    acknowledgedReplayGraceMs: config.acknowledgedReplayGraceMs,
+    maxReplayTotalDeltaMs: config.maxReplayTotalDeltaMs
+  });
   if (commandHistory.length === 0) {
-    const replayTarget = resolvePendingPredictionTarget({
-      replayedPosition: authoritativePosition,
+    const replayTarget = resolveBoundedPendingPredictionTarget({
+      authoritativePosition,
       pendingPrediction: pendingBlinkPrediction,
-      nowMs
-    }) ?? resolvePendingPredictionTarget({
-      replayedPosition: authoritativePosition,
-      pendingPrediction: pendingDashPrediction,
-      nowMs
-    }) ?? authoritativePosition;
+      fallbackPrediction: pendingDashPrediction,
+      nowMs,
+      maxDistance: config.maxReplayDistanceFromAuthoritative
+    });
     if (diagnosticsEnabled) {
       recordSkippedReplayDiagnostics({
         reason: "no-history",
@@ -228,16 +235,14 @@ export function resolveBattleAuthoritativeLocalHeroReplayProjection({
     return createSkippedReplayProjection(replayTarget, stamina);
   }
 
-  if (unacknowledgedCommands.length === 0) {
-    const replayTarget = resolvePendingPredictionTarget({
-      replayedPosition: authoritativePosition,
+  if (replayCommands.length === 0) {
+    const replayTarget = resolveBoundedPendingPredictionTarget({
+      authoritativePosition,
       pendingPrediction: pendingBlinkPrediction,
-      nowMs
-    }) ?? resolvePendingPredictionTarget({
-      replayedPosition: authoritativePosition,
-      pendingPrediction: pendingDashPrediction,
-      nowMs
-    }) ?? authoritativePosition;
+      fallbackPrediction: pendingDashPrediction,
+      nowMs,
+      maxDistance: config.maxReplayDistanceFromAuthoritative
+    });
     if (diagnosticsEnabled) {
       recordSkippedReplayDiagnostics({
         reason: "no-unacked",
@@ -253,7 +258,7 @@ export function resolveBattleAuthoritativeLocalHeroReplayProjection({
     return createSkippedReplayProjection(replayTarget, stamina);
   }
 
-  if (unacknowledgedCommands.some((entry) => !isUsableHistoryEntry(entry))) {
+  if (replayCommands.some((entry) => !isUsableHistoryEntry(entry))) {
     if (diagnosticsEnabled) {
       recordSkippedReplayDiagnostics({
         reason: "invalid-history",
@@ -261,7 +266,7 @@ export function resolveBattleAuthoritativeLocalHeroReplayProjection({
         replayTarget: authoritativePosition,
         commandHistory,
         lastClientCommandSeq: acknowledgedSeq,
-        unacknowledgedCommandCount: unacknowledgedCommands.length,
+        unacknowledgedCommandCount: replayCommands.length,
         dependencies
       });
     }
@@ -282,9 +287,9 @@ export function resolveBattleAuthoritativeLocalHeroReplayProjection({
   let hasPredictedBlink = false;
   let hasPredictedDash = false;
 
-  for (let index = 0; index < unacknowledgedCommands.length; index += 1) {
-    const entry = unacknowledgedCommands[index];
-    const nextEntry = unacknowledgedCommands[index + 1] ?? null;
+  for (let index = 0; index < replayCommands.length; index += 1) {
+    const entry = replayCommands[index];
+    const nextEntry = replayCommands[index + 1] ?? null;
     const commandEndMs = nextEntry ? nextEntry.createdAt : nowMs;
     const remainingReplayMs = config.maxReplayTotalDeltaMs - replayedDeltaMs;
     if (remainingReplayMs <= 0) {
@@ -399,24 +404,108 @@ export function resolveBattleAuthoritativeLocalHeroReplayProjection({
       }) ?? replayedPosition;
   }
 
+  const replayTargetDistance = distanceBetween(authoritativePosition, replayedPosition);
+  const boundedReplayedPosition = constrainReplayTargetDistance({
+    authoritativePosition,
+    replayTarget: replayedPosition,
+    maxDistance: config.maxReplayDistanceFromAuthoritative
+  });
+
   if (diagnosticsEnabled) {
     dependencies.recordDiagnostics({
       skipped: false,
       skipReason: null,
-      unacknowledgedCommandCount: unacknowledgedCommands.length,
+      unacknowledgedCommandCount: replayCommands.length,
       lastAcknowledgedCommandSeq: acknowledgedSeq,
       highestLocalCommandSeq: resolveHighestLocalCommandSeq(commandHistory),
       totalReplayDeltaMs: replayedDeltaMs,
       clampedCommandCount,
-      rawAuthoritativePositionToReplayTargetDistance: distanceBetween(authoritativePosition, replayedPosition)
+      rawAuthoritativePositionToReplayTargetDistance: replayTargetDistance
     });
   }
 
   return {
-    position: replayedPosition,
+    position: boundedReplayedPosition,
     stamina: replayedStamina,
     hasPredictedStamina
   };
+}
+
+function resolveReplayCommands({
+  commandHistory,
+  acknowledgedSeq,
+  nowMs,
+  acknowledgedReplayGraceMs,
+  maxReplayTotalDeltaMs
+}: {
+  commandHistory: readonly AuthoritativeLocalHeroReplayCommandEntry[];
+  acknowledgedSeq: number;
+  nowMs: number;
+  acknowledgedReplayGraceMs: number | undefined;
+  maxReplayTotalDeltaMs: number;
+}): AuthoritativeLocalHeroReplayCommandEntry[] {
+  const acknowledgedGraceMs =
+    acknowledgedReplayGraceMs !== undefined && Number.isFinite(acknowledgedReplayGraceMs)
+      ? Math.max(0, acknowledgedReplayGraceMs)
+      : 0;
+
+  const replayCommands = commandHistory
+    .filter((entry) => {
+      if (entry.clientCommandSeq > acknowledgedSeq) {
+        return true;
+      }
+
+      if (acknowledgedGraceMs <= 0 || !Number.isFinite(entry.createdAt) || !Number.isFinite(nowMs)) {
+        return false;
+      }
+
+      const ageMs = nowMs - entry.createdAt;
+      return ageMs >= 0 && ageMs <= acknowledgedGraceMs;
+    })
+    .map((entry) =>
+      entry.clientCommandSeq > acknowledgedSeq
+        ? entry
+        : {
+            ...entry,
+            command: {
+              ...entry.command,
+              castDash: false,
+              castBlink: false
+            }
+          }
+    );
+  return selectReplayCommandTail({
+    commands: replayCommands,
+    nowMs,
+    maxReplayTotalDeltaMs
+  });
+}
+
+function selectReplayCommandTail({
+  commands,
+  nowMs,
+  maxReplayTotalDeltaMs
+}: {
+  commands: readonly AuthoritativeLocalHeroReplayCommandEntry[];
+  nowMs: number;
+  maxReplayTotalDeltaMs: number;
+}): AuthoritativeLocalHeroReplayCommandEntry[] {
+  if (
+    commands.length <= 1 ||
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(maxReplayTotalDeltaMs) ||
+    maxReplayTotalDeltaMs <= 0
+  ) {
+    return [...commands];
+  }
+
+  const cutoffMs = nowMs - maxReplayTotalDeltaMs;
+  const firstTailIndex = commands.findIndex((entry) => Number.isFinite(entry.createdAt) && entry.createdAt >= cutoffMs);
+  if (firstTailIndex <= 0) {
+    return [...commands];
+  }
+
+  return commands.slice(firstTailIndex - 1);
 }
 
 function createSkippedReplayProjection(
@@ -535,6 +624,7 @@ function resolvePendingPredictionTarget({
     pendingPrediction === null ||
     !Number.isFinite(pendingPrediction.expiresAtMs) ||
     pendingPrediction.expiresAtMs < nowMs ||
+    pendingPrediction.mismatchAllowedUntilMs < nowMs ||
     !isFinitePosition(pendingPrediction.destination)
   ) {
     return null;
@@ -545,6 +635,37 @@ function resolvePendingPredictionTarget({
   }
 
   return clonePosition(pendingPrediction.destination);
+}
+
+function resolveBoundedPendingPredictionTarget({
+  authoritativePosition,
+  pendingPrediction,
+  fallbackPrediction,
+  nowMs,
+  maxDistance
+}: {
+  authoritativePosition: Vec2;
+  pendingPrediction: AuthoritativeLocalHeroPendingBlinkPrediction | null;
+  fallbackPrediction: AuthoritativeLocalHeroPendingDashPrediction | null;
+  nowMs: number;
+  maxDistance: number | undefined;
+}): Vec2 {
+  return constrainReplayTargetDistance({
+    authoritativePosition,
+    replayTarget:
+      resolvePendingPredictionTarget({
+        replayedPosition: authoritativePosition,
+        pendingPrediction,
+        nowMs
+      }) ??
+      resolvePendingPredictionTarget({
+        replayedPosition: authoritativePosition,
+        pendingPrediction: fallbackPrediction,
+        nowMs
+      }) ??
+      authoritativePosition,
+    maxDistance
+  });
 }
 
 function clonePosition(position: Vec2): Vec2 {
@@ -577,4 +698,35 @@ function distanceBetween(left: Vec2, right: Vec2): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
+}
+
+function constrainReplayTargetDistance({
+  authoritativePosition,
+  replayTarget,
+  maxDistance
+}: {
+  authoritativePosition: Vec2;
+  replayTarget: Vec2;
+  maxDistance: number | undefined;
+}): Vec2 {
+  if (
+    maxDistance === undefined ||
+    !Number.isFinite(maxDistance) ||
+    maxDistance <= 0 ||
+    !isFinitePosition(authoritativePosition) ||
+    !isFinitePosition(replayTarget)
+  ) {
+    return clonePosition(replayTarget);
+  }
+
+  const distance = distanceBetween(authoritativePosition, replayTarget);
+  if (!Number.isFinite(distance) || distance <= maxDistance) {
+    return clonePosition(replayTarget);
+  }
+
+  const ratio = maxDistance / distance;
+  return {
+    x: authoritativePosition.x + (replayTarget.x - authoritativePosition.x) * ratio,
+    y: authoritativePosition.y + (replayTarget.y - authoritativePosition.y) * ratio
+  };
 }

@@ -40,6 +40,9 @@ private[battle] object BattleSessionStateFactory {
   private val BossZombieHeroIds =
     Set("bot-1", "bot-2", "bot-3").map(HeroId.apply)
   private val BossZombieHpMultiplier = 3
+  private val CombatBotHeroPrefix = "combat-bot-"
+  private val CombatBotWeaponRotation: Vector[WeaponKind] =
+    Vector(WeaponKind.Pistol, WeaponKind.Gatling, WeaponKind.Shotgun, WeaponKind.RocketLauncher)
 
   /** 中文名：创建initial状态（createInitialState）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   def createInitialState(
@@ -174,7 +177,13 @@ private[battle] object BattleSessionStateFactory {
     battleRules: BattleDynamicRuleBook
   ): IO[Vector[BattleWeaponState]] =
     if isPlainWinterZombie(mapId, seat) then IO.pure(Vector.empty)
-    else BattleEngine.createWeaponState(defaultWeaponKind, battleRules).map(Vector(_))
+    else {
+      val initialWeaponKind =
+        if isCombatBot(mapId, seat) then combatBotWeaponKind(seat)
+        else defaultWeaponKind
+
+      BattleEngine.createWeaponState(initialWeaponKind, battleRules).map(Vector(_))
+    }
 
   private def isWinterBossZombie(
     mapId: BattleMapId,
@@ -191,4 +200,15 @@ private[battle] object BattleSessionStateFactory {
     mapId == WinterMapId &&
       seat.participantKind == BattleParticipantKind.Bot &&
       !BossZombieHeroIds.contains(seat.heroId)
+
+  private def isCombatBot(
+    mapId: BattleMapId,
+    seat: BattleSessionBootstrapSeat
+  ): Boolean =
+    mapId != WinterMapId &&
+      seat.participantKind == BattleParticipantKind.Bot &&
+      seat.heroId.value.startsWith(CombatBotHeroPrefix)
+
+  private def combatBotWeaponKind(seat: BattleSessionBootstrapSeat): WeaponKind =
+    CombatBotWeaponRotation(math.floorMod(seat.seat.value - 1, CombatBotWeaponRotation.length))
 }

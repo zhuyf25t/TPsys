@@ -4,6 +4,12 @@ import type { CollisionShape } from "../../../../microservices/world/services/Ba
 
 export type OccludableSprite = Phaser.GameObjects.Image | Phaser.Physics.Arcade.Image;
 
+export interface StaticMapViewSprite {
+  visible: boolean;
+  getBounds(): Phaser.Geom.Rectangle;
+  setVisible(value: boolean): this;
+}
+
 export type OccludableTrigger =
   | { kind: "aabb"; position: Vec2; size: Vec2 }
   | { kind: "circle"; position: Vec2; radius: number };
@@ -25,9 +31,15 @@ export interface OccludableView {
   fadeAlpha?: number;
 }
 
+export interface StaticMapView {
+  sprite: StaticMapViewSprite;
+  bounds: Phaser.Geom.Rectangle;
+}
+
 export interface ArenaBuilderContext {
   scene: Phaser.Scene;
   wallBodies: Phaser.Physics.Arcade.StaticGroup;
   obstacleBounds: ObstacleBounds[];
   occludables: OccludableView[];
+  staticMapViews: StaticMapView[];
 }

@@ -1678,7 +1678,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       battleId = $battleId
       playerId = $join.playerId
       ticketId = $join.ticketId
-      clientTick = 1
+      clientTick = 300
       movement = @{ x = 0; y = 0 }
       aim = @{ x = 0; y = -1 }
       primaryHeld = $false
@@ -1701,7 +1701,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       battleId = $battleId
       playerId = $join.playerId
       ticketId = $join.ticketId
-      clientTick = 1
+      clientTick = 301
       movement = @{ x = 0; y = 0 }
       aim = @{ x = 0; y = -1 }
       primaryHeld = $false
@@ -1802,7 +1802,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       battleId = $battleId
       playerId = $join.playerId
       ticketId = $join.ticketId
-      clientTick = 2
+      clientTick = 302
       movement = @{ x = 0; y = 0 }
       aim = @{ x = 0; y = -1 }
       primaryHeld = $true
@@ -1815,7 +1815,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       battleId = $battleId
       playerId = $join.playerId
       ticketId = $join.ticketId
-      clientTick = 3
+      clientTick = 303
       movement = @{ x = 0; y = 0 }
       aim = @{ x = 0; y = -1 }
       primaryHeld = $false
@@ -1839,7 +1839,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       battleId = $battleId
       playerId = $join.playerId
       ticketId = $join.ticketId
-      clientTick = 4
+      clientTick = 304
       movement = @{ x = 0; y = 0 }
       aim = @{ x = 0; y = -1 }
       primaryHeld = $false
@@ -2055,7 +2055,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
           battleId = $battleId
           playerId = $join.playerId
           ticketId = $join.ticketId
-          clientTick = 5 + $medkitMoveStep
+          clientTick = 6000 + $medkitMoveStep
           movement = @{ x = $medkitMoveX; y = $medkitMoveY }
           aim = @{ x = $medkitMoveX; y = $medkitMoveY }
           primaryHeld = $false
@@ -2180,7 +2180,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
         battleId = $battleId
         playerId = $join.playerId
         ticketId = $join.ticketId
-        clientTick = 1200 + $dashSetupStep
+        clientTick = 7000 + $dashSetupStep
         movement = if ($canBlinkToDashSetup) { @{ x = 0; y = 0 } } else { @{ x = $dashSetupMoveX; y = $dashSetupMoveY } }
         aim = @{ x = $dashSetupMoveX; y = $dashSetupMoveY }
         primaryHeld = $false
@@ -2202,7 +2202,7 @@ Test-Endpoint "POST /battle/commands server pistol ammo/reload + medkit pickup" 
       battleId = $battleId
       playerId = $join.playerId
       ticketId = $join.ticketId
-      clientTick = 1300
+      clientTick = 8000
       movement = @{ x = 0; y = 0 }
       aim = @{ x = 0; y = 1 }
       primaryHeld = $false
@@ -2601,7 +2601,7 @@ Test-Endpoint "POST /battle/commands authoritative terminal elimination" {
         battleId = $battleId
         playerId = $join.playerId
         ticketId = $join.ticketId
-        clientTick = 700 + $shot
+        clientTick = 700 + ($shot * 2)
         movement = @{ x = 0; y = 0 }
         aim = @{ x = $aimX; y = $aimY }
         primaryHeld = $true
@@ -2616,7 +2616,7 @@ Test-Endpoint "POST /battle/commands authoritative terminal elimination" {
         battleId = $battleId
         playerId = $join.playerId
         ticketId = $join.ticketId
-        clientTick = 800 + $shot
+        clientTick = 701 + ($shot * 2)
         movement = @{ x = 0; y = 0 }
         aim = @{ x = $aimX; y = $aimY }
         primaryHeld = $false

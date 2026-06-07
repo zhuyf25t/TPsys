@@ -100,7 +100,7 @@ export function createHudState(input: HudPresenterInput): HudState {
     maxHp: playerHero.maxHp,
     stamina: playerHero.stamina,
     maxStamina: playerHero.maxStamina,
-    currentWeaponName: playerHero.alive ? getWeaponDisplayLabel(currentWeapon.weaponKind) : "???",
+    currentWeaponName: playerHero.alive ? getWeaponDisplayLabel(currentWeapon.weaponKind) : "已阵亡",
     currentWeaponAmmo: formatCurrentWeaponAmmo(currentWeapon),
     currentWeaponState: formatCurrentWeaponState(playerHero, currentWeapon, weaponSwitchRemainingMs),
     pickupHint: formatPickupHint(nearbyWeaponPickup, nearbyItemPickup),
@@ -127,7 +127,7 @@ function buildStatusEntries(
 
   if (!playerHero.alive) {
     entries.push({
-      label: "????:???",
+      label: "已阵亡",
       tone: "danger"
     });
     return entries;
@@ -135,27 +135,27 @@ function buildStatusEntries(
 
   const hpRatio = playerHero.hp / playerHero.maxHp;
   if (hpRatio <= 0.3) {
-    entries.push({ label: "????", tone: "danger" });
+    entries.push({ label: "生命危险", tone: "danger" });
   } else if (hpRatio <= 0.55) {
-    entries.push({ label: "????", tone: "warning" });
+    entries.push({ label: "生命偏低", tone: "warning" });
   }
 
   if (nearbyWeaponPickup) {
-    entries.push({ label: `??? ${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)}`, tone: "success" });
+    entries.push({ label: `可拾取 ${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)}`, tone: "success" });
   } else if (nearbyItemPickup) {
-    entries.push({ label: `??? ${getItemPickupDisplayLabel(nearbyItemPickup.kind)}`, tone: "success" });
+    entries.push({ label: `可拾取 ${getItemPickupDisplayLabel(nearbyItemPickup.kind)}`, tone: "success" });
   }
 
   if (weaponSwitchRemainingMs > 0) {
-    entries.push({ label: "???", tone: "info" });
+    entries.push({ label: "切换武器", tone: "info" });
   } else if (currentWeapon.reloadRemainingMs > 0) {
-    entries.push({ label: "???", tone: "warning" });
+    entries.push({ label: "装填中", tone: "warning" });
   } else if (currentWeapon.weaponKind === "Gatling" && currentWeapon.overheated) {
-    entries.push({ label: "????", tone: "danger" });
+    entries.push({ label: "武器过热", tone: "danger" });
   } else if (currentWeapon.weaponKind !== "Gatling" && currentWeapon.ammoInMagazine <= 0) {
-    entries.push({ label: (currentWeapon.reserveAmmo ?? 0) > 0 ? "????" : "????", tone: "danger" });
+    entries.push({ label: (currentWeapon.reserveAmmo ?? 0) > 0 ? "需要换弹" : "弹药耗尽", tone: "danger" });
   } else {
-    entries.push({ label: sharedAuthoritativeHud ? "?????" : "????", tone: "info" });
+    entries.push({ label: sharedAuthoritativeHud ? "权威同步" : "武器就绪", tone: "info" });
   }
 
   return entries.slice(0, 4);
@@ -163,7 +163,7 @@ function buildStatusEntries(
 
 function buildAuthoritativeWeaponEntries(playerHero: Hero): HudWeaponEntry[] {
   return playerHero.weapons.map((weapon, index) => ({
-    label: `${index === playerHero.currentWeaponIndex ? ">" : " "} ???${getWeaponDisplayLabel(weapon.weaponKind)} | ${formatAuthoritativeWeaponAmmo(weapon)} | ${formatAuthoritativeWeaponStateText(weapon)}`,
+    label: `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} | ${formatAuthoritativeWeaponAmmo(weapon)} | ${formatAuthoritativeWeaponStateText(weapon)}`,
     current: index === playerHero.currentWeaponIndex,
     warning: isWeaponWarning(weapon),
     tone: getHudWeaponTone(weapon.weaponKind)
@@ -180,16 +180,16 @@ function formatAuthoritativePickupHint(
   const weaponPickup =
     nearbyWeaponPickup ?? findNearbyAuthoritativeWeaponPickup(playerHero.position, weaponPickups, WEAPON_PICKUP_RADIUS);
   if (weaponPickup) {
-    return `??????${getWeaponDisplayLabel(weaponPickup.weaponKind)};????????,????`;
+    return `靠近武器：${getWeaponDisplayLabel(weaponPickup.weaponKind)}；停留在范围内自动拾取`;
   }
 
   const pickup =
     nearbyItemPickup ?? findNearbyAuthoritativeMedkit(playerHero.position, itemPickups, WEAPON_PICKUP_RADIUS);
   if (pickup) {
-    return "?????????;???????";
+    return "靠近医疗包；停留在范围内自动拾取";
   }
 
-  return "??????????????;????????????";
+  return "靠近武器或补给会自动拾取；数字键切换武器";
 }
 
 function findNearbyAuthoritativeWeaponPickup(
@@ -239,12 +239,12 @@ function findNearbyAuthoritativeMedkit(
 }
 
 function formatAuthoritativeWeaponName(playerHero: Hero, currentWeapon: WeaponState): string {
-  return playerHero.alive ? `???${getWeaponDisplayLabel(currentWeapon.weaponKind)}` : "???";
+  return playerHero.alive ? `当前 ${getWeaponDisplayLabel(currentWeapon.weaponKind)}` : "已阵亡";
 }
 
 function formatAuthoritativeWeaponAmmo(currentWeapon: WeaponState): string {
   if (currentWeapon.weaponKind === "Gatling") {
-    return `?? ${Math.round(currentWeapon.heat)} / 100`;
+    return `热量 ${Math.round(currentWeapon.heat)} / 100`;
   }
 
   return `${currentWeapon.ammoInMagazine} / ${currentWeapon.reserveAmmo ?? 0}`;
@@ -252,7 +252,7 @@ function formatAuthoritativeWeaponAmmo(currentWeapon: WeaponState): string {
 
 function formatAuthoritativeWeaponState(playerHero: Hero, currentWeapon: WeaponState): string {
   if (!playerHero.alive) {
-    return "???";
+    return "已阵亡";
   }
 
   return formatAuthoritativeWeaponStateText(currentWeapon);
@@ -261,19 +261,19 @@ function formatAuthoritativeWeaponState(playerHero: Hero, currentWeapon: WeaponS
 function formatAuthoritativeWeaponStateText(currentWeapon: WeaponState): string {
   if (currentWeapon.weaponKind === "Gatling") {
     if (currentWeapon.overheated) {
-      return "??";
+      return "过热";
     }
 
     if (currentWeapon.overheatRemainingMs > 0) {
-      return `?? ${(Math.max(0, currentWeapon.overheatRemainingMs) / 1000).toFixed(1)} ?`;
+      return `冷却 ${(Math.max(0, currentWeapon.overheatRemainingMs) / 1000).toFixed(1)}秒`;
     }
   }
 
   if (currentWeapon.reloadRemainingMs > 0) {
-    return `?? ${(Math.max(0, currentWeapon.reloadRemainingMs) / 1000).toFixed(1)} ?`;
+    return `装填 ${(Math.max(0, currentWeapon.reloadRemainingMs) / 1000).toFixed(1)}秒`;
   }
 
-  return `?? ${(Math.max(0, currentWeapon.fireCooldownMs) / 1000).toFixed(1)} ?`;
+  return `冷却 ${(Math.max(0, currentWeapon.fireCooldownMs) / 1000).toFixed(1)}秒`;
 }
 
 function isWeaponWarning(weapon: WeaponState): boolean {
@@ -286,8 +286,8 @@ function buildWeaponEntries(playerHero: Hero): HudWeaponEntry[] {
   return playerHero.weapons.map((weapon, index) => ({
     label:
       weapon.weaponKind === "Gatling"
-        ? `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} ??? ${Math.round(weapon.heat)} / 100`
-        : `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} ?${weapon.ammoInMagazine} / ${weapon.reserveAmmo ?? 0}`,
+        ? `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} 热量 ${Math.round(weapon.heat)} / 100`
+        : `${index === playerHero.currentWeaponIndex ? ">" : " "} ${getWeaponDisplayLabel(weapon.weaponKind)} 弹药 ${weapon.ammoInMagazine} / ${weapon.reserveAmmo ?? 0}`,
     current: index === playerHero.currentWeaponIndex,
     warning:
       weapon.weaponKind === "Gatling"
@@ -407,44 +407,44 @@ function buildFeed(events: GameEvent[]): HudFeedEntry[] {
 
 function formatCurrentWeaponAmmo(currentWeapon: WeaponState): string {
   return currentWeapon.weaponKind === "Gatling"
-    ? `?? ${Math.round(currentWeapon.heat)} / 100`
+    ? `热量 ${Math.round(currentWeapon.heat)} / 100`
     : `${currentWeapon.ammoInMagazine} / ${currentWeapon.reserveAmmo ?? 0}`;
 }
 
 function formatCurrentWeaponState(playerHero: Hero, currentWeapon: WeaponState, weaponSwitchRemainingMs: number): string {
   if (!playerHero.alive) {
-    return "???";
+    return "已阵亡";
   }
 
   if (weaponSwitchRemainingMs > 0) {
-    return `???? ${(weaponSwitchRemainingMs / 1000).toFixed(1)}?`;
+    return `切换 ${(weaponSwitchRemainingMs / 1000).toFixed(1)}秒`;
   }
 
   if (currentWeapon.weaponKind === "Gatling") {
-    return currentWeapon.overheated ? `?? ${(currentWeapon.overheatRemainingMs / 1000).toFixed(1)}?` : "????";
+    return currentWeapon.overheated ? `过热 ${(currentWeapon.overheatRemainingMs / 1000).toFixed(1)}秒` : "火力就绪";
   }
 
   if (currentWeapon.reloadRemainingMs > 0) {
-    return `???? ${(currentWeapon.reloadRemainingMs / 1000).toFixed(1)}?`;
+    return `装填 ${(currentWeapon.reloadRemainingMs / 1000).toFixed(1)}秒`;
   }
 
   if (currentWeapon.fireCooldownMs > 0) {
-    return `?? ${(currentWeapon.fireCooldownMs / 1000).toFixed(1)}?`;
+    return `冷却 ${(currentWeapon.fireCooldownMs / 1000).toFixed(1)}秒`;
   }
 
-  return "??";
+  return "就绪";
 }
 
 function formatPickupHint(nearbyWeaponPickup: WeaponPickup | null, nearbyItemPickup: ItemPickup | null): string {
   if (nearbyWeaponPickup) {
-    return `??????{getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)} ??????`;
+    return `靠近武器：${getWeaponDisplayLabel(nearbyWeaponPickup.weaponKind)}，停留拾取`;
   }
 
   if (nearbyItemPickup) {
-    return `??????{getItemPickupDisplayLabel(nearbyItemPickup.kind)} ?????`;
+    return `靠近补给：${getItemPickupDisplayLabel(nearbyItemPickup.kind)}，停留拾取`;
   }
 
-  return "?????? ?T ??";
+  return "靠近武器或补给可自动拾取";
 }
 
 function clamp(value: number, min: number, max: number): number {

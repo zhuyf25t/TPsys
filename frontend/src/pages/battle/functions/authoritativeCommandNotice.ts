@@ -17,7 +17,8 @@ const SKILL_NOTICE_LABELS: Record<AuthoritativeBattleSkillKind, string> = {
 const COMMAND_IGNORED_NOTICES: Record<AuthoritativeBattleCommandReason, string> = {
   battle_finished: "对局已结束",
   battle_inactive: "对局未开始",
-  player_dead: "已被淘汰"
+  player_dead: "已被淘汰",
+  stale_command: ""
 };
 
 const SKILL_NOOP_REASON_NOTICES: Record<AuthoritativeBattleSkillOutcomeReason, string> = {
@@ -60,6 +61,9 @@ export function resolveCommandFailureNotice(outcome: AuthoritativeBattleCommandS
 /** 中文名：解析accepted命令notice（resolveAcceptedCommandNotice）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function resolveAcceptedCommandNotice(accepted: AuthoritativeBattleCommandAccepted): string | null {
   if (accepted.commandStatus === "ignored") {
+    if (accepted.commandReason === "stale_command") {
+      return null;
+    }
     return accepted.commandReason ? COMMAND_IGNORED_NOTICES[accepted.commandReason] : "命令未生效";
   }
 

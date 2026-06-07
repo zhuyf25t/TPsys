@@ -1,5 +1,6 @@
 package services.battle.microservices.actors.services
 
+import cats.data.OptionT
 import cats.effect.IO
 import cats.syntax.all.*
 
@@ -15,7 +16,7 @@ import services.battle.microservices.runtime.objects.event.BattleEventKind
 import services.battle.microservices.world.services.BattleArenaCatalog
 import services.battle.microservices.world.objects.world.BattleArenaContext
 import services.battle.microservices.combat.objects.weapon.BattleWeaponHeat
-import services.battle.objects.core.{BattleAggregateState, CooldownMillis, DurationMillis}
+import services.battle.objects.core.{BattleAggregateState, BattleMapId, CooldownMillis, DurationMillis}
 import services.battle.microservices.actors.objects.player.{
   BattlePlayerLifeState,
   BattlePlayerState,
@@ -28,6 +29,13 @@ import services.battle.microservices.abilities.objects.skill.BattleSlowFieldStat
 import services.battle.microservices.combat.objects.weapon.{BattleWeaponState, BattleWeaponThermalState}
 
 private[battle] object BattlePlayerRuntimeRules {
+  private val WinterZombieMapId: BattleMapId = BattleMapId("winter-hunt-v1")
+  private type ZombieContactResolver =
+    (BattleAggregateState, BattleArenaContext, BattleDynamicRuleBook) => IO[BattleAggregateState]
+
+  private val ZombieContactResolvers: Map[BattleMapId, ZombieContactResolver] =
+    Map(WinterZombieMapId -> resolveWinterZombieContactEliminations)
+
   def advancePlayers(
     state: BattleAggregateState,
     deltaMs: Long,
@@ -198,30 +206,34 @@ private[battle] object BattlePlayerRuntimeRules {
     state: BattleAggregateState,
     arena: BattleArenaContext,
     battleRules: BattleDynamicRuleBook
+  ): IO[BattleAggregateState] =
+    OptionT
+      .fromOption[IO](ZombieContactResolvers.get(state.mapId))
+      .semiflatMap(resolve => resolve(state, arena, battleRules))
+      .getOrElse(state)
+
+  private def resolveWinterZombieContactEliminations(
+    state: BattleAggregateState,
+    arena: BattleArenaContext,
+    battleRules: BattleDynamicRuleBook
   ): IO[BattleAggregateState] = {
     val contactRadius = arena.playerCollisionRadius * ZombieContactRadiusScale
     battleRules.history.flatMap { historyRules =>
       state.players.filter(player => player.alive && !player.isBot).foldLeft(IO.pure(state)) {
         case (stateIO, targetSnapshot) =>
           stateIO.flatMap { currentState =>
-            currentState.players.find(player =>
-              player.playerId == targetSnapshot.playerId && player.alive && !player.isBot
-            ) match {
-              case None =>
-                IO.pure(currentState)
-              case Some(target) =>
-                nearestContactZombie(currentState, target, contactRadius).flatMap {
-                  case None =>
-                    IO.pure(currentState)
-                  case Some(zombie) =>
-                    eliminateByZombieContact(
-                      state = currentState,
-                      zombie = zombie,
-                      target = target,
-                      retainedBattleEventCount = historyRules.retainedBattleEventCount.value
-                    )
-                }
-            }
+            (for
+              target <- OptionT.fromOption[IO](currentState.players.find(player =>
+                player.playerId == targetSnapshot.playerId && player.alive && !player.isBot
+              ))
+              zombie <- OptionT(nearestContactZombie(currentState, target, contactRadius))
+              nextState <- OptionT.liftF(eliminateByZombieContact(
+                state = currentState,
+                zombie = zombie,
+                target = target,
+                retainedBattleEventCount = historyRules.retainedBattleEventCount.value
+              ))
+            yield nextState).getOrElse(currentState)
           }
       }
     }

@@ -2,7 +2,7 @@ import { AuthOverlay } from "../../../shared/components/auth/AuthOverlay";
 import type { LoadoutPageState } from "../../hooks/useLoadoutPage";
 import { LobbyShell } from "../../../../components/ui/LobbyShell";
 
-/** 中文名称：配装页视图。游戏职责：渲染技能槽、武器预设和皮肤选择。 */
+/** 中文名称：配装页视图。游戏职责：渲染技能槽、技能说明和皮肤选择。 */
 export function LoadoutPageView({
   armedSlot,
   authMode,
@@ -115,27 +115,6 @@ export function LoadoutPageView({
                     })}
                   </div>
                 </div>
-
-                <div className="loadout-skill-bank__group loadout-skill-bank__group--dim">
-                  <small>Unselected</small>
-                  <div className="loadout-skill-bank__tokens">
-                    {unassignedSkillOptions.length ? (
-                      unassignedSkillOptions.map((skill) => (
-                        <button
-                          key={skill.id}
-                          type="button"
-                          className={`loadout-skill-token loadout-skill-token--${skill.tone} loadout-skill-token--unselected`}
-                          onClick={() => handleSkillClick(skill.id)}
-                        >
-                          <span>{skill.shortLabel}</span>
-                          <strong>{skill.label}</strong>
-                        </button>
-                      ))
-                    ) : (
-                      <span className="loadout-skill-bank__empty">三格技能已满。点击任意技能可查看说明，选中槽位后可替换携带。</span>
-                    )}
-                  </div>
-                </div>
               </div>
             </section>
 
@@ -159,6 +138,11 @@ export function LoadoutPageView({
                 <small>Skin</small>
                 <strong>皮肤</strong>
               </header>
+              <div className="loadout-skin-feature">
+                <strong>{selectedSkin.traitLabel}</strong>
+                <span>{selectedSkin.statLine}</span>
+                <p>{selectedSkin.traitDetail}</p>
+              </div>
               <div className="loadout-skin-strip" aria-label="皮肤选择">
                 {skinOptions.map((skin) => (
                   <button key={skin.id} type="button" className={`loadout-skin${skin.id === loadout.skinId ? " loadout-skin--active" : ""}`} onClick={() => selectSkin(skin.id)}>
@@ -167,11 +151,6 @@ export function LoadoutPageView({
                     <small>{skin.traitLabel}</small>
                   </button>
                 ))}
-              </div>
-              <div className="loadout-skin-feature">
-                <strong>{selectedSkin.traitLabel}</strong>
-                <span>{selectedSkin.statLine}</span>
-                <p>{selectedSkin.traitDetail}</p>
               </div>
             </section>
 

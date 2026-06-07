@@ -31,8 +31,34 @@ private[battle] final case class BattleRoomBootstrapParticipant(
 )
 
 private[battle] object BattleRoomBootstrapper {
-  private val HeroSlotIds: Vector[HeroId] =
+  private val ZombieHeroSlotIds: Vector[HeroId] =
     (Vector("player-1") ++ (1 to 11).toVector.map(index => s"bot-$index")).map(HeroId.apply)
+  private val ZombieFallbackSkin: BattleSkinKey =
+    BattleSkinKey.fromWire("zombie").getOrElse(throw IllegalStateException("invalid zombie skin key"))
+  private val ZombieFallbackAvatar: BattleAvatarKey =
+    BattleAvatarKey.fromWire("zombie").getOrElse(throw IllegalStateException("invalid zombie avatar key"))
+
+  private final case class CombatBotProfile(
+    handle: PlayerHandle,
+    displayName: DisplayName,
+    avatar: BattleAvatarKey,
+    skin: BattleSkinKey
+  )
+
+  private val CombatBotProfiles: Vector[CombatBotProfile] =
+    Vector(
+      combatBotProfile("cpu-sable", "Sable", "soldier"),
+      combatBotProfile("cpu-rivet", "Rivet", "brown"),
+      combatBotProfile("cpu-ember", "Ember", "old"),
+      combatBotProfile("cpu-orbit", "Orbit", "woman"),
+      combatBotProfile("cpu-nova", "Nova", "survivor"),
+      combatBotProfile("cpu-byte", "Byte", "blue"),
+      combatBotProfile("cpu-vex", "Vex", "soldier"),
+      combatBotProfile("cpu-kite", "Kite", "brown"),
+      combatBotProfile("cpu-lynx", "Lynx", "woman"),
+      combatBotProfile("cpu-echo", "Echo", "old"),
+      combatBotProfile("cpu-ash", "Ash", "survivor")
+    )
 
   /** 中文名：创建会话（createSession）。游戏职责：在后端队列域中管理匹配、房间等待、心跳和房间快照，衔接玩家进入战斗。 */
   def createSession(
@@ -46,7 +72,7 @@ private[battle] object BattleRoomBootstrapper {
     for
       roster <- participants.zipWithIndex.traverse { case (entry, index) => rosterEntry(entry, index) }
       humanSeats <- participants.zipWithIndex.traverse { case (entry, index) => humanSeat(entry, index) }
-      botSeats <- (participants.length until capacity.value).toVector.traverse(buildBotSeat)
+      botSeats <- (participants.length until capacity.value).toVector.traverse(index => buildBotSeat(battleMode, index))
       descriptor <- IO.pure(
         BattleSessionDescriptor(
           battleId = battleId,
@@ -100,24 +126,51 @@ private[battle] object BattleRoomBootstrapper {
     )
   }
 
-  private def buildBotSeat(index: Int): IO[BattleSessionBootstrapSeat] = {
-    val profile = Option.when(index > 0)(index - 1).flatMap(DemoBotProfiles.all.lift)
-    val handle = profile.map(_.handle).getOrElse(PlayerHandle(s"Bot $index"))
-    val avatar = profile.flatMap(item => BattleAvatarKey.fromWire(item.skin.avatarKey.value))
-    val skin = profile.flatMap(item => BattleSkinKey.fromWire(item.skin.avatarKey.value))
+  private def buildBotSeat(battleMode: BattleMode, index: Int): IO[BattleSessionBootstrapSeat] =
+    battleMode match {
+      case BattleMode.Winter => buildZombieBotSeat(index)
+      case _                 => buildCombatBotSeat(index)
+    }
 
+  private def buildZombieBotSeat(index: Int): IO[BattleSessionBootstrapSeat] = {
+    val profile = Option.when(index > 0)(index - 1).flatMap(DemoBotProfiles.all.lift)
     IO.pure(BattleSessionBootstrapSeat(
       seat = SeatIndex(index),
       playerId = PlayerId(s"bot-seat-$index"),
-      heroId = HeroSlotIds.lift(index).getOrElse(HeroId(s"bot-$index")),
-      handle = handle,
-      displayName = profile.map(_.displayName).getOrElse(DisplayName(handle.value)),
+      heroId = ZombieHeroSlotIds.lift(index).getOrElse(HeroId(s"bot-$index")),
+      handle = profile.map(_.handle).getOrElse(PlayerHandle(s"cpu-zombie-$index")),
+      displayName = profile.map(_.displayName).getOrElse(DisplayName(s"Zombie $index")),
       joinedAt = EpochMillis(0L),
       participantKind = BattleParticipantKind.Bot,
       spawnPointIndex = SpawnPointIndex(index),
-      rating = profile.map(profile => Rating(profile.initialRating.value)),
-      avatar = avatar,
-      skin = skin
+      rating = profile.map(profile => Rating(profile.initialRating.value)).orElse(Some(Rating(1000))),
+      avatar = Some(profile.flatMap(item => BattleAvatarKey.fromWire(item.skin.avatarKey.value)).getOrElse(ZombieFallbackAvatar)),
+      skin = Some(profile.flatMap(item => BattleSkinKey.fromWire(item.skin.avatarKey.value)).getOrElse(ZombieFallbackSkin))
     ))
   }
+
+  private def buildCombatBotSeat(index: Int): IO[BattleSessionBootstrapSeat] = {
+    val profile = CombatBotProfiles.lift(math.max(0, index - 1)).getOrElse(combatBotProfile(s"cpu-bot-$index", s"Bot $index", "soldier"))
+    IO.pure(BattleSessionBootstrapSeat(
+      seat = SeatIndex(index),
+      playerId = PlayerId(s"bot-seat-$index"),
+      heroId = HeroId(s"combat-bot-$index"),
+      handle = profile.handle,
+      displayName = profile.displayName,
+      joinedAt = EpochMillis(0L),
+      participantKind = BattleParticipantKind.Bot,
+      spawnPointIndex = SpawnPointIndex(index),
+      rating = Some(Rating(1000 + index * 7)),
+      avatar = Some(profile.avatar),
+      skin = Some(profile.skin)
+    ))
+  }
+
+  private def combatBotProfile(handle: String, displayName: String, skin: String): CombatBotProfile =
+    CombatBotProfile(
+      handle = PlayerHandle(handle),
+      displayName = DisplayName(displayName),
+      avatar = BattleAvatarKey.fromWire(skin).getOrElse(throw IllegalStateException(s"invalid bot avatar key: $skin")),
+      skin = BattleSkinKey.fromWire(skin).getOrElse(throw IllegalStateException(s"invalid bot skin key: $skin"))
+    )
 }

@@ -6,6 +6,7 @@ import { LobbyShell } from "../../../../components/ui/LobbyShell";
 export function HomePageView({
   authMode,
   battleModeDetail,
+  battleModeOptions,
   closeAuthOverlay,
   completeAuth,
   contributionLeaderboard,
@@ -27,6 +28,10 @@ export function HomePageView({
   recentReplayCount,
   replayTotalCount,
   secondaryAction,
+  selectedBattleMapLabel,
+  selectedBattleModeId,
+  selectedBattleModeLabel,
+  selectBattleMode,
   skillTags,
   syncDetail,
   tertiaryAction,
@@ -35,12 +40,12 @@ export function HomePageView({
   const isPlayerOnline = playerMeta !== "未登录";
   const replayDetail = replayTotalCount > 0 ? `战报库 ${replayTotalCount} 条` : "完赛后生成";
   const operationDeckStats = [
-    { label: "MODE", value: "ZOMBIE", detail: battleModeDetail, tone: "data" },
+    { label: "MODE", value: selectedBattleModeLabel, detail: battleModeDetail, tone: "data" },
     { label: "SYNC", value: "OK", detail: syncDetail, tone: "ready" },
     { label: "REPLAY", value: String(recentReplayCount), detail: replayDetail, tone: recentReplayCount > 0 ? "data" : "idle" }
   ] as const;
   const homeMenuIntelCards = [
-    { eyebrow: "战斗模式", value: "ZOMBIE", detail: battleModeDetail },
+    { eyebrow: "战斗模式", value: selectedBattleModeLabel, detail: battleModeDetail },
     { eyebrow: "同步协议", value: "权威同步", detail: syncDetail },
     { eyebrow: "回放链路", value: String(recentReplayCount), detail: replayDetail },
     { eyebrow: "评级状态", value: currentRatingLabel, detail: "战斗评分 / Profile Score" }
@@ -92,6 +97,30 @@ export function HomePageView({
               <span>主武器：{loadoutPrimary}</span>
               <span>战术模块：{loadoutSkillsLabel}</span>
             </div>
+            <section className="home-menu__mode-selector" aria-label="作战模式选择">
+              <header className="home-menu__mode-header">
+                <span>MODE SELECT</span>
+                <strong>{selectedBattleModeLabel}</strong>
+                <small>{selectedBattleMapLabel}</small>
+              </header>
+              <div className="home-menu__mode-options">
+                {battleModeOptions.map((option) => {
+                  const active = option.modeId === selectedBattleModeId;
+                  return (
+                    <button
+                      key={option.modeId}
+                      type="button"
+                      className={`home-menu__mode-option${active ? " home-menu__mode-option--active" : ""}`}
+                      aria-pressed={active}
+                      onClick={() => selectBattleMode(option.modeId)}
+                    >
+                      <strong>{option.label}</strong>
+                      <span>{option.mapLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
             <section className="home-menu__operation-deck" aria-label="战备指挥台">
               <header className="home-menu__deck-header">
                 <div>

@@ -1,6 +1,7 @@
 import type { AuthoritativeBattleCommand } from "../../../runtime/battle/microservices/session/api/BattleAuthoritativeSessionClient";
 
 export const AUTHORITATIVE_COMMAND_HISTORY_LIMIT = 180;
+export const AUTHORITATIVE_COMMAND_HISTORY_ACK_RETENTION_MS = 3_000;
 
 export interface AuthoritativeCommandHistoryEntry {
   clientCommandSeq: number;
@@ -17,9 +18,11 @@ export interface AuthoritativeCommandHistoryStore {
 
 /** 中文名：创建authoritative命令历史（createAuthoritativeCommandHistory）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function createAuthoritativeCommandHistory(
-  limit = AUTHORITATIVE_COMMAND_HISTORY_LIMIT
+  limit = AUTHORITATIVE_COMMAND_HISTORY_LIMIT,
+  acknowledgedRetentionMs = AUTHORITATIVE_COMMAND_HISTORY_ACK_RETENTION_MS
 ): AuthoritativeCommandHistoryStore {
   const boundedLimit = Math.max(1, Math.trunc(limit));
+  const boundedAcknowledgedRetentionMs = Math.max(0, Math.trunc(acknowledgedRetentionMs));
   let entries: AuthoritativeCommandHistoryEntry[] = [];
 
   return {
@@ -32,11 +35,17 @@ export function createAuthoritativeCommandHistory(
         command: cloneCommand(command),
         createdAt
       };
-      entries = [...entries, entry].slice(-boundedLimit);
+      entries = [
+        ...entries.filter((existing) => existing.clientCommandSeq !== entry.clientCommandSeq),
+        entry
+      ].slice(-boundedLimit);
     },
     pruneThrough(clientCommandSeq) {
       const acknowledgedSeq = Math.max(0, Math.trunc(clientCommandSeq));
-      entries = entries.filter((entry) => entry.clientCommandSeq > acknowledgedSeq);
+      const retainedAcknowledgedCutoff = Date.now() - boundedAcknowledgedRetentionMs;
+      entries = entries.filter(
+        (entry) => entry.clientCommandSeq > acknowledgedSeq || entry.createdAt >= retainedAcknowledgedCutoff
+      );
     },
     clear() {
       entries = [];

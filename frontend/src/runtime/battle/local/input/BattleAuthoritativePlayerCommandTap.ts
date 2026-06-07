@@ -32,6 +32,7 @@ export function installBattleAuthoritativePlayerCommandTap(
   let pendingUplinkToggleFreeze = false;
   let pendingSwitchWeaponDirection: -1 | 0 | 1 = 0;
   let pendingSwitchWeaponIndex: number | null = null;
+  const pressedSkillTapKeys = new Set<"q" | "e" | "r">();
 
   const retainCommand = (command: PlayerCommand): void => {
     latestPlayerCommand = clonePlayerCommand(command);
@@ -70,6 +71,11 @@ export function installBattleAuthoritativePlayerCommandTap(
     if (!key) {
       return;
     }
+    if (pressedSkillTapKeys.has(key)) {
+      return;
+    }
+
+    pressedSkillTapKeys.add(key);
 
     const skillPresses = readSkillBindingPresses(getSelectedSkillBindings(), {
       Q: key === "q",
@@ -79,24 +85,30 @@ export function installBattleAuthoritativePlayerCommandTap(
 
     if (skillPresses.Dash) {
       pendingSceneCastDash = true;
-      pendingUplinkCastDash = true;
     }
     if (skillPresses.Critical) {
       pendingSceneCastCritical = true;
-      pendingUplinkCastCritical = true;
     }
     if (skillPresses.Blink) {
       pendingSceneToggleBlink = true;
-      pendingUplinkToggleBlink = true;
     }
     if (skillPresses.Freeze) {
       pendingSceneToggleFreeze = true;
-      pendingUplinkToggleFreeze = true;
     }
+  };
+
+  const handleGlobalKeyUp = (event: KeyboardEvent): void => {
+    const key = normalizeSkillTapKey(event.key, event.code);
+    if (!key) {
+      return;
+    }
+
+    pressedSkillTapKeys.delete(key);
   };
 
   window.addEventListener("mousedown", handleGlobalMouseDown);
   window.addEventListener("keydown", handleGlobalKeyDown);
+  window.addEventListener("keyup", handleGlobalKeyUp);
 
   if (typeof originalReadPlayerCommand === "function") {
     runtimeScene.readPlayerCommand = () => {
@@ -194,6 +206,7 @@ export function installBattleAuthoritativePlayerCommandTap(
     destroy: () => {
       window.removeEventListener("mousedown", handleGlobalMouseDown);
       window.removeEventListener("keydown", handleGlobalKeyDown);
+      window.removeEventListener("keyup", handleGlobalKeyUp);
     }
   };
 }

@@ -3,6 +3,11 @@ import type { BattlePlayerCommand as PlayerCommand } from "../../../objects/batt
 import type { BattleVector2 as Vec2 } from "../../../objects/battle/objects/core/BattleCoreScalars";
 import type { AuthoritativeBattleInputSnapshot } from "../input/authoritativeBattleInput";
 
+const RUNTIME_TOGGLE_DEDUP_WINDOW_MS = 160;
+
+let lastFallbackBlinkToggleAtMs = Number.NEGATIVE_INFINITY;
+let lastFallbackFreezeToggleAtMs = Number.NEGATIVE_INFINITY;
+
 export interface AuthoritativePreparedInputResolution {
   input: AuthoritativeBattleInputSnapshot;
   preparedSkill: PreparedSkill;
@@ -10,6 +15,12 @@ export interface AuthoritativePreparedInputResolution {
 }
 
 type TargetedPreparedSkill = Exclude<PreparedSkill, null>;
+
+interface PreparedSkillTransitionInput {
+  readonly primaryJustPressed: boolean;
+  readonly toggleBlink: boolean;
+  readonly toggleFreeze: boolean;
+}
 
 interface PreparedSkillTransition {
   preparedSkill: PreparedSkill;
@@ -22,18 +33,44 @@ export function resolveAuthoritativePreparedInput(
   fallback: AuthoritativeBattleInputSnapshot,
   preparedSkill: PreparedSkill
 ): AuthoritativePreparedInputResolution {
+  const nowMs = readNowMs();
+  if (fallback.castBlink) {
+    lastFallbackBlinkToggleAtMs = nowMs;
+  }
+  if (fallback.castFreeze) {
+    lastFallbackFreezeToggleAtMs = nowMs;
+  }
+  const rawRuntimeToggleBlink = runtimeCommand?.toggleBlink ?? false;
+  const rawRuntimeToggleFreeze = runtimeCommand?.toggleFreeze ?? false;
+  const runtimeToggleBlinkSuppressed =
+    rawRuntimeToggleBlink && nowMs - lastFallbackBlinkToggleAtMs <= RUNTIME_TOGGLE_DEDUP_WINDOW_MS;
+  const runtimeToggleFreezeSuppressed =
+    rawRuntimeToggleFreeze && nowMs - lastFallbackFreezeToggleAtMs <= RUNTIME_TOGGLE_DEDUP_WINDOW_MS;
+  const runtimeToggleBlink = rawRuntimeToggleBlink && !runtimeToggleBlinkSuppressed;
+  const runtimeToggleFreeze = rawRuntimeToggleFreeze && !runtimeToggleFreezeSuppressed;
   const input = runtimeCommand
     ? toAuthoritativeInputSnapshot(runtimeCommand, fallback)
     : toFallbackAuthoritativeInputSnapshot(fallback);
-  const transition = runtimeCommand
-    ? resolvePreparedSkillTransition(preparedSkill, runtimeCommand)
-    : {
-        preparedSkill,
-        castSkill: null,
-        toggledPreparedSkill: false
-      } satisfies PreparedSkillTransition;
-  const confirmedTarget =
-    runtimeCommand && transition.castSkill !== null ? cloneVec2(runtimeCommand.pointerWorld) : null;
+  const transition = resolvePreparedSkillTransition(preparedSkill, {
+    primaryJustPressed: input.primaryJustPressed,
+    toggleBlink: runtimeToggleBlink || fallback.castBlink,
+    toggleFreeze: runtimeToggleFreeze || fallback.castFreeze
+  });
+  recordAuthoritativePreparedInputDiagnostics({
+    preparedSkillBefore: preparedSkill,
+    primaryJustPressed: input.primaryJustPressed,
+    fallbackCastBlink: fallback.castBlink,
+    fallbackCastFreeze: fallback.castFreeze,
+    runtimeToggleBlink,
+    runtimeToggleFreeze,
+    rawRuntimeToggleBlink,
+    rawRuntimeToggleFreeze,
+    runtimeToggleBlinkSuppressed,
+    runtimeToggleFreezeSuppressed,
+    preparedSkillAfter: transition.preparedSkill,
+    castSkill: transition.castSkill
+  });
+  const confirmedTarget = transition.castSkill !== null && input.pointerWorld ? cloneVec2(input.pointerWorld) : null;
   const castBlink = transition.castSkill === "Blink";
   const castFreeze = transition.castSkill === "Freeze";
   const suppressPrimaryHeld =
@@ -48,6 +85,7 @@ export function resolveAuthoritativePreparedInput(
     input: {
       ...input,
       primaryHeld: suppressPrimaryHeld ? false : input.primaryHeld,
+      primaryJustPressed: false,
       castBlink,
       castFreeze,
       pointerWorld: confirmedTarget ?? input.pointerWorld
@@ -59,20 +97,20 @@ export function resolveAuthoritativePreparedInput(
 
 function resolvePreparedSkillTransition(
   preparedSkill: PreparedSkill,
-  runtimeCommand: PlayerCommand
+  input: PreparedSkillTransitionInput
 ): PreparedSkillTransition {
   let nextPreparedSkill = preparedSkill;
-  const toggledPreparedSkill = runtimeCommand.toggleBlink || runtimeCommand.toggleFreeze;
+  const toggledPreparedSkill = input.toggleBlink || input.toggleFreeze;
 
-  if (runtimeCommand.toggleBlink) {
+  if (input.toggleBlink) {
     nextPreparedSkill = nextPreparedSkill === "Blink" ? null : "Blink";
   }
-  if (runtimeCommand.toggleFreeze) {
+  if (input.toggleFreeze) {
     nextPreparedSkill = nextPreparedSkill === "Freeze" ? null : "Freeze";
   }
 
-  const confirmedSkill = runtimeCommand.primaryJustPressed
-    ? resolveConfirmedPreparedSkill(runtimeCommand, nextPreparedSkill)
+  const confirmedSkill = input.primaryJustPressed
+    ? resolveConfirmedPreparedSkill(input, nextPreparedSkill)
     : null;
   if (confirmedSkill !== null) {
     return {
@@ -90,13 +128,13 @@ function resolvePreparedSkillTransition(
 }
 
 function resolveConfirmedPreparedSkill(
-  runtimeCommand: PlayerCommand,
+  input: PreparedSkillTransitionInput,
   preparedSkill: PreparedSkill
 ): TargetedPreparedSkill | null {
-  if (runtimeCommand.toggleFreeze) {
+  if (input.toggleFreeze) {
     return "Freeze";
   }
-  if (runtimeCommand.toggleBlink) {
+  if (input.toggleBlink) {
     return "Blink";
   }
 
@@ -119,6 +157,7 @@ function toAuthoritativeInputSnapshot(
     aim: { x: command.aim.x, y: command.aim.y },
     pointerWorld: { x: command.pointerWorld.x, y: command.pointerWorld.y },
     primaryHeld: command.primaryHeld || command.primaryJustPressed || fallback.primaryHeld,
+    primaryJustPressed: command.primaryJustPressed || fallback.primaryJustPressed,
     sprint: command.sprint || fallback.sprint,
     reloadPressed: command.reloadPressed || fallback.reloadPressed,
     castDash: command.castDash || fallback.castDash,
@@ -144,4 +183,44 @@ function toFallbackAuthoritativeInputSnapshot(
 
 function cloneVec2(value: Vec2): Vec2 {
   return { x: value.x, y: value.y };
+}
+
+function readNowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function recordAuthoritativePreparedInputDiagnostics(input: {
+  preparedSkillBefore: PreparedSkill;
+  primaryJustPressed: boolean;
+  fallbackCastBlink: boolean;
+  fallbackCastFreeze: boolean;
+  runtimeToggleBlink: boolean;
+  runtimeToggleFreeze: boolean;
+  rawRuntimeToggleBlink: boolean;
+  rawRuntimeToggleFreeze: boolean;
+  runtimeToggleBlinkSuppressed: boolean;
+  runtimeToggleFreezeSuppressed: boolean;
+  preparedSkillAfter: PreparedSkill;
+  castSkill: TargetedPreparedSkill | null;
+}): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const root = ((window as unknown as {
+    __slayDemoBattleDiagnostics?: {
+      authoritativePreparedInput?: {
+        samples?: unknown[];
+      };
+    };
+  }).__slayDemoBattleDiagnostics ??= {});
+  const diagnostics = (root.authoritativePreparedInput ??= {});
+  const samples = (diagnostics.samples ??= []);
+  samples.push({
+    atMs: readNowMs(),
+    ...input
+  });
+  if (samples.length > 400) {
+    samples.splice(0, samples.length - 400);
+  }
 }

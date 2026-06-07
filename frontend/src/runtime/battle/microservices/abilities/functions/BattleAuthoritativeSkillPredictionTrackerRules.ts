@@ -12,7 +12,9 @@ import {
 } from "./BattleAuthoritativeSkillPredictionRules";
 
 const PENDING_PREDICTION_TTL_MS = 900;
-const BLINK_MISMATCH_ALLOWED_MS = 180;
+const PENDING_PREDICTION_MISMATCH_ALLOWED_MS = PENDING_PREDICTION_TTL_MS;
+const BLINK_MISMATCH_ALLOWED_MS = PENDING_PREDICTION_MISMATCH_ALLOWED_MS;
+const DASH_MISMATCH_ALLOWED_MS = PENDING_PREDICTION_MISMATCH_ALLOWED_MS;
 const AUTHORITATIVE_PREDICTION_MATCH_DISTANCE = 48;
 
 export interface BattlePendingBlinkPruneResult {
@@ -38,7 +40,8 @@ export function createPendingDashPrediction(
 ): AuthoritativeLocalHeroPendingDashPrediction {
   return {
     destination: cloneVec2(destination),
-    expiresAtMs: nowMs + PENDING_PREDICTION_TTL_MS
+    expiresAtMs: nowMs + PENDING_PREDICTION_TTL_MS,
+    mismatchAllowedUntilMs: nowMs + DASH_MISMATCH_ALLOWED_MS
   };
 }
 
@@ -130,7 +133,13 @@ export function prunePendingDashPrediction(
   player: Hero | null,
   nowMs: number
 ): AuthoritativeLocalHeroPendingDashPrediction | null {
-  if (!pendingPrediction || pendingPrediction.expiresAtMs < nowMs || !player || !player.alive) {
+  if (
+    !pendingPrediction ||
+    pendingPrediction.expiresAtMs < nowMs ||
+    pendingPrediction.mismatchAllowedUntilMs < nowMs ||
+    !player ||
+    !player.alive
+  ) {
     return null;
   }
 

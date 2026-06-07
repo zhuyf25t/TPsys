@@ -3,6 +3,7 @@ import { BattlePage } from "../pages/battle";
 import { ContributionPage } from "../pages/contribution";
 import { DiscussionDetailPage } from "../pages/discussion-detail";
 import { DiscussionPage } from "../pages/discussion";
+import { FriendsPage } from "../pages/friends";
 import { HomePage } from "../pages/home";
 import { LoadoutPage } from "../pages/loadout";
 import { MailsPage } from "../pages/mails";
@@ -22,6 +23,7 @@ export function AppRoutes() {
       <Route path="/mails" element={<MailsPage />} />
       <Route path="/rating" element={<RatingPage />} />
       <Route path="/contribution" element={<ContributionPage />} />
+      <Route path="/friends" element={<FriendsPage />} />
       <Route path="/profile/:handle" element={<ProfilePage />} />
       <Route path="/discussion" element={<DiscussionPage />} />
       <Route path="/discussion/:id" element={<DiscussionDetailPage />} />

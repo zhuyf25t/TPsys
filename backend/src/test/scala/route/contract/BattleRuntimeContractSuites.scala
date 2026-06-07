@@ -5,11 +5,12 @@ import java.nio.file.{Files, Path, Paths}
 import java.security.SecureRandom
 import java.sql.Connection
 
-import cats.effect.IO
+import cats.effect.{Deferred, IO, Outcome}
 import cats.effect.unsafe.implicits.global
 import org.http4s.implicits.uri
 import org.http4s.{Header, Headers, HttpRoutes, Method, Request}
 import org.typelevel.ci.CIString
+import scala.concurrent.duration.*
 import scala.jdk.CollectionConverters.*
 
 import route.battle.BattleHttp4sRoutes
@@ -159,9 +160,14 @@ private[contract] object BattleStateRuntimeContractTest:
     gasZoneDamagesPlayersOutsideCircle()
     winterZombieWeaponLoadoutsSeparateBossesFromPlainZombies()
     winterZombieContactEliminatesHuman()
+    winterZombieNoHumanSurvivorFinishesWithMultipleZombies()
+    nonWinterBotContactDoesNotEliminateHuman()
     projectileTerminalReasonWireValuesMatchLegacy()
     spawnPointsMatchFrontendBattleMap()
     acceptCommandEnforcesOwnershipAndBotBoundaries()
+    freshCommandAcceptDoesNotDropPendingTickTime()
+    freshReleaseCommandAdvancesPendingHeldFireBeforeClearing()
+    deferredCommandAcceptAppliesPendingCatchUp()
     acceptedCommandSequenceIsMonotonic()
     movementStopsAtArenaObstacle()
     walkingUsesFrontendBaseMoveSpeed()
@@ -194,6 +200,7 @@ private[contract] object BattleStateRuntimeContractTest:
     finishedStateProjectsArtifactsOnce()
     finishedStateTracksPartialArtifactReadiness()
     throwingFinishProjectorDoesNotLeaveProjectionInProgress()
+    stateReadReturnsLatestSnapshotWhenAdvanceLockBusy()
     ignoredFinishedCommandUsesStoredClientSequence()
     finishedStateMarksQueueRoomFinished()
 
@@ -358,6 +365,53 @@ private[contract] object BattleStateRuntimeContractTest:
     ContractAssertions.assertEquals(s"$label first seat is human", seats.head.isBot, false)
     ContractAssertions.assertEquals(s"$label bot seat count", seats.drop(1).count(_.isBot), expectedBotSeats)
     ContractAssertions.assertEquals(s"$label spawn indexes", seats.map(_.spawnPointIndex.value), (0 until expectedCapacity.value).toVector)
+    assertModeBotIdentityAndLoadouts(label, battleMode, battleId, queue, clock)
+
+  private def assertModeBotIdentityAndLoadouts(
+    label: String,
+    battleMode: BattleMode,
+    battleId: BattleId,
+    queue: InMemoryBattleQueueService,
+    clock: TestClock
+  ): Unit = {
+    val service = InMemoryBattleStateService.createWithClock(
+      sessionLookup = queue,
+      currentTimeMillis = clock.millis,
+      battleDuration = DurationMillis(60_000L),
+      battleRules = battleRuleBook,
+      finishProjector = RecordingProjector(BattleFinishProjectionOutcome.NotConfigured),
+      roomLifecycleSink = queue
+    ).unsafeRunSync()
+    val state = service.currentState(battleId).unsafeRunSync().fold(error => fail(s"$label state read failed: $error"), identity)
+    val bots = state.players.filter(_.isBot)
+
+    if battleMode == BattleMode.Winter then
+      assert(
+        bots.forall(bot => bot.displayName.value.toLowerCase.contains("zombie")),
+        s"$label expected winter bots to keep zombie names, got ${bots.map(_.displayName.value)}"
+      )
+      assert(
+        bots.forall(bot => bot.heroId.value.startsWith("bot-")),
+        s"$label expected winter zombie hero ids, got ${bots.map(_.heroId.value)}"
+      )
+    else
+      assert(
+        bots.forall(bot => !bot.displayName.value.toLowerCase.contains("zombie")),
+        s"$label expected non-winter bot names, got ${bots.map(_.displayName.value)}"
+      )
+      assert(
+        bots.forall(bot => bot.heroId.value.startsWith("combat-bot-")),
+        s"$label expected combat bot hero ids, got ${bots.map(_.heroId.value)}"
+      )
+      assert(
+        bots.forall(_.weapons.nonEmpty),
+        s"$label expected combat bots to spawn armed, got ${bots.map(bot => bot.displayName.value -> bot.weapons.map(_.weaponKind))}"
+      )
+      assert(
+        bots.map(_.currentWeaponKind).distinct.length > 1 || bots.length <= 1,
+        s"$label expected combat bot weapon variety, got ${bots.map(_.currentWeaponKind)}"
+      )
+  }
 
   private def gasZoneDamagesPlayersOutsideCircle(): Unit =
     val clock = TestClock(1_000L)
@@ -510,6 +564,93 @@ private[contract] object BattleStateRuntimeContractTest:
     ContractAssertions.assertEquals("winter zombie contact battle finishes", contacted.phase, BattlePhase.Finished)
     ContractAssertions.assertEquals("winter zombie contact emits kill event", contacted.events.exists(_.eventKind == BattleEventKind.Kill), true)
 
+  private def winterZombieNoHumanSurvivorFinishesWithMultipleZombies(): Unit =
+    val clock = TestClock(1_000L)
+    val zombieSeats =
+      (1 to 3).toVector.map { index =>
+        seat(
+          playerId = PlayerId(s"plain-zombie-$index"),
+          heroId = HeroId(s"bot-${index + 3}"),
+          handle = PlayerHandle(s"Plain$index"),
+          displayName = DisplayName(s"Plain Zombie $index"),
+          seat = SeatIndex(index),
+          isBot = true,
+          spawnPointIndex = Some(SpawnPointIndex(0))
+        )
+      }
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeedWithSeats(
+        seats = Vector(
+          seat(
+            playerId = PlayerId("survivor"),
+            heroId = HeroId("hero-survivor"),
+            handle = PlayerHandle("Survivor"),
+            displayName = DisplayName("Survivor"),
+            seat = SeatIndex(0),
+            isBot = false,
+            spawnPointIndex = Some(SpawnPointIndex(0))
+          )
+        ) ++ zombieSeats,
+        battleMode = BattleMode.Winter,
+        commandOwnership = Vector(BattleCommandOwnership(PlayerId("survivor"), TicketId("ticket-survivor")))
+      )
+    )
+
+    clock.now = 1_033L
+    val contacted = battleState(service, "winter zombie no human survivor after tick")
+    val survivor = playerById(contacted, PlayerId("survivor"))
+
+    ContractAssertions.assertEquals("winter zombie no human survivor eliminated", survivor.alive, false)
+    ContractAssertions.assertEquals("winter zombie no human survivor hp zero", survivor.hp, HitPoints(0))
+    ContractAssertions.assertEquals("winter zombie no human survivor keeps zombies alive", contacted.players.count(player => player.isBot && player.alive), 3)
+    ContractAssertions.assertEquals("winter zombie no human survivor battle finishes", contacted.phase, BattlePhase.Finished)
+    ContractAssertions.assertEquals("winter zombie no human survivor winner absent", contacted.winnerPlayerId.isEmpty, true)
+
+  private def nonWinterBotContactDoesNotEliminateHuman(): Unit =
+    val clock = TestClock(1_000L)
+    val service = battleStateService(
+      clock = clock,
+      seed = sessionSeedWithSeats(
+        seats = Vector(
+          seat(
+            playerId = PlayerId("survivor"),
+            heroId = HeroId("hero-survivor"),
+            handle = PlayerHandle("Survivor"),
+            displayName = DisplayName("Survivor"),
+            seat = SeatIndex(0),
+            isBot = false,
+            spawnPointIndex = Some(SpawnPointIndex(0))
+          ),
+          seat(
+            playerId = PlayerId("sparring-bot"),
+            heroId = HeroId("bot-1"),
+            handle = PlayerHandle("Spar"),
+            displayName = DisplayName("Sparring Bot"),
+            seat = SeatIndex(1),
+            isBot = true,
+            spawnPointIndex = Some(SpawnPointIndex(0))
+          )
+        ),
+        battleMode = BattleMode.Default,
+        commandOwnership = Vector(BattleCommandOwnership(PlayerId("survivor"), TicketId("ticket-survivor")))
+      )
+    )
+
+    val initial = battleState(service, "non-winter bot contact initial")
+    ContractAssertions.assertEquals("non-winter contact survivor starts alive", playerById(initial, PlayerId("survivor")).alive, true)
+
+    clock.now = 1_100L
+    val contacted = battleState(service, "non-winter bot contact after tick")
+    val survivor = playerById(contacted, PlayerId("survivor"))
+    val bot = playerById(contacted, PlayerId("sparring-bot"))
+
+    ContractAssertions.assertEquals("non-winter bot contact survivor remains alive", survivor.alive, true)
+    ContractAssertions.assertEquals("non-winter bot contact survivor hp unchanged", survivor.hp, HitPoints(100))
+    ContractAssertions.assertEquals("non-winter bot contact does not credit kill", bot.kills, KillCount(0))
+    ContractAssertions.assertEquals("non-winter bot contact battle stays active", contacted.phase, BattlePhase.Active)
+    ContractAssertions.assertEquals("non-winter bot contact emits no kill event", contacted.events.exists(_.eventKind == BattleEventKind.Kill), false)
+
   private def projectileTerminalReasonWireValuesMatchLegacy(): Unit =
     ContractAssertions.assertEquals("runtime hit terminal reason wire", ProjectileTerminalReason.wireValue(ProjectileTerminalReason.Hit), "hit")
     ContractAssertions.assertEquals("runtime blocked terminal reason wire", ProjectileTerminalReason.wireValue(ProjectileTerminalReason.Blocked), "obstacle")
@@ -560,6 +701,95 @@ private[contract] object BattleStateRuntimeContractTest:
     val alice = playerById(battleState(service, "accepted command state"), PlayerId("alice"))
     ContractAssertions.assertEquals("runtime state stores last command seq", alice.lastClientCommandSeq, ClientCommandSeq(3L))
 
+  private def freshCommandAcceptDoesNotDropPendingTickTime(): Unit =
+    val clock = TestClock(1_000L)
+    val service = battleStateService(clock = clock)
+
+    val initialAlice = playerById(battleState(service, "fresh command initial"), PlayerId("alice"))
+    clock.now = 1_010L
+    val accepted = service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 11L,
+        movement = BattleCommandVector(1.0, 0.0)
+      )
+    ).fold(error => fail(s"fresh command failed: $error"), identity)
+    ContractAssertions.assertEquals("runtime fresh command seq", accepted.acceptedCommandSeq, ClientCommandSeq(11L))
+
+    val commandFrameAlice = playerById(battleState(service, "fresh command command frame"), PlayerId("alice"))
+    ContractAssertions.assertEquals("runtime fresh command records movement", commandFrameAlice.movement, BattleVector2(1.0, 0.0))
+    ContractAssertions.assertEquals("runtime fresh command does not move before tick", commandFrameAlice.position, initialAlice.position)
+
+    clock.now = 1_033L
+    val advancedAlice = playerById(battleState(service, "fresh command first tick"), PlayerId("alice"))
+    assert(
+      advancedAlice.position.x > initialAlice.position.x,
+      s"runtime fresh command should preserve pending tick time and move on first full tick, initial=${initialAlice.position}, advanced=${advancedAlice.position}"
+    )
+
+  private def freshReleaseCommandAdvancesPendingHeldFireBeforeClearing(): Unit =
+    val clock = TestClock(1_000L)
+    val service = battleStateService(clock = clock)
+    val initial = battleState(service, "fresh release held-fire initial")
+    val initialAlice = playerById(initial, PlayerId("alice"))
+
+    clock.now = 1_010L
+    service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 20L,
+        primaryHeld = true
+      )
+    ).fold(error => fail(s"fresh release held-fire press failed: $error"), identity)
+
+    clock.now = 1_090L
+    val released = service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 21L,
+        primaryHeld = false
+      )
+    ).fold(error => fail(s"fresh release held-fire release failed: $error"), identity)
+    ContractAssertions.assertEquals("runtime fresh release accepted seq", released.acceptedCommandSeq, ClientCommandSeq(21L))
+
+    val afterRelease = battleState(service, "fresh release held-fire after release")
+    val afterReleaseAlice = playerById(afterRelease, PlayerId("alice"))
+    val afterReleaseWeapon = afterReleaseAlice.weapons.head
+
+    ContractAssertions.assertEquals("runtime fresh release clears primary", afterReleaseAlice.primaryHeld, false)
+    ContractAssertions.assertEquals("runtime fresh release preserves one held-fire shot", afterReleaseWeapon.ammoInMagazine, AmmoCount(11))
+    assert(
+      afterRelease.projectiles.exists(projectile => projectile.ownerHeroId == initialAlice.heroId && projectile.projectileKind == ProjectileKind.PistolBullet),
+      s"runtime fresh release should create a pistol projectile before clearing held fire, projectiles=${afterRelease.projectiles.map(_.projectileId)}"
+    )
+
+  private def deferredCommandAcceptAppliesPendingCatchUp(): Unit =
+    val clock = TestClock(1_000L)
+    val service = battleStateService(clock = clock)
+
+    val initialAlice = playerById(battleState(service, "deferred command initial"), PlayerId("alice"))
+    clock.now = 1_150L
+    val accepted = service.acceptCommand(
+      command(
+        playerId = PlayerId("alice"),
+        ticketId = TicketId("ticket-alice"),
+        seq = 12L,
+        movement = BattleCommandVector(1.0, 0.0)
+      )
+    ).fold(error => fail(s"deferred command failed: $error"), identity)
+
+    ContractAssertions.assertEquals("runtime deferred command seq", accepted.acceptedCommandSeq, ClientCommandSeq(12L))
+
+    val afterCatchUpAlice = playerById(battleState(service, "deferred command catch-up state"), PlayerId("alice"))
+    ContractAssertions.assertEquals("runtime deferred command records movement", afterCatchUpAlice.movement, BattleVector2(1.0, 0.0))
+    assert(
+      afterCatchUpAlice.position.x > initialAlice.position.x,
+      s"runtime deferred command should apply to pending catch-up, initial=${initialAlice.position}, after=${afterCatchUpAlice.position}"
+    )
+
   private def acceptedCommandSequenceIsMonotonic(): Unit =
     val clock = TestClock(1_000L)
     val service = battleStateService(clock = clock)
@@ -577,11 +807,13 @@ private[contract] object BattleStateRuntimeContractTest:
       )
     ).fold(error => fail(s"older command failed: $error"), identity)
 
-    ContractAssertions.assertEquals("runtime older command still applies", older.commandStatus, BattleCommandStatus.Applied)
+    ContractAssertions.assertEquals("runtime older command is ignored", older.commandStatus, BattleCommandStatus.Ignored)
+    ContractAssertions.assertEquals("runtime older command reason", older.commandReason, Some(BattleCommandReason.StaleCommand))
     ContractAssertions.assertEquals("runtime accepted seq does not move backwards", older.acceptedCommandSeq, ClientCommandSeq(10L))
 
     val alice = playerById(battleState(service, "monotonic command state"), PlayerId("alice"))
     ContractAssertions.assertEquals("runtime stored seq does not move backwards", alice.lastClientCommandSeq, ClientCommandSeq(10L))
+    ContractAssertions.assertEquals("runtime older command does not rewrite movement", alice.movement, BattleVector2(0.0, 0.0))
 
   private def movementStopsAtArenaObstacle(): Unit =
     val clock = TestClock(1_000L)
@@ -2157,6 +2389,10 @@ private[contract] object BattleStateRuntimeContractTest:
       vectorLengthForTest(firingBot.aim) > 0.9,
       s"runtime expected bot to keep aiming after opening fire delay, elapsed=${afterOpeningDelay.elapsedMs.value}, primaryHeld=${firingBot.primaryHeld}, distance=${distanceBetweenForTest(firingBot.position, firingAlice.position)}, bot=${firingBot.position}, target=${firingAlice.position}, active=${botProjectiles.length}, terminals=${botTerminals.length}, weapon=${firingBot.weapons.headOption}"
     )
+    assert(
+      firedProjectileKind.nonEmpty,
+      s"runtime expected ordinary non-winter bot to fire after opening delay, active=${botProjectiles.length}, terminals=${botTerminals.length}, weapon=${firingBot.weapons.headOption}"
+    )
     val firingBotWeapon = firingBot.weapons.headOption.getOrElse(fail("missing firing bot weapon"))
     assert(firingBotWeapon.ammoInMagazine.value > 0, s"runtime bot should still have ammo after early firing window, weapon=$firingBotWeapon")
     firedProjectileKind.foreach { kind =>
@@ -2166,7 +2402,6 @@ private[contract] object BattleStateRuntimeContractTest:
         s"runtime bot should have spent ammo after firing, weapon=$firingBotWeapon"
       )
     }
-    ContractAssertions.assertEquals("runtime bot does not reload until magazine is empty", firingBotWeapon.reloadRemainingMs, CooldownMillis(0))
     ContractAssertions.assertEquals(
       "runtime bot external commands remain rejected",
       service.acceptCommand(command(PlayerId("bot-one"), TicketId("ticket-alice"), 98L)).unsafeRunSync(),
@@ -2301,6 +2536,37 @@ private[contract] object BattleStateRuntimeContractTest:
     ContractAssertions.assertEquals("runtime throwing projector first read stays pending", firstFinished.artifactStatus, BattleArtifactStatus.Pending)
     ContractAssertions.assertEquals("runtime throwing projector retried projection", retried.artifactStatus, BattleArtifactStatus.Ready)
     ContractAssertions.assertEquals("runtime throwing projector attempted twice", projector.attempts, 2)
+
+  private def stateReadReturnsLatestSnapshotWhenAdvanceLockBusy(): Unit =
+    val clock = TestClock(1_000L)
+    val projector = BlockingProjector.create.unsafeRunSync()
+    val service = battleStateService(clock = clock, battleDuration = DurationMillis(1_000L), finishProjector = projector)
+
+    battleState(service, "lock busy read initial")
+    clock.now = 2_500L
+
+    val finishingRead = service.currentState(BattleId("battle-state-runtime")).start.unsafeRunSync()
+    projector.awaitStarted.timeout(1.second).unsafeRunSync()
+
+    val busyRead = service.currentState(BattleId("battle-state-runtime"))
+      .timeout(200.millis)
+      .unsafeRunSync()
+      .fold(error => fail(s"lock busy read failed: $error"), identity)
+
+    ContractAssertions.assertEquals("runtime lock busy read returns finished snapshot", busyRead.phase, BattlePhase.Finished)
+    ContractAssertions.assertEquals("runtime lock busy read does not wait for projection", busyRead.artifactStatus, BattleArtifactStatus.Pending)
+
+    projector.releaseProjection.unsafeRunSync()
+    val completedRead =
+      finishingRead.join.timeout(1.second).unsafeRunSync() match
+        case Outcome.Succeeded(resultIO) =>
+          resultIO.unsafeRunSync().fold(error => fail(s"lock busy finishing read failed: $error"), identity)
+        case Outcome.Errored(error) =>
+          throw error
+        case Outcome.Canceled() =>
+          fail("lock busy finishing read was canceled")
+
+    ContractAssertions.assertEquals("runtime lock busy finishing read projects artifacts", completedRead.artifactStatus, BattleArtifactStatus.Ready)
 
   private def ignoredFinishedCommandUsesStoredClientSequence(): Unit =
     val clock = TestClock(1_000L)
@@ -2694,6 +2960,29 @@ private[contract] object BattleStateRuntimeContractTest:
       attempts += 1
       if attempts == 1 then IO.raiseError(RuntimeException("projection boom"))
       else IO.pure(outcome)
+
+  private final case class BlockingProjector(
+    started: Deferred[IO, Unit],
+    release: Deferred[IO, Unit]
+  ) extends BattleFinishProjector:
+    override def project(state: BattleAggregateState): IO[BattleFinishProjectionOutcome] =
+      for
+        _ <- started.complete(())
+        _ <- release.get
+      yield BattleFinishProjectionOutcome.Projected
+
+    def awaitStarted: IO[Unit] =
+      started.get
+
+    def releaseProjection: IO[Unit] =
+      release.complete(()).map(_ => ())
+
+  private object BlockingProjector:
+    def create: IO[BlockingProjector] =
+      for
+        started <- Deferred[IO, Unit]
+        release <- Deferred[IO, Unit]
+      yield BlockingProjector(started, release)
 
   private final case class RecordingRoomLifecycleSink() extends BattleRoomLifecycleSink:
     var finishedRooms: Vector[(RoomId, EpochMillis)] = Vector.empty

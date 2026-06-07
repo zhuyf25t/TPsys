@@ -64,6 +64,7 @@ export interface HudMinimapData {
   obstacles: HudMinimapRect[];
   clearanceObstacles?: HudMinimapRect[];
   centerLimitRect?: HudMinimapRect;
+  staticLayerSignature?: string;
   gasZone: HudMinimapGasZone | null;
   pickups: HudMinimapDot[];
   heroes: HudMinimapDot[];
@@ -96,6 +97,16 @@ const HUD_STYLE_ID = "slay-demo-dom-hud-style";
 const BATTLE_DIAGNOSTICS_STORAGE_KEY = "slay-demo:battle-diagnostics";
 const MINIMAP_HASH_OFFSET = 2166136261;
 const MINIMAP_HASH_PRIME = 16777619;
+const HUD_EDGE_GAP_PX = 16;
+const HUD_PANEL_GAP_PX = 18;
+const HUD_WEAPON_PANEL_WIDTH_PX = 214;
+const HUD_SKILL_CARD_WIDTH_PX = 70;
+const HUD_SKILL_CARD_GAP_PX = 8;
+const HUD_SKILL_CARD_COUNT = 3;
+const HUD_SKILL_GRID_WIDTH_PX =
+  HUD_SKILL_CARD_WIDTH_PX * HUD_SKILL_CARD_COUNT + HUD_SKILL_CARD_GAP_PX * (HUD_SKILL_CARD_COUNT - 1);
+const HUD_SKILL_PANEL_WIDTH_PX = HUD_SKILL_GRID_WIDTH_PX + 12;
+const HUD_SKILL_PANEL_RIGHT_PX = HUD_EDGE_GAP_PX + HUD_WEAPON_PANEL_WIDTH_PX + HUD_PANEL_GAP_PX;
 
 interface HudDiagnosticsSnapshot {
   minimapRenderCount: number;
@@ -481,8 +492,8 @@ function ensureHudStyle(): void {
 
     #hud-root .hud-skills-grid {
       display: grid;
-      grid-template-columns: repeat(3, 70px);
-      gap: 8px;
+      grid-template-columns: repeat(3, ${HUD_SKILL_CARD_WIDTH_PX}px);
+      gap: ${HUD_SKILL_CARD_GAP_PX}px;
     }
 
     #hud-root .hud-skill-entry {
@@ -726,6 +737,10 @@ function buildMinimapStaticLayerSignature(
   canvasWidth: number,
   canvasHeight: number
 ): string {
+  if (minimap.staticLayerSignature) {
+    return `${canvasWidth}x${canvasHeight}:${minimap.staticLayerSignature}`;
+  }
+
   let hash = MINIMAP_HASH_OFFSET;
   hash = mixMinimapHashNumber(hash, canvasWidth);
   hash = mixMinimapHashNumber(hash, canvasHeight);
@@ -914,38 +929,38 @@ export class Hud {
     });
 
     Object.assign(this.rightTop.style, {
-      right: "16px",
-      top: "16px",
+      right: `${HUD_EDGE_GAP_PX}px`,
+      top: `${HUD_EDGE_GAP_PX}px`,
       width: "188px"
     });
 
     Object.assign(this.leftBottom.style, {
-      left: "16px",
-      bottom: "16px",
+      left: `${HUD_EDGE_GAP_PX}px`,
+      bottom: `${HUD_EDGE_GAP_PX}px`,
       width: `${Math.min(256, Math.max(242, width - 40))}px`
     });
 
     Object.assign(this.weaponPanel.style, {
-      right: "16px",
-      bottom: "16px",
-      width: "214px"
+      right: `${HUD_EDGE_GAP_PX}px`,
+      bottom: `${HUD_EDGE_GAP_PX}px`,
+      width: `${HUD_WEAPON_PANEL_WIDTH_PX}px`
     });
 
     Object.assign(this.skillPanel.style, {
-      right: "250px",
-      bottom: "16px",
-      width: "190px"
+      right: `${HUD_SKILL_PANEL_RIGHT_PX}px`,
+      bottom: `${HUD_EDGE_GAP_PX}px`,
+      width: `${HUD_SKILL_PANEL_WIDTH_PX}px`
     });
 
     if (width < 760) {
-      this.skillPanel.style.right = "16px";
+      this.skillPanel.style.right = `${HUD_EDGE_GAP_PX}px`;
       this.skillPanel.style.bottom = "196px";
     }
 
     if (height < 720) {
       this.rightTop.style.top = "50px";
     } else {
-      this.rightTop.style.top = "16px";
+      this.rightTop.style.top = `${HUD_EDGE_GAP_PX}px`;
     }
 
     const expandedMapSize = Math.round(Math.min(760, Math.max(300, Math.min(width - 48, height - 126))));

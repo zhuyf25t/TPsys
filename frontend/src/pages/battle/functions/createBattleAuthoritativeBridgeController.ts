@@ -3,6 +3,7 @@ import {
   loadAuthoritativeBattleState,
   openAuthoritativeBattleStateStream,
   sendAuthoritativeBattleCommand,
+  type AuthoritativeBattleCommand,
   type AuthoritativeBattleState
 } from "../../../runtime/battle/microservices/session/api/BattleAuthoritativeSessionClient";
 import type { BattleRuntimeHandle } from "../../../runtime/battle/game/renderer/createBattleRuntime";
@@ -24,6 +25,7 @@ import {
   resolvePendingAuthoritativeCommandFlushDecision
 } from "./authoritativeBattleCommandFlow";
 import {
+  resolveAuthoritativeStateApplicationDecision,
   resolveAuthoritativeStatePollDecision,
   resolveAuthoritativeStatePollingTimerDecision,
   resolveAuthoritativeStatePollResultDecision,
@@ -74,6 +76,8 @@ interface BattleAuthoritativeBridgeControllerOptions {
   readonly showTransientNotice: (message: string) => void;
 }
 
+const MAX_AUTHORITATIVE_COMMAND_REQUESTS_IN_FLIGHT = 1;
+
 export function createBattleAuthoritativeBridgeController({
   runtimeRootRef,
   runtimeHandleRef,
@@ -100,6 +104,10 @@ export function createBattleAuthoritativeBridgeController({
   finalizeRuntime,
   showTransientNotice
 }: BattleAuthoritativeBridgeControllerOptions) {
+  let lastSubmittedAuthoritativeCommand: AuthoritativeBattleCommand | null = null;
+  let authoritativeCommandRequestInFlightCount = 0;
+  let lastAppliedAuthoritativeState: AuthoritativeBattleState | null = null;
+
   const ensureAuthoritativeInputCapture = (): void => {
     if (!authoritativeInputCaptureRef.current && runtimeRootRef.current) {
       authoritativeInputCaptureRef.current = createAuthoritativeBattleInputCapture({
@@ -143,6 +151,7 @@ export function createBattleAuthoritativeBridgeController({
         authoritativeCommandHistoryRef.current.entries
       ) ?? false;
     if (applied) {
+      lastAppliedAuthoritativeState = state;
       authoritativeFirstFrameAppliedRef.current = true;
     }
   };
@@ -152,7 +161,15 @@ export function createBattleAuthoritativeBridgeController({
       return;
     }
 
-    applyInitialAuthoritativeBattleState(state);
+    const applicationDecision = resolveAuthoritativeStateApplicationDecision({
+      state,
+      lastAppliedState: lastAppliedAuthoritativeState
+    });
+    if (applicationDecision.kind === "skip") {
+      return;
+    }
+
+    applyInitialAuthoritativeBattleState(applicationDecision.state);
     if (authoritativeFirstFrameAppliedRef.current && isAuthoritativeBattleFinished()) {
       finalizeRuntime(isAuthoritativeDurationExpired());
     }
@@ -166,6 +183,9 @@ export function createBattleAuthoritativeBridgeController({
     authoritativeCommandRequestInFlightRef.current = false;
     authoritativeCommandUplinkPendingRef.current = false;
     authoritativeCommandHistoryRef.current.clear();
+    lastSubmittedAuthoritativeCommand = null;
+    authoritativeCommandRequestInFlightCount = 0;
+    lastAppliedAuthoritativeState = null;
     authoritativeInputCaptureRef.current?.destroy();
     authoritativeInputCaptureRef.current = null;
   };
@@ -216,8 +236,10 @@ export function createBattleAuthoritativeBridgeController({
     const playerId = resolveLocalAuthoritativePlayerId();
     const ticketId = resolveLocalAuthoritativeTicketId();
     const inputCapture = authoritativeInputCaptureRef.current;
+    const commandRequestLimitReached =
+      authoritativeCommandRequestInFlightCount >= MAX_AUTHORITATIVE_COMMAND_REQUESTS_IN_FLIGHT;
     const uplinkDecision = resolveAuthoritativeCommandUplinkDecision({
-      requestInFlight: authoritativeCommandRequestInFlightRef.current,
+      requestInFlight: commandRequestLimitReached,
       sharedRuntimeActive: Boolean(sharedAuthoritativeRuntimeRef.current),
       battleId,
       playerId,
@@ -231,7 +253,7 @@ export function createBattleAuthoritativeBridgeController({
       return;
     }
 
-    if (uplinkDecision.kind === "skip" || !inputCapture) {
+    if (uplinkDecision.kind !== "send" || !inputCapture) {
       return;
     }
 
@@ -243,9 +265,10 @@ export function createBattleAuthoritativeBridgeController({
       ? resolveAuthoritativePreparedInput(runtimeCommand, fallbackCommand, authoritativePreparedSkillRef.current)
       : resolveAuthoritativePreparedInput(null, fallbackCommand, authoritativePreparedSkillRef.current);
     setAuthoritativePreparedSkill(preparedCommand.preparedSkill);
-    if (!hasAuthoritativePreparedInputIntent(preparedCommand)) {
+    if (!hasAuthoritativePreparedInputIntent(preparedCommand, lastSubmittedAuthoritativeCommand)) {
       return;
     }
+
     const clientCommandSeq = authoritativeCommandSeqRef.current + 1;
     authoritativeCommandSeqRef.current = clientCommandSeq;
     const outboundCommand = buildAuthoritativeBattleCommand({
@@ -257,6 +280,8 @@ export function createBattleAuthoritativeBridgeController({
       preparedInput: preparedCommand
     });
     authoritativeCommandHistoryRef.current.record(outboundCommand);
+    lastSubmittedAuthoritativeCommand = outboundCommand;
+    authoritativeCommandRequestInFlightCount += 1;
     authoritativeCommandRequestInFlightRef.current = true;
     try {
       const outcome = await sendAuthoritativeBattleCommand(outboundCommand);
@@ -274,17 +299,20 @@ export function createBattleAuthoritativeBridgeController({
         showTransientNotice(resolveCommandFailureNotice(outcome));
       }
     } finally {
-      authoritativeCommandRequestInFlightRef.current = false;
-      const pendingFlushDecision = resolvePendingAuthoritativeCommandFlushDecision({
-        pending: authoritativeCommandUplinkPendingRef.current,
-        sharedRuntimeActive: Boolean(sharedAuthoritativeRuntimeRef.current),
-        finalized: finalizedRef.current
-      });
-      if (pendingFlushDecision.kind === "flush") {
-        authoritativeCommandUplinkPendingRef.current = false;
-        window.setTimeout(() => {
-          void uplinkAuthoritativeBattleCommand();
-        }, 0);
+      authoritativeCommandRequestInFlightCount = Math.max(0, authoritativeCommandRequestInFlightCount - 1);
+      authoritativeCommandRequestInFlightRef.current = authoritativeCommandRequestInFlightCount > 0;
+      if (authoritativeCommandRequestInFlightCount < MAX_AUTHORITATIVE_COMMAND_REQUESTS_IN_FLIGHT) {
+        const pendingFlushDecision = resolvePendingAuthoritativeCommandFlushDecision({
+          pending: authoritativeCommandUplinkPendingRef.current,
+          sharedRuntimeActive: Boolean(sharedAuthoritativeRuntimeRef.current),
+          finalized: finalizedRef.current
+        });
+        if (pendingFlushDecision.kind === "flush") {
+          authoritativeCommandUplinkPendingRef.current = false;
+          window.setTimeout(() => {
+            void uplinkAuthoritativeBattleCommand();
+          }, 0);
+        }
       }
     }
   };

@@ -374,15 +374,9 @@ export interface BattlePlayModeOption {
   mapLabel: string;
 }
 
-export const DEFAULT_BATTLE_MODE_ID: BattlePlayModeId = "winter";
+export const DEFAULT_BATTLE_MODE_ID: BattlePlayModeId = "default";
 
 export const BATTLE_PLAY_MODE_OPTIONS = [
-  {
-    modeId: "winter",
-    label: "\u4e27\u5c38\u6a21\u5f0f",
-    mapId: WINTER_HUNT_BATTLE_MAP.mapId,
-    mapLabel: "Suroi \u51ac\u5b63\u5730\u56fe"
-  },
   {
     modeId: "default",
     label: "\u9ed8\u8ba4\u6a21\u5f0f",
@@ -400,6 +394,12 @@ export const BATTLE_PLAY_MODE_OPTIONS = [
     label: NORMAL_BATTLE_MODE_LABEL,
     mapId: NORMAL_HUNT_BATTLE_MAP.mapId,
     mapLabel: "\u666e\u901a\u5730\u56fe"
+  },
+  {
+    modeId: "winter",
+    label: "\u4e27\u5c38\u6a21\u5f0f",
+    mapId: WINTER_HUNT_BATTLE_MAP.mapId,
+    mapLabel: "Suroi \u51ac\u5b63\u5730\u56fe"
   }
 ] as const satisfies readonly BattlePlayModeOption[];
 
@@ -423,7 +423,11 @@ export function resolveBattleMap(mapId: string | null | undefined): BattleMapCon
 
 export function resolveBattlePlayMode(modeId: string | null | undefined): BattlePlayModeOption {
   const normalizedModeId = modeId?.trim() ?? "";
-  return BATTLE_PLAY_MODE_OPTIONS.find((option) => option.modeId === normalizedModeId) ?? BATTLE_PLAY_MODE_OPTIONS[0];
+  return (
+    BATTLE_PLAY_MODE_OPTIONS.find((option) => option.modeId === normalizedModeId) ??
+    BATTLE_PLAY_MODE_OPTIONS.find((option) => option.modeId === DEFAULT_BATTLE_MODE_ID) ??
+    BATTLE_PLAY_MODE_OPTIONS[0]
+  );
 }
 
 export function resolveMapIdForBattleMode(modeId: string | null | undefined): string {

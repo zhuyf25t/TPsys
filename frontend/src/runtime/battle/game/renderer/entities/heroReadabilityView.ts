@@ -142,11 +142,16 @@ function isPlainZombieNpcHero(hero: Hero): boolean {
 }
 
 function isBossZombieHero(hero: Hero): boolean {
-  return hero.heroId === "bot-1" || hero.heroId === "bot-2" || hero.heroId === "bot-3";
+  return isZombieNpcHero(hero) && (hero.heroId === "bot-1" || hero.heroId === "bot-2" || hero.heroId === "bot-3");
 }
 
 function isZombieNpcHero(hero: Hero): boolean {
-  return hero.heroId.startsWith("bot-") || hero.displayName.toLowerCase().includes("zombie");
+  return isZombieDisplayName(hero.displayName);
+}
+
+function isZombieDisplayName(displayName: string): boolean {
+  const normalized = displayName.toLowerCase();
+  return normalized.includes("zombie") || displayName.includes("丧尸");
 }
 
 function hideHeroReadabilityWeaponCues(view: HeroReadabilitySyncView): void {

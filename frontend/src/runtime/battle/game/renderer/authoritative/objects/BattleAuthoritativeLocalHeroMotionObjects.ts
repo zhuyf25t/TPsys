@@ -14,6 +14,7 @@ export interface ApplyAuthoritativeLocalHeroDisplayMotionInput {
   obstacleBounds: readonly MotionObstacleBounds[];
   dashCooldownMsOverride?: number;
   blinkCooldownMsOverride?: number;
+  maxDisplayDistanceFromAuthoritative?: number;
 }
 
 export interface AuthoritativeLocalHeroDisplayMotionResult {

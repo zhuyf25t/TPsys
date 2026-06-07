@@ -70,7 +70,7 @@ export function DiscussionDetailPageView({
             <VoteButton active={topic.viewerVote === "up"} onClick={() => void submitTopicVote("up")} />
             <VoteButton active={topic.viewerVote === "down"} vote="down" onClick={() => void submitTopicVote("down")} />
             <button type="button" className="forum-action forum-action--report" onClick={openTopicReport}>
-              Report
+              举报
             </button>
           </div>
         </header>
@@ -185,7 +185,7 @@ function ReplyCard({
         <VoteButton active={reply.viewerVote === "up"} onClick={() => void onVote(reply, "up")} />
         <VoteButton active={reply.viewerVote === "down"} vote="down" onClick={() => void onVote(reply, "down")} />
         <button type="button" className="forum-action forum-action--report" onClick={() => onReport(reply)}>
-          Report
+          举报
         </button>
       </div>
     </article>
@@ -195,7 +195,7 @@ function ReplyCard({
 function VoteButton({ active, vote = "up", onClick }: { active: boolean; vote?: DiscussionVote; onClick: () => void }) {
   return (
     <button type="button" className={`forum-action${active ? " forum-action--active" : ""}`} aria-pressed={active} onClick={onClick}>
-      {vote === "up" ? "Up" : "Down"}
+      {vote === "up" ? "赞" : "踩"}
     </button>
   );
 }

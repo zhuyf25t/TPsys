@@ -12,6 +12,7 @@ import {
 import { formatMatchmakingTime } from "../../../../functions/formatMatchmakingTime";
 import { formatPhaseLabel, formatQueueLabel, shortenRoomId } from "./functions/matchingOverlayLabels";
 import type { MatchingLoadoutSummary } from "./objects/MatchingLoadoutSummary";
+import { MATCHMAKING_DURATION_MS } from "../../../../objects/BattlePageTiming";
 
 interface MatchingOverlayProps {
   countdownMs: number;
@@ -36,14 +37,14 @@ export function MatchingOverlay({
   const roomParticipants = queueState?.participants ?? [];
   const slotCount = resolveMatchmakingSlotCount(queueState, selectedBattleModeId);
   const slots = buildMatchmakingSlots(loadout.handle, queueState, selectedBattleModeId);
+  const occupiedSlotCount = countOccupiedSlots(slots);
   const roomIdLabel = queueState ? shortenRoomId(queueState.roomId).toUpperCase() : "分配房间中";
   const queueLabel = formatQueueLabel(queueState);
   const phaseLabel = formatPhaseLabel(queueState);
-  const countdownLabel = queueState ? formatMatchmakingTime(countdownMs) : "--:--";
+  const countdownLabel = formatMatchmakingTime(countdownMs);
   const selectedMode = battleModeOptions.find((option) => option.modeId === selectedBattleModeId) ?? battleModeOptions[0];
   const mapLabel = translateMapLabel(queueState?.mapLabel ?? selectedMode?.mapLabel ?? "Battle Rift");
   const modeLabel = translateModeLabel(queueState?.modeLabel ?? selectedMode?.label ?? "Battle Rift");
-  const modeSelectionDisabled = Boolean(queueState);
   const progress = resolveCountdownProgress(countdownMs, queueState);
   const progressStyle = { "--matchmaking-progress": `${Math.round(progress * 360)}deg` } as CSSProperties;
 
@@ -53,12 +54,10 @@ export function MatchingOverlay({
       <div className="matching-room__scanline" aria-hidden="true" />
 
       <header className="matching-room__topbar">
-        <div className="matching-room__brand-tabs" aria-label="导航">
-          <Link to="/" className="matching-room__nav-chip">首页</Link>
-          <Link to="/loadout" className="matching-room__nav-chip">配装</Link>
-          <span className="matching-room__nav-chip matching-room__nav-chip--active">大厅</span>
-          <span className="matching-room__nav-chip">武器</span>
-          <span className="matching-room__nav-chip">干员</span>
+        <div className="matching-room__room-status" aria-label="房间状态">
+          <span>WAITING ROOM</span>
+          <strong>{modeLabel}</strong>
+          <small>{mapLabel}</small>
         </div>
         <div className="matching-room__profile-strip">
           <img src={loadout.skinImageSrc} alt="" />
@@ -104,8 +103,8 @@ export function MatchingOverlay({
             </div>
 
             <div className="matching-room__team-header">
-              <span>队伍 {Math.max(roomParticipants.length, 1)} / {slotCount}</span>
-              <em>{queueState ? "等待所有队员准备..." : "正在连接匹配服务..."}</em>
+              <span>队伍 {occupiedSlotCount} / {slotCount}</span>
+              <em>{queueState && occupiedSlotCount >= slotCount ? "所有席位已准备，等待开战同步..." : queueState ? "等待所有队员准备..." : "正在连接匹配服务..."}</em>
             </div>
 
             <div className="matching-room__slot-row" aria-label="Matchmaking slots">
@@ -129,7 +128,10 @@ export function MatchingOverlay({
                     <p>压制敌方玩家，占住裂隙核心，队伍保持火力优势即可取得胜利。</p>
                   </div>
                 </div>
-                <div className="matching-room__mode-options" aria-label="战斗模式选项">
+                <div
+                  className="matching-room__mode-options"
+                  aria-label="战斗模式选项"
+                >
                   {battleModeOptions.map((option) => {
                     const active = option.modeId === selectedBattleModeId;
                     return (
@@ -138,7 +140,6 @@ export function MatchingOverlay({
                         type="button"
                         className={cn("matching-room__mode-option", active && "matching-room__mode-option--active")}
                         aria-pressed={active}
-                        disabled={modeSelectionDisabled}
                         onClick={() => onBattleModeChange(option.modeId)}
                       >
                         <span>{translateModeLabel(option.label)}</span>
@@ -167,10 +168,10 @@ export function MatchingOverlay({
                 <div className="matching-room__timer-ring" style={progressStyle}>
                   <strong>{countdownLabel}</strong>
                 </div>
-                <span className="matching-room__timer-caption">预计 {Math.max(roomParticipants.length, 1)} / {slotCount} 名玩家</span>
+                <span className="matching-room__timer-caption">预计 {occupiedSlotCount} / {slotCount} 名席位</span>
                 <div className="matching-room__timer-bars" aria-hidden="true">
                   {Array.from({ length: slotCount }).map((_, index) => (
-                    <i key={index} className={index < Math.max(roomParticipants.length, 1) ? "is-filled" : ""} />
+                    <i key={index} className={index < occupiedSlotCount ? "is-filled" : ""} />
                   ))}
                 </div>
               </section>
@@ -304,8 +305,12 @@ function ChatLine({ name, time, text }: ChatLineProps) {
   );
 }
 
+function countOccupiedSlots(slots: MatchmakingSlotState[]): number {
+  return slots.filter((slot) => slot.kind !== "empty").length;
+}
+
 function resolveCountdownProgress(countdownMs: number, queueState: MatchmakingQueueState | null): number {
-  const durationMs = Math.max(1, queueState?.durationMs ?? 10000);
+  const durationMs = Math.max(1, queueState?.durationMs ?? MATCHMAKING_DURATION_MS);
   const remainingMs = Math.max(0, Math.min(durationMs, countdownMs));
   return 1 - remainingMs / durationMs;
 }

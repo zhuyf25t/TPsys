@@ -133,11 +133,15 @@ export function buildAuthoritativeBattleCommand({
   };
 }
 
-export function hasAuthoritativePreparedInputIntent({
-  input,
-  confirmedTarget
-}: AuthoritativePreparedInputResolution): boolean {
-  return (
+export function hasAuthoritativePreparedInputIntent(
+  {
+    input,
+    confirmedTarget,
+    preparedSkill
+  }: AuthoritativePreparedInputResolution,
+  previousCommand: AuthoritativeBattleCommand | null = null
+): boolean {
+  const hasActiveIntent = (
     Math.hypot(input.movement.x, input.movement.y) > 0.0001 ||
     input.primaryHeld ||
     input.sprint ||
@@ -148,7 +152,25 @@ export function hasAuthoritativePreparedInputIntent({
     input.castCritical ||
     input.switchWeaponDirection !== 0 ||
     input.switchWeaponIndex !== null ||
-    confirmedTarget !== null
+    confirmedTarget !== null ||
+    preparedSkill !== null
+  );
+
+  if (hasActiveIntent) {
+    return true;
+  }
+
+  return hasContinuousInputLatched(previousCommand);
+}
+
+function hasContinuousInputLatched(command: AuthoritativeBattleCommand | null): boolean {
+  return (
+    command !== null &&
+    (
+      Math.hypot(command.movement.x, command.movement.y) > 0.0001 ||
+      command.primaryHeld ||
+      command.sprint
+    )
   );
 }
 

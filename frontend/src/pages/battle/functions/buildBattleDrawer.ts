@@ -66,7 +66,7 @@ export function buildBattleDrawer(
         detail: "最近几条真实帖子。",
         emptyDetail: "没有帖子时保持空状态。",
         emptyTitle: "暂无讨论",
-        eyebrow: "Forum",
+        eyebrow: "论坛",
         items: discussionSummaries.slice(0, 3).map((topic) => ({
           detail: topic.excerpt,
           meta: `@${topic.author} / ${topic.updatedAt}`,
@@ -96,7 +96,7 @@ export function buildBattleDrawer(
         detail: "最近几条真实通知。",
         emptyDetail: "完成一局后，这里会出现新通知。",
         emptyTitle: "暂无邮件",
-        eyebrow: "Mails",
+        eyebrow: "站内信",
         items: mailSummaries.slice(0, 3).map((mail) => ({
           detail: mail.excerpt,
           meta: `${mail.senderLabel} / ${mail.receivedLabel}`,
@@ -119,7 +119,7 @@ export function buildBattleDrawer(
         eyebrow: "Social",
         items: friendRequestPreview.items,
         title: "好友通知",
-        viewAllPath: "/mails"
+        viewAllPath: "/friends"
       };
   }
 }

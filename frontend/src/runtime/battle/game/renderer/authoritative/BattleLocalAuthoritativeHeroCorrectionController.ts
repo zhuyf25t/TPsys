@@ -53,6 +53,9 @@ export class LocalAuthoritativeHeroCorrectionController {
 
     if (correction.mode === "smooth" && correction.targetPosition) {
       this.pendingCorrection = createPendingLocalAuthoritativeCorrection(correction.targetPosition);
+      if (!samePosition(currentPosition, correction.nextPosition)) {
+        this.displayPoseStore.writePosition(correction.nextPosition);
+      }
       return correction;
     }
 
@@ -90,4 +93,8 @@ export class LocalAuthoritativeHeroCorrectionController {
         return;
     }
   }
+}
+
+function samePosition(left: Vec2, right: Vec2): boolean {
+  return Math.hypot(right.x - left.x, right.y - left.y) <= 0.001;
 }

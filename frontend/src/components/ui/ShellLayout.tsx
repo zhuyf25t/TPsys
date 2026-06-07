@@ -38,7 +38,7 @@ export function ShellLayout({
           {!hidePageHeader ? (
             <header className="text-shell__header">
               <div>
-                <p className="text-shell__eyebrow">View All</p>
+                <p className="text-shell__eyebrow">总览</p>
                 <h2>{title}</h2>
                 <p>{subtitle}</p>
               </div>

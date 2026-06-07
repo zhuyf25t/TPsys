@@ -9,7 +9,7 @@ enum BattleMode {
 
 object BattleMode {
   def default: BattleMode =
-    BattleMode.Winter
+    BattleMode.Default
 
   def wireValue(value: BattleMode): String =
     value match {

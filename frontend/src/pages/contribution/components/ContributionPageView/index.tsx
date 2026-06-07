@@ -7,16 +7,17 @@ interface ContributionPageViewProps {
   entries: ContributionEntry[];
 }
 
+/** 中文名：贡献榜视图。游戏职责：展示真实账号、战报和治理调整生成的贡献榜。 */
 export function ContributionPageView({ entries }: ContributionPageViewProps) {
   return (
-    <ShellLayout title="贡献榜单" subtitle="真实账户、战报和治理调整生成的 contribution 列表。">
+    <ShellLayout title="贡献榜单" subtitle="真实账号、战报和治理调整生成的贡献列表。">
       {entries.length > 0 ? (
         <div className="content-page content-page--contribution">
           <section className="content-page__panel content-page__panel--main">
             <div className="panel-header panel-header--dense">
               <div>
-                <p className="eyebrow">Contribution</p>
-                <h4>Contribution list</h4>
+                <p className="eyebrow">贡献</p>
+                <h4>贡献榜</h4>
               </div>
               <span className="panel-header__meta">{entries.length} 位玩家</span>
             </div>
@@ -24,9 +25,9 @@ export function ContributionPageView({ entries }: ContributionPageViewProps) {
             <section className="cf-ranking-table cf-ranking-table--compact cf-ranking-table--contribution" aria-label="贡献榜单">
               <div className="cf-ranking-table__header">
                 <span>#</span>
-                <span>Handle</span>
+                <span>玩家</span>
                 <span className="cf-ranking-table__cell--status">状态</span>
-                <span>Contribution</span>
+                <span>贡献</span>
               </div>
               {entries.map((entry) => (
                 <div key={entry.handle} className="cf-ranking-table__row">
@@ -44,7 +45,7 @@ export function ContributionPageView({ entries }: ContributionPageViewProps) {
         </div>
       ) : (
         <section className="detail-card empty-state empty-state--dense">
-          <p className="eyebrow">Contribution</p>
+          <p className="eyebrow">贡献</p>
           <h3>当前没有贡献记录</h3>
           <p>完成对局、发帖或回复后，这里才会出现真实贡献数据。</p>
           <div className="cta-row">

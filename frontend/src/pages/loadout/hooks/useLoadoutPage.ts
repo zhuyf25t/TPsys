@@ -1,11 +1,9 @@
 import { useState, useSyncExternalStore } from "react";
 import {
-  getLoadoutPresets,
   getLoadoutSkillOptions,
   getLoadoutStateVersion,
   getLoadoutSummary,
   getSelectedSkillSlots,
-  setLoadoutPreset,
   setLoadoutSkin,
   setSkillSlot,
   subscribeLoadoutState,
@@ -41,7 +39,6 @@ export type { LoadoutSkillId, SkillSlotKey } from "../../../runtime/battle/loado
 export type LoadoutTone = "cyan" | "gold" | "ice";
 export type LoadoutAuthMode = "login" | "register" | null;
 export type LoadoutSummaryView = ReturnType<typeof getLoadoutSummary>;
-export type LoadoutPresetView = ReturnType<typeof getLoadoutPresets>[number];
 export type LoadoutSkillSlotView = ReturnType<typeof getSelectedSkillSlots>[number];
 export type LoadoutSkillOptionView = ReturnType<typeof getLoadoutSkillOptions>[number];
 export type LoadoutSkinOptionView = ReturnType<typeof getAuthSkinOptions>[number];
@@ -59,14 +56,12 @@ export interface LoadoutPageState {
   isAuthenticated: boolean;
   loadout: LoadoutSummaryView;
   openRegister: () => void;
-  presets: LoadoutPresetView[];
   previewSets: Record<LobbyQuickKey, LobbyPreviewSet>;
   primaryAction: LobbyShellProps["primaryAction"];
   quickActions: LobbyQuickAction[];
   railItems: NonNullable<LobbyShellProps["railItems"]>;
   roundDurationLabel: string;
   secondaryAction: LobbyShellProps["secondaryAction"];
-  selectPreset: (presetId: string) => void;
   selectSkin: (skinId: string) => void;
   selectedSlotBySkillId: Map<LoadoutSkillId, SkillSlotKey>;
   skillOptions: LoadoutSkillOptionView[];
@@ -77,7 +72,7 @@ export interface LoadoutPageState {
   unassignedSkillOptions: LoadoutSkillOptionView[];
 }
 
-/** 中文名称：配装页Hook。游戏职责：封装战前技能、武器、皮肤和大厅预览状态。 */
+/** 中文名称：配装页Hook。游戏职责：封装战前技能、皮肤和大厅预览状态。 */
 export function useLoadoutPage(): LoadoutPageState {
   const [authMode, setAuthMode] = useState<LoadoutAuthMode>(null);
   const [armedSlot, setArmedSlot] = useState<SkillSlotKey | null>(null);
@@ -86,7 +81,6 @@ export function useLoadoutPage(): LoadoutPageState {
   const authUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   useSyncExternalStore(subscribeLoadoutState, getLoadoutStateVersion, getLoadoutStateVersion);
   const loadout = getLoadoutSummary();
-  const presets = getLoadoutPresets();
   const skillSlots = getSelectedSkillSlots();
   const skillOptions = getLoadoutSkillOptions();
   const skinOptions = getAuthSkinOptions();
@@ -179,14 +173,13 @@ export function useLoadoutPage(): LoadoutPageState {
     battleCapacityLabel: `${BATTLE_ARENA_PLAYER_CAPACITY} 人`,
     closeAuthOverlay,
     completeAuth: closeAuthOverlay,
-    currentLoadoutLabel: `${loadout.presetLabel} | ${loadout.skinLabel}`,
+    currentLoadoutLabel: `${skillSlots.map((slot) => slot.label).join(" / ")} | ${loadout.skinLabel}`,
     focusedSkill,
     handleSkillClick,
     handleSlotClick,
     isAuthenticated: Boolean(authUser),
     loadout,
     openRegister,
-    presets,
     previewSets: buildPreviewSets(replaySummaries, discussionSummaries, mailSummaries, ratingEntries, friendRequestPreview, authUser?.handle),
     primaryAction,
     quickActions: [],
@@ -197,7 +190,6 @@ export function useLoadoutPage(): LoadoutPageState {
     ],
     roundDurationLabel: BATTLE_MATCH_DURATION_LABEL,
     secondaryAction,
-    selectPreset: setLoadoutPreset,
     selectSkin: setLoadoutSkin,
     selectedSlotBySkillId,
     selectedSkin,
@@ -234,7 +226,7 @@ function buildPreviewSets(
     },
     discussion: {
       title: "论坛",
-      eyebrow: "Forum",
+      eyebrow: "论坛",
       detail: "战术讨论和赛后复盘。",
       emptyTitle: "暂无讨论",
       emptyDetail: "没有真实帖子时保持空状态。",
@@ -262,7 +254,7 @@ function buildPreviewSets(
     },
     mails: {
       title: "最新通知",
-      eyebrow: "Mails",
+      eyebrow: "站内信",
       detail: "战后结算和系统通知。",
       emptyTitle: "暂无邮件",
       emptyDetail: "完成一局后，这里会出现新通知。",

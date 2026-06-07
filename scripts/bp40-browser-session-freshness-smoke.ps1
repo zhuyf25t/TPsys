@@ -618,15 +618,16 @@ try {
   Initialize-CdpPage -Client $secondClient
 
   $secondPlaying = Wait-PagePlaying -Client $secondClient -Label "tabB" -TimeoutSeconds $PlayingTimeoutSeconds
-  $secondSession = Get-LatestActiveSession $secondPlaying
+  $secondPersisted = Wait-LatestActiveSession -Client $secondClient -Label "tabB"
+  $secondSession = Get-LatestActiveSession $secondPersisted
   Assert-Condition ($null -ne $secondSession) "Second tab did not expose an active session."
   $secondState = Get-BattleState -BackendBase $backendBase -BattleId $secondSession.battleId
 
   Assert-Condition ($secondSession.battleId -ne $firstSession.battleId) "Second /battle?new=1 reused first battleId=$($firstSession.battleId)."
   Assert-Condition ([int64]$secondState.elapsedMs -le $FreshElapsedMaxMs) "Second backend elapsed is not fresh: battleId=$($secondSession.battleId) elapsedMs=$($secondState.elapsedMs)."
-  Assert-TimerFreshness -Context $secondPlaying -State $secondState -Label "Second /battle?new=1"
+  Assert-TimerFreshness -Context $secondPersisted -State $secondState -Label "Second /battle?new=1"
 
-  Write-Host "Second battle: id=$($secondSession.battleId) timer=$($secondPlaying.timer) localElapsedMs=$($secondSession.elapsedMs) backendElapsedMs=$($secondState.elapsedMs)"
+  Write-Host "Second battle: id=$($secondSession.battleId) timer=$($secondPersisted.timer) localElapsedMs=$($secondSession.elapsedMs) backendElapsedMs=$($secondState.elapsedMs)"
 
   Write-Host "Waiting for old tab to attempt periodic/page-lifecycle active-session persistence..."
   Start-Sleep -Milliseconds 6500
@@ -642,18 +643,19 @@ try {
   Start-Sleep -Milliseconds 800
   Invoke-CdpCommand -Client $secondClient -Method "Page.navigate" -Params @{ url = (Join-TestUrl -Base $frontendBase -Path "/battle") } | Out-Null
   $plainPlaying = Wait-PagePlaying -Client $secondClient -Label "tabB ordinary /battle" -TimeoutSeconds $PlayingTimeoutSeconds
-  $plainSession = Get-LatestActiveSession $plainPlaying
+  $plainPersisted = Wait-LatestActiveSession -Client $secondClient -Label "tabB ordinary /battle"
+  $plainSession = Get-LatestActiveSession $plainPersisted
   Assert-Condition ($null -ne $plainSession) "Ordinary /battle did not expose an active session."
   $plainState = Get-BattleState -BackendBase $backendBase -BattleId $plainSession.battleId
   Assert-Condition ($plainSession.battleId -ne $secondSession.battleId) "Ordinary /battle restored prior active battleId=$($secondSession.battleId) without resume=1."
   Assert-Condition ([int64]$plainState.elapsedMs -le $FreshElapsedMaxMs) "Ordinary /battle backend elapsed is not fresh: battleId=$($plainSession.battleId) elapsedMs=$($plainState.elapsedMs)."
-  Assert-TimerFreshness -Context $plainPlaying -State $plainState -Label "Ordinary /battle"
+  Assert-TimerFreshness -Context $plainPersisted -State $plainState -Label "Ordinary /battle"
 
   Write-Host "[PASS] BP-40C browser session freshness"
   Write-Host "firstBattleId=$($firstSession.battleId)"
   Write-Host "secondBattleId=$($secondSession.battleId)"
   Write-Host "plainBattleId=$($plainSession.battleId)"
-  Write-Host "plainTimer=$($plainPlaying.timer)"
+  Write-Host "plainTimer=$($plainPersisted.timer)"
   Write-Host "plainBackendElapsedMs=$($plainState.elapsedMs)"
 } finally {
   Close-Cdp -Client $secondClient

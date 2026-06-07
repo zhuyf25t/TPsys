@@ -9,6 +9,7 @@ export interface AuthoritativeBattleInputSnapshot {
   aim: Vec2;
   pointerWorld: Vec2 | null;
   primaryHeld: boolean;
+  primaryJustPressed: boolean;
   sprint: boolean;
   reloadPressed: boolean;
   castDash: boolean;
@@ -55,6 +56,7 @@ export function createAuthoritativeBattleInputCapture({
       return;
     }
 
+    const wasPressed = pressedKeys.has(key);
     pressedKeys.add(key);
     let immediateCommandIntent = false;
     if (key === "t" && !event.repeat) {
@@ -62,9 +64,14 @@ export function createAuthoritativeBattleInputCapture({
       immediateCommandIntent = true;
     }
     const skillPresses = readSkillBindingPresses(getSelectedSkillBindings(), {
-      Q: key === "q" && !event.repeat,
-      E: key === "e" && !event.repeat,
-      R: key === "r" && !event.repeat
+      Q: key === "q" && !event.repeat && !wasPressed,
+      E: key === "e" && !event.repeat && !wasPressed,
+      R: key === "r" && !event.repeat && !wasPressed
+    });
+    recordAuthoritativeInputDiagnostics({
+      key,
+      repeat: event.repeat,
+      skillPresses
     });
     const numericWeaponIndex = readNumericWeaponIndex(event.key, event.code);
     if (numericWeaponIndex !== null && !event.repeat) {
@@ -74,9 +81,8 @@ export function createAuthoritativeBattleInputCapture({
     castDash = castDash || skillPresses.Dash;
     castBlink = castBlink || skillPresses.Blink;
     castFreeze = castFreeze || skillPresses.Freeze;
-    const criticalPressed = key === "control" && !event.repeat;
-    castCritical = castCritical || skillPresses.Critical || criticalPressed;
-    if (skillPresses.Dash || skillPresses.Blink || skillPresses.Freeze || skillPresses.Critical || criticalPressed) {
+    castCritical = castCritical || skillPresses.Critical;
+    if (skillPresses.Dash || skillPresses.Blink || skillPresses.Freeze || skillPresses.Critical) {
       immediateCommandIntent = true;
     }
     if (immediateCommandIntent) {
@@ -163,6 +169,7 @@ export function createAuthoritativeBattleInputCapture({
         aim: fallbackAim,
         pointerWorld,
         primaryHeld: primaryFireIntent,
+        primaryJustPressed: primaryClickPending,
         sprint: pressedKeys.has("shift"),
         reloadPressed,
         castDash,
@@ -193,6 +200,35 @@ export function createAuthoritativeBattleInputCapture({
       window.removeEventListener("wheel", handleWheel);
     }
   };
+}
+
+function recordAuthoritativeInputDiagnostics(input: {
+  key: string;
+  repeat: boolean;
+  skillPresses: Record<string, boolean>;
+}): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const root = ((window as unknown as {
+    __slayDemoBattleDiagnostics?: {
+      authoritativeInput?: {
+        keyEvents?: unknown[];
+      };
+    };
+  }).__slayDemoBattleDiagnostics ??= {});
+  const diagnostics = (root.authoritativeInput ??= {});
+  const keyEvents = (diagnostics.keyEvents ??= []);
+  keyEvents.push({
+    atMs: typeof performance !== "undefined" ? performance.now() : Date.now(),
+    key: input.key,
+    repeat: input.repeat,
+    skillPresses: { ...input.skillPresses }
+  });
+  if (keyEvents.length > 60) {
+    keyEvents.splice(0, keyEvents.length - 60);
+  }
 }
 
 function readNumericWeaponIndex(key: string, code?: string): number | null {

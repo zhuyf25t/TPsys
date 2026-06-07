@@ -323,6 +323,99 @@ body:has(.text-shell) #app {
   outline-offset: 2px;
 }
 
+.friends-overview {
+  display: grid;
+  gap: 12px;
+}
+
+.friends-overview__warning {
+  margin: 0;
+  color: #ffd1d8;
+}
+
+.friends-board {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.76fr) minmax(0, 1.24fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.friends-contact-list,
+.friends-request-list {
+  display: grid;
+  gap: 10px;
+}
+
+.friend-contact-card,
+.friend-request-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 214, 112, 0.12);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.018) 100%),
+    rgba(255, 255, 255, 0.018);
+}
+
+.friend-contact-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.friend-contact-card div,
+.friend-request-card__main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.friend-contact-card strong,
+.friend-request-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-0);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-contact-card span,
+.friend-request-card span {
+  color: var(--text-2);
+}
+
+.friend-request-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.friend-request-card--pending {
+  border-color: rgba(117, 232, 255, 0.2);
+  background:
+    linear-gradient(90deg, rgba(117, 232, 255, 0.08) 0%, rgba(255, 255, 255, 0.018) 26%),
+    rgba(255, 255, 255, 0.018);
+}
+
+.friend-request-card--accepted {
+  border-color: rgba(124, 255, 197, 0.18);
+}
+
+.friend-request-card--rejected {
+  opacity: 0.78;
+}
+
+.friend-request-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.friends-empty-panel {
+  margin: 0;
+}
+
 .mail-card {
   width: 100%;
   display: grid;

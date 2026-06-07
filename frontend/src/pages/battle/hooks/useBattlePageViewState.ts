@@ -2,6 +2,7 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import type { LocalBattleReturnSummary } from "../../../runtime/battle/local/state/battleLocalGateway";
 import {
   DEFAULT_BATTLE_MODE_ID,
+  resolveBattlePlayMode,
   type BattlePlayModeId
 } from "../../../runtime/battle/microservices/world/services/BattleArenaCatalog";
 import type { MatchmakingQueueState } from "../../../runtime/battle/matchmaking/matchmakingQueueTypes";
@@ -36,7 +37,7 @@ export function useBattlePageViewState(): BattlePageViewState {
   const [currentReplayId, setCurrentReplayId] = useState<string | null>(null);
   const [matchPhase, setMatchPhase] = useState<MatchPhase>("matching");
   const [queueState, setQueueState] = useState<MatchmakingQueueState | null>(null);
-  const [selectedBattleModeId, setSelectedBattleModeId] = useState<BattlePlayModeId>(DEFAULT_BATTLE_MODE_ID);
+  const [selectedBattleModeId, setSelectedBattleModeId] = useState<BattlePlayModeId>(resolveInitialBattleModeId);
   const [activeDrawer, setActiveDrawer] = useState<BattleDrawerId | null>(null);
   const [entryBlockNotice, setEntryBlockNotice] = useState<string | null>(null);
 
@@ -60,4 +61,14 @@ export function useBattlePageViewState(): BattlePageViewState {
     entryBlockNotice,
     setEntryBlockNotice
   };
+}
+
+function resolveInitialBattleModeId(): BattlePlayModeId {
+  if (typeof window === "undefined") {
+    return DEFAULT_BATTLE_MODE_ID;
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const modeId = searchParams.get("mode") ?? searchParams.get("modeId");
+  return modeId ? resolveBattlePlayMode(modeId).modeId : DEFAULT_BATTLE_MODE_ID;
 }

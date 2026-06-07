@@ -25,7 +25,7 @@ import route.Http4sCors.withCors
 import java.sql.Connection
 
 object BattleHttp4sRoutes {
-  private val StateStreamInterval = 500.millis
+  private val StateStreamInterval = 150.millis
 
   def routes(
     context: BattleAPIRuntimeContext,
@@ -33,7 +33,10 @@ object BattleHttp4sRoutes {
     connectionResource: Resource[IO, Connection]
   ): HttpRoutes[IO] =
     APIMessageRouter.routes(
-      apiMessages = BattleRoutes.apiMessages(context),
+      apiMessages = BattleRoutes.runtimeApiMessages(context),
+      resolveUserToken = resolveUserToken(identityService)
+    ) <+> APIMessageRouter.routes(
+      apiMessages = BattleRoutes.connectionBackedResultApiMessages,
       resolveUserToken = resolveUserToken(identityService),
       connectionResource = connectionResource
     ) <+> publicStateRoutes(context.stateService)

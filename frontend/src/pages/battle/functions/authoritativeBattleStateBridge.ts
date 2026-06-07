@@ -8,6 +8,10 @@ export type AuthoritativeStatePollResultDecision =
   | { readonly kind: "apply"; readonly state: AuthoritativeBattleState }
   | { readonly kind: "skip"; readonly reason: "missing_state" | "finalized" };
 
+export type AuthoritativeStateApplicationDecision =
+  | { readonly kind: "apply"; readonly state: AuthoritativeBattleState }
+  | { readonly kind: "skip"; readonly reason: "stale_state" };
+
 export type AuthoritativeStatePollingTimerDecision =
   | { readonly kind: "start" }
   | { readonly kind: "skip"; readonly reason: "timer_active" };
@@ -29,6 +33,11 @@ interface AuthoritativeStatePollDecisionInput {
 interface AuthoritativeStatePollResultDecisionInput {
   readonly state: AuthoritativeBattleState | null;
   readonly finalized: boolean;
+}
+
+interface AuthoritativeStateApplicationDecisionInput {
+  readonly state: AuthoritativeBattleState;
+  readonly lastAppliedState: AuthoritativeBattleState | null;
 }
 
 interface AuthoritativeStatePollingTimerDecisionInput {
@@ -75,6 +84,33 @@ export function resolveAuthoritativeStatePollResultDecision({
   }
 
   return { kind: "apply", state };
+}
+
+export function resolveAuthoritativeStateApplicationDecision({
+  state,
+  lastAppliedState
+}: AuthoritativeStateApplicationDecisionInput): AuthoritativeStateApplicationDecision {
+  if (!lastAppliedState || state.battleId !== lastAppliedState.battleId) {
+    return { kind: "apply", state };
+  }
+
+  if (state.tick < lastAppliedState.tick) {
+    return { kind: "skip", reason: "stale_state" };
+  }
+  if (state.tick > lastAppliedState.tick) {
+    return { kind: "apply", state };
+  }
+
+  if (state.serverTime < lastAppliedState.serverTime) {
+    return { kind: "skip", reason: "stale_state" };
+  }
+  if (state.serverTime > lastAppliedState.serverTime) {
+    return { kind: "apply", state };
+  }
+
+  return state.elapsedMs > lastAppliedState.elapsedMs
+    ? { kind: "apply", state }
+    : { kind: "skip", reason: "stale_state" };
 }
 
 export function resolveAuthoritativeStatePollingTimerDecision({

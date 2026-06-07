@@ -15,6 +15,9 @@ param(
   [int]$ClientAWindowY = 40,
   [int]$ClientBWindowX = 1040,
   [int]$ClientBWindowY = 40,
+  [ValidateSet("winter", "default", "autumn", "normal")]
+  [string]$ModeId = "winter",
+  [int]$PreInputSettleMs = 1700,
   [string]$SummaryPath,
   [switch]$Headful,
   [switch]$DisableGpu,
@@ -57,6 +60,19 @@ function Join-TestUrl {
   }
 
   return "$Base$normalizedPath"
+}
+
+function Resolve-Bp28EffectiveInputDurationMs {
+  param(
+    [Parameter(Mandatory = $true)][ValidateSet("StraightFire", "MixedMovement", "DualClientPressure", "SkillPressure", "TargetedSkillPressure", "TargetedSkillNoopPressure")][string]$Scenario,
+    [Parameter(Mandatory = $true)][int]$RequestedInputDurationMs
+  )
+
+  if ($Scenario -eq "TargetedSkillPressure" -or $Scenario -eq "TargetedSkillNoopPressure") {
+    return [Math]::Max($RequestedInputDurationMs, 4500)
+  }
+
+  return $RequestedInputDurationMs
 }
 
 function Read-ErrorBody {
@@ -246,14 +262,28 @@ function New-ClientUrl {
     [Parameter(Mandatory = $true)][string]$BaseUrl,
     [Parameter(Mandatory = $true)][string]$Handle,
     [Parameter(Mandatory = $true)][string]$PasswordValue,
-    [Parameter(Mandatory = $true)][string]$Skin
+    [Parameter(Mandatory = $true)][string]$Skin,
+    [Parameter(Mandatory = $true)][ValidateSet("winter", "default", "autumn", "normal")][string]$ModeId
   )
 
   $encodedHandle = [System.Uri]::EscapeDataString($Handle)
   $encodedPassword = [System.Uri]::EscapeDataString($PasswordValue)
   $encodedSkin = [System.Uri]::EscapeDataString($Skin)
-  $encodedTarget = [System.Uri]::EscapeDataString("/battle?new=1&diagnostics=1")
+  $encodedTarget = [System.Uri]::EscapeDataString("/battle?new=1&diagnostics=1&mode=$ModeId")
   return "$BaseUrl/bp14-client.html?handle=$encodedHandle&password=$encodedPassword&skin=$encodedSkin&target=$encodedTarget"
+}
+
+function Resolve-ExpectedMapIdForMode {
+  param(
+    [Parameter(Mandatory = $true)][ValidateSet("winter", "default", "autumn", "normal")][string]$ModeId
+  )
+
+  switch ($ModeId) {
+    "winter" { return "winter-hunt-v1" }
+    "default" { return "default-industrial-arena" }
+    "autumn" { return "fall-hunt-v1" }
+    "normal" { return "normal-hunt-v1" }
+  }
 }
 
 function Start-CdpBrowser {
@@ -642,11 +672,27 @@ function Get-PageStatus {
   const shell = document.querySelector(".arena-shell");
   const matching = document.querySelector(".arena-shell__overlay--matching");
   const settled = document.querySelector(".arena-shell__overlay--settled");
+  const runtimeRoot = document.querySelector("[aria-label='battle runtime']") || document.querySelector(".arena-shell__runtime");
+  const runtimeCanvas = runtimeRoot ? runtimeRoot.querySelector("canvas") : document.querySelector("canvas");
+  const hudRoot = document.querySelector("#hud-root");
+  const hudText = hudRoot ? hudRoot.textContent.trim() : "";
+  const legacyPlaying = Boolean(shell && shell.classList.contains("arena-shell--playing"));
+  const modernPlaying =
+    Boolean(runtimeCanvas && hudRoot) &&
+    !matching &&
+    !settled &&
+    (
+      /生命值|武器栏|小地图|战斗日志|权威同步/.test(hudText) ||
+      runtimeCanvas.getBoundingClientRect().width > 0
+    );
   return {
     href: window.location.href,
     readyState: document.readyState,
-    playing: Boolean(shell && shell.classList.contains("arena-shell--playing")),
+    playing: legacyPlaying || modernPlaying,
     shellClass: shell ? shell.className : null,
+    runtimeCanvas: Boolean(runtimeCanvas),
+    hudRoot: Boolean(hudRoot),
+    hudText: hudText.slice(0, 200),
     matchingText: matching ? matching.textContent.trim().slice(0, 200) : null,
     settledText: settled ? settled.textContent.trim().slice(0, 200) : null,
     bodyText: document.body ? document.body.textContent.trim().slice(0, 300) : ""
@@ -802,11 +848,28 @@ function Get-PageBattleContext {
 
   const primarySession = storageSessions.find((session) => session.battleId) || null;
   const shell = document.querySelector(".arena-shell");
+  const matching = document.querySelector(".arena-shell__overlay--matching");
+  const settled = document.querySelector(".arena-shell__overlay--settled");
+  const runtimeRoot = document.querySelector("[aria-label='battle runtime']") || document.querySelector(".arena-shell__runtime");
+  const runtimeCanvas = runtimeRoot ? runtimeRoot.querySelector("canvas") : document.querySelector("canvas");
+  const hudRoot = document.querySelector("#hud-root");
+  const hudText = hudRoot ? hudRoot.textContent.trim() : "";
+  const legacyPlaying = Boolean(shell && shell.classList.contains("arena-shell--playing"));
+  const modernPlaying =
+    Boolean(runtimeCanvas && hudRoot) &&
+    !matching &&
+    !settled &&
+    (
+      /生命值|武器栏|小地图|战斗日志|权威同步/.test(hudText) ||
+      runtimeCanvas.getBoundingClientRect().width > 0
+    );
   return {
     href: window.location.href,
     readyState: document.readyState,
-    playing: Boolean(shell && shell.classList.contains("arena-shell--playing")),
+    playing: legacyPlaying || modernPlaying,
     shellClass: shell ? shell.className : null,
+    runtimeCanvas: Boolean(runtimeCanvas),
+    hudRoot: Boolean(hudRoot),
     authHandle: window.localStorage.getItem("slay-demo.auth.session.v1"),
     sessionToken: window.localStorage.getItem("slay-demo.auth.session-token.v1"),
     battleId: primarySession?.battleId || Array.from(discoveredBattleIds)[0] || null,
@@ -820,6 +883,32 @@ function Get-PageBattleContext {
 '@
 
   return Invoke-CdpEvaluate -Client $Client -Expression $expression
+}
+
+function Wait-PageBattleContext {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][string]$Label,
+    [int]$TimeoutMs = 4000,
+    [int]$PollIntervalMs = 150
+  )
+
+  $deadline = [DateTimeOffset]::UtcNow.AddMilliseconds($TimeoutMs)
+  $lastContext = $null
+  while ([DateTimeOffset]::UtcNow -lt $deadline) {
+    $lastContext = Get-PageBattleContext -Client $Client
+    if (
+      $null -ne $lastContext -and
+      -not [string]::IsNullOrWhiteSpace($lastContext.battleId) -and
+      -not [string]::IsNullOrWhiteSpace($lastContext.localAuthoritativePlayerId)
+    ) {
+      return $lastContext
+    }
+
+    Start-Sleep -Milliseconds $PollIntervalMs
+  }
+
+  return $lastContext
 }
 
 function Start-RafSample {
@@ -1168,7 +1257,7 @@ function Get-InputPoint {
 
   $expression = @'
 (() => {
-  const root = document.querySelector(".arena-shell__runtime") || document.querySelector(".arena-shell__viewport") || document.body;
+  const root = document.querySelector("[aria-label='battle runtime']") || document.querySelector(".arena-shell__runtime") || document.querySelector(".arena-shell__viewport") || document.body;
   const rect = root.getBoundingClientRect();
   const width = Math.max(1, rect.width || window.innerWidth || 1280);
   const height = Math.max(1, rect.height || window.innerHeight || 720);
@@ -1219,6 +1308,25 @@ function Send-CdpKeyEvent {
     windowsVirtualKeyCode = $virtualKeyCode
     nativeVirtualKeyCode = $virtualKeyCode
   } | Out-Null
+
+  $domType = $(if ($Type -eq "keyDown") { "keydown" } else { "keyup" })
+  $expression = @"
+(() => {
+  const event = new KeyboardEvent("$domType", {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    key: "$Key",
+    code: "Key$upperKey",
+    keyCode: $virtualKeyCode,
+    which: $virtualKeyCode
+  });
+  window.dispatchEvent(event);
+  document.dispatchEvent(event);
+  return true;
+})()
+"@
+  Invoke-CdpEvaluate -Client $Client -Expression $expression | Out-Null
 }
 
 function Set-CdpMovementKeys {
@@ -1273,6 +1381,8 @@ function Send-DomMouseEvent {
   $expression = @"
 (() => {
   const target =
+    document.querySelector("[aria-label='battle runtime'] canvas") ||
+    document.querySelector("[aria-label='battle runtime']") ||
     document.querySelector(".arena-shell__runtime canvas") ||
     document.querySelector(".arena-shell__runtime") ||
     document.querySelector(".arena-shell__viewport") ||
@@ -1293,6 +1403,41 @@ function Send-DomMouseEvent {
 "@
 
   Invoke-CdpEvaluate -Client $Client -Expression $expression | Out-Null
+}
+
+function Send-BattleMouseEvent {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][ValidateSet("mouseMoved", "mousePressed", "mouseReleased")][string]$Type,
+    [Parameter(Mandatory = $true)][int]$X,
+    [Parameter(Mandatory = $true)][int]$Y,
+    [Parameter(Mandatory = $true)][int]$Buttons,
+    [string]$Button = "none",
+    [int]$ClickCount = 0,
+    [switch]$SkipDomFallback
+  )
+
+  $params = @{
+    type = $Type
+    x = $X
+    y = $Y
+    button = $Button
+    buttons = $Buttons
+  }
+  if ($ClickCount -gt 0) {
+    $params.clickCount = $ClickCount
+  }
+
+  Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params $params | Out-Null
+
+  $domType = switch ($Type) {
+    "mousePressed" { "mousedown" }
+    "mouseReleased" { "mouseup" }
+    default { "mousemove" }
+  }
+  if (-not $SkipDomFallback) {
+    Send-DomMouseEvent -Client $Client -Type $domType -X $X -Y $Y -Buttons $Buttons
+  }
 }
 
 function Get-MixedMovementKeys {
@@ -1440,16 +1585,9 @@ function Get-TargetedSkillNoopAimPoint {
   $maxX = [Math]::Max($minX, $WindowWidth - 8)
   $maxY = [Math]::Max($minY, $WindowHeight - 8)
 
-  if ($Skill -eq "Freeze") {
-    return [pscustomobject]@{
-      x = $WindowWidth + 640
-      y = -360
-    }
-  }
-
   return [pscustomobject]@{
-    x = $maxX
-    y = $minY
+    x = $WindowWidth + 2048
+    y = $WindowHeight + 2048
   }
 }
 
@@ -1463,24 +1601,10 @@ function Set-CdpMousePressed {
   )
 
   if ($ShouldPress -and -not $MousePressed.Value) {
-    Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mousePressed"
-      x = $X
-      y = $Y
-      button = "left"
-      buttons = 1
-      clickCount = 1
-    } | Out-Null
+    Send-BattleMouseEvent -Client $Client -Type "mousePressed" -X $X -Y $Y -Button "left" -Buttons 1 -ClickCount 1
     $MousePressed.Value = $true
   } elseif (-not $ShouldPress -and $MousePressed.Value) {
-    Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mouseReleased"
-      x = $X
-      y = $Y
-      button = "left"
-      buttons = 0
-      clickCount = 1
-    } | Out-Null
+    Send-BattleMouseEvent -Client $Client -Type "mouseReleased" -X $X -Y $Y -Button "left" -Buttons 0 -ClickCount 1
     $MousePressed.Value = $false
   }
 }
@@ -1659,20 +1783,8 @@ function Invoke-DualClientPressureInputBurst {
     if (-not $wasPressedB -and $mousePressedB) { $firePressCountB += 1 }
     if ($wasPressedB -and -not $mousePressedB) { $fireReleaseCountB += 1 }
 
-    Invoke-CdpCommand -Client $ClientA -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mouseMoved"
-      x = [int]$aimA.x
-      y = [int]$aimA.y
-      button = "none"
-      buttons = $(if ($mousePressedA) { 1 } else { 0 })
-    } | Out-Null
-    Invoke-CdpCommand -Client $ClientB -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mouseMoved"
-      x = [int]$aimB.x
-      y = [int]$aimB.y
-      button = "none"
-      buttons = $(if ($mousePressedB) { 1 } else { 0 })
-    } | Out-Null
+    Send-BattleMouseEvent -Client $ClientA -Type "mouseMoved" -X ([int]$aimA.x) -Y ([int]$aimA.y) -Buttons $(if ($mousePressedA) { 1 } else { 0 })
+    Send-BattleMouseEvent -Client $ClientB -Type "mouseMoved" -X ([int]$aimB.x) -Y ([int]$aimB.y) -Buttons $(if ($mousePressedB) { 1 } else { 0 })
     $aimSampleCountA += 1
     $aimSampleCountB += 1
 
@@ -1810,13 +1922,7 @@ function Invoke-InputBurst {
   Invoke-CdpCommand -Client $Client -Method "Page.bringToFront" -Params @{} | Out-Null
   Invoke-CdpEvaluate -Client $Client -Expression "(() => { window.focus(); document.body && document.body.focus && document.body.focus(); return true; })()" | Out-Null
   $focusAfterBringToFront = Get-PageFocusStatus -Client $Client
-  Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-    type = "mouseMoved"
-    x = $x
-    y = $y
-    button = "none"
-    buttons = 0
-  } | Out-Null
+  Send-BattleMouseEvent -Client $Client -Type "mouseMoved" -X $x -Y $y -Buttons 0
   $inputStartPageMarker = Read-PageTimingMarker -Client $Client
   $inputDispatchStartPageMarker = $null
   $inputEventProbeInstall = Install-InputEventProbe -Client $Client
@@ -1879,27 +1985,13 @@ function Invoke-InputBurst {
   if ($Scenario -eq "StraightFire") {
     $inputDispatchStartPageMarker = Read-PageTimingMarker -Client $Client
     Set-CdpMovementKeys -Client $Client -DesiredKeys @("d") -PressedKeys $pressedMovementKeys
-    Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mousePressed"
-      x = $x
-      y = $y
-      button = "left"
-      buttons = 1
-      clickCount = 1
-    } | Out-Null
+    Send-BattleMouseEvent -Client $Client -Type "mousePressed" -X $x -Y $y -Button "left" -Buttons 1 -ClickCount 1
     $mousePressed = $true
     $firePressCount += 1
   } elseif ($Scenario -eq "MixedMovement") {
     $inputDispatchStartPageMarker = Read-PageTimingMarker -Client $Client
     Set-CdpMovementKeys -Client $Client -DesiredKeys (Get-MixedMovementKeys -ElapsedMs 0 -DurationMs $DurationMs) -PressedKeys $pressedMovementKeys
-    Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mousePressed"
-      x = $x
-      y = $y
-      button = "left"
-      buttons = 1
-      clickCount = 1
-    } | Out-Null
+    Send-BattleMouseEvent -Client $Client -Type "mousePressed" -X $x -Y $y -Button "left" -Buttons 1 -ClickCount 1
     $mousePressed = $true
     $firePressCount += 1
     $mixedFireDispatched = $true
@@ -2072,26 +2164,8 @@ function Invoke-InputBurst {
             }
             $confirmX = [int]$confirmAim.x
             $confirmY = [int]$confirmAim.y
-            if ($Scenario -eq "TargetedSkillNoopPressure") {
-              Send-DomMouseEvent -Client $Client -Type "mousemove" -X $confirmX -Y $confirmY -Buttons 0
-              Send-DomMouseEvent -Client $Client -Type "mousedown" -X $confirmX -Y $confirmY -Buttons 1
-            } else {
-              Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-                type = "mouseMoved"
-                x = $confirmX
-                y = $confirmY
-                button = "none"
-                buttons = 0
-              } | Out-Null
-              Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-                type = "mousePressed"
-                x = $confirmX
-                y = $confirmY
-                button = "left"
-                buttons = 1
-                clickCount = 1
-              } | Out-Null
-            }
+            Send-BattleMouseEvent -Client $Client -Type "mouseMoved" -X $confirmX -Y $confirmY -Buttons 0 -SkipDomFallback:($Scenario -eq "TargetedSkillNoopPressure")
+            Send-BattleMouseEvent -Client $Client -Type "mousePressed" -X $confirmX -Y $confirmY -Button "left" -Buttons 1 -ClickCount 1 -SkipDomFallback:($Scenario -eq "TargetedSkillNoopPressure")
             $pressedTargetedConfirmIndexes[$confirmIndex] = $true
             $targetedConfirmPressedThisLoop[$confirmIndex] = $true
             $mousePressed = $true
@@ -2116,18 +2190,7 @@ function Invoke-InputBurst {
             }
             $confirmX = [int]$confirmAim.x
             $confirmY = [int]$confirmAim.y
-            if ($Scenario -eq "TargetedSkillNoopPressure") {
-              Send-DomMouseEvent -Client $Client -Type "mouseup" -X $confirmX -Y $confirmY -Buttons 0
-            } else {
-              Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-                type = "mouseReleased"
-                x = $confirmX
-                y = $confirmY
-                button = "left"
-                buttons = 0
-                clickCount = 1
-              } | Out-Null
-            }
+            Send-BattleMouseEvent -Client $Client -Type "mouseReleased" -X $confirmX -Y $confirmY -Button "left" -Buttons 0 -ClickCount 1 -SkipDomFallback:($Scenario -eq "TargetedSkillNoopPressure")
             $releasedTargetedConfirmIndexes[$confirmIndex] = $true
             $mousePressed = $false
             $fireReleaseCount += 1
@@ -2141,26 +2204,12 @@ function Invoke-InputBurst {
         $elapsedMs -lt $mixedFireEndMs -and
         ($Scenario -eq "MixedMovement" -or $Scenario -eq "SkillPressure")
       ) {
-        Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-          type = "mousePressed"
-          x = $x
-          y = $y
-          button = "left"
-          buttons = 1
-          clickCount = 1
-        } | Out-Null
+        Send-BattleMouseEvent -Client $Client -Type "mousePressed" -X $x -Y $y -Button "left" -Buttons 1 -ClickCount 1
         $mousePressed = $true
         $firePressCount += 1
         $mixedFireDispatched = $true
       } elseif ($mousePressed -and $elapsedMs -ge $mixedFireEndMs) {
-        Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-          type = "mouseReleased"
-          x = $x
-          y = $y
-          button = "left"
-          buttons = 0
-          clickCount = 1
-        } | Out-Null
+        Send-BattleMouseEvent -Client $Client -Type "mouseReleased" -X $x -Y $y -Button "left" -Buttons 0 -ClickCount 1
         $mousePressed = $false
         $fireReleaseCount += 1
       }
@@ -2181,17 +2230,7 @@ function Invoke-InputBurst {
       $dispatchY = $y
     }
 
-    if ($Scenario -eq "TargetedSkillNoopPressure") {
-      Send-DomMouseEvent -Client $Client -Type "mousemove" -X $dispatchX -Y $dispatchY -Buttons $(if ($mousePressed) { 1 } else { 0 })
-    } else {
-      Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-        type = "mouseMoved"
-        x = $dispatchX
-        y = $dispatchY
-        button = "none"
-        buttons = $(if ($mousePressed) { 1 } else { 0 })
-      } | Out-Null
-    }
+    Send-BattleMouseEvent -Client $Client -Type "mouseMoved" -X $dispatchX -Y $dispatchY -Buttons $(if ($mousePressed) { 1 } else { 0 }) -SkipDomFallback:($Scenario -eq "TargetedSkillNoopPressure")
 
     $probeAttempt += 1
     if ($canProbeLocalFeedback) {
@@ -2290,27 +2329,13 @@ function Invoke-InputBurst {
   }
 
   if ($Scenario -eq "MixedMovement" -and -not $mixedFireDispatched) {
-    Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mousePressed"
-      x = $x
-      y = $y
-      button = "left"
-      buttons = 1
-      clickCount = 1
-    } | Out-Null
+    Send-BattleMouseEvent -Client $Client -Type "mousePressed" -X $x -Y $y -Button "left" -Buttons 1 -ClickCount 1
     $mousePressed = $true
     $firePressCount += 1
   }
 
   if ($mousePressed) {
-    Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
-      type = "mouseReleased"
-      x = $x
-      y = $y
-      button = "left"
-      buttons = 0
-      clickCount = 1
-    } | Out-Null
+    Send-BattleMouseEvent -Client $Client -Type "mouseReleased" -X $x -Y $y -Button "left" -Buttons 0 -ClickCount 1
     $fireReleaseCount += 1
   }
   Set-CdpMovementKeys -Client $Client -DesiredKeys @() -PressedKeys $pressedMovementKeys
@@ -3241,7 +3266,9 @@ function Install-InputEventProbe {
     timeOriginMs: typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin) ? performance.timeOrigin : null,
     first: null,
     firstMovement: null,
-    firstFire: null
+    firstFire: null,
+    events: [],
+    keyCounts: {}
   };
   const cleanup = () => {
     window.removeEventListener("keydown", onInput, true);
@@ -3258,10 +3285,19 @@ function Install-InputEventProbe {
       pageMs,
       type: event.type,
       keyOrButton: event.type === "keydown" ? event.key : event.button,
+      code: event.type === "keydown" ? event.code : null,
       wallMs: Number.isFinite(timeOriginMs) && Number.isFinite(pageMs) ? timeOriginMs + pageMs : Date.now(),
       dateNowMs: Date.now(),
       timeOriginMs
     };
+    probe.events.push(input);
+    if (probe.events.length > 80) {
+      probe.events.shift();
+    }
+    if (event.type === "keydown") {
+      const normalizedKey = typeof event.key === "string" ? event.key.toLowerCase() : "";
+      probe.keyCounts[normalizedKey] = (probe.keyCounts[normalizedKey] || 0) + 1;
+    }
     if (!probe.first) {
       probe.first = input;
     }
@@ -3344,7 +3380,9 @@ function Read-InputEventProbe {
     firstFireInputEventKeyOrButton: firstFire ? firstFire.keyOrButton : null,
     firstFireInputEventWallMs: firstFire ? firstFire.wallMs : null,
     firstFireInputEventDateNowMs: firstFire ? firstFire.dateNowMs : null,
-    firstFireInputEventTimeOriginMs: firstFire ? firstFire.timeOriginMs : null
+    firstFireInputEventTimeOriginMs: firstFire ? firstFire.timeOriginMs : null,
+    keyCounts: probe.keyCounts || {},
+    recentEvents: Array.isArray(probe.events) ? probe.events.slice(-40) : []
   };
 })()
 "@
@@ -3414,16 +3452,19 @@ function Install-CommandFetchProbe {
     if (!payload || typeof payload !== "object") {
       return;
     }
-    const commandStatus = sanitizeString(payload.commandStatus);
+    const acceptedPayload = payload.kind === "accepted" && payload.accepted && typeof payload.accepted === "object"
+      ? payload.accepted
+      : payload;
+    const commandStatus = sanitizeString(acceptedPayload.commandStatus);
     if (commandStatus) {
       record.responseCommandStatus = commandStatus;
     }
-    const commandReason = sanitizeString(payload.commandReason);
+    const commandReason = sanitizeString(acceptedPayload.commandReason);
     if (commandReason) {
       record.responseCommandReason = commandReason;
     }
-    if (Array.isArray(payload.outcomes)) {
-      record.responseOutcomes = payload.outcomes
+    if (Array.isArray(acceptedPayload.outcomes)) {
+      record.responseOutcomes = acceptedPayload.outcomes
         .map(sanitizeOutcome)
         .filter((outcome) => outcome !== null);
     }
@@ -3474,7 +3515,7 @@ function Install-CommandFetchProbe {
   };
   async function patchedFetch(...args) {
     const url = requestUrl(args[0]);
-    const shouldRecord = url.includes("/battle/commands");
+    const shouldRecord = url.includes("/battle/commands") || url.includes("/battlecommand");
     if (!shouldRecord) {
       return originalFetch.apply(this, args);
     }
@@ -3540,7 +3581,7 @@ function Install-TransientNoticeProbe {
 
   $expression = @'
 (() => {
-  const selector = ".arena-shell__transient-notice";
+  const selector = "[data-battle-transient-notice='true'], .arena-shell__transient-notice";
   const readText = () => {
     const node = document.querySelector(selector);
     const text = typeof node?.textContent === "string" ? node.textContent.trim() : "";
@@ -6118,6 +6159,46 @@ function New-DisplayTruthMetric {
   }
 }
 
+function New-VisibleDisplayTruthMetric {
+  param(
+    $Vision,
+    $State,
+    [Parameter(Mandatory = $true)][string]$Handle,
+    [string]$PlayerId
+  )
+
+  if ($null -eq $Vision -or $null -eq $State) {
+    return "unavailable"
+  }
+
+  $visionDiagnostics = Get-ObjectPropertyValue -InputObject $Vision -Name "diagnostics"
+  $camera = Get-ObjectPropertyValue -InputObject $visionDiagnostics -Name "camera"
+  if ($null -eq $camera) {
+    $camera = Get-ObjectPropertyValue -InputObject $Vision -Name "camera"
+  }
+  $displayPosition = Get-ObjectPropertyValue -InputObject $camera -Name "playerDisplayPosition"
+  $statePlayer = Find-StatePlayer -State $State -Handle $Handle -PlayerId $PlayerId
+  if (
+    $null -eq $displayPosition -or
+    $null -eq $statePlayer -or
+    $null -eq $statePlayer.position
+  ) {
+    return "unavailable"
+  }
+
+  $dx = [double]$displayPosition.x - [double]$statePlayer.position.x
+  $dy = [double]$displayPosition.y - [double]$statePlayer.position.y
+  return [pscustomobject]@{
+    mode = "visibleDisplayPoseVsAuthoritative"
+    distance = [Math]::Sqrt($dx * $dx + $dy * $dy)
+    visibleDisplayPosition = $displayPosition
+    authoritativePosition = $statePlayer.position
+    phase = Get-ObjectPropertyValue -InputObject $Vision -Name "phase"
+    pageNowMs = Get-ObjectPropertyValue -InputObject $Vision -Name "pageNowMs"
+    wallMs = Get-ObjectPropertyValue -InputObject $Vision -Name "wallMs"
+  }
+}
+
 function Read-LocalHeroCorrectionDiagnostics {
   param(
     [Parameter(Mandatory = $true)]$Client,
@@ -6254,6 +6335,256 @@ function New-LocalHeroCorrectionMetric {
     deadzoneIgnoredDelta = $afterDeadzoneIgnoredCount - $beforeDeadzoneIgnoredCount
     hardSnapDelta = [int]$afterDiagnostics.hardSnapCount - $beforeHardSnapCount
     softCorrectionDelta = [int]$afterDiagnostics.softCorrectionCount - $beforeSoftCorrectionCount
+    before = $Before
+    after = $After
+  }
+}
+
+function Read-AuthoritativeLocalHeroReplayDiagnostics {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][string]$Phase,
+    [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Warnings
+  )
+
+  $expression = @'
+(() => {
+  const pageNowMs = typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : null;
+  const timeOriginMs = typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)
+    ? performance.timeOrigin
+    : null;
+  const root = window.__slayDemoBattleDiagnostics;
+  const diagnostics = root && typeof root === "object" ? root.authoritativeLocalHeroReplay : null;
+  if (!diagnostics || typeof diagnostics !== "object") {
+    return {
+      available: false,
+      status: "unavailable",
+      reason: "window.__slayDemoBattleDiagnostics.authoritativeLocalHeroReplay is not available",
+      pageNowMs,
+      timeOriginMs,
+      wallMs: Date.now()
+    };
+  }
+
+  try {
+    return {
+      available: true,
+      status: "available",
+      diagnostics: JSON.parse(JSON.stringify(diagnostics)),
+      pageNowMs,
+      timeOriginMs,
+      wallMs: Date.now()
+    };
+  } catch (error) {
+    return {
+      available: false,
+      status: "unavailable",
+      reason: error instanceof Error ? error.message : String(error),
+      pageNowMs,
+      timeOriginMs,
+      wallMs: Date.now()
+    };
+  }
+})()
+'@
+
+  try {
+    $result = Invoke-CdpEvaluate -Client $Client -Expression $expression -TimeoutSeconds 8
+    if ($null -eq $result -or $result.available -ne $true) {
+      $reason = "unknown"
+      if ($null -ne $result -and -not [string]::IsNullOrWhiteSpace($result.reason)) {
+        $reason = $result.reason
+      }
+      $Warnings.Add("authoritativeLocalHeroReplayMetric $($Client.Label) phase=$Phase unavailable: $reason") | Out-Null
+      return [pscustomobject]@{
+        available = $false
+        status = "unavailable"
+        phase = $Phase
+        reason = $reason
+        pageNowMs = Get-ObjectPropertyValue -InputObject $result -Name "pageNowMs"
+        timeOriginMs = Get-ObjectPropertyValue -InputObject $result -Name "timeOriginMs"
+        wallMs = Get-ObjectPropertyValue -InputObject $result -Name "wallMs"
+      }
+    }
+
+    return [pscustomobject]@{
+      available = $true
+      status = "available"
+      phase = $Phase
+      diagnostics = $result.diagnostics
+      pageNowMs = $result.pageNowMs
+      timeOriginMs = $result.timeOriginMs
+      wallMs = $result.wallMs
+    }
+  } catch {
+    $reason = $_.Exception.Message
+    $Warnings.Add("authoritativeLocalHeroReplayMetric $($Client.Label) phase=$Phase unavailable: $reason") | Out-Null
+    return [pscustomobject]@{
+      available = $false
+      status = "unavailable"
+      phase = $Phase
+      reason = $reason
+    }
+  }
+}
+
+function New-AuthoritativeLocalHeroReplaySampleSummary {
+  param(
+    $Diagnostics,
+    $WindowStartPageMs = $null,
+    $WindowEndPageMs = $null
+  )
+
+  if ($null -eq $Diagnostics) {
+    return [ordered]@{
+      available = $false
+      status = "unavailable"
+      reason = "authoritativeLocalHeroReplay diagnostics are not available"
+      sampleCount = 0
+    }
+  }
+
+  $samples = @(
+    @(Get-ObjectPropertyValue -InputObject $Diagnostics -Name "recentSamples" -DefaultValue @()) |
+      Where-Object {
+        $atMs = Get-ObjectPropertyValue -InputObject $_ -Name "atMs"
+        if (-not (Test-FiniteNumber -Value $atMs)) {
+          return $false
+        }
+
+        $include = $true
+        if ((Test-FiniteNumber -Value $WindowStartPageMs) -and [double]$atMs -lt [double]$WindowStartPageMs) {
+          $include = $false
+        }
+        if ($include -and (Test-FiniteNumber -Value $WindowEndPageMs) -and [double]$atMs -gt [double]$WindowEndPageMs) {
+          $include = $false
+        }
+        $include
+      }
+  )
+
+  $skippedCount = 0
+  $replayedCount = 0
+  $clampedSampleCount = 0
+  $maxUnacknowledgedCommandCount = 0
+  $maxClampedCommandCount = 0
+  $maxTotalReplayDeltaMs = $null
+  $totalReplayDeltaSum = 0.0
+  $totalReplayDeltaCount = 0
+  $maxRawDistance = $null
+  $rawDistanceSum = 0.0
+  $rawDistanceCount = 0
+
+  foreach ($sample in $samples) {
+    if ((Get-ObjectPropertyValue -InputObject $sample -Name "skipped" -DefaultValue $false) -eq $true) {
+      $skippedCount += 1
+    } else {
+      $replayedCount += 1
+    }
+
+    $unacknowledgedCommandCount = Get-ObjectPropertyValue -InputObject $sample -Name "unacknowledgedCommandCount" -DefaultValue 0
+    if (Test-FiniteNumber -Value $unacknowledgedCommandCount) {
+      $maxUnacknowledgedCommandCount = [Math]::Max($maxUnacknowledgedCommandCount, [int]$unacknowledgedCommandCount)
+    }
+
+    $clampedCommandCount = Get-ObjectPropertyValue -InputObject $sample -Name "clampedCommandCount" -DefaultValue 0
+    if (Test-FiniteNumber -Value $clampedCommandCount) {
+      $clampedCommandCount = [int]$clampedCommandCount
+      if ($clampedCommandCount -gt 0) {
+        $clampedSampleCount += 1
+      }
+      $maxClampedCommandCount = [Math]::Max($maxClampedCommandCount, $clampedCommandCount)
+    }
+
+    $totalReplayDeltaMs = Get-ObjectPropertyValue -InputObject $sample -Name "totalReplayDeltaMs"
+    if (Test-FiniteNumber -Value $totalReplayDeltaMs) {
+      $totalReplayDeltaMs = [double]$totalReplayDeltaMs
+      $totalReplayDeltaSum += $totalReplayDeltaMs
+      $totalReplayDeltaCount += 1
+      if ($null -eq $maxTotalReplayDeltaMs -or $totalReplayDeltaMs -gt $maxTotalReplayDeltaMs) {
+        $maxTotalReplayDeltaMs = $totalReplayDeltaMs
+      }
+    }
+
+    $rawDistance = Get-ObjectPropertyValue -InputObject $sample -Name "rawAuthoritativePositionToReplayTargetDistance"
+    if (Test-FiniteNumber -Value $rawDistance) {
+      $rawDistance = [double]$rawDistance
+      $rawDistanceSum += $rawDistance
+      $rawDistanceCount += 1
+      if ($null -eq $maxRawDistance -or $rawDistance -gt $maxRawDistance) {
+        $maxRawDistance = $rawDistance
+      }
+    }
+  }
+
+  return [ordered]@{
+    available = $true
+    status = "available"
+    sampleCount = $samples.Count
+    skippedSampleCount = $skippedCount
+    replayedSampleCount = $replayedCount
+    clampedSampleCount = $clampedSampleCount
+    maxUnacknowledgedCommandCount = $maxUnacknowledgedCommandCount
+    maxClampedCommandCount = $maxClampedCommandCount
+    maxTotalReplayDeltaMs = Round-MetricNumber -Value $maxTotalReplayDeltaMs
+    avgTotalReplayDeltaMs = if ($totalReplayDeltaCount -gt 0) { Round-MetricNumber -Value ($totalReplayDeltaSum / $totalReplayDeltaCount) } else { $null }
+    maxRawAuthoritativePositionToReplayTargetDistance = Round-MetricNumber -Value $maxRawDistance
+    avgRawAuthoritativePositionToReplayTargetDistance = if ($rawDistanceCount -gt 0) { Round-MetricNumber -Value ($rawDistanceSum / $rawDistanceCount) } else { $null }
+  }
+}
+
+function New-AuthoritativeLocalHeroReplayMetric {
+  param(
+    $Before,
+    $After
+  )
+
+  if ($null -eq $After -or $After.available -ne $true) {
+    return [ordered]@{
+      available = $false
+      status = "unavailable"
+      before = $Before
+      after = $After
+    }
+  }
+
+  $beforeDiagnostics = $null
+  if ($null -ne $Before -and $Before.available -eq $true) {
+    $beforeDiagnostics = $Before.diagnostics
+  }
+
+  $afterDiagnostics = $After.diagnostics
+  $beforeObservedCount = [int](Get-ObjectPropertyValue -InputObject $beforeDiagnostics -Name "observedCount" -DefaultValue 0)
+  $beforeReplayedCount = [int](Get-ObjectPropertyValue -InputObject $beforeDiagnostics -Name "replayedCount" -DefaultValue 0)
+  $beforeSkippedCount = [int](Get-ObjectPropertyValue -InputObject $beforeDiagnostics -Name "skippedCount" -DefaultValue 0)
+  $afterObservedCount = [int](Get-ObjectPropertyValue -InputObject $afterDiagnostics -Name "observedCount" -DefaultValue 0)
+  $afterReplayedCount = [int](Get-ObjectPropertyValue -InputObject $afterDiagnostics -Name "replayedCount" -DefaultValue 0)
+  $afterSkippedCount = [int](Get-ObjectPropertyValue -InputObject $afterDiagnostics -Name "skippedCount" -DefaultValue 0)
+
+  $skipReasonDelta = [ordered]@{}
+  $beforeSkipReasons = Get-ObjectPropertyValue -InputObject $beforeDiagnostics -Name "skipReasonCounts"
+  $afterSkipReasons = Get-ObjectPropertyValue -InputObject $afterDiagnostics -Name "skipReasonCounts"
+  foreach ($reason in @("invalid-input", "no-history", "no-unacked", "invalid-history")) {
+    $beforeCount = [int](Get-ObjectPropertyValue -InputObject $beforeSkipReasons -Name $reason -DefaultValue 0)
+    $afterCount = [int](Get-ObjectPropertyValue -InputObject $afterSkipReasons -Name $reason -DefaultValue 0)
+    $skipReasonDelta[$reason] = $afterCount - $beforeCount
+  }
+
+  return [ordered]@{
+    available = $true
+    status = "available"
+    mode = "window.__slayDemoBattleDiagnostics.authoritativeLocalHeroReplay"
+    observedDelta = $afterObservedCount - $beforeObservedCount
+    replayedDelta = $afterReplayedCount - $beforeReplayedCount
+    skippedDelta = $afterSkippedCount - $beforeSkippedCount
+    skipReasonDelta = $skipReasonDelta
+    inputWindowSampleSummary = New-AuthoritativeLocalHeroReplaySampleSummary `
+      -Diagnostics $afterDiagnostics `
+      -WindowStartPageMs (Get-ObjectPropertyValue -InputObject $Before -Name "pageNowMs") `
+      -WindowEndPageMs (Get-ObjectPropertyValue -InputObject $After -Name "pageNowMs")
+    afterSampleSummary = New-AuthoritativeLocalHeroReplaySampleSummary -Diagnostics $afterDiagnostics
     before = $Before
     after = $After
   }
@@ -6421,6 +6752,10 @@ $backendBase = Normalize-BaseUrl -Value $BackendUrl
 if ($InputDurationMs -lt 1000) {
   throw "InputDurationMs must be >= 1000."
 }
+if ($PreInputSettleMs -lt 0) {
+  throw "PreInputSettleMs must be >= 0."
+}
+$InputDurationMs = Resolve-Bp28EffectiveInputDurationMs -Scenario $Scenario -RequestedInputDurationMs $InputDurationMs
 $workspaceRoot = Get-WorkspaceRoot
 $runtimeDir = Join-Path $workspaceRoot ".runtime\bp28-render-feel-smoke"
 $clientADir = Join-Path $runtimeDir "client-a"
@@ -6452,8 +6787,8 @@ try {
   $runSuffix = [Guid]::NewGuid().ToString("N").Substring(0, 8)
   $clientAHandle = "b28a$runSuffix"
   $clientBHandle = "b28b$runSuffix"
-  $clientAUrl = New-ClientUrl -BaseUrl $frontendBase -Handle $clientAHandle -PasswordValue $Password -Skin "blue"
-  $clientBUrl = New-ClientUrl -BaseUrl $frontendBase -Handle $clientBHandle -PasswordValue $Password -Skin "soldier"
+  $clientAUrl = New-ClientUrl -BaseUrl $frontendBase -Handle $clientAHandle -PasswordValue $Password -Skin "blue" -ModeId $ModeId
+  $clientBUrl = New-ClientUrl -BaseUrl $frontendBase -Handle $clientBHandle -PasswordValue $Password -Skin "soldier" -ModeId $ModeId
 
   Write-Host "BP-28E render-feel smoke: launching browser clients..."
   $processA = Start-CdpBrowser `
@@ -6490,9 +6825,11 @@ try {
   $performanceEnableA = Enable-CdpPerformanceMetrics -Client $clientA -Warnings $warnings
   $performanceEnableB = Enable-CdpPerformanceMetrics -Client $clientB -Warnings $warnings
 
-  Start-Sleep -Milliseconds 1700
-  $contextBeforeA = Get-PageBattleContext -Client $clientA
-  $contextBeforeB = Get-PageBattleContext -Client $clientB
+  if ($PreInputSettleMs -gt 0) {
+    Start-Sleep -Milliseconds $PreInputSettleMs
+  }
+  $contextBeforeA = Wait-PageBattleContext -Client $clientA -Label "clientA beforeInput"
+  $contextBeforeB = Wait-PageBattleContext -Client $clientB -Label "clientB beforeInput"
   $battleIdentity = Resolve-BattleIdentity -ContextA $contextBeforeA -ContextB $contextBeforeB -Warnings $warnings
 
   $beforeState = $null
@@ -6500,6 +6837,9 @@ try {
   $statePlayerB = $null
   if (-not [string]::IsNullOrWhiteSpace($battleIdentity.battleId)) {
     $beforeState = Get-BattleState -BackendBase $backendBase -BattleId $battleIdentity.battleId
+    $expectedMapId = Resolve-ExpectedMapIdForMode -ModeId $ModeId
+    $actualMapId = "" + (Get-ObjectPropertyValue -InputObject $beforeState -Name "mapId" -DefaultValue "")
+    Assert-Condition ($actualMapId -eq $expectedMapId) "Expected modeId=$ModeId to start mapId=$expectedMapId, but backend returned mapId=$actualMapId."
     $statePlayerA = Find-StatePlayer -State $beforeState -Handle $clientAHandle -PlayerId $contextBeforeA.localAuthoritativePlayerId
     $statePlayerB = Find-StatePlayer -State $beforeState -Handle $clientBHandle -PlayerId $contextBeforeB.localAuthoritativePlayerId
     if ($null -ne $statePlayerA -and $null -ne $statePlayerB) {
@@ -6535,6 +6875,8 @@ try {
   Start-Sleep -Milliseconds $preInputSampleMs
   $localHeroCorrectionBeforeA = Read-LocalHeroCorrectionDiagnostics -Client $clientA -Phase "beforeInput" -Warnings $warnings
   $localHeroCorrectionBeforeB = Read-LocalHeroCorrectionDiagnostics -Client $clientB -Phase "beforeInput" -Warnings $warnings
+  $authoritativeLocalHeroReplayBeforeA = Read-AuthoritativeLocalHeroReplayDiagnostics -Client $clientA -Phase "beforeInput" -Warnings $warnings
+  $authoritativeLocalHeroReplayBeforeB = Read-AuthoritativeLocalHeroReplayDiagnostics -Client $clientB -Phase "beforeInput" -Warnings $warnings
   $vfxBeforeA = Read-VfxDiagnostics -Client $clientA -Phase "beforeInput" -Warnings $warnings
   $vfxBeforeB = Read-VfxDiagnostics -Client $clientB -Phase "beforeInput" -Warnings $warnings
   $hudBeforeA = Read-HudDiagnostics -Client $clientA -Phase "beforeInput" -Warnings $warnings
@@ -6846,6 +7188,7 @@ try {
   if (-not [string]::IsNullOrWhiteSpace($battleIdentity.battleId)) {
     $afterState = Get-BattleState -BackendBase $backendBase -BattleId $battleIdentity.battleId
   }
+  $visionTruthAfterA = Read-VisionDiagnostics -Client $clientA -Phase "displayTruthAfterState"
   $remoteViewHitDisputeAfterB = Read-RemoteViewDiagnostics -Client $clientB -Phase "hitDisputeAfterState" -Warnings $warnings
 
   $localStorageActionMetric = Measure-LocalStorageActionEffect `
@@ -6860,11 +7203,45 @@ try {
     $actionMetricSource = "localStorage.activeBattleSession"
   }
 
-  Assert-Condition (
+  $actionMetricPassed = (
     $null -ne $actionMetric -and
     $actionMetric.available -eq $true -and
     $actionMetric.passed -eq $true
-  ) "clientA authoritative/local battle state did not show movement or firing after CDP input."
+  )
+  if (-not $actionMetricPassed -and -not [string]::IsNullOrWhiteSpace($SummaryPath)) {
+    $failureParent = Split-Path -Parent $SummaryPath
+    if (-not [string]::IsNullOrWhiteSpace($failureParent)) {
+      New-Item -ItemType Directory -Force -Path $failureParent | Out-Null
+    }
+
+    $failureEvidence = [ordered]@{
+      ok = $false
+      smoke = "BP-28E render-feel"
+      failure = "clientA authoritative/local battle state did not show movement or firing after CDP input."
+      actionMetricSource = $actionMetricSource
+      actionMetric = $actionMetric
+      authoritativeActionMetric = $authoritativeActionMetric
+      pageSnapshotActionMetric = $pageSnapshotActionMetric
+      localStorageActionMetric = $localStorageActionMetric
+      input = $input
+      localFeedbackLatencyMetric = $localFeedbackLatencyMetric
+      remoteViewMetric = $remoteViewMetric
+      contextBeforeA = $contextBeforeA
+      contextAfterA = $contextAfterA
+      battle = [ordered]@{
+        battleId = $battleIdentity.battleId
+        source = $battleIdentity.source
+        sameBattleProven = $battleIdentity.sameBattleProven
+      }
+      backend = [ordered]@{
+        beforeStateReadable = ($null -ne $beforeState)
+        afterStateReadable = ($null -ne $afterState)
+      }
+      warnings = @($warnings)
+    }
+    Set-Content -LiteralPath $SummaryPath -Value ($failureEvidence | ConvertTo-Json -Depth 18) -Encoding UTF8
+  }
+  Assert-Condition $actionMetricPassed "clientA authoritative/local battle state did not show movement or firing after CDP input."
 
   $targetedSkillPressureMetric = $null
   $targetedSkillPressureAssertionFailures = [System.Collections.Generic.List[string]]::new()
@@ -6950,14 +7327,24 @@ try {
     $freezeNoopCount = [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "freezeNoopCount" -DefaultValue 0)
     $skillOutcomeCount = [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "skillOutcomeCount" -DefaultValue 0)
     $skillNoopWithoutReasonCount = [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "skillNoopWithoutReasonCount" -DefaultValue 0)
+    $blinkNoopReasons = Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "blinkNoopReasons"
+    $freezeNoopReasons = Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "freezeNoopReasons"
+    $blinkGeometryNoopCount =
+      [int](Get-ObjectPropertyValue -InputObject $blinkNoopReasons -Name "out_of_range" -DefaultValue 0) +
+      [int](Get-ObjectPropertyValue -InputObject $blinkNoopReasons -Name "invalid_target" -DefaultValue 0)
+    $freezeGeometryNoopCount =
+      [int](Get-ObjectPropertyValue -InputObject $freezeNoopReasons -Name "out_of_range" -DefaultValue 0) +
+      [int](Get-ObjectPropertyValue -InputObject $freezeNoopReasons -Name "invalid_target" -DefaultValue 0)
     $noticeTexts = @(Get-ObjectPropertyValue -InputObject $transientNoticeProbe -Name "texts" -DefaultValue @())
     $noticeTextJoined = $noticeTexts -join "`n"
     $blinkNoticeLabel = [string]::Concat([char]0x95EA, [char]0x73B0)
     $freezeNoticeLabel = [string]::Concat([char]0x51BB, [char]0x7ED3)
+    $targetNoticeLabel = [string]::Concat([char]0x76EE, [char]0x6807)
     $skillFailureNoticeObserved = (
       $transientNoticeProbe -and
       $transientNoticeProbe.available -eq $true -and
-      ($noticeTextJoined.Contains($blinkNoticeLabel) -or $noticeTextJoined.Contains($freezeNoticeLabel))
+      ($noticeTextJoined.Contains($blinkNoticeLabel) -or $noticeTextJoined.Contains($freezeNoticeLabel)) -and
+      $noticeTextJoined.Contains($targetNoticeLabel)
     )
 
     $deferTargetedNoopAssert = {
@@ -6984,6 +7371,8 @@ try {
     & $deferTargetedNoopAssert ($skillOutcomeCount -gt 0) "TargetedSkillNoopPressure command fetch probe did not observe backend skill outcomes."
     & $deferTargetedNoopAssert ($blinkNoopCount -gt 0) "TargetedSkillNoopPressure command fetch probe did not observe a Blink noop outcome."
     & $deferTargetedNoopAssert ($freezeNoopCount -gt 0) "TargetedSkillNoopPressure command fetch probe did not observe a Freeze noop outcome."
+    & $deferTargetedNoopAssert ($blinkGeometryNoopCount -gt 0) "TargetedSkillNoopPressure command fetch probe did not observe a Blink out_of_range or invalid_target noop outcome."
+    & $deferTargetedNoopAssert ($freezeGeometryNoopCount -gt 0) "TargetedSkillNoopPressure command fetch probe did not observe a Freeze out_of_range or invalid_target noop outcome."
     & $deferTargetedNoopAssert ($skillNoopWithoutReasonCount -eq 0) "TargetedSkillNoopPressure command fetch probe observed a noop skill outcome without a reason."
     & $deferTargetedNoopAssert (
       $transientNoticeProbe -and
@@ -7007,6 +7396,8 @@ try {
         castFreezeTrueCount = $castFreezeTrueCount
         blinkNoopCount = $blinkNoopCount
         freezeNoopCount = $freezeNoopCount
+        blinkGeometryNoopCount = $blinkGeometryNoopCount
+        freezeGeometryNoopCount = $freezeGeometryNoopCount
         skillOutcomeCount = $skillOutcomeCount
         skillOutcomeReasons = Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "skillOutcomeReasons"
         blinkNoopReasons = Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "blinkNoopReasons"
@@ -7136,13 +7527,29 @@ try {
     }
   }
 
+  $clientATruthPlayerId = $contextBeforeA.localAuthoritativePlayerId
+  if ([string]::IsNullOrWhiteSpace($clientATruthPlayerId)) {
+    $clientATruthPlayerId = Get-ObjectPropertyValue -InputObject $authoritativeActionMetric -Name "playerId" -DefaultValue ""
+  }
+  if ([string]::IsNullOrWhiteSpace($clientATruthPlayerId)) {
+    $clientATruthPlayerId = Get-ObjectPropertyValue -InputObject $actionMetric -Name "playerId" -DefaultValue ""
+  }
+
   $displayTruthMetric = New-DisplayTruthMetric `
     -Context $contextAfterA `
     -State $afterState `
     -Handle $clientAHandle `
-    -PlayerId $contextBeforeA.localAuthoritativePlayerId
+    -PlayerId $clientATruthPlayerId
   if ($displayTruthMetric -eq "unavailable") {
     $warnings.Add("displayTruthMetric=unavailable; renderer display pose is not exposed to test tooling without business-code globals.") | Out-Null
+  }
+  $visibleDisplayTruthMetric = New-VisibleDisplayTruthMetric `
+    -Vision $visionTruthAfterA `
+    -State $afterState `
+    -Handle $clientAHandle `
+    -PlayerId $clientATruthPlayerId
+  if ($visibleDisplayTruthMetric -eq "unavailable") {
+    $warnings.Add("visibleDisplayTruthMetric=unavailable; renderer display pose or authoritative player state was unavailable.") | Out-Null
   }
   $inputFeedbackLatencyMetric = New-InputFeedbackLatencyMetric `
     -InputStartWallMs $inputStartWallMs `
@@ -7151,10 +7558,20 @@ try {
     -PageSnapshotMetric $pageSnapshotActionMetric
   $localHeroCorrectionAfterA = Read-LocalHeroCorrectionDiagnostics -Client $clientA -Phase "afterInput" -Warnings $warnings
   $localHeroCorrectionAfterB = Read-LocalHeroCorrectionDiagnostics -Client $clientB -Phase "afterInput" -Warnings $warnings
+  $authoritativeLocalHeroReplayAfterA = Read-AuthoritativeLocalHeroReplayDiagnostics -Client $clientA -Phase "afterInput" -Warnings $warnings
+  $authoritativeLocalHeroReplayAfterB = Read-AuthoritativeLocalHeroReplayDiagnostics -Client $clientB -Phase "afterInput" -Warnings $warnings
   $localHeroCorrectionMetric = [ordered]@{
     clientA = New-LocalHeroCorrectionMetric -Before $localHeroCorrectionBeforeA -After $localHeroCorrectionAfterA
     clientB = New-LocalHeroCorrectionMetric -Before $localHeroCorrectionBeforeB -After $localHeroCorrectionAfterB
     localFeedbackLatencyMetric = $localFeedbackLatencyMetric
+  }
+  $authoritativeLocalHeroReplayMetric = [ordered]@{
+    clientA = New-AuthoritativeLocalHeroReplayMetric `
+      -Before $authoritativeLocalHeroReplayBeforeA `
+      -After $authoritativeLocalHeroReplayAfterA
+    clientB = New-AuthoritativeLocalHeroReplayMetric `
+      -Before $authoritativeLocalHeroReplayBeforeB `
+      -After $authoritativeLocalHeroReplayAfterB
   }
   $hitDisputeSamples = New-HitDisputeSamples `
     -BeforeRemoteView $remoteViewBeforeB `
@@ -7192,6 +7609,15 @@ try {
     clientA = New-HudClientMetric -Before $hudBeforeA -After $hudAfterA
     clientB = New-HudClientMetric -Before $hudBeforeB -After $hudAfterB
   }
+  $authoritativeInputDiagnosticsA = Invoke-CdpEvaluate -Client $clientA -Expression @'
+(() => {
+  const root = window.__slayDemoBattleDiagnostics || {};
+  return {
+    authoritativeInput: root.authoritativeInput || null,
+    authoritativePreparedInput: root.authoritativePreparedInput || null
+  };
+})()
+'@ -TimeoutSeconds 8
   $clientBVisionInputStartPageMs = $motionInputStartPageMs
   $clientBVisionInputEndPageMs = Get-ObjectPropertyValue -InputObject $input -Name "inputEndPageMs"
   if ($Scenario -eq "DualClientPressure") {
@@ -7231,6 +7657,8 @@ try {
     headless = (-not [bool]$Headful)
     disableGpu = [bool]$DisableGpu
     scenario = $Scenario
+    modeId = $ModeId
+    preInputSettleMs = $PreInputSettleMs
     inputDurationMs = $InputDurationMs
     sameBattle = [bool]$battleIdentity.sameBattleProven
     window = [ordered]@{
@@ -7266,6 +7694,8 @@ try {
       battleId = $battleIdentity.battleId
       source = $battleIdentity.source
       sameBattleProven = $battleIdentity.sameBattleProven
+      expectedMapId = Resolve-ExpectedMapIdForMode -ModeId $ModeId
+      mapId = Get-ObjectPropertyValue -InputObject $beforeState -Name "mapId"
     }
     input = $input
     preInputSampleMs = $preInputSampleMs
@@ -7297,15 +7727,20 @@ try {
     hitDisputeSamples = $hitDisputeSamples
     hitDisputeAssertionFailures = @($hitDisputeAssertionFailures)
     displayTruthMetric = $displayTruthMetric
+    visibleDisplayTruthMetric = $visibleDisplayTruthMetric
     targetedSkillPressureMetric = $targetedSkillPressureMetric
     targetedSkillPressureAssertionFailures = @($targetedSkillPressureAssertionFailures)
     targetedSkillNoopMetric = $targetedSkillNoopMetric
     targetedSkillNoopAssertionFailures = @($targetedSkillNoopAssertionFailures)
     dualClientPressureMetric = $dualClientPressureMetric
     localHeroCorrectionMetric = $localHeroCorrectionMetric
+    authoritativeLocalHeroReplayMetric = $authoritativeLocalHeroReplayMetric
     visionMetric = $visionMetric
     vfxMetric = $vfxMetric
     hudMetric = $hudMetric
+    diagnostics = [ordered]@{
+      clientA = $authoritativeInputDiagnosticsA
+    }
     warnings = @($warnings)
   }
 

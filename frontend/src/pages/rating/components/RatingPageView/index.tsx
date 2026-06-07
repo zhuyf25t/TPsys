@@ -7,16 +7,17 @@ interface RatingPageViewProps {
   ratingEntries: RatingEntry[];
 }
 
+/** 中文名：评分榜视图。游戏职责：展示真实账号和战绩生成的玩家评分榜。 */
 export function RatingPageView({ ratingEntries }: RatingPageViewProps) {
   return (
-    <ShellLayout title="评分榜单" subtitle="真实账户和战绩生成的 rating 列表。">
+    <ShellLayout title="评分榜单" subtitle="真实账号和战绩生成的评分列表。">
       {ratingEntries.length > 0 ? (
         <div className="content-page content-page--ranking">
           <section className="content-page__panel content-page__panel--main">
             <div className="panel-header panel-header--dense">
               <div>
-                <p className="eyebrow">Rating</p>
-                <h4>Rating list</h4>
+                <p className="eyebrow">评分</p>
+                <h4>评分榜</h4>
               </div>
               <span className="panel-header__meta">{ratingEntries.length} 位玩家</span>
             </div>
@@ -24,11 +25,11 @@ export function RatingPageView({ ratingEntries }: RatingPageViewProps) {
             <section className="cf-ranking-table cf-ranking-table--compact cf-ranking-table--rating" aria-label="评分榜单">
               <div className="cf-ranking-table__header">
                 <span>#</span>
-                <span>Handle</span>
+                <span>玩家</span>
                 <span className="cf-ranking-table__cell--matches">场次</span>
                 <span className="cf-ranking-table__cell--win-rate">胜率</span>
                 <span>近期</span>
-                <span>Rating</span>
+                <span>评分</span>
               </div>
               {ratingEntries.map((entry) => (
                 <div key={entry.handle} className="cf-ranking-table__row">
@@ -48,7 +49,7 @@ export function RatingPageView({ ratingEntries }: RatingPageViewProps) {
         </div>
       ) : (
         <section className="detail-card empty-state empty-state--dense">
-          <p className="eyebrow">Rating</p>
+          <p className="eyebrow">评分</p>
           <h3>当前没有评分记录</h3>
           <p>完成一局真实对局后，这里才会出现榜单和排名。</p>
           <div className="cta-row">
@@ -68,5 +69,5 @@ function profilePath(handle: string): string {
 
 function formatRecentForm(recentForm: string): string {
   const normalized = recentForm.trim();
-  return normalized && normalized !== "-" ? normalized : "—";
+  return normalized && normalized !== "-" ? normalized : "-";
 }

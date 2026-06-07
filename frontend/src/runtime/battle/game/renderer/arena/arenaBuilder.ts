@@ -12,7 +12,9 @@ import type {
   ArenaBuilderContext,
   ObstacleBounds,
   OccludableSprite,
-  OccludableView
+  OccludableView,
+  StaticMapView,
+  StaticMapViewSprite
 } from "./objects/ArenaBuilderObjects";
 import {
   backgroundColorForTheme,
@@ -109,13 +111,16 @@ function createNaturalMapObjects(context: ArenaBuilderContext): void {
   createWinterZombieSetPieces(context.scene, context.occludables);
 }
 
-function createBuildings({ scene, wallBodies, obstacleBounds, occludables }: ArenaBuilderContext): void {
+function createBuildings({ scene, wallBodies, obstacleBounds, occludables, staticMapViews }: ArenaBuilderContext): void {
   getActiveBattleMap().buildings.forEach((building) => {
-    const floor = scene.add
-      .image(building.position.x, building.position.y, building.floorTexture)
-      .setDisplaySize(building.floorSize.x, building.floorSize.y)
-      .setDepth(18)
-      .setAlpha(0.98);
+    const floor = registerStaticMapView(
+      scene.add
+        .image(building.position.x, building.position.y, building.floorTexture)
+        .setDisplaySize(building.floorSize.x, building.floorSize.y)
+        .setDepth(18)
+        .setAlpha(0.98),
+      staticMapViews
+    );
 
     if (building.kind === "hay_shed") {
       floor.setTint(0x9d8454).setAlpha(0.78);
@@ -128,25 +133,37 @@ function createBuildings({ scene, wallBodies, obstacleBounds, occludables }: Are
       }
 
       const position = collision.position ?? building.position;
-      scene.add
-        .rectangle(position.x + 5, position.y + 7, collision.size.x + 12, collision.size.y + 12, 0x1b130c, 0.22)
-        .setDepth(46);
-      scene.add
-        .rectangle(position.x, position.y, collision.size.x, collision.size.y, 0x5a3921, 0.88)
-        .setStrokeStyle(2, 0x2d1d12, 0.84)
-        .setDepth(47);
+      registerStaticMapView(
+        scene.add
+          .rectangle(position.x + 5, position.y + 7, collision.size.x + 12, collision.size.y + 12, 0x1b130c, 0.22)
+          .setDepth(46),
+        staticMapViews
+      );
+      registerStaticMapView(
+        scene.add
+          .rectangle(position.x, position.y, collision.size.x, collision.size.y, 0x5a3921, 0.88)
+          .setStrokeStyle(2, 0x2d1d12, 0.84)
+          .setDepth(47),
+        staticMapViews
+      );
     });
 
     building.doors.forEach((door) => {
-      scene.add
-        .rectangle(door.position.x, door.position.y, door.size.x, door.size.y, 0x2f2117, 0.34)
-        .setStrokeStyle(2, 0xd0a15b, 0.32)
-        .setDepth(48);
-      scene.add
-        .image(door.position.x, door.position.y, doorTextureForTheme(getActiveBattleMap().themeId))
-        .setDisplaySize(door.size.x, door.size.y)
-        .setDepth(49)
-        .setAlpha(0.72);
+      registerStaticMapView(
+        scene.add
+          .rectangle(door.position.x, door.position.y, door.size.x, door.size.y, 0x2f2117, 0.34)
+          .setStrokeStyle(2, 0xd0a15b, 0.32)
+          .setDepth(48),
+        staticMapViews
+      );
+      registerStaticMapView(
+        scene.add
+          .image(door.position.x, door.position.y, doorTextureForTheme(getActiveBattleMap().themeId))
+          .setDisplaySize(door.size.x, door.size.y)
+          .setDepth(49)
+          .setAlpha(0.72),
+        staticMapViews
+      );
     });
 
     building.walls.forEach((wall) => {
@@ -158,11 +175,14 @@ function createBuildings({ scene, wallBodies, obstacleBounds, occludables }: Are
       x: building.position.x + building.roofOffset.x,
       y: building.position.y + building.roofOffset.y
     };
-    const roof = scene.add
-      .image(roofPosition.x, roofPosition.y, building.roofTexture)
-      .setDisplaySize(building.roofSize.x, building.roofSize.y)
-      .setDepth(72)
-      .setAlpha(1);
+    const roof = registerStaticMapView(
+      scene.add
+        .image(roofPosition.x, roofPosition.y, building.roofTexture)
+        .setDisplaySize(building.roofSize.x, building.roofSize.y)
+        .setDepth(72)
+        .setAlpha(1),
+      staticMapViews
+    );
 
     registerOccludable(roof, 1, occludables, {
       mode: "building-roof",
@@ -172,12 +192,15 @@ function createBuildings({ scene, wallBodies, obstacleBounds, occludables }: Are
   });
 }
 
-function createDecorativeObstacles({ scene, wallBodies, obstacleBounds, occludables }: ArenaBuilderContext): void {
+function createDecorativeObstacles({ scene, wallBodies, obstacleBounds, occludables, staticMapViews }: ArenaBuilderContext): void {
   getActiveBattleMap().decorativeObstacles.forEach((obstacle) => {
-    scene.add
-      .ellipse(obstacle.position.x + 8, obstacle.position.y + 10, obstacle.displaySize.x * 0.72, obstacle.displaySize.y * 0.42, 0x1b2418, 0.2)
-      .setRotation(obstacle.rotation ?? 0)
-      .setDepth(35);
+    registerStaticMapView(
+      scene.add
+        .ellipse(obstacle.position.x + 8, obstacle.position.y + 10, obstacle.displaySize.x * 0.72, obstacle.displaySize.y * 0.42, 0x1b2418, 0.2)
+        .setRotation(obstacle.rotation ?? 0)
+        .setDepth(35),
+      staticMapViews
+    );
 
     const sprite = obstacle.collision
       ? createStaticObstacle(
@@ -203,6 +226,7 @@ function createDecorativeObstacles({ scene, wallBodies, obstacleBounds, occludab
           .setRotation(obstacle.rotation ?? 0)
           .setDepth(obstacle.kind === "leaf_pile" ? 24 : 43)
           .setAlpha(obstacle.kind === "leaf_pile" ? 0.82 : 0.94);
+    registerStaticMapView(sprite, staticMapViews);
 
     if (obstacle.kind === "bush") {
       sprite.setDepth(44).setAlpha(0.92);
@@ -210,13 +234,16 @@ function createDecorativeObstacles({ scene, wallBodies, obstacleBounds, occludab
   });
 }
 
-function createTrees({ scene, wallBodies, obstacleBounds, occludables }: ArenaBuilderContext): void {
+function createTrees({ scene, wallBodies, obstacleBounds, occludables, staticMapViews }: ArenaBuilderContext): void {
   getActiveBattleMap().trees.forEach((tree) => {
-    scene.add
-      .ellipse(tree.position.x + 8, tree.position.y + 12, tree.trunkSize.x * 0.58, tree.trunkSize.y * 0.36, 0x10170e, 0.28)
-      .setDepth(42);
+    registerStaticMapView(
+      scene.add
+        .ellipse(tree.position.x + 8, tree.position.y + 12, tree.trunkSize.x * 0.58, tree.trunkSize.y * 0.36, 0x10170e, 0.28)
+        .setDepth(42),
+      staticMapViews
+    );
 
-    createStaticObstacle(
+    registerStaticMapView(createStaticObstacle(
       scene,
       wallBodies,
       obstacleBounds,
@@ -231,17 +258,20 @@ function createTrees({ scene, wallBodies, obstacleBounds, occludables }: ArenaBu
         displaySize: tree.trunkSize
       },
       { visible: true }
-    ).setDepth(50);
+    ).setDepth(50), staticMapViews);
 
     const leavesPosition = {
       x: tree.position.x + tree.leavesOffset.x,
       y: tree.position.y + tree.leavesOffset.y
     };
-    const leaves = scene.add
-      .image(leavesPosition.x, leavesPosition.y, tree.leavesTexture)
-      .setDisplaySize(tree.leavesSize.x, tree.leavesSize.y)
-      .setDepth(64)
-      .setAlpha(1);
+    const leaves = registerStaticMapView(
+      scene.add
+        .image(leavesPosition.x, leavesPosition.y, tree.leavesTexture)
+        .setDisplaySize(tree.leavesSize.x, tree.leavesSize.y)
+        .setDepth(64)
+        .setAlpha(1),
+      staticMapViews
+    );
 
     registerOccludable(leaves, 1, occludables, {
       mode: "tree-leaves",
@@ -313,4 +343,13 @@ function registerOccludable(
     ...(options.trigger ? { trigger: options.trigger } : {}),
     ...(options.fadeAlpha !== undefined ? { fadeAlpha: options.fadeAlpha } : {})
   });
+}
+
+function registerStaticMapView<T extends StaticMapViewSprite>(sprite: T, staticMapViews: StaticMapView[]): T {
+  const bounds = sprite.getBounds();
+  staticMapViews.push({
+    sprite,
+    bounds: new Phaser.Geom.Rectangle(bounds.x, bounds.y, bounds.width, bounds.height)
+  });
+  return sprite;
 }

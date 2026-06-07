@@ -18,7 +18,7 @@ private[battle] final case class BattleStoredBattleAdvanceResult(
 
 private[battle] object BattleStoredBattleAdvanceRules {
   private val StandardExactCatchUpStepLimit = 128L
-  private val HighPopulationExactCatchUpStepLimit = 8L
+  private val HighPopulationExactCatchUpStepLimit = 3L
   private val HighPopulationPlayerCount = 8
   private val StandardCoalescedCatchUpStepLimit = 32
   private val HighPopulationCoalescedCatchUpStepLimit = 8

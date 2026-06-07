@@ -5,7 +5,7 @@ import type { BattleHeroViewState as Hero } from "../../../../objects/battle/mic
 import type { BattlePreparedSkill as PreparedSkill } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
 import type { BattlePlayerCommand as PlayerCommand } from "../../../../objects/battle/microservices/session/objects/command/BattlePlayerCommand";
 import { buildArena } from "../renderer/arena/arenaBuilder";
-import type { ObstacleBounds, OccludableView } from "../renderer/arena/objects/ArenaBuilderObjects";
+import type { ObstacleBounds, OccludableView, StaticMapView } from "../renderer/arena/objects/ArenaBuilderObjects";
 import { createWorldViewState, type HeroView, type WorldViewState } from "../renderer/entities/worldViewFactory";
 import { SceneVfxController } from "../renderer/effects/sceneVfxController";
 import { WinterZombieVisualController } from "../renderer/effects/winterZombieVisualController";
@@ -34,6 +34,9 @@ import {
 import {
   updateGameSceneOcclusion
 } from "../renderer/presentation/BattleGameSceneOcclusionPresentation";
+import {
+  updateGameSceneStaticMapCulling
+} from "../renderer/presentation/BattleGameSceneStaticMapCullingPresentation";
 import { createGameScenePlayerActor, flashGameSceneHero } from "../renderer/entities/BattleGameSceneHeroActorBridge";
 import {
   configureGameSceneCamera,
@@ -59,6 +62,8 @@ interface GameSceneOptions {
 
 const OCCLUSION_SYNC_INTERVAL_MS = 120;
 const OCCLUSION_SYNC_POSITION_DELTA = 48;
+const STATIC_MAP_CULL_INTERVAL_MS = 240;
+const STATIC_MAP_CULL_POSITION_DELTA = 192;
 
 export class GameScene extends Phaser.Scene {
   private snapshot!: GameSnapshot;
@@ -72,6 +77,7 @@ export class GameScene extends Phaser.Scene {
   private heroViews = new Map<string, HeroView>();
   private obstacleBounds: ObstacleBounds[] = [];
   private occludables: OccludableView[] = [];
+  private staticMapViews: StaticMapView[] = [];
   private pointerJustPressed = false;
   private secondaryJustPressed = false;
   private pendingWeaponSwitchDirection: -1 | 0 | 1 = 0;
@@ -89,6 +95,8 @@ export class GameScene extends Phaser.Scene {
   private authoritativeClockAnchor: BattleAuthoritativeClockAnchor | null = null;
   private lastOcclusionSyncAtMs = Number.NEGATIVE_INFINITY;
   private lastOcclusionSyncPosition: Vec2 | null = null;
+  private lastStaticMapCullAtMs = Number.NEGATIVE_INFINITY;
+  private lastStaticMapCullPosition: Vec2 | null = null;
   private elapsedOffsetMs = 0;
   private readonly sharedAuthoritativeRuntime: boolean;
 
@@ -182,6 +190,7 @@ export class GameScene extends Phaser.Scene {
       this.runtimeBridges.localBattleFrameBridge.update(command, delta);
     }
     this.updateCameraTarget();
+    this.updateStaticMapCullingIfNeeded(time);
 
     this.syncWorldViews(command, delta);
     this.winterZombieVisuals.update(this.snapshot, this.heroViews, delta);
@@ -222,7 +231,8 @@ export class GameScene extends Phaser.Scene {
       scene: this,
       wallBodies: this.wallBodies,
       obstacleBounds: this.obstacleBounds,
-      occludables: this.occludables
+      occludables: this.occludables,
+      staticMapViews: this.staticMapViews
     });
   }
   private createPlayerActor() {
@@ -273,6 +283,24 @@ export class GameScene extends Phaser.Scene {
     });
     this.lastOcclusionSyncAtMs = Number.isFinite(timeMs) ? timeMs : 0;
     this.lastOcclusionSyncPosition = { x: playerPosition.x, y: playerPosition.y };
+  }
+  private updateStaticMapCullingIfNeeded(timeMs: number) {
+    const playerPosition = this.localHeroDisplay.positionFor(this.getPlayerHero(), this.sharedAuthoritativeRuntime);
+    const elapsedMs = Number.isFinite(timeMs) ? timeMs - this.lastStaticMapCullAtMs : STATIC_MAP_CULL_INTERVAL_MS;
+    const movedDistance = this.lastStaticMapCullPosition
+      ? Math.hypot(playerPosition.x - this.lastStaticMapCullPosition.x, playerPosition.y - this.lastStaticMapCullPosition.y)
+      : Number.POSITIVE_INFINITY;
+
+    if (elapsedMs < STATIC_MAP_CULL_INTERVAL_MS && movedDistance < STATIC_MAP_CULL_POSITION_DELTA) {
+      return;
+    }
+
+    updateGameSceneStaticMapCulling({
+      camera: this.cameras.main,
+      staticMapViews: this.staticMapViews
+    });
+    this.lastStaticMapCullAtMs = Number.isFinite(timeMs) ? timeMs : 0;
+    this.lastStaticMapCullPosition = { x: playerPosition.x, y: playerPosition.y };
   }
   private handleResize(_gameSize?: Phaser.Structs.Size) {
     this.cameras.main.setSize(this.scale.width, this.scale.height);

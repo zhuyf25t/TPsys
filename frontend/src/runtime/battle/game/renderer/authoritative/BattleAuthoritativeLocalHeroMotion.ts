@@ -10,6 +10,8 @@ export type {
   AuthoritativeLocalHeroDisplayMotionResult
 } from "./objects/BattleAuthoritativeLocalHeroMotionObjects";
 
+const LOCAL_AUTHORITATIVE_DISPLAY_MAX_DISTANCE_FROM_AUTHORITATIVE = 48;
+
 export function applyAuthoritativeLocalHeroDisplayMotion({
   snapshot,
   player,
@@ -18,7 +20,8 @@ export function applyAuthoritativeLocalHeroDisplayMotion({
   displayPoseStore,
   obstacleBounds,
   dashCooldownMsOverride,
-  blinkCooldownMsOverride
+  blinkCooldownMsOverride,
+  maxDisplayDistanceFromAuthoritative = LOCAL_AUTHORITATIVE_DISPLAY_MAX_DISTANCE_FROM_AUTHORITATIVE
 }: ApplyAuthoritativeLocalHeroDisplayMotionInput): AuthoritativeLocalHeroDisplayMotionResult {
   const currentPosition = displayPoseStore.read().position;
   const plan = resolveBattleAuthoritativeLocalHeroDisplayMotionPlan({
@@ -29,7 +32,8 @@ export function applyAuthoritativeLocalHeroDisplayMotion({
     currentPosition,
     obstacleBounds,
     dashCooldownMsOverride,
-    blinkCooldownMsOverride
+    blinkCooldownMsOverride,
+    maxDisplayDistanceFromAuthoritative
   });
 
   if (!plan.shouldWriteDisplayPose) {

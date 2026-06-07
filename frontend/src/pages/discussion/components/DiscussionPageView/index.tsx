@@ -35,7 +35,7 @@ export function DiscussionPageView({
       <section className="forum-board">
         <header className="forum-board__lead">
           <div className="forum-board__title">
-            <p className="replay-library__eyebrow">Forum</p>
+            <p className="replay-library__eyebrow">论坛</p>
             <h3>讨论区</h3>
             <p>只保留帖子本体、投票和回复入口。</p>
           </div>
@@ -95,7 +95,7 @@ export function DiscussionPageView({
                   <VoteButton active={topic.viewerVote === "up"} onClick={() => void submitVote(topic, "up")} />
                   <VoteButton active={topic.viewerVote === "down"} vote="down" onClick={() => void submitVote(topic, "down")} />
                   <button type="button" className="forum-action forum-action--report" onClick={() => openReport(topic)}>
-                    Report
+                    举报
                   </button>
                 </div>
               </article>
@@ -188,7 +188,7 @@ export function DiscussionPageView({
 function VoteButton({ active, vote = "up", onClick }: { active: boolean; vote?: DiscussionVote; onClick: () => void }) {
   return (
     <button type="button" className={`forum-action${active ? " forum-action--active" : ""}`} aria-pressed={active} onClick={onClick}>
-      {vote === "up" ? "Up" : "Down"}
+      {vote === "up" ? "赞" : "踩"}
     </button>
   );
 }

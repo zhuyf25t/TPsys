@@ -1,3 +1,10 @@
+[CmdletBinding()]
+param(
+  [ValidateSet("winter", "default", "autumn", "normal")]
+  [string]$ModeId = "default",
+  [string]$SummaryPath = ""
+)
+
 $ErrorActionPreference = "Stop"
 
 $BaseUrl = if ($env:SLAY_DEMO_API_BASE) { $env:SLAY_DEMO_API_BASE } else { "http://127.0.0.1:5173/api" }
@@ -25,24 +32,201 @@ function Invoke-ContractJson {
     [object]$Body = $null
   )
 
-  $uri = "$BaseUrl$Path"
+  $request = Convert-ContractRequest -Method $Method -Path $Path -Body $Body
+  $uri = "$BaseUrl$($request.Path)"
   $parameters = @{
-    Method = $Method
+    Method = $request.Method
     Uri = $uri
     Headers = @{ "Accept" = "application/json" }
     TimeoutSec = 8
   }
 
-  if ($null -ne $Body) {
+  if ($null -ne $request.Body) {
     $parameters.ContentType = "application/json"
-    $parameters.Body = ($Body | ConvertTo-Json -Depth 8 -Compress)
+    $parameters.Body = ($request.Body | ConvertTo-Json -Depth 8 -Compress)
   }
 
   try {
     return Invoke-RestMethod @parameters
   } catch {
-    throw "Request failed: $Method $uri :: $($_.Exception.Message)"
+    throw "Request failed: $($request.Method) $uri :: $($_.Exception.Message)"
   }
+}
+
+function Convert-ContractRequest {
+  param(
+    [string]$Method,
+    [string]$Path,
+    [object]$Body = $null
+  )
+
+  $pathOnly = Get-ContractPathOnly $Path
+  $convertedMethod = $Method
+  $convertedPath = $Path
+  $convertedBody = $Body
+
+  switch -Regex ($pathOnly) {
+    '^/battle/results$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battleresultlist"
+      $convertedBody = Add-BattleUserToken (Merge-ContractBody $Body @{
+        battleId = Get-ContractQueryValue $Path "battleId"
+        handle = Get-ContractQueryValue $Path "handle"
+        limit = Get-ContractQueryInt $Path "limit" 10
+      })
+      break
+    }
+    '^/battle/queue/join$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battlequeuejoin"
+      $convertedBody = Add-BattleUserToken (Copy-ContractBody $Body)
+      break
+    }
+    '^/battle/queue/status$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battlequeuestatus"
+      $convertedBody = Add-BattleUserToken (Merge-ContractBody $Body @{
+        ticketId = Get-ContractQueryValue $Path "ticketId"
+      })
+      break
+    }
+    '^/battle/queue/leave$' {
+      $convertedMethod = "POST"
+      $convertedPath = "/battlequeueleave"
+      $convertedBody = Add-BattleUserToken (Copy-ContractBody $Body)
+      break
+    }
+  }
+
+  return [pscustomobject]@{
+    Method = $convertedMethod
+    Path = $convertedPath
+    Body = $convertedBody
+  }
+}
+
+function Get-ContractPathOnly {
+  param([string]$Path)
+
+  $queryStart = $Path.IndexOf("?")
+  if ($queryStart -lt 0) {
+    return $Path
+  }
+
+  return $Path.Substring(0, $queryStart)
+}
+
+function Get-ContractQueryValue {
+  param(
+    [string]$Path,
+    [string]$Name
+  )
+
+  $queryStart = $Path.IndexOf("?")
+  if ($queryStart -lt 0 -or $queryStart -ge ($Path.Length - 1)) {
+    return $null
+  }
+
+  $query = $Path.Substring($queryStart + 1)
+  foreach ($part in $query.Split("&")) {
+    if ([string]::IsNullOrWhiteSpace($part)) {
+      continue
+    }
+
+    $pair = $part.Split("=", 2)
+    $key = [uri]::UnescapeDataString($pair[0])
+    if ($key -ne $Name) {
+      continue
+    }
+
+    if ($pair.Count -lt 2) {
+      return ""
+    }
+
+    return [uri]::UnescapeDataString($pair[1])
+  }
+
+  return $null
+}
+
+function Get-ContractQueryInt {
+  param(
+    [string]$Path,
+    [string]$Name,
+    [int]$DefaultValue
+  )
+
+  $value = Get-ContractQueryValue $Path $Name
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $DefaultValue
+  }
+
+  $parsed = 0
+  if ([int]::TryParse([string]$value, [ref]$parsed)) {
+    return $parsed
+  }
+
+  return $DefaultValue
+}
+
+function Copy-ContractBody {
+  param([object]$Body)
+
+  $copy = @{}
+  if ($null -eq $Body) {
+    return $copy
+  }
+
+  if ($Body -is [hashtable]) {
+    foreach ($key in $Body.Keys) {
+      $copy[$key] = $Body[$key]
+    }
+    return $copy
+  }
+
+  foreach ($property in $Body.PSObject.Properties) {
+    $copy[$property.Name] = $property.Value
+  }
+  return $copy
+}
+
+function Merge-ContractBody {
+  param(
+    [object]$Body,
+    [hashtable]$Defaults
+  )
+
+  $copy = Copy-ContractBody $Body
+  foreach ($key in $Defaults.Keys) {
+    if (-not $copy.ContainsKey($key) -and $null -ne $Defaults[$key]) {
+      $copy[$key] = $Defaults[$key]
+    }
+  }
+  return $copy
+}
+
+function Add-BattleUserToken {
+  param([hashtable]$Body)
+
+  $copy = Copy-ContractBody $Body
+  if ($copy.ContainsKey("userToken") -and -not [string]::IsNullOrWhiteSpace([string]$copy["userToken"])) {
+    return $copy
+  }
+
+  if ($copy.ContainsKey("sessionToken") -and -not [string]::IsNullOrWhiteSpace([string]$copy["sessionToken"])) {
+    $copy["userToken"] = [string]$copy["sessionToken"]
+    if ([string]::IsNullOrWhiteSpace([string]$Script:BattleApiUserToken)) {
+      $Script:BattleApiUserToken = [string]$copy["sessionToken"]
+    }
+    return $copy
+  }
+
+  if ([string]::IsNullOrWhiteSpace([string]$Script:BattleApiUserToken)) {
+    throw "No battle user token is available for APIMessageRouter request."
+  }
+
+  $copy["userToken"] = [string]$Script:BattleApiUserToken
+  return $copy
 }
 
 function Test-HasField {
@@ -240,7 +424,8 @@ $SmokePassword = "pass1234"
 
 Write-Host "Authoritative finish/result/replay smoke"
 Write-Host "Base URL: $BaseUrl"
-Write-Host "Note: backend must already be running with a short SLAY_DEMO_AUTHORITATIVE_BATTLE_DURATION_MS."
+Write-Host "Mode ID: $ModeId"
+Write-Host "Note: backend must already be running with an active battle_runtime_rules duration short enough for this smoke."
 Write-Host ""
 
 Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating input" {
@@ -276,6 +461,7 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
         queueRequestId = "$RunSuffix-$handle"
         rating = "1200"
         skin = "blue"
+        modeId = $ModeId
       }
       $missingJoin = Test-Fields $join @("ticketId", "playerId", "roomId", "startsAt")
       if ($missingJoin.Count -gt 0) {
@@ -498,6 +684,29 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
       throw "Authoritative replay with playable frames should be playable: playbackAvailable=$($replay.playbackAvailable), frameCount=$frameCount."
     }
 
+    $postedComment = Invoke-ContractJson "POST" "/replay/catalog/$([uri]::EscapeDataString($battleId))/comments" @{
+      authorHandle = $secondaryHandle
+      body = "Finish smoke replay comment $RunId $ModeId"
+    }
+    $missingPostedCommentEnvelope = Test-Fields $postedComment @("comment")
+    if ($missingPostedCommentEnvelope.Count -gt 0) {
+      throw "Posted replay comment response missing envelope fields: $($missingPostedCommentEnvelope -join ', ')."
+    }
+    $missingPostedComment = Test-Fields $postedComment.comment @("id", "replayId", "authorHandle", "body", "createdAt")
+    if ($missingPostedComment.Count -gt 0) {
+      throw "Posted replay comment missing fields: $($missingPostedComment -join ', ')."
+    }
+    if ($postedComment.comment.replayId -ne $battleId -or $postedComment.comment.authorHandle -ne $secondaryHandle) {
+      throw "Posted replay comment identity mismatch: replayId=$($postedComment.comment.replayId), author=$($postedComment.comment.authorHandle), expected replay=$battleId author=$secondaryHandle."
+    }
+    $commentsPayload = Invoke-ContractJson "GET" "/replay/catalog/$([uri]::EscapeDataString($battleId))/comments"
+    $comments = Test-ArrayEnvelope $commentsPayload "comments"
+    $commentMatch = @($comments | Where-Object { $_.id -ceq $postedComment.comment.id -and $_.replayId -ceq $battleId } | Select-Object -First 1)
+    if ($commentMatch.Count -lt 1) {
+      $commentIds = @($comments | ForEach-Object { $_.id })
+      throw "Replay comments did not include the posted comment id=$($postedComment.comment.id). Returned comment ids=$($commentIds -join ', ')."
+    }
+
     $mailsPayload = Invoke-ContractJson "GET" "/mails?ownerHandle=$([uri]::EscapeDataString($SmokeHandle))"
     $mails = Test-ArrayEnvelope $mailsPayload "mails"
     $battleMailId = "mail-battle-$($currentResult.resultId)"
@@ -531,6 +740,30 @@ Test-Endpoint "finish -> resultReady/replayReady -> result/replay/mails/rating i
       $ratingMailChecked = "present"
     }
 
+    $detailParts = @(
+      "modeId=$ModeId",
+      "battleId=$battleId",
+      "resultId=$($currentResult.resultId)",
+      "resultCount=$($relatedResults.Count)",
+      "handleResultCount=$($handleResults.Count)",
+      "score=$($currentResult.score)",
+      "replayScore=$($replay.score)",
+      "secondaryHandle=$secondaryHandle",
+      "secondaryReplayScore=$($secondaryReplay.score)",
+      "frames=$frameArrayCount",
+      "frameCount=$frameCount",
+      "playbackAvailable=$($replay.playbackAvailable)",
+      "replayComments=$($comments.Count)",
+      "postedComment=$($postedComment.comment.id)",
+      "catalogRating=$($catalogReplay[0].ratingDelta)",
+      "secondaryCatalogRating=$($secondaryReplayCatalog[0].ratingDelta)",
+      "mails=$($mails.Count)",
+      "battleMail=$battleMailId",
+      "ratingDelta=$($currentResult.ratingDelta)",
+      "ratingMail=$ratingMailChecked"
+    )
+    return ($detailParts -join "; ")
+
     "battleId=$battleId; resultId=$($currentResult.resultId); resultCount=$($relatedResults.Count); handleResultCount=$($handleResults.Count); score=$($currentResult.score); replayScore=$($replay.score); secondaryHandle=$secondaryHandle; secondaryReplayScore=$($secondaryReplay.score); frames=$frameArrayCount; frameCount=$frameCount; playbackAvailable=$($replay.playbackAvailable); catalogRating=$($catalogReplay[0].ratingDelta); secondaryCatalogRating=$($secondaryCatalogReplay[0].ratingDelta); mails=$($mails.Count); battleMail=$battleMailId; ratingDelta=$($currentResult.ratingDelta); ratingMail=$ratingMailChecked"
   } finally {
     foreach ($queuedJoin in @($joins)) {
@@ -545,6 +778,28 @@ Write-Host "Results:"
 foreach ($result in $Results) {
   $status = if ($result.Passed) { "PASS" } else { "FAIL" }
   Write-Host ("[{0}] {1} - {2}" -f $status, $result.Name, $result.Detail)
+}
+
+if (-not [string]::IsNullOrWhiteSpace($SummaryPath)) {
+  $summaryResults = @($Results | ForEach-Object {
+    [pscustomobject]@{
+      name = [string]$_.Name
+      passed = [bool]$_.Passed
+      detail = [string]$_.Detail
+    }
+  })
+  $summary = [ordered]@{
+    modeId = $ModeId
+    baseUrl = $BaseUrl
+    generatedAt = [DateTimeOffset]::UtcNow.ToString("O")
+    passed = (@($summaryResults | Where-Object { -not $_.passed }).Count -eq 0)
+    results = $summaryResults
+  }
+  $summaryDir = Split-Path -Parent $SummaryPath
+  if (-not [string]::IsNullOrWhiteSpace($summaryDir)) {
+    New-Item -ItemType Directory -Force -Path $summaryDir | Out-Null
+  }
+  $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $SummaryPath -Encoding UTF8
 }
 
 $failures = @($Results | Where-Object { -not $_.Passed })

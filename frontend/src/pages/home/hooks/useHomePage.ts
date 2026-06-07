@@ -30,7 +30,14 @@ import {
   loadRemoteFriendRequests,
   REMOTE_FRIEND_REQUEST_REFRESH_INTERVAL_MS
 } from "../../../apis/social/friendRequestGateway";
-import { BATTLE_ARENA_PLAYER_CAPACITY, BATTLE_MATCH_DURATION_LABEL } from "../../../objects/battle/objects/core/BattleCoreRules";
+import { BATTLE_MATCH_DURATION_LABEL, battleArenaPlayerCapacityForMode } from "../../../objects/battle/objects/core/BattleCoreRules";
+import {
+  BATTLE_PLAY_MODE_OPTIONS,
+  DEFAULT_BATTLE_MODE_ID,
+  resolveBattlePlayMode,
+  type BattlePlayModeId,
+  type BattlePlayModeOption
+} from "../../../runtime/battle/microservices/world/services/BattleArenaCatalog";
 import { buildFriendRequestPreview, type FriendRequestPreviewModel } from "../../friend-requests/components/friendRequestPreviewPresenter";
 import type { LobbyPreviewSet, LobbyQuickAction, LobbyQuickKey, LobbyShellProps, LobbyTopStatusItem } from "../../../components/ui/LobbyShell";
 import { useLobbyData } from "../../shared/hooks/useLobbyData";
@@ -46,6 +53,7 @@ export interface HomeLeaderboardEntry {
 export interface HomePageState {
   authMode: HomeAuthMode;
   battleModeDetail: string;
+  battleModeOptions: readonly BattlePlayModeOption[];
   closeAuthOverlay: () => void;
   completeAuth: () => void;
   contributionLeaderboard: HomeLeaderboardEntry[];
@@ -67,6 +75,10 @@ export interface HomePageState {
   recentReplayCount: number;
   replayTotalCount: number;
   secondaryAction: LobbyShellProps["secondaryAction"];
+  selectedBattleMapLabel: string;
+  selectedBattleModeId: BattlePlayModeId;
+  selectedBattleModeLabel: string;
+  selectBattleMode: (modeId: BattlePlayModeId) => void;
   skillTags: string[];
   syncDetail: string;
   tertiaryAction: NonNullable<LobbyShellProps["tertiaryAction"]>;
@@ -84,10 +96,14 @@ const quickActions: LobbyQuickAction[] = [
 /** 中文名称：首页Hook。游戏职责：封装大厅认证、数据预览和排行榜聚合。 */
 export function useHomePage(): HomePageState {
   const [authMode, setAuthMode] = useState<HomeAuthMode>(null);
+  const [selectedBattleModeId, setSelectedBattleModeId] = useState<BattlePlayModeId>(DEFAULT_BATTLE_MODE_ID);
   const authUser = useSyncExternalStore(subscribeAuthState, getCurrentAuthUser, getCurrentAuthUser);
   const authRefreshKey = authUser ? `${authUser.handle}:${authUser.sessionToken ?? ""}:${authUser.createdAt}` : "guest";
 
   const loadout = getLoadoutSummary();
+  const selectedBattleMode = resolveBattlePlayMode(selectedBattleModeId);
+  const selectedBattleCapacity = battleArenaPlayerCapacityForMode(selectedBattleMode.modeId);
+  const battleModeDetail = `${selectedBattleMode.label} / ${selectedBattleMode.mapLabel} / ${selectedBattleCapacity} 人 / ${BATTLE_MATCH_DURATION_LABEL}`;
   const resolvedHandle = authUser?.handle?.trim() ?? "";
   const mailOwnerHandle = authUser?.handle;
   const shouldRefreshRemoteMail = isRemoteMailSourceConfigured() && Boolean(mailOwnerHandle?.trim());
@@ -162,11 +178,17 @@ export function useHomePage(): HomePageState {
   const openLogin = (): void => setAuthMode("login");
   const openRegister = (): void => setAuthMode("register");
   const closeAuthOverlay = (): void => setAuthMode(null);
+  const selectBattleMode = (modeId: BattlePlayModeId): void => {
+    setSelectedBattleModeId(resolveBattlePlayMode(modeId).modeId);
+  };
 
   const primaryAction: LobbyShellProps["primaryAction"] = authUser
     ? { label: "开始游戏", to: "/battle?new=1", variant: "primary" }
     : { label: "登录后开战", onClick: openLogin, variant: "primary" };
   const secondaryAction: LobbyShellProps["secondaryAction"] = { label: "调整配装", to: "/loadout" };
+  const primaryActionWithSelectedMode: LobbyShellProps["primaryAction"] = authUser
+    ? { ...primaryAction, to: `/battle?new=1&mode=${encodeURIComponent(selectedBattleMode.modeId)}` }
+    : primaryAction;
   const tertiaryAction: NonNullable<LobbyShellProps["tertiaryAction"]> = authUser
     ? {
         label: "退出",
@@ -179,7 +201,8 @@ export function useHomePage(): HomePageState {
 
   return {
     authMode,
-    battleModeDetail: `\u4e27\u5c38\u6a21\u5f0f / ${BATTLE_ARENA_PLAYER_CAPACITY} \u4eba / ${BATTLE_MATCH_DURATION_LABEL}`,
+    battleModeDetail,
+    battleModeOptions: BATTLE_PLAY_MODE_OPTIONS,
     closeAuthOverlay,
     completeAuth: closeAuthOverlay,
     contributionLeaderboard: contributionEntries.map((entry) => ({ rank: entry.rank, handle: entry.handle, value: entry.totalActions })),
@@ -187,17 +210,17 @@ export function useHomePage(): HomePageState {
     currentRatingLabel,
     loadoutPrimary: loadout.primary,
     loadoutSkillsLabel: loadout.skills.join(" / "),
-    lobbySubtitle: `\u4e27\u5c38\u6a21\u5f0f / ${BATTLE_ARENA_PLAYER_CAPACITY} \u4eba\u96ea\u5730\u6218\u6597`,
+    lobbySubtitle: `${selectedBattleMode.label} / ${selectedBattleCapacity} \u4eba / ${selectedBattleMode.mapLabel}`,
     openRegister,
     playerAvatarSrc: loadout.skinImageSrc,
     playerBadge: authUser ? buildHandleBadge(resolvedHandle) : "P1",
     playerMeta: authUser ? "已登录" : "未登录",
     playerName,
     previewSets: buildPreviewSets(replaySummaries, discussionSummaries, mailSummaries, ratingEntries, friendRequestPreview, mailOwnerHandle),
-    primaryAction,
+    primaryAction: primaryActionWithSelectedMode,
     quickActions: quickActionsWithBadges,
     railItems: [
-      { label: "竞技场", value: `${BATTLE_ARENA_PLAYER_CAPACITY} 人` },
+      { label: "竞技场", value: `${selectedBattleCapacity} 人` },
       { label: "回合", value: BATTLE_MATCH_DURATION_LABEL },
       { label: "评级", value: currentRatingLabel }
     ],
@@ -205,14 +228,18 @@ export function useHomePage(): HomePageState {
     recentReplayCount,
     replayTotalCount: replaySummaries.length,
     secondaryAction,
+    selectedBattleMapLabel: selectedBattleMode.mapLabel,
+    selectedBattleModeId,
+    selectedBattleModeLabel: selectedBattleMode.label,
+    selectBattleMode,
     skillTags: loadout.skills,
     syncDetail: "输入校验 / 状态回滚",
     tertiaryAction,
     topStatusItems: [
       {
         label: "战区状态",
-        value: "竞技场在线",
-        detail: `${BATTLE_ARENA_PLAYER_CAPACITY} 人容量 / ${BATTLE_MATCH_DURATION_LABEL}`,
+        value: selectedBattleMode.mapLabel,
+        detail: `${selectedBattleCapacity} 人容量 / ${BATTLE_MATCH_DURATION_LABEL}`,
         tone: "ready"
       },
       {
@@ -308,7 +335,7 @@ function buildPreviewSets(
       detail: friendRequestPreview.detail,
       emptyTitle: friendRequestPreview.emptyTitle,
       emptyDetail: friendRequestPreview.emptyDetail,
-      viewAllPath: "/mails",
+      viewAllPath: "/friends",
       anchor: "right",
       items: friendRequestPreview.items
     }

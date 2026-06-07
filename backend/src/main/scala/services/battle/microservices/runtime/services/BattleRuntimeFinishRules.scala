@@ -6,16 +6,25 @@ import cats.syntax.all.*
 import services.battle.microservices.actors.services.BattlePlayerLifecycleRules
 import services.battle.microservices.extraction.services.BattleExtractionRuntimeRules
 import services.battle.microservices.runtime.services.BattleReplayFrameRecorder
-import services.battle.objects.{BattleAggregateState, BattlePhase, BattleTick, ElapsedMillis, EpochMillis}
+import services.battle.objects.{BattleAggregateState, BattleMapId, BattlePhase, BattleTick, ElapsedMillis, EpochMillis}
 
 private[battle] object BattleRuntimeFinishRules {
+  private val WinterZombieMapId: BattleMapId = BattleMapId("winter-hunt-v1")
+
   def isBattleFinished(state: BattleAggregateState, elapsed: Long): IO[Boolean] =
     BattleExtractionRuntimeRules.hasExtracted(state).map { extracted =>
       state.phase == BattlePhase.Finished ||
         extracted ||
         elapsed >= state.durationMs.value ||
-        state.players.count(player => player.alive && player.hp.value > 0) <= 1
+        survivorEndConditionReached(state)
     }
+
+  private def survivorEndConditionReached(state: BattleAggregateState): Boolean =
+    if state.mapId == WinterZombieMapId then
+      val humans = state.players.filterNot(_.isBot)
+      humans.nonEmpty && !humans.exists(player => player.alive && player.hp.value > 0)
+    else
+      state.players.count(player => player.alive && player.hp.value > 0) <= 1
 
   def finishRuntimeState(
     state: BattleAggregateState,

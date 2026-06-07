@@ -5,7 +5,7 @@ import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/object
 import { getActiveBattleMap } from "../../objects/BattleGameConstants";
 import type { HeroView } from "../entities/worldViewFactory";
 
-const SNOWFLAKE_COUNT = 128;
+const SNOWFLAKE_COUNT = 84;
 const FOOTPRINT_GAP = 34;
 const FOOTPRINT_TTL_MS = 9000;
 const BLOOD_TTL_MS = 20000;
@@ -14,6 +14,9 @@ const MAX_BLOOD_DECALS = 70;
 const HORDE_CYCLE_MS = 30000;
 const HORDE_WARNING_MS = 7200;
 const HORDE_BREACH_FLASH_MS = 1800;
+const TRAIL_DECAL_UPDATE_INTERVAL_MS = 90;
+const ZOMBIE_GLOW_UPDATE_INTERVAL_MS = 75;
+const HORDE_WARNING_UPDATE_INTERVAL_MS = 120;
 
 type SnowView = Phaser.GameObjects.Arc | Phaser.GameObjects.Rectangle;
 type DecalView = Phaser.GameObjects.Ellipse | Phaser.GameObjects.Image;
@@ -50,6 +53,10 @@ export class WinterZombieVisualController {
   private readonly wavePanel: Phaser.GameObjects.Rectangle;
   private readonly waveText: Phaser.GameObjects.Text;
   private readonly waveSubtext: Phaser.GameObjects.Text;
+  private ambientVisible: boolean | null = null;
+  private trailDecalUpdateElapsedMs = TRAIL_DECAL_UPDATE_INTERVAL_MS;
+  private zombieGlowUpdateElapsedMs = ZOMBIE_GLOW_UPDATE_INTERVAL_MS;
+  private hordeWarningUpdateElapsedMs = HORDE_WARNING_UPDATE_INTERVAL_MS;
 
   public constructor(private readonly scene: Phaser.Scene) {
     this.createBlizzardLayer();
@@ -92,10 +99,17 @@ export class WinterZombieVisualController {
       return;
     }
 
-    this.updateBlizzard(deltaMs, snapshot.elapsedMs);
-    this.updateTrailDecals(snapshot, heroViews);
-    this.updateZombieGlows(snapshot, heroViews);
-    this.updateHordeWarning(snapshot);
+    const clampedDeltaMs = Number.isFinite(deltaMs) ? Math.min(100, Math.max(0, deltaMs)) : 0;
+    this.updateBlizzard(clampedDeltaMs, snapshot.elapsedMs);
+    if (this.shouldRunTrailDecalUpdate(clampedDeltaMs)) {
+      this.updateTrailDecals(snapshot, heroViews);
+    }
+    if (this.shouldRunZombieGlowUpdate(clampedDeltaMs)) {
+      this.updateZombieGlows(snapshot, heroViews);
+    }
+    if (this.shouldRunHordeWarningUpdate(clampedDeltaMs)) {
+      this.updateHordeWarning(snapshot);
+    }
   }
 
   public destroy(): void {
@@ -163,12 +177,52 @@ export class WinterZombieVisualController {
   }
 
   private setAmbientVisible(visible: boolean): void {
+    if (this.ambientVisible === visible) {
+      return;
+    }
+
+    this.ambientVisible = visible;
     this.snowflakes.forEach((flake) => flake.view.setVisible(visible));
     this.edgeStrips.forEach((strip) => strip.setVisible(visible));
     this.spawnPings.forEach((ping) => ping.setVisible(visible && ping.visible));
     this.wavePanel.setVisible(visible);
     this.waveText.setVisible(visible);
     this.waveSubtext.setVisible(visible);
+    if (visible) {
+      this.trailDecalUpdateElapsedMs = TRAIL_DECAL_UPDATE_INTERVAL_MS;
+      this.zombieGlowUpdateElapsedMs = ZOMBIE_GLOW_UPDATE_INTERVAL_MS;
+      this.hordeWarningUpdateElapsedMs = HORDE_WARNING_UPDATE_INTERVAL_MS;
+    }
+  }
+
+  private shouldRunTrailDecalUpdate(deltaMs: number): boolean {
+    this.trailDecalUpdateElapsedMs += deltaMs;
+    if (this.trailDecalUpdateElapsedMs < TRAIL_DECAL_UPDATE_INTERVAL_MS) {
+      return false;
+    }
+
+    this.trailDecalUpdateElapsedMs = 0;
+    return true;
+  }
+
+  private shouldRunZombieGlowUpdate(deltaMs: number): boolean {
+    this.zombieGlowUpdateElapsedMs += deltaMs;
+    if (this.zombieGlowUpdateElapsedMs < ZOMBIE_GLOW_UPDATE_INTERVAL_MS) {
+      return false;
+    }
+
+    this.zombieGlowUpdateElapsedMs = 0;
+    return true;
+  }
+
+  private shouldRunHordeWarningUpdate(deltaMs: number): boolean {
+    this.hordeWarningUpdateElapsedMs += deltaMs;
+    if (this.hordeWarningUpdateElapsedMs < HORDE_WARNING_UPDATE_INTERVAL_MS) {
+      return false;
+    }
+
+    this.hordeWarningUpdateElapsedMs = 0;
+    return true;
   }
 
   private updateBlizzard(deltaMs: number, elapsedMs: number): void {
@@ -427,7 +481,8 @@ export class WinterZombieVisualController {
 }
 
 function isZombieHero(hero: Hero): boolean {
-  return hero.heroId.startsWith("bot-") || hero.displayName.toLowerCase().includes("zombie");
+  const normalized = hero.displayName.toLowerCase();
+  return normalized.includes("zombie") || hero.displayName.includes("丧尸");
 }
 
 function distanceBetween(a: Vec2, b: Vec2): number {

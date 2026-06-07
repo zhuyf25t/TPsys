@@ -14,11 +14,18 @@ import services.battle.microservices.actors.objects.actors.BattleBotRuleConfig
 import services.battle.microservices.combat.services.BattleWeaponRules.*
 import services.battle.microservices.combat.objects.weapon.WeaponKind
 import services.battle.microservices.abilities.objects.pickup.PickupKind
-import services.battle.objects.core.{BattleAggregateState, BattleVector2, FacingRadians, SpawnPointIndex}
+import services.battle.objects.core.{BattleAggregateState, BattleMapId, BattleVector2, FacingRadians, SpawnPointIndex}
 import services.battle.microservices.abilities.objects.pickup.BattlePickupState
 import services.battle.microservices.actors.objects.player.BattlePlayerState
 
 private[battle] object BattleBotRules {
+  private val WinterZombieMapId: BattleMapId = BattleMapId("winter-hunt-v1")
+  private type BotControlResolver =
+    (BattlePlayerState, BattleAggregateState, BattleArenaContext, BattleDynamicRuleBook) => IO[BattlePlayerState]
+
+  private val BotControlResolvers: Map[BattleMapId, BotControlResolver] =
+    Map(WinterZombieMapId -> applyZombieControl)
+
   private final case class BotTarget(
     player: BattlePlayerState,
     distance: Double,
@@ -31,8 +38,48 @@ private[battle] object BattleBotRules {
     arena: BattleArenaContext,
     battleRules: BattleDynamicRuleBook
   ): IO[BattlePlayerState] = {
-    if player.isBot then applyZombieControl(player, state, arena, battleRules)
+    if player.isBot then botControlResolver(state.mapId)(player, state, arena, battleRules)
     else IO.pure(player)
+  }
+
+  private def botControlResolver(mapId: BattleMapId): BotControlResolver =
+    BotControlResolvers.getOrElse(mapId, applyCombatBotControl)
+
+  private def applyCombatBotControl(
+    player: BattlePlayerState,
+    state: BattleAggregateState,
+    arena: BattleArenaContext,
+    battleRules: BattleDynamicRuleBook
+  ): IO[BattlePlayerState] = {
+    for
+      botRules <- battleRules.bot
+      target <- selectTarget(player, state, arena)
+      reloadPressed <- shouldBotReload(player, target.exists(_.visible), botRules, battleRules)
+      movement <-
+        if reloadPressed then reloadMovement(player, target, state, botRules, arena, battleRules)
+        else target match {
+          case Some(botTarget) => combatMovement(player, botTarget, state, botRules, arena)
+          case None            => objectiveMovement(player, state, botRules, arena, battleRules)
+        }
+      aim <-
+        target match {
+          case Some(botTarget) => aimAtTarget(player, botTarget, state, botRules)
+          case None =>
+            vectorLength(movement).flatMap { movementLength =>
+              normalizeAim(player.aim, if movementLength > 0.0001 then movement else player.aim)
+            }
+        }
+      primaryHeld <-
+        if reloadPressed then IO.pure(false)
+        else target.traverse(shouldFireAtTarget(player, _, state, botRules, battleRules)).map(_.getOrElse(false))
+    yield player.copy(
+      aim = aim,
+      facing = FacingRadians(math.atan2(aim.y, aim.x)),
+      movement = movement,
+      sprint = false,
+      primaryHeld = primaryHeld,
+      reloadPressed = reloadPressed
+    )
   }
 
   private def applyZombieControl(

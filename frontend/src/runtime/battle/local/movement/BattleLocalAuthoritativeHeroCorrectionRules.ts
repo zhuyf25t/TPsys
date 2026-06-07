@@ -27,14 +27,15 @@ export interface LocalAuthoritativeHeroCorrectionTuning {
   halfLifeMs: number;
 }
 
-const LOCAL_AUTHORITATIVE_HARD_SNAP_DISTANCE = 320;
+const LOCAL_AUTHORITATIVE_HARD_SNAP_DISTANCE = 640;
+const LOCAL_AUTHORITATIVE_MAX_VISIBLE_CORRECTION_DISTANCE = 48;
 const LOCAL_AUTHORITATIVE_STATIONARY_CORRECTION = {
-  deadzone: 10,
-  halfLifeMs: 180
+  deadzone: 3,
+  halfLifeMs: 22
 } as const;
 const LOCAL_AUTHORITATIVE_MOVING_CORRECTION = {
-  deadzone: 42,
-  halfLifeMs: 320
+  deadzone: 6,
+  halfLifeMs: 26
 } as const;
 
 export function resolveLocalAuthoritativeHeroCorrection(
@@ -101,7 +102,11 @@ export function resolveLocalAuthoritativeHeroCorrection(
   }
 
   return {
-    nextPosition: clonePosition(input.currentPosition),
+    nextPosition: constrainCorrectionDistance({
+      currentPosition: input.currentPosition,
+      targetPosition: input.authoritativePosition,
+      maxDistance: LOCAL_AUTHORITATIVE_MAX_VISIBLE_CORRECTION_DISTANCE
+    }),
     targetPosition: clonePosition(input.authoritativePosition),
     mode: "smooth",
     hardSnap: false,
@@ -126,4 +131,27 @@ function isFinitePosition(position: Vec2): boolean {
 
 function clonePosition(position: Vec2): Vec2 {
   return { x: position.x, y: position.y };
+}
+
+function constrainCorrectionDistance({
+  currentPosition,
+  targetPosition,
+  maxDistance
+}: {
+  currentPosition: Vec2;
+  targetPosition: Vec2;
+  maxDistance: number;
+}): Vec2 {
+  const deltaX = currentPosition.x - targetPosition.x;
+  const deltaY = currentPosition.y - targetPosition.y;
+  const distance = Math.hypot(deltaX, deltaY);
+  if (!Number.isFinite(distance) || distance <= maxDistance || distance <= 0.001) {
+    return clonePosition(currentPosition);
+  }
+
+  const ratio = maxDistance / distance;
+  return {
+    x: targetPosition.x + deltaX * ratio,
+    y: targetPosition.y + deltaY * ratio
+  };
 }

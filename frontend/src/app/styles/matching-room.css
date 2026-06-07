@@ -96,7 +96,6 @@
 .matching-room__nav-chip,
 .matching-room__profile-strip,
 .matching-room__thin-button,
-.matching-room__change-map,
 .matching-room__mode-option,
 .matching-room__dock-button,
 .matching-room__ready-button {
@@ -274,8 +273,7 @@
   font-size: 12px;
 }
 
-.matching-room__thin-button,
-.matching-room__change-map {
+.matching-room__thin-button {
   min-height: 38px;
   border: 1px solid rgba(255, 205, 104, 0.48);
   border-radius: 6px;
@@ -290,7 +288,6 @@
 }
 
 .matching-room__thin-button:hover,
-.matching-room__change-map:hover,
 .matching-room__mode-option:hover:not(:disabled) {
   border-color: rgba(255, 218, 132, 0.76);
   background: rgba(255, 193, 66, 0.14);
@@ -501,11 +498,15 @@
 }
 
 .matching-room__seat strong {
+  display: block;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   margin-top: 12px;
   overflow: hidden;
   color: #fff8ec;
   font-size: 16px;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -609,6 +610,14 @@
   color: rgba(246, 238, 224, 0.72);
   text-align: left;
   cursor: pointer;
+}
+
+.matching-room__mode-options--locked .matching-room__mode-option {
+  cursor: not-allowed;
+}
+
+.matching-room__mode-options--locked .matching-room__mode-option:not(.matching-room__mode-option--active) {
+  opacity: 0.46;
 }
 
 .matching-room__mode-option span,
@@ -926,7 +935,681 @@
   font-weight: 1000;
 }
 
-@media (max-width: 1280px) {
+@media (min-width: 1281px) {
+  .matching-room {
+    overflow: hidden;
+  }
+
+  .matching-room__topbar {
+    position: relative;
+    min-height: 62px;
+    padding: 9px clamp(14px, 2vw, 24px);
+  }
+
+  .matching-room__room-status {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 214, 123, 0.22);
+    border-radius: 8px 18px;
+    background:
+      linear-gradient(90deg, rgba(255, 193, 66, 0.14), rgba(65, 205, 255, 0.08)),
+      rgba(9, 8, 6, 0.72);
+    box-shadow: inset 0 1px rgba(255, 244, 212, 0.1);
+  }
+
+  .matching-room__room-status span,
+  .matching-room__room-status small {
+    color: rgba(116, 220, 255, 0.78);
+    font-size: 11px;
+    font-weight: 1000;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .matching-room__room-status strong {
+    color: #fff1c8;
+    font-size: 14px;
+    font-weight: 1000;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .matching-room__room-status small {
+    min-width: 0;
+    overflow: hidden;
+    color: rgba(255, 225, 164, 0.78);
+    text-overflow: ellipsis;
+  }
+
+  .matching-room__profile-strip {
+    grid-template-columns: 38px minmax(84px, 1fr);
+    min-width: 176px;
+    padding: 6px 10px;
+  }
+
+  .matching-room__profile-strip img {
+    width: 38px;
+    height: 38px;
+  }
+
+  .matching-room__layout {
+    grid-template-columns: minmax(220px, 300px) minmax(800px, 1fr) minmax(220px, 300px);
+    gap: 14px;
+    width: min(1800px, calc(100vw - 28px));
+    height: calc(100vh - 168px);
+    min-height: 0;
+    margin: 12px auto 94px;
+  }
+
+  .matching-room__side {
+    gap: 10px;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .matching-room__info-panel {
+    gap: 8px;
+    padding: 13px 14px;
+  }
+
+  .matching-room__info-line {
+    min-height: 24px;
+  }
+
+  .matching-room__thin-button {
+    min-height: 32px;
+  }
+
+  .matching-room__leaderboard-row {
+    min-height: 26px;
+    padding-inline: 7px;
+  }
+
+  .matching-room__center,
+  .matching-room__hero-panel {
+    min-height: 0;
+  }
+
+  .matching-room__hero-panel {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    height: 100%;
+    gap: 10px;
+    padding: 14px 16px 16px;
+  }
+
+  .matching-room__title-frame {
+    gap: 4px;
+    padding: 11px 14px;
+  }
+
+  .matching-room__title-frame h1 {
+    font-size: clamp(28px, 2.4vw, 40px);
+  }
+
+  .matching-room__title-frame p {
+    font-size: 12px;
+  }
+
+  .matching-room__slot-row {
+    grid-template-columns: repeat(6, minmax(88px, 1fr));
+    gap: 9px;
+    min-height: 0;
+    align-content: start;
+  }
+
+  .matching-room__seat {
+    grid-template-rows: 23px 70px auto auto 1fr;
+    min-height: 176px;
+    padding: 7px 8px 9px;
+  }
+
+  .matching-room__seat-tag {
+    min-width: 50px;
+    min-height: 21px;
+    font-size: 10px;
+  }
+
+  .matching-room__avatar-frame {
+    width: 68px;
+    height: 68px;
+    margin-top: 5px;
+  }
+
+  .matching-room__avatar-silhouette {
+    width: 48px;
+    height: 48px;
+  }
+
+  .matching-room__invite-plus {
+    width: 46px;
+    height: 46px;
+    font-size: 38px;
+  }
+
+  .matching-room__seat strong {
+    margin-top: 7px;
+    font-size: 13px;
+  }
+
+  .matching-room__seat span {
+    margin-top: 4px;
+    padding: 3px 7px;
+    font-size: 10px;
+  }
+
+  .matching-room__seat em {
+    margin-top: 7px;
+    font-size: 11px;
+  }
+
+  .matching-room__console-grid {
+    gap: 10px;
+    min-height: 0;
+  }
+
+  .matching-room__console-panel {
+    gap: 8px;
+    min-height: 138px;
+    padding: 12px;
+  }
+
+  .matching-room__mode-content {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .matching-room__skull-badge {
+    width: 52px;
+    height: 52px;
+  }
+
+  .matching-room__mode-content h2 {
+    font-size: clamp(18px, 1.4vw, 24px);
+  }
+
+  .matching-room__mode-content p {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.34;
+  }
+
+  .matching-room__map-preview {
+    min-height: 86px;
+    padding: 12px;
+  }
+
+  .matching-room__map-lock {
+    min-height: 34px;
+    padding: 7px 9px;
+  }
+
+  .matching-room__timer-ring {
+    width: 108px;
+    height: 108px;
+  }
+
+  .matching-room__timer-ring strong {
+    font-size: 27px;
+  }
+
+  .matching-room__timer-bars {
+    grid-template-columns: repeat(6, 18px);
+    gap: 5px;
+  }
+
+  .matching-room__chat {
+    gap: 7px;
+  }
+
+  .matching-room__chat-line {
+    padding-bottom: 6px;
+  }
+
+  .matching-room__chat-input span {
+    min-height: 34px;
+  }
+
+  .matching-room__activity div {
+    min-height: 29px;
+  }
+
+  .matching-room__dock {
+    bottom: 12px;
+    grid-template-columns: minmax(160px, 280px) minmax(240px, 330px) minmax(160px, 280px);
+    gap: 14px;
+    width: min(940px, calc(100vw - 32px));
+  }
+
+  .matching-room__dock-button,
+  .matching-room__ready-button {
+    min-height: 58px;
+  }
+
+  .matching-room__ready-button {
+    min-height: 72px;
+  }
+
+  .matching-room__ready-button strong {
+    font-size: 26px;
+  }
+}
+
+@media (min-width: 1281px) and (max-height: 760px) {
+  .matching-room__topbar {
+    min-height: 54px;
+    padding-block: 7px;
+  }
+
+  .matching-room__room-status {
+    padding: 6px 12px;
+  }
+
+  .matching-room__profile-strip {
+    grid-template-columns: 34px minmax(78px, 1fr);
+    min-width: 168px;
+    padding: 5px 9px;
+  }
+
+  .matching-room__profile-strip img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .matching-room__layout {
+    height: calc(100vh - 134px);
+    margin: 8px auto 72px;
+  }
+
+  .matching-room__side {
+    gap: 8px;
+  }
+
+  .matching-room__info-panel {
+    gap: 6px;
+    padding: 11px 12px;
+  }
+
+  .matching-room__info-line {
+    min-height: 22px;
+  }
+
+  .matching-room__thin-button {
+    min-height: 30px;
+  }
+
+  .matching-room__leaderboard-row,
+  .matching-room__activity div {
+    min-height: 24px;
+  }
+
+  .matching-room__hero-panel {
+    grid-template-rows: auto auto auto auto;
+    gap: 7px;
+    padding: 10px 12px 12px;
+  }
+
+  .matching-room__title-frame {
+    gap: 3px;
+    padding: 8px 12px;
+  }
+
+  .matching-room__title-frame h1 {
+    font-size: clamp(24px, 2.1vw, 32px);
+  }
+
+  .matching-room__title-frame p {
+    font-size: 11px;
+  }
+
+  .matching-room__team-header {
+    min-height: 18px;
+  }
+
+  .matching-room__slot-row {
+    grid-template-columns: repeat(6, minmax(78px, 1fr));
+    grid-auto-rows: 92px;
+    gap: 6px;
+    height: 190px;
+  }
+
+  .matching-room__seat {
+    grid-template-rows: 15px 26px auto auto;
+    min-height: 92px;
+    padding: 4px 5px 5px;
+  }
+
+  .matching-room__seat-tag {
+    min-width: 34px;
+    min-height: 15px;
+    font-size: 9px;
+  }
+
+  .matching-room__avatar-frame {
+    width: 26px;
+    height: 26px;
+    margin-top: 1px;
+  }
+
+  .matching-room__avatar-silhouette {
+    width: 19px;
+    height: 19px;
+  }
+
+  .matching-room__invite-plus {
+    width: 21px;
+    height: 21px;
+    font-size: 18px;
+  }
+
+  .matching-room__seat strong {
+    margin-top: 3px;
+    font-size: 10px;
+  }
+
+  .matching-room__seat span,
+  .matching-room__seat em {
+    margin-top: 2px;
+    padding: 2px 5px;
+    font-size: 8px;
+  }
+
+  .matching-room__console-grid {
+    gap: 8px;
+  }
+
+  .matching-room__console-panel {
+    gap: 6px;
+    min-height: 92px;
+    padding: 7px 9px;
+  }
+
+  .matching-room__mode-content {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .matching-room__skull-badge {
+    width: 40px;
+    height: 40px;
+  }
+
+  .matching-room__mode-content h2 {
+    font-size: 16px;
+  }
+
+  .matching-room__mode-content p {
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.24;
+  }
+
+  .matching-room__map-preview {
+    min-height: 58px;
+    padding: 8px;
+  }
+
+  .matching-room__map-lock {
+    min-height: 28px;
+    padding: 5px 7px;
+  }
+
+  .matching-room__timer-ring {
+    width: 62px;
+    height: 62px;
+  }
+
+  .matching-room__timer-ring strong {
+    font-size: 19px;
+  }
+
+  .matching-room__timer-bars {
+    grid-template-columns: repeat(6, 14px);
+    gap: 4px;
+  }
+
+  .matching-room__chat {
+    gap: 6px;
+  }
+
+  .matching-room__chat-line {
+    padding-bottom: 5px;
+  }
+
+  .matching-room__chat-input span {
+    min-height: 32px;
+  }
+
+  .matching-room__dock {
+    bottom: 8px;
+    grid-template-columns: minmax(150px, 250px) minmax(220px, 300px) minmax(150px, 250px);
+    gap: 12px;
+    width: min(820px, calc(100vw - 28px));
+  }
+
+  .matching-room__dock-button,
+  .matching-room__ready-button {
+    min-height: 50px;
+  }
+
+  .matching-room__ready-button {
+    min-height: 60px;
+  }
+
+  .matching-room__ready-button strong {
+    font-size: 22px;
+  }
+}
+
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .matching-room {
+    overflow: hidden;
+  }
+
+  .matching-room__topbar {
+    position: relative;
+    min-height: 58px;
+    padding: 8px 20px;
+  }
+
+  .matching-room__profile-strip {
+    grid-template-columns: 36px minmax(76px, 1fr);
+    min-width: 176px;
+    padding: 6px 10px;
+  }
+
+  .matching-room__profile-strip img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .matching-room__layout {
+    grid-template-columns: minmax(210px, 270px) minmax(620px, 1fr) minmax(210px, 270px);
+    gap: 10px;
+    width: min(1260px, calc(100vw - 26px));
+    height: calc(100vh - 168px);
+    min-height: 0;
+    margin: 10px auto 80px;
+  }
+
+  .matching-room__side {
+    gap: 9px;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .matching-room__info-panel {
+    gap: 7px;
+    padding: 12px;
+  }
+
+  .matching-room__info-line {
+    min-height: 23px;
+  }
+
+  .matching-room__thin-button {
+    min-height: 30px;
+  }
+
+  .matching-room__leaderboard-row,
+  .matching-room__activity div {
+    min-height: 26px;
+  }
+
+  .matching-room__center,
+  .matching-room__hero-panel {
+    min-height: 0;
+  }
+
+  .matching-room__hero-panel {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    height: 100%;
+    gap: 8px;
+    padding: 12px 14px 14px;
+  }
+
+  .matching-room__title-frame {
+    gap: 3px;
+    padding: 9px 12px;
+  }
+
+  .matching-room__title-frame h1 {
+    font-size: clamp(24px, 2.4vw, 34px);
+  }
+
+  .matching-room__title-frame p {
+    font-size: 11px;
+  }
+
+  .matching-room__slot-row {
+    grid-template-columns: repeat(6, minmax(72px, 1fr));
+    gap: 7px;
+    min-height: 0;
+    align-content: start;
+  }
+
+  .matching-room__seat {
+    grid-template-rows: 17px 32px auto auto;
+    min-height: 82px;
+    padding: 4px 5px 6px;
+  }
+
+  .matching-room__seat-tag {
+    min-width: 34px;
+    min-height: 16px;
+    font-size: 9px;
+  }
+
+  .matching-room__avatar-frame {
+    width: 30px;
+    height: 30px;
+    margin-top: 2px;
+  }
+
+  .matching-room__avatar-silhouette {
+    width: 22px;
+    height: 22px;
+  }
+
+  .matching-room__invite-plus {
+    width: 24px;
+    height: 24px;
+    font-size: 20px;
+  }
+
+  .matching-room__seat strong {
+    margin-top: 3px;
+    font-size: 10px;
+  }
+
+  .matching-room__seat span,
+  .matching-room__seat em {
+    margin-top: 2px;
+    padding: 2px 5px;
+    font-size: 8px;
+  }
+
+  .matching-room__console-grid {
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .matching-room__console-panel {
+    gap: 7px;
+    min-height: 112px;
+    padding: 10px;
+  }
+
+  .matching-room__mode-content {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .matching-room__skull-badge {
+    width: 40px;
+    height: 40px;
+  }
+
+  .matching-room__mode-content h2 {
+    font-size: 16px;
+  }
+
+  .matching-room__mode-content p {
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .matching-room__map-preview {
+    min-height: 64px;
+    padding: 9px;
+  }
+
+  .matching-room__map-lock {
+    min-height: 28px;
+    padding: 5px 7px;
+  }
+
+  .matching-room__timer-ring {
+    width: 78px;
+    height: 78px;
+  }
+
+  .matching-room__timer-ring strong {
+    font-size: 20px;
+  }
+
+  .matching-room__timer-bars {
+    grid-template-columns: repeat(6, 14px);
+    gap: 4px;
+  }
+
+  .matching-room__dock {
+    bottom: 10px;
+    grid-template-columns: minmax(150px, 250px) minmax(220px, 300px) minmax(150px, 250px);
+    gap: 12px;
+    width: min(820px, calc(100vw - 28px));
+  }
+
+  .matching-room__dock-button,
+  .matching-room__ready-button {
+    min-height: 52px;
+  }
+
+  .matching-room__ready-button {
+    min-height: 64px;
+  }
+
+  .matching-room__ready-button strong {
+    font-size: 23px;
+  }
+}
+
+@media (max-width: 1100px) {
   .matching-room__layout {
     grid-template-columns: minmax(0, 1fr);
     width: min(1060px, calc(100vw - 24px));
@@ -939,6 +1622,198 @@
 
   .matching-room__slot-row {
     grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1100px) {
+  .matching-room {
+    overflow: hidden;
+  }
+
+  .matching-room__topbar {
+    position: relative;
+    min-height: 56px;
+    padding: 7px 20px;
+  }
+
+  .matching-room__room-status {
+    min-width: 0;
+  }
+
+  .matching-room__profile-strip {
+    grid-template-columns: 36px minmax(72px, 1fr);
+    min-width: 176px;
+    padding: 5px 9px;
+  }
+
+  .matching-room__profile-strip img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .matching-room__layout {
+    grid-template-columns: minmax(0, 1fr);
+    width: min(1010px, calc(100vw - 22px));
+    height: calc(100vh - 146px);
+    min-height: 0;
+    margin: 8px auto 74px;
+  }
+
+  .matching-room__side {
+    display: none;
+  }
+
+  .matching-room__center,
+  .matching-room__hero-panel {
+    min-height: 0;
+  }
+
+  .matching-room__hero-panel {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    height: 100%;
+    gap: 8px;
+    padding: 10px 12px 12px;
+  }
+
+  .matching-room__title-frame {
+    gap: 3px;
+    padding: 8px 12px;
+  }
+
+  .matching-room__title-frame h1 {
+    font-size: clamp(24px, 3vw, 32px);
+  }
+
+  .matching-room__title-frame p {
+    font-size: 11px;
+  }
+
+  .matching-room__team-header {
+    min-height: 18px;
+  }
+
+  .matching-room__slot-row {
+    grid-template-columns: repeat(6, minmax(66px, 1fr));
+    gap: 7px;
+    min-height: 0;
+    align-content: start;
+  }
+
+  .matching-room__seat {
+    grid-template-rows: 17px 32px auto auto;
+    min-height: 82px;
+    padding: 4px 5px 6px;
+  }
+
+  .matching-room__seat-tag {
+    min-width: 34px;
+    min-height: 16px;
+    font-size: 9px;
+  }
+
+  .matching-room__avatar-frame {
+    width: 30px;
+    height: 30px;
+    margin-top: 2px;
+  }
+
+  .matching-room__avatar-silhouette {
+    width: 22px;
+    height: 22px;
+  }
+
+  .matching-room__invite-plus {
+    width: 24px;
+    height: 24px;
+    font-size: 20px;
+  }
+
+  .matching-room__seat strong {
+    margin-top: 3px;
+    font-size: 10px;
+  }
+
+  .matching-room__seat span,
+  .matching-room__seat em {
+    margin-top: 2px;
+    padding: 2px 5px;
+    font-size: 8px;
+  }
+
+  .matching-room__console-grid {
+    grid-template-columns: 1.08fr 0.96fr 0.86fr;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .matching-room__console-panel {
+    gap: 7px;
+    min-height: 108px;
+    padding: 10px;
+  }
+
+  .matching-room__mode-content {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .matching-room__skull-badge {
+    width: 40px;
+    height: 40px;
+  }
+
+  .matching-room__mode-content h2 {
+    font-size: 16px;
+  }
+
+  .matching-room__mode-content p {
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .matching-room__map-preview {
+    min-height: 62px;
+    padding: 9px;
+  }
+
+  .matching-room__map-lock {
+    min-height: 28px;
+    padding: 5px 7px;
+  }
+
+  .matching-room__timer-ring {
+    width: 76px;
+    height: 76px;
+  }
+
+  .matching-room__timer-ring strong {
+    font-size: 20px;
+  }
+
+  .matching-room__timer-bars {
+    grid-template-columns: repeat(6, 14px);
+    gap: 4px;
+  }
+
+  .matching-room__dock {
+    bottom: 8px;
+    grid-template-columns: minmax(140px, 230px) minmax(210px, 280px) minmax(140px, 230px);
+    gap: 10px;
+    width: min(760px, calc(100vw - 24px));
+  }
+
+  .matching-room__dock-button,
+  .matching-room__ready-button {
+    min-height: 52px;
+  }
+
+  .matching-room__ready-button {
+    min-height: 62px;
+  }
+
+  .matching-room__ready-button strong {
+    font-size: 22px;
   }
 }
 

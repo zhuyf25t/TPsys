@@ -33,7 +33,15 @@ export function BattleChrome({
   const showCornerButtons = leftButtons.length > 0 || rightButtons.length > 0;
 
   return (
-    <section className={cn("relative min-h-screen overflow-hidden bg-slate-950 text-slate-100", phase === "matching" && "bg-slate-950")}>
+    <section
+      className={cn(
+        "arena-shell",
+        `arena-shell--${phase}`,
+        "relative min-h-screen overflow-hidden bg-slate-950 text-slate-100",
+        phase === "matching" && "bg-slate-950"
+      )}
+      data-battle-phase={phase}
+    >
       <div className="absolute inset-0">{children}</div>
 
       {showEscape ? (

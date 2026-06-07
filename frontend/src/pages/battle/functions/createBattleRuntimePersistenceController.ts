@@ -1,8 +1,12 @@
 import type { BattleGameSnapshot as GameSnapshot } from "../../../objects/battle/microservices/session/objects/state/BattleGameSnapshot";
 import type { BattleReplayFrameState as ReplayFrame } from "../../../objects/battle/microservices/projections/objects/replay/BattleReplayFrameState";
 import type { ActiveBattleSession, ActiveBattleSessionOwner } from "../objects/BattlePageState";
-import { ACTIVE_SESSION_PERSIST_INTERVAL_MS } from "../objects/BattlePageRuntimeConfig";
 import {
+  ACTIVE_AUTHORITATIVE_SESSION_PERSIST_INTERVAL_MS,
+  ACTIVE_SESSION_PERSIST_INTERVAL_MS
+} from "../objects/BattlePageRuntimeConfig";
+import {
+  publishActiveBattleSessionEpoch,
   writeActiveBattleSession,
   writeCompletedActiveBattleSession
 } from "../stores/activeBattleSessionStore";
@@ -54,6 +58,9 @@ export function createBattleRuntimePersistenceController({
   shouldStoreRuntimeCompletedSession
 }: BattleRuntimePersistenceControllerOptions) {
   const buildActiveSession = (snapshot: GameSnapshot): ActiveBattleSession => {
+    if (!activeSessionEpochRef.current) {
+      activeSessionEpochRef.current = publishActiveBattleSessionEpoch(owner);
+    }
     const battleId = resolveRuntimeBattleId();
     battleIdRef.current = battleId;
     return buildActiveBattleSession({
@@ -98,6 +105,9 @@ export function createBattleRuntimePersistenceController({
   const persistRuntime = (forceReplayFrame = false, snapshotOverride: GameSnapshot | null = null): void => {
     const snapshot = snapshotOverride ?? readRuntimeSnapshot();
     const now = Date.now();
+    const persistIntervalMs = sharedAuthoritativeRuntimeRef.current
+      ? ACTIVE_AUTHORITATIVE_SESSION_PERSIST_INTERVAL_MS
+      : ACTIVE_SESSION_PERSIST_INTERVAL_MS;
     const persistencePlan = resolveBattleRuntimePersistencePlan({
       runtimeActive: isRuntimeActive(),
       finalized: finalizedRef.current,
@@ -107,7 +117,7 @@ export function createBattleRuntimePersistenceController({
       shouldStoreCompletedSession: snapshot ? shouldStoreRuntimeCompletedSession(snapshot) : false,
       now,
       lastPersistedAt: lastActiveSessionPersistedAtRef.current,
-      persistIntervalMs: ACTIVE_SESSION_PERSIST_INTERVAL_MS
+      persistIntervalMs
     });
     if (persistencePlan.kind === "skip") {
       return;

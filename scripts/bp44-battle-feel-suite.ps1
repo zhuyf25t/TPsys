@@ -5,6 +5,9 @@ param(
   [string]$BackendUrl = "http://127.0.0.1:8080",
   [string]$Password = "bp28-pass",
   [string]$BrowserPath,
+  [ValidateSet("winter", "default", "autumn", "normal")]
+  [string]$ModeId = "winter",
+  [int]$PreInputSettleMs = 1700,
   [int]$PlayingTimeoutSeconds = 45,
   [int]$FrameSampleSeconds = 4,
   [switch]$Headful,
@@ -360,6 +363,10 @@ function Invoke-FeelSmokeScenario {
     "$FrameSampleSeconds",
     "-Scenario",
     $Scenario,
+    "-ModeId",
+    $ModeId,
+    "-PreInputSettleMs",
+    "$PreInputSettleMs",
     "-InputDurationMs",
     "$InputDurationMs",
     "-SummaryPath",
@@ -446,6 +453,8 @@ $suiteSummaryPath = Join-Path $resolvedOutputDir "suite-summary.json"
 $suiteSummary = [ordered]@{
   ok = $suiteOk
   suite = "BP-44A battle-feel"
+  modeId = $ModeId
+  preInputSettleMs = $PreInputSettleMs
   generatedAtUtc = [DateTimeOffset]::UtcNow.ToString("o")
   outputDir = $resolvedOutputDir
   headless = (-not [bool]$Headful)

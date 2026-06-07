@@ -40,9 +40,9 @@ object BattleRoutes {
     )
 
   def apiMessages(context: BattleAPIRuntimeContext): List[RegisteredAPIMessage] =
-    serviceInjectedRuntimeApiMessages(context) ++ resultApiMessages
+    runtimeApiMessages(context) ++ resultApiMessages
 
-  private def serviceInjectedRuntimeApiMessages(context: BattleAPIRuntimeContext): List[RegisteredAPIMessage] =
+  def runtimeApiMessages(context: BattleAPIRuntimeContext): List[RegisteredAPIMessage] =
     List(
       apiWithTokenAndContext[
         BattleQueueJoinAPIContext,

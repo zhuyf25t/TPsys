@@ -35,8 +35,10 @@ export type {
 export type { ResolveAuthoritativeLocalHeroReplayTargetInput } from "./objects/BattleAuthoritativeLocalHeroReplayObjects";
 
 const AUTHORITATIVE_LOCAL_HERO_REPLAY_CONFIG: BattleAuthoritativeLocalHeroReplayConfig = {
-  maxReplayCommandDeltaMs: 100,
-  maxReplayTotalDeltaMs: 500,
+  maxReplayCommandDeltaMs: 300,
+  maxReplayTotalDeltaMs: 550,
+  acknowledgedReplayGraceMs: 260,
+  maxReplayDistanceFromAuthoritative: 48,
   baseMoveSpeed: BASE_MOVE_SPEED,
   heroMaxStamina: HERO_MAX_STAMINA,
   sprintMultiplier: SPRINT_MULTIPLIER,

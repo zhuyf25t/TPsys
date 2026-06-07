@@ -22,6 +22,7 @@ export interface ResolveBattleAuthoritativeLocalHeroDisplayMotionInput {
   obstacleBounds: readonly MotionObstacleBounds[];
   dashCooldownMsOverride?: number;
   blinkCooldownMsOverride?: number;
+  maxDisplayDistanceFromAuthoritative?: number;
 }
 
 export interface BattleAuthoritativeLocalHeroDisplayMotionPlan {
@@ -42,7 +43,8 @@ export function resolveBattleAuthoritativeLocalHeroDisplayMotionPlan({
   currentPosition,
   obstacleBounds,
   dashCooldownMsOverride,
-  blinkCooldownMsOverride
+  blinkCooldownMsOverride,
+  maxDisplayDistanceFromAuthoritative
 }: ResolveBattleAuthoritativeLocalHeroDisplayMotionInput): BattleAuthoritativeLocalHeroDisplayMotionPlan {
   const facing = Math.atan2(command.aim.y, command.aim.x);
   if (!player.alive) {
@@ -107,9 +109,19 @@ export function resolveBattleAuthoritativeLocalHeroDisplayMotionPlan({
 
   const movement = normalizeVector(command.movement);
   if (movement.x === 0 && movement.y === 0) {
+    const boundedPrediction = constrainDisplayDistanceFromAuthoritative({
+      position: nextPosition,
+      authoritativePosition: player.position,
+      maxDistance: maxDisplayDistanceFromAuthoritative
+    });
+    if (boundedPrediction.constrained) {
+      predictedDashDestination = predictedDashDestination ? boundedPrediction.position : null;
+      predictedBlinkDestination = predictedBlinkDestination ? boundedPrediction.position : null;
+    }
+
     return {
       shouldWriteDisplayPose: true,
-      nextPosition,
+      nextPosition: boundedPrediction.position,
       facing,
       movement,
       movementApplied: false,
@@ -129,10 +141,19 @@ export function resolveBattleAuthoritativeLocalHeroDisplayMotionPlan({
     worldSize: snapshot.worldSize,
     obstacleBounds
   }).destination;
+  const boundedNextPosition = constrainDisplayDistanceFromAuthoritative({
+    position: nextPosition,
+    authoritativePosition: player.position,
+    maxDistance: maxDisplayDistanceFromAuthoritative
+  });
+  if (boundedNextPosition.constrained) {
+    predictedDashDestination = predictedDashDestination ? boundedNextPosition.position : null;
+    predictedBlinkDestination = predictedBlinkDestination ? boundedNextPosition.position : null;
+  }
 
   return {
     shouldWriteDisplayPose: true,
-    nextPosition,
+    nextPosition: boundedNextPosition.position,
     facing,
     movement,
     movementApplied: true,
@@ -151,4 +172,42 @@ function normalizeVector(vector: Vec2): Vec2 {
     x: vector.x / length,
     y: vector.y / length
   };
+}
+
+function constrainDisplayDistanceFromAuthoritative({
+  position,
+  authoritativePosition,
+  maxDistance
+}: {
+  position: Vec2;
+  authoritativePosition: Vec2;
+  maxDistance: number | undefined;
+}): { position: Vec2; constrained: boolean } {
+  if (
+    maxDistance === undefined ||
+    !Number.isFinite(maxDistance) ||
+    maxDistance <= 0 ||
+    !isFinitePosition(position) ||
+    !isFinitePosition(authoritativePosition)
+  ) {
+    return { position, constrained: false };
+  }
+
+  const distance = Math.hypot(position.x - authoritativePosition.x, position.y - authoritativePosition.y);
+  if (!Number.isFinite(distance) || distance <= maxDistance) {
+    return { position, constrained: false };
+  }
+
+  const ratio = maxDistance / distance;
+  return {
+    position: {
+      x: authoritativePosition.x + (position.x - authoritativePosition.x) * ratio,
+      y: authoritativePosition.y + (position.y - authoritativePosition.y) * ratio
+    },
+    constrained: true
+  };
+}
+
+function isFinitePosition(position: Vec2): boolean {
+  return Number.isFinite(position.x) && Number.isFinite(position.y);
 }

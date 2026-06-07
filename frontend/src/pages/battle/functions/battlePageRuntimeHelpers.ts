@@ -13,7 +13,6 @@ import { BATTLE_RUNTIME_STARTUP_QUEUE_REFRESH_TIMEOUT_MS } from "../../../runtim
 export const START_BATTLE_QUEUE_REFRESH_TIMEOUT_MS = BATTLE_RUNTIME_STARTUP_QUEUE_REFRESH_TIMEOUT_MS;
 export const MATCH_START_RECHECK_MS = 25;
 export const BATTLE_COMPLETION_CHECK_INTERVAL_MS = 100;
-const ZOMBIE_BOT_SKIN_ID = "zombie";
 
 /** 中文名：构建initial战斗participants（buildInitialBattleParticipants）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
 export function buildInitialBattleParticipants(
@@ -32,13 +31,13 @@ export function buildInitialBattleParticipants(
         playerId: seat.playerId,
         heroId: seat.heroId,
         handle: seat.handle,
-        displayName: seat.isBot ? `Zombie ${Math.max(1, seat.seat)}` : seat.displayName,
+        displayName: seat.displayName,
         joinedAt: seat.joinedAt,
         isBot: seat.isBot,
         spawnPointIndex: seat.spawnPointIndex,
         ...(seat.rating !== undefined ? { rating: seat.rating } : {}),
         ...(seat.avatar ? { avatar: seat.avatar } : {}),
-        ...(seat.isBot ? { skin: ZOMBIE_BOT_SKIN_ID } : seat.skin ? { skin: seat.skin } : {})
+        ...(seat.skin ? { skin: seat.skin } : {})
       }))
     };
   }

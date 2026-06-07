@@ -20,6 +20,7 @@ export function BattleGameScreen({
       {entryBlockNotice ? null : transientNotice ? (
         <div
           key={transientNotice.id}
+          data-battle-transient-notice="true"
           className="absolute left-1/2 top-6 z-30 -translate-x-1/2 rounded border border-cyan-200/40 bg-slate-950/90 px-4 py-2 text-sm font-bold text-cyan-100 shadow-lg"
           role="status"
           aria-live="polite"

@@ -169,7 +169,7 @@ export function LobbyShell({
             <small className="game-lobby__eyebrow">{brand}</small>
             <strong className="game-lobby__name">{playerName}</strong>
             <span className="game-lobby__meta">{playerMeta}</span>
-            {playerRating ? <span className="game-lobby__rating">RATING {playerRating}</span> : null}
+            {playerRating ? <span className="game-lobby__rating">评分 {playerRating}</span> : null}
 
             <div className="game-lobby__kit">
               <small>当前配置</small>

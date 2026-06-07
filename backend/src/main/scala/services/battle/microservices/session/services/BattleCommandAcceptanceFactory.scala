@@ -33,6 +33,24 @@ private[battle] object BattleCommandAcceptanceFactory {
     }
 
   /** 中文名：applied（applied）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
+  def stale(
+    state: BattleAggregateState,
+    player: BattlePlayerState,
+    serverTime: EpochMillis
+  ): IO[BattleCommandAccepted] =
+    IO.pure(
+      BattleCommandAccepted(
+        battleId = state.battleId,
+        acceptedTick = state.tick,
+        acceptedCommandSeq = player.lastClientCommandSeq,
+        serverTime = serverTime,
+        commandStatus = BattleCommandStatus.Ignored,
+        commandReason = Some(BattleCommandReason.StaleCommand),
+        outcomes = Vector.empty
+      )
+    )
+
+  /** 涓枃鍚嶏細applied锛坅pplied锛夈€傛父鎴忚亴璐ｏ細鍦ㄥ悗绔細璇濆煙涓鐞嗘垬鏂椾細璇濄€佸懡浠ゅ彈鐞嗗拰鐘舵€佽鍐欙紝缁存姢鏈嶅姟绔潈濞佺姸鎬侊拷?*/
   def applied(
     state: BattleAggregateState,
     playerId: PlayerId,

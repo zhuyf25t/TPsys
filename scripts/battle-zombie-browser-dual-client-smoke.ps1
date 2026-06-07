@@ -598,7 +598,7 @@ function Send-CdpKeyEvent {
   param(
     [Parameter(Mandatory = $true)]$Client,
     [Parameter(Mandatory = $true)][ValidateSet("keyDown", "keyUp")][string]$Type,
-    [Parameter(Mandatory = $true)][ValidateSet("w", "a", "s", "d", "e")][string]$Key
+    [Parameter(Mandatory = $true)][ValidateSet("w", "a", "s", "d", "e", "r")][string]$Key
   )
 
   $upperKey = $Key.ToUpperInvariant()
@@ -612,21 +612,25 @@ function Send-CdpKeyEvent {
   } | Out-Null
 }
 
-function Send-CdpControlTap {
-  param([Parameter(Mandatory = $true)]$Client)
+function Configure-SmokeSkillSlots {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][string]$Url
+  )
 
-  Invoke-CdpCommand -Client $Client -Method "Page.bringToFront" -Params @{} | Out-Null
-  Invoke-CdpEvaluate -Client $Client -Expression "(() => { window.focus(); document.body?.focus?.(); return true; })()" | Out-Null
+  $expression = @'
+(() => {
+  window.localStorage.setItem("slay-demo.loadoutSkillSlots.v1", JSON.stringify({
+    Q: "Blink",
+    E: "Dash",
+    R: "Critical"
+  }));
+  return true;
+})()
+'@
 
-  $params = @{
-    key = "Control"
-    code = "ControlLeft"
-    windowsVirtualKeyCode = 17
-    nativeVirtualKeyCode = 17
-  }
-  Invoke-CdpCommand -Client $Client -Method "Input.dispatchKeyEvent" -Params ($params + @{ type = "keyDown" }) | Out-Null
-  Start-Sleep -Milliseconds 80
-  Invoke-CdpCommand -Client $Client -Method "Input.dispatchKeyEvent" -Params ($params + @{ type = "keyUp" }) | Out-Null
+  Invoke-CdpEvaluate -Client $Client -Expression $expression | Out-Null
+  Invoke-CdpCommand -Client $Client -Method "Page.navigate" -Params @{ url = $Url } | Out-Null
 }
 
 function Read-HudSkillEntries {
@@ -680,6 +684,24 @@ function Test-HudSkillProgress {
   } catch {
     return $false
   }
+}
+
+function Wait-HudSkillProgress {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][string]$SlotKey,
+    [int]$Attempts = 10,
+    [int]$DelayMilliseconds = 200
+  )
+
+  for ($attempt = 0; $attempt -lt $Attempts; $attempt += 1) {
+    if (Test-HudSkillProgress -Client $Client -SlotKey $SlotKey) {
+      return $true
+    }
+    Start-Sleep -Milliseconds $DelayMilliseconds
+  }
+
+  return $false
 }
 
 function Read-PageVisualSnapshot {
@@ -1069,6 +1091,8 @@ try {
   $clientB = Connect-Cdp -WebSocketUrl $targetB.webSocketDebuggerUrl -Label "clientB"
   Initialize-CdpPage -Client $clientA
   Initialize-CdpPage -Client $clientB
+  Configure-SmokeSkillSlots -Client $clientA -Url $urlA
+  Configure-SmokeSkillSlots -Client $clientB -Url $urlB
 
   Write-Host "Waiting for both browser clients to enter playing..."
   $contextA = Wait-PagePlaying -Client $clientA -Label "clientA" -TimeoutSeconds $PlayingTimeoutSeconds
@@ -1104,11 +1128,16 @@ try {
 
   $humanABeforeCritical = Read-PlayerById -State $stateBefore -PlayerId $contextA.localAuthoritativePlayerId
   $criticalBefore = Read-SkillByKind -Player $humanABeforeCritical -Kind "Critical"
-  Assert-Condition ([double]$criticalBefore.cooldownMs -le 0 -and [double]$criticalBefore.activeMs -le 0) "Critical skill was not ready before browser Ctrl tap."
+  Assert-Condition ([double]$criticalBefore.cooldownMs -le 0 -and [double]$criticalBefore.activeMs -le 0) "Critical skill was not ready before browser R tap."
   $humanAAfterCritical = $null
   $criticalAfter = $null
+  $criticalHudProgressSeen = $false
   for ($attempt = 0; $attempt -lt 6; $attempt += 1) {
-    Send-CdpControlTap -Client $clientA
+    Invoke-CdpCommand -Client $clientA -Method "Page.bringToFront" -Params @{} | Out-Null
+    Invoke-CdpEvaluate -Client $clientA -Expression "(() => { window.focus(); document.body?.focus?.(); return true; })()" | Out-Null
+    Send-CdpKeyEvent -Client $clientA -Type "keyDown" -Key "r"
+    Start-Sleep -Milliseconds 120
+    Send-CdpKeyEvent -Client $clientA -Type "keyUp" -Key "r"
     Start-Sleep -Milliseconds 350
     $stateAfterCritical = Read-BattleState -ApiBase $backendApiBase -SessionToken $contextA.sessionToken -BattleId $battleId
     $candidateHuman = Read-PlayerById -State $stateAfterCritical -PlayerId $contextA.localAuthoritativePlayerId
@@ -1116,11 +1145,13 @@ try {
     if ([double]$candidateCritical.cooldownMs -gt 0 -and [double]$candidateCritical.activeMs -gt 0) {
       $humanAAfterCritical = $candidateHuman
       $criticalAfter = $candidateCritical
+      $criticalHudProgressSeen = Wait-HudSkillProgress -Client $clientA -SlotKey "R"
       break
     }
   }
-  Assert-Condition ($null -ne $humanAAfterCritical -and $null -ne $criticalAfter) "Browser Ctrl did not start Critical active/cooldown after retries."
-  Assert-Condition ([double]$humanAAfterCritical.stamina -lt ([double]$humanABeforeCritical.stamina - 10.0)) "Browser Ctrl did not spend stamina for Critical after recovery allowance: before=$($humanABeforeCritical.stamina), after=$($humanAAfterCritical.stamina), cooldown=$($criticalAfter.cooldownMs), active=$($criticalAfter.activeMs), seq=$($humanABeforeCritical.lastClientCommandSeq)->$($humanAAfterCritical.lastClientCommandSeq)."
+  Assert-Condition ($null -ne $humanAAfterCritical -and $null -ne $criticalAfter) "Browser R did not start Critical active/cooldown after retries."
+  Assert-Condition $criticalHudProgressSeen "HUD skill slot R did not show Critical cooldown/active progress after retries."
+  Assert-Condition ([double]$humanAAfterCritical.stamina -lt ([double]$humanABeforeCritical.stamina - 10.0)) "Browser R did not spend stamina for Critical after recovery allowance: before=$($humanABeforeCritical.stamina), after=$($humanAAfterCritical.stamina), cooldown=$($criticalAfter.cooldownMs), active=$($criticalAfter.activeMs), seq=$($humanABeforeCritical.lastClientCommandSeq)->$($humanAAfterCritical.lastClientCommandSeq)."
 
   $dashHudProgressSeen = $false
   $dashBackendSeen = $false

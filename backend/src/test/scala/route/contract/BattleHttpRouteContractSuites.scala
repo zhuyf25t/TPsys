@@ -239,6 +239,7 @@ private[contract] object BattleQueueHttp4sRouteContractTest:
     ContractAssertions.assertEquals("queue join command count", queueService.joinCommands.length, 1)
     ContractAssertions.assertEquals("queue join command handle", queueService.joinCommands.head.handle, PlayerHandle("Alice"))
     ContractAssertions.assertEquals("queue join command session", queueService.joinCommands.head.sessionToken, SessionToken("session-alice"))
+    ContractAssertions.assertEquals("queue join command default mode", queueService.joinCommands.head.battleMode, BattleMode.Default)
     ContractAssertions.assertEquals("queue join command request id", queueService.joinCommands.head.queueRequestId, Some(QueueRequestId("queue-request-1")))
 
   private def statusRequiresTicketId(): Unit =

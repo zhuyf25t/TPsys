@@ -1,5 +1,6 @@
 package services.battle.microservices.world.database
 
+import java.nio.charset.StandardCharsets
 import java.sql.{Connection, PreparedStatement, ResultSet, Timestamp}
 import java.time.Instant
 import java.util.UUID
@@ -28,6 +29,28 @@ import services.battle.microservices.extraction.objects.extraction.{
 import system.database.PostgresSupport
 
 private[services] object BattleWorldRuleTable {
+  private val DefaultWorldRuleId: UUID =
+    UUID.nameUUIDFromBytes("battle-world-default-rules".getBytes(StandardCharsets.UTF_8))
+
+  private val DefaultWorldRules: BattleWorldRuleConfig =
+    BattleWorldRuleConfig(
+      floorTileSize = BattleWorldTileSize(64),
+      motionStepSize = BattleWorldMotionStepSize(16.0),
+      playerCollisionRadius = Radius(18.0),
+      projectileBirthClearance = Radius(4.0),
+      projectileShooterAdvantageRadius = Radius(6.0)
+    )
+
+  private val DefaultMovementRules: BattleMovementRuleConfig =
+    BattleMovementRuleConfig(
+      walkSpeed = BattleMovementSpeed(255.0),
+      sprintSpeed = BattleMovementSpeed(255.0 * 1.75),
+      staminaDrainPerSecond = BattleStaminaRatePerSecond(38.0),
+      staminaRecoverPerSecond = BattleStaminaRatePerSecond(24.0),
+      slowFieldMovementFactor = BattleSlowFactor(0.5),
+      slowFieldProjectileFactor = BattleSlowFactor(0.5)
+    )
+
   private val upsertWorldSql: String =
     """INSERT INTO battle_world_rules (
       |  rule_id, active, floor_tile_size, motion_step_size, player_collision_radius,
@@ -116,6 +139,14 @@ private[services] object BattleWorldRuleTable {
       }
       ()
     }
+
+  def upsertDefaultRules(connection: Connection): IO[Unit] = {
+    val updatedAt = Instant.now()
+    for {
+      _ <- upsertWorld(connection, DefaultWorldRuleId, active = true, DefaultWorldRules, updatedAt)
+      _ <- upsertMovement(connection, DefaultWorldRuleId, active = true, DefaultMovementRules, updatedAt)
+    } yield ()
+  }
 
   def load(connection: Connection): IO[BattleWorldRuleSet] =
     for {

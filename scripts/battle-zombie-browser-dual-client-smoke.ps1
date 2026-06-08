@@ -226,7 +226,7 @@ function New-ClientUrl {
   $encodedHandle = [System.Uri]::EscapeDataString($Handle)
   $encodedPassword = [System.Uri]::EscapeDataString($PasswordValue)
   $encodedSkin = [System.Uri]::EscapeDataString($Skin)
-  $encodedTarget = [System.Uri]::EscapeDataString("/battle?new=1&diagnostics=1")
+  $encodedTarget = [System.Uri]::EscapeDataString("/battle?new=1&diagnostics=1&mode=winter")
   return "$(Normalize-BaseUrl $BaseUrl)/bp14-client.html?handle=$encodedHandle&password=$encodedPassword&skin=$encodedSkin&target=$encodedTarget"
 }
 
@@ -1057,6 +1057,8 @@ $processB = $null
 $visualEvidencePaths = @()
 $visualA = $null
 $visualB = $null
+$ExpectedWinterCapacity = 6
+$ExpectedWinterBotPlayers = $ExpectedWinterCapacity - 2
 
 try {
   Write-Host "Battle zombie browser dual-client smoke"
@@ -1118,13 +1120,13 @@ try {
   $stateBefore = Read-BattleState -ApiBase $backendApiBase -SessionToken $contextA.sessionToken -BattleId $battleId
   Assert-Condition ($stateBefore.mapId -eq "winter-hunt-v1") "Backend state expected winter-hunt-v1, got $($stateBefore.mapId)."
   $playersBefore = Read-Array $stateBefore "players"
-  Assert-Condition ($playersBefore.Count -eq 12) "Expected 12 backend players, got $($playersBefore.Count)."
+  Assert-Condition ($playersBefore.Count -eq $ExpectedWinterCapacity) "Expected $ExpectedWinterCapacity backend players, got $($playersBefore.Count)."
   $playerA = @($playersBefore | Where-Object { $_.playerId -ceq $contextA.localAuthoritativePlayerId } | Select-Object -First 1)
   $playerB = @($playersBefore | Where-Object { $_.playerId -ceq $contextB.localAuthoritativePlayerId } | Select-Object -First 1)
   Assert-Condition ($playerA.Count -eq 1 -and $playerA[0].isBot -eq $false) "Backend state missing clientA human player."
   Assert-Condition ($playerB.Count -eq 1 -and $playerB[0].isBot -eq $false) "Backend state missing clientB human player."
   $botPlayers = @($playersBefore | Where-Object { $_.isBot -eq $true })
-  Assert-Condition ($botPlayers.Count -eq 10) "Expected 10 zombie bot players, got $($botPlayers.Count)."
+  Assert-Condition ($botPlayers.Count -eq $ExpectedWinterBotPlayers) "Expected $ExpectedWinterBotPlayers zombie bot players, got $($botPlayers.Count)."
 
   $humanABeforeCritical = Read-PlayerById -State $stateBefore -PlayerId $contextA.localAuthoritativePlayerId
   $criticalBefore = Read-SkillByKind -Player $humanABeforeCritical -Kind "Critical"
@@ -1287,7 +1289,7 @@ try {
       $lastTick = [Int64]$stateAfter.tick
 
       $soakPlayers = Read-Array $stateAfter "players"
-      Assert-Condition ($soakPlayers.Count -eq 12) "Expected 12 players throughout soak, got $($soakPlayers.Count)."
+      Assert-Condition ($soakPlayers.Count -eq $ExpectedWinterCapacity) "Expected $ExpectedWinterCapacity players throughout soak, got $($soakPlayers.Count)."
     }
 
     $soakElapsedAdvance = [Int64]$stateAfter.elapsedMs - [Int64]$soakStartState.elapsedMs

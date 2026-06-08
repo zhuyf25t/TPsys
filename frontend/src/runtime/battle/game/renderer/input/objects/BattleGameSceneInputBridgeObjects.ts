@@ -13,6 +13,7 @@ export interface ReadGameScenePlayerCommandInput {
   pointerJustPressed: boolean;
   secondaryJustPressed: boolean;
   pendingWeaponSwitchDirection: -1 | 0 | 1;
+  pendingWeaponSwitchIndex: number | null;
   sharedAuthoritativeRuntime: boolean;
   player: Hero;
   preparedSkill: PreparedSkill;

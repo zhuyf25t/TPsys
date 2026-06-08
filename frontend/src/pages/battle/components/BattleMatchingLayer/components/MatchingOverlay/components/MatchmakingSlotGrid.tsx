@@ -9,7 +9,7 @@ interface MatchmakingSlotGridProps {
 
 export function MatchmakingSlotGrid({ slots }: MatchmakingSlotGridProps) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Matchmaking slots">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Matchmaking slots">
       {slots.map((slot) => (
         <article
           key={slot.slotLabel}

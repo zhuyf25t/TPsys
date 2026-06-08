@@ -63,9 +63,11 @@ export interface ResolveHeroWeaponOverlayVisualPlanInput {
 export interface HeroWeaponOverlayVisualPlan extends HeroWeaponOverlayTexturePlan, HeroWeaponOverlayLayoutPlan {
   visible: boolean;
   alpha: number;
+  displaySize: number;
 }
 
 export interface ResolveHeroWeaponOverlayScaleInput {
   frameWidth: number;
   frameHeight: number;
+  displaySize: number;
 }

@@ -54,6 +54,13 @@ private[services] object BattleAbilityRuleTable {
       )
     )
 
+  private val DefaultPickupRules: BattlePickupRuleConfig =
+    BattlePickupRuleConfig(
+      contactRadius = Radius(40.0),
+      respawnDuration = DurationMillis(10000L),
+      medkitHeal = HitPoints(25)
+    )
+
   private val skillUpsertSql: String =
     """INSERT INTO battle_ability_skill_rules (
       |  rule_id, skill_kind, range, distance, radius, cast_range,
@@ -84,6 +91,9 @@ private[services] object BattleAbilityRuleTable {
 
   def upsertDefaultSkillRules(connection: Connection): IO[Unit] =
     upsertAll(connection, DefaultSkillRules)
+
+  def upsertDefaultPickupRules(connection: Connection): IO[Unit] =
+    upsertPickup(connection, DefaultPickupRules)
 
   def upsertPickup(connection: Connection, config: BattlePickupRuleConfig): IO[Unit] =
     IO.blocking {

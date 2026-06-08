@@ -20,15 +20,16 @@ object BackendHttp4sApp extends IOApp.Simple {
       _ <- runtimeResource(env).use { runtime =>
         for
           port <- httpPort(runtime.config)
-          httpApp = HttpApiModules
-            .routes(httpApiServices(runtime))
-            .orNotFound
           _ <- logger.info(s"Starting Slay http4s backend shell on http://0.0.0.0:${port.value}")
           _ <- EmberServerBuilder
             .default[IO]
             .withHost(host"0.0.0.0")
             .withPort(port)
-            .withHttpApp(httpApp)
+            .withHttpWebSocketApp { webSocketBuilder =>
+              HttpApiModules
+                .routes(httpApiServices(runtime), Some(webSocketBuilder))
+                .orNotFound
+            }
             .build
             .useForever
         yield ()

@@ -3,6 +3,7 @@ package route
 import cats.effect.IO
 import cats.syntax.all.*
 import org.http4s.HttpRoutes
+import org.http4s.server.websocket.WebSocketBuilder2
 
 import route.battle.BattleHttp4sRoutes
 import route.bots.BotProfileHttpModule
@@ -15,7 +16,10 @@ import route.replay.ReplayHttpModule
 import route.social.SocialHttpModule
 
 object HttpApiModules {
-  def routes(services: HttpApiServices): HttpRoutes[IO] =
+  def routes(
+    services: HttpApiServices,
+    webSocketBuilder: Option[WebSocketBuilder2[IO]] = None
+  ): HttpRoutes[IO] =
     HealthHttpModule.routes(services.healthService) <+>
       IdentityHttpModule.routes(services.identityService) <+>
       MailHttpModule.routes(services.mailService) <+>
@@ -27,7 +31,8 @@ object HttpApiModules {
       BattleHttp4sRoutes.routes(
         services.battleRuntimeContext,
         services.identityService,
-        services.battleConnectionResource
+        services.battleConnectionResource,
+        webSocketBuilder
       )
 
 }

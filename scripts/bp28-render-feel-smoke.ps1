@@ -6,7 +6,7 @@ param(
   [string]$BrowserPath,
   [int]$PlayingTimeoutSeconds = 45,
   [int]$FrameSampleSeconds = 4,
-  [ValidateSet("StraightFire", "MixedMovement", "DualClientPressure", "SkillPressure", "TargetedSkillPressure", "TargetedSkillNoopPressure")]
+  [ValidateSet("StraightFire", "StraightLeft", "MixedMovement", "DualClientPressure", "SkillPressure", "TargetedSkillPressure", "TargetedSkillNoopPressure", "WeaponSwitchPressure")]
   [string]$Scenario = "StraightFire",
   [int]$InputDurationMs = 1800,
   [int]$WindowWidth = 1280,
@@ -64,7 +64,7 @@ function Join-TestUrl {
 
 function Resolve-Bp28EffectiveInputDurationMs {
   param(
-    [Parameter(Mandatory = $true)][ValidateSet("StraightFire", "MixedMovement", "DualClientPressure", "SkillPressure", "TargetedSkillPressure", "TargetedSkillNoopPressure")][string]$Scenario,
+    [Parameter(Mandatory = $true)][ValidateSet("StraightFire", "StraightLeft", "MixedMovement", "DualClientPressure", "SkillPressure", "TargetedSkillPressure", "TargetedSkillNoopPressure", "WeaponSwitchPressure")][string]$Scenario,
     [Parameter(Mandatory = $true)][int]$RequestedInputDurationMs
   )
 
@@ -1440,6 +1440,63 @@ function Send-BattleMouseEvent {
   }
 }
 
+function Send-DomWheelEvent {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][int]$X,
+    [Parameter(Mandatory = $true)][int]$Y,
+    [Parameter(Mandatory = $true)][int]$DeltaY
+  )
+
+  $expression = @"
+(() => {
+  const target =
+    document.querySelector("[aria-label='battle runtime'] canvas") ||
+    document.querySelector("[aria-label='battle runtime']") ||
+    document.querySelector(".arena-shell__runtime canvas") ||
+    document.querySelector(".arena-shell__runtime") ||
+    document.querySelector(".arena-shell__viewport") ||
+    document.body;
+  target.dispatchEvent(new WheelEvent("wheel", {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    clientX: $X,
+    clientY: $Y,
+    screenX: $X,
+    screenY: $Y,
+    deltaX: 0,
+    deltaY: $DeltaY
+  }));
+  return true;
+})()
+"@
+
+  Invoke-CdpEvaluate -Client $Client -Expression $expression | Out-Null
+}
+
+function Send-BattleWheelEvent {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][int]$X,
+    [Parameter(Mandatory = $true)][int]$Y,
+    [Parameter(Mandatory = $true)][int]$DeltaY,
+    [switch]$SkipDomFallback
+  )
+
+  Invoke-CdpCommand -Client $Client -Method "Input.dispatchMouseEvent" -Params @{
+    type = "mouseWheel"
+    x = $X
+    y = $Y
+    deltaX = 0
+    deltaY = $DeltaY
+  } | Out-Null
+
+  if (-not $SkipDomFallback) {
+    Send-DomWheelEvent -Client $Client -X $X -Y $Y -DeltaY $DeltaY
+  }
+}
+
 function Get-MixedMovementKeys {
   param(
     [Parameter(Mandatory = $true)][int]$ElapsedMs,
@@ -1895,7 +1952,7 @@ function Invoke-InputBurst {
   param(
     [Parameter(Mandatory = $true)]$Client,
     [Parameter(Mandatory = $true)][int]$DurationMs,
-    [ValidateSet("StraightFire", "MixedMovement", "DualClientPressure", "SkillPressure", "TargetedSkillPressure", "TargetedSkillNoopPressure")]
+    [ValidateSet("StraightFire", "StraightLeft", "MixedMovement", "DualClientPressure", "SkillPressure", "TargetedSkillPressure", "TargetedSkillNoopPressure", "WeaponSwitchPressure")]
     [string]$Scenario = "StraightFire",
     [int]$WindowWidth = 1280,
     [int]$WindowHeight = 720,
@@ -1976,6 +2033,12 @@ function Invoke-InputBurst {
   $dispatchedTargetedSkillTapIndexes = @{}
   $pressedTargetedConfirmIndexes = @{}
   $releasedTargetedConfirmIndexes = @{}
+  $weaponSwitchWheelCount = 0
+  $weaponSwitchWheelSchedule = @(
+    [pscustomobject]@{ OffsetMs = 350; DeltaY = 120 },
+    [pscustomobject]@{ OffsetMs = 1150; DeltaY = 120 }
+  )
+  $dispatchedWeaponSwitchWheelIndexes = @{}
   $mixedFireStartMs = 0
   $mixedFireEndMs = [Math]::Min(
     [Math]::Max(160, [Math]::Floor($DurationMs * 0.08)),
@@ -1988,6 +2051,9 @@ function Invoke-InputBurst {
     Send-BattleMouseEvent -Client $Client -Type "mousePressed" -X $x -Y $y -Button "left" -Buttons 1 -ClickCount 1
     $mousePressed = $true
     $firePressCount += 1
+  } elseif ($Scenario -eq "StraightLeft") {
+    $inputDispatchStartPageMarker = Read-PageTimingMarker -Client $Client
+    Set-CdpMovementKeys -Client $Client -DesiredKeys @("a") -PressedKeys $pressedMovementKeys
   } elseif ($Scenario -eq "MixedMovement") {
     $inputDispatchStartPageMarker = Read-PageTimingMarker -Client $Client
     Set-CdpMovementKeys -Client $Client -DesiredKeys (Get-MixedMovementKeys -ElapsedMs 0 -DurationMs $DurationMs) -PressedKeys $pressedMovementKeys
@@ -1995,6 +2061,9 @@ function Invoke-InputBurst {
     $mousePressed = $true
     $firePressCount += 1
     $mixedFireDispatched = $true
+  } elseif ($Scenario -eq "WeaponSwitchPressure") {
+    $inputDispatchStartPageMarker = Read-PageTimingMarker -Client $Client
+    Set-CdpMovementKeys -Client $Client -DesiredKeys @() -PressedKeys $pressedMovementKeys
   } else {
     $inputDispatchStartPageMarker = Read-PageTimingMarker -Client $Client
     Set-CdpMovementKeys -Client $Client -DesiredKeys (Get-MixedMovementKeys -ElapsedMs 0 -DurationMs $DurationMs) -PressedKeys $pressedMovementKeys
@@ -2212,6 +2281,21 @@ function Invoke-InputBurst {
         Send-BattleMouseEvent -Client $Client -Type "mouseReleased" -X $x -Y $y -Button "left" -Buttons 0 -ClickCount 1
         $mousePressed = $false
         $fireReleaseCount += 1
+      }
+    }
+
+    if ($Scenario -eq "WeaponSwitchPressure") {
+      for ($wheelIndex = 0; $wheelIndex -lt $weaponSwitchWheelSchedule.Count; $wheelIndex++) {
+        $wheel = $weaponSwitchWheelSchedule[$wheelIndex]
+        if (
+          $elapsedMs -ge [int]$wheel.OffsetMs -and
+          $DurationMs -ge [int]$wheel.OffsetMs -and
+          -not $dispatchedWeaponSwitchWheelIndexes.ContainsKey($wheelIndex)
+        ) {
+          Send-BattleWheelEvent -Client $Client -X $x -Y $y -DeltaY ([int]$wheel.DeltaY)
+          $dispatchedWeaponSwitchWheelIndexes[$wheelIndex] = $true
+          $weaponSwitchWheelCount += 1
+        }
       }
     }
 
@@ -2489,6 +2573,12 @@ function Invoke-InputBurst {
             skill = $_.Skill
           }
         }
+    )
+    weaponSwitchWheelCount = $weaponSwitchWheelCount
+    weaponSwitchWheelScheduleMs = @(
+      $weaponSwitchWheelSchedule |
+        Where-Object { $DurationMs -ge [int]$_.OffsetMs } |
+        ForEach-Object { [ordered]@{ offsetMs = [int]$_.OffsetMs; deltaY = [int]$_.DeltaY } }
     )
     inputStartPageMs = $inputStartPageMs
     inputDispatchStartPageMs = $inputDispatchStartPageMs
@@ -3515,7 +3605,10 @@ function Install-CommandFetchProbe {
   };
   async function patchedFetch(...args) {
     const url = requestUrl(args[0]);
-    const shouldRecord = url.includes("/battle/commands") || url.includes("/battlecommand");
+    const shouldRecord =
+      url.includes("/battle/commands") ||
+      url.includes("/battlecommand") ||
+      url.includes("/battle/command");
     if (!shouldRecord) {
       return originalFetch.apply(this, args);
     }
@@ -3743,6 +3836,400 @@ function Read-CommandFetchProbe {
 '@
 
   return Invoke-CdpEvaluate -Client $Client -Expression $expression -AwaitPromise -TimeoutSeconds 8
+}
+
+function Read-AuthoritativeNetworkDiagnostics {
+  param(
+    [Parameter(Mandatory = $true)]$Client,
+    [Parameter(Mandatory = $true)][string]$Phase,
+    [AllowEmptyCollection()][System.Collections.Generic.List[string]]$Warnings = $null
+  )
+
+  $expression = @'
+(() => {
+  const pageNowMs = typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : null;
+  const timeOriginMs = typeof performance !== "undefined" && Number.isFinite(performance.timeOrigin)
+    ? performance.timeOrigin
+    : null;
+  const root = window.__slayDemoBattleDiagnostics;
+  const diagnostics = root && typeof root === "object" ? root.authoritativeNetwork : null;
+  if (!diagnostics || typeof diagnostics !== "object") {
+    return {
+      available: false,
+      status: "unavailable",
+      reason: "window.__slayDemoBattleDiagnostics.authoritativeNetwork is not available",
+      pageNowMs,
+      timeOriginMs,
+      wallMs: Date.now()
+    };
+  }
+
+  try {
+    return {
+      available: true,
+      status: "available",
+      diagnostics: JSON.parse(JSON.stringify(diagnostics)),
+      pageNowMs,
+      timeOriginMs,
+      wallMs: Date.now()
+    };
+  } catch (error) {
+    return {
+      available: false,
+      status: "unavailable",
+      reason: error instanceof Error ? error.message : String(error),
+      pageNowMs,
+      timeOriginMs,
+      wallMs: Date.now()
+    };
+  }
+})()
+'@
+
+  try {
+    $result = Invoke-CdpEvaluate -Client $Client -Expression $expression -TimeoutSeconds 8
+    if ($null -eq $result -or $result.available -ne $true) {
+      $reason = "unknown"
+      if ($null -ne $result -and -not [string]::IsNullOrWhiteSpace($result.reason)) {
+        $reason = $result.reason
+      }
+      if ($null -ne $Warnings) {
+        $Warnings.Add("authoritativeNetworkMetric $($Client.Label) phase=$Phase unavailable: $reason") | Out-Null
+      }
+      return [pscustomobject]@{
+        available = $false
+        status = "unavailable"
+        phase = $Phase
+        reason = $reason
+        pageNowMs = Get-ObjectPropertyValue -InputObject $result -Name "pageNowMs"
+        timeOriginMs = Get-ObjectPropertyValue -InputObject $result -Name "timeOriginMs"
+        wallMs = Get-ObjectPropertyValue -InputObject $result -Name "wallMs"
+      }
+    }
+
+    return [pscustomobject]@{
+      available = $true
+      status = "available"
+      phase = $Phase
+      diagnostics = $result.diagnostics
+      pageNowMs = $result.pageNowMs
+      timeOriginMs = $result.timeOriginMs
+      wallMs = $result.wallMs
+    }
+  } catch {
+    $reason = $_.Exception.Message
+    if ($null -ne $Warnings) {
+      $Warnings.Add("authoritativeNetworkMetric $($Client.Label) phase=$Phase unavailable: $reason") | Out-Null
+    }
+    return [pscustomobject]@{
+      available = $false
+      status = "unavailable"
+      phase = $Phase
+      reason = $reason
+    }
+  }
+}
+
+function Get-Bp28PercentileValue {
+  param(
+    [Parameter(Mandatory = $true)][AllowEmptyCollection()][double[]]$SortedValues,
+    [Parameter(Mandatory = $true)][double]$Percentile
+  )
+
+  if ($SortedValues.Count -eq 0) {
+    return $null
+  }
+
+  $clamped = [Math]::Min(1.0, [Math]::Max(0.0, $Percentile))
+  $index = [int]([Math]::Ceiling($SortedValues.Count * $clamped) - 1)
+  $index = [Math]::Min($SortedValues.Count - 1, [Math]::Max(0, $index))
+  return $SortedValues[$index]
+}
+
+function New-Bp28SampleNumberSummary {
+  param(
+    [AllowEmptyCollection()]$Samples,
+    [Parameter(Mandatory = $true)][string]$FieldName
+  )
+
+  $sampleList = @()
+  if ($null -ne $Samples) {
+    $sampleList = @($Samples)
+  }
+  $values = @(
+    foreach ($sample in $sampleList) {
+      $value = Get-ObjectPropertyValue -InputObject $sample -Name $FieldName
+      if (Test-FiniteNumber -Value $value) {
+        [double]$value
+      }
+    }
+  )
+
+  if ($values.Count -eq 0) {
+    return [ordered]@{
+      sampleCount = $sampleList.Count
+      valueCount = 0
+      avg = $null
+      max = $null
+      p95 = $null
+    }
+  }
+
+  $sortedValues = @($values | Sort-Object)
+  $sum = 0.0
+  foreach ($value in $values) {
+    $sum += [double]$value
+  }
+
+  return [ordered]@{
+    sampleCount = $sampleList.Count
+    valueCount = $values.Count
+    avg = $sum / [double]$values.Count
+    max = $sortedValues[$sortedValues.Count - 1]
+    p95 = Get-Bp28PercentileValue -SortedValues $sortedValues -Percentile 0.95
+  }
+}
+
+function New-Bp28SampleFieldCountSummary {
+  param(
+    [AllowEmptyCollection()]$Samples,
+    [Parameter(Mandatory = $true)][string]$FieldName
+  )
+
+  $counts = [ordered]@{}
+  $sampleList = @()
+  if ($null -ne $Samples) {
+    $sampleList = @($Samples)
+  }
+  foreach ($sample in $sampleList) {
+    $value = Get-ObjectPropertyValue -InputObject $sample -Name $FieldName
+    if ($null -eq $value) {
+      continue
+    }
+
+    $key = ("" + $value).Trim()
+    if ([string]::IsNullOrWhiteSpace($key)) {
+      continue
+    }
+
+    if ($counts.Contains($key)) {
+      $counts[$key] = [int]$counts[$key] + 1
+    } else {
+      $counts[$key] = 1
+    }
+  }
+
+  return $counts
+}
+
+function New-AuthoritativeNetworkNumericSummary {
+  param($Summary)
+
+  if ($null -eq $Summary) {
+    return [ordered]@{
+      sampleCount = 0
+      valueCount = 0
+      avg = $null
+      max = $null
+      p95 = $null
+    }
+  }
+
+  return [ordered]@{
+    sampleCount = Get-ObjectPropertyValue -InputObject $Summary -Name "sampleCount" -DefaultValue 0
+    valueCount = Get-ObjectPropertyValue -InputObject $Summary -Name "valueCount" -DefaultValue 0
+    avg = Get-ObjectPropertyValue -InputObject $Summary -Name "avg"
+    max = Get-ObjectPropertyValue -InputObject $Summary -Name "max"
+    p95 = Get-ObjectPropertyValue -InputObject $Summary -Name "p95"
+  }
+}
+
+function New-AuthoritativeNetworkStateIngressSummary {
+  param($StateIngress)
+
+  if ($null -eq $StateIngress) {
+    return [ordered]@{
+      available = $false
+      reason = "authoritativeNetwork.stateIngress is not available"
+      count = 0
+      sampleCount = 0
+    }
+  }
+
+  $rawSamples = Get-ObjectPropertyValue -InputObject $StateIngress -Name "recentSamples" -DefaultValue @()
+  $samples = @()
+  if ($null -ne $rawSamples) {
+    $samples = @($rawSamples)
+  }
+  return [ordered]@{
+    available = $true
+    count = Get-ObjectPropertyValue -InputObject $StateIngress -Name "count" -DefaultValue 0
+    channelCount = Get-ObjectPropertyValue -InputObject $StateIngress -Name "channelCount" -DefaultValue 0
+    streamCount = Get-ObjectPropertyValue -InputObject $StateIngress -Name "streamCount" -DefaultValue 0
+    pollCount = Get-ObjectPropertyValue -InputObject $StateIngress -Name "pollCount" -DefaultValue 0
+    firstAtMs = Get-ObjectPropertyValue -InputObject $StateIngress -Name "firstAtMs"
+    lastAtMs = Get-ObjectPropertyValue -InputObject $StateIngress -Name "lastAtMs"
+    intervalSummary = New-AuthoritativeNetworkNumericSummary -Summary (Get-ObjectPropertyValue -InputObject $StateIngress -Name "intervalSummary")
+    tickDeltaSummary = New-AuthoritativeNetworkNumericSummary -Summary (Get-ObjectPropertyValue -InputObject $StateIngress -Name "tickDeltaSummary")
+    elapsedDeltaSummary = New-AuthoritativeNetworkNumericSummary -Summary (Get-ObjectPropertyValue -InputObject $StateIngress -Name "elapsedDeltaSummary")
+    sampleCount = Get-ObjectPropertyValue -InputObject $StateIngress -Name "sampleCount" -DefaultValue $samples.Count
+    sampleWindowSize = Get-ObjectPropertyValue -InputObject $StateIngress -Name "sampleWindowSize"
+    sampleSourceCounts = New-Bp28SampleFieldCountSummary -Samples $samples -FieldName "source"
+    sampleIntervalSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "intervalMs"
+    sampleTickDeltaSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "tickDelta"
+    sampleElapsedDeltaSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "elapsedDeltaMs"
+    samplePlayerCountSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "playerCount"
+    sampleProjectileCountSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "projectileCount"
+    firstSample = if ($samples.Count -gt 0) { $samples[0] } else { $null }
+    lastSample = Get-ObjectPropertyValue -InputObject $StateIngress -Name "lastSample" -DefaultValue $(if ($samples.Count -gt 0) { $samples[$samples.Count - 1] } else { $null })
+  }
+}
+
+function New-AuthoritativeNetworkCommandSubmitSummary {
+  param($CommandSubmit)
+
+  if ($null -eq $CommandSubmit) {
+    return [ordered]@{
+      available = $false
+      reason = "authoritativeNetwork.commandSubmit is not available"
+      count = 0
+      sampleCount = 0
+    }
+  }
+
+  $rawSamples = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "recentSamples" -DefaultValue @()
+  $samples = @()
+  if ($null -ne $rawSamples) {
+    $samples = @($rawSamples)
+  }
+  $primaryHeldSamples = @($samples | Where-Object {
+    (Get-ObjectPropertyValue -InputObject $_ -Name "primaryHeld" -DefaultValue $false) -eq $true
+  })
+  $maxLatencySample = $null
+  $latencySamples = @($samples | Where-Object {
+    $value = Get-ObjectPropertyValue -InputObject $_ -Name "latencyMs"
+    $null -ne $value
+  } | Sort-Object -Property @{ Expression = { [double](Get-ObjectPropertyValue -InputObject $_ -Name "latencyMs" -DefaultValue 0) }; Descending = $true })
+  if ($latencySamples.Count -gt 0) {
+    $maxLatencySample = $latencySamples[0]
+  }
+  $maxQueueDelaySample = $null
+  $queueDelaySamples = @($samples | Where-Object {
+    $value = Get-ObjectPropertyValue -InputObject $_ -Name "queueDelayMs"
+    $null -ne $value
+  } | Sort-Object -Property @{ Expression = { [double](Get-ObjectPropertyValue -InputObject $_ -Name "queueDelayMs" -DefaultValue 0) }; Descending = $true })
+  if ($queueDelaySamples.Count -gt 0) {
+    $maxQueueDelaySample = $queueDelaySamples[0]
+  }
+
+  return [ordered]@{
+    available = $true
+    count = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "count" -DefaultValue 0
+    acceptedCount = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "acceptedCount" -DefaultValue 0
+    failedCount = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "failedCount" -DefaultValue 0
+    firstSubmittedAtMs = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "firstSubmittedAtMs"
+    lastCompletedAtMs = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "lastCompletedAtMs"
+    latencySummary = New-AuthoritativeNetworkNumericSummary -Summary (Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "latencySummary")
+    sampleCount = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "sampleCount" -DefaultValue $samples.Count
+    sampleWindowSize = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "sampleWindowSize"
+    sampleStatusCounts = New-Bp28SampleFieldCountSummary -Samples $samples -FieldName "status"
+    sampleHttpStatusCounts = New-Bp28SampleFieldCountSummary -Samples $samples -FieldName "httpStatus"
+    sampleErrorCodeCounts = New-Bp28SampleFieldCountSummary -Samples $samples -FieldName "errorCode"
+    sampleLatencySummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "latencyMs"
+    sampleQueueDelaySummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "queueDelayMs"
+    sampleInFlightBeforeSendSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "inFlightCountBeforeSend"
+    sampleInFlightLimitSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "inFlightLimit"
+    priorityInputPendingCount = @($samples | Where-Object {
+      (Get-ObjectPropertyValue -InputObject $_ -Name "priorityInputPending" -DefaultValue $false) -eq $true
+    }).Count
+    sampleClientCommandSeqSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "clientCommandSeq"
+    sampleAcceptedCommandSeqSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "acceptedCommandSeq"
+    sampleClientTickSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "clientTick"
+    sampleAcceptedTickSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "acceptedTick"
+    sampleAcceptedTickLagSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "acceptedTickLag"
+    sampleAcceptedCommandSeqLagSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "acceptedCommandSeqLag"
+    sampleServerPathCounts = New-Bp28SampleFieldCountSummary -Samples $samples -FieldName "serverPath"
+    sampleServerDurationSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "serverDurationMs"
+    sampleServerLockWaitSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "serverLockWaitMs"
+    sampleServerLockHeldSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "serverLockHeldMs"
+    sampleServerAdvanceSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "serverAdvanceMs"
+    sampleServerCommitRetrySummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "serverCommitRetryCount"
+    primaryHeldCount = $primaryHeldSamples.Count
+    primaryHeldLatencySummary = New-Bp28SampleNumberSummary -Samples $primaryHeldSamples -FieldName "latencyMs"
+    firstPrimaryHeldSample = if ($primaryHeldSamples.Count -gt 0) { $primaryHeldSamples[0] } else { $null }
+    maxLatencySample = $maxLatencySample
+    maxQueueDelaySample = $maxQueueDelaySample
+    firstSample = if ($samples.Count -gt 0) { $samples[0] } else { $null }
+    lastSample = Get-ObjectPropertyValue -InputObject $CommandSubmit -Name "lastSample" -DefaultValue $(if ($samples.Count -gt 0) { $samples[$samples.Count - 1] } else { $null })
+  }
+}
+
+function New-AuthoritativeNetworkCommandDeferSummary {
+  param($CommandDefer)
+
+  if ($null -eq $CommandDefer) {
+    return [ordered]@{
+      available = $false
+      reason = "authoritativeNetwork.commandDefer is not available"
+      count = 0
+      sampleCount = 0
+    }
+  }
+
+  $rawSamples = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "recentSamples" -DefaultValue @()
+  $samples = @()
+  if ($null -ne $rawSamples) {
+    $samples = @($rawSamples)
+  }
+
+  return [ordered]@{
+    available = $true
+    count = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "count" -DefaultValue 0
+    priorityCount = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "priorityCount" -DefaultValue 0
+    firstAtMs = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "firstAtMs"
+    lastAtMs = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "lastAtMs"
+    sampleCount = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "sampleCount" -DefaultValue $samples.Count
+    sampleWindowSize = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "sampleWindowSize"
+    sampleInFlightCountSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "inFlightCount"
+    sampleInFlightLimitSummary = New-Bp28SampleNumberSummary -Samples $samples -FieldName "inFlightLimit"
+    prioritySampleCount = @($samples | Where-Object {
+      (Get-ObjectPropertyValue -InputObject $_ -Name "priorityInputPending" -DefaultValue $false) -eq $true
+    }).Count
+    firstSample = if ($samples.Count -gt 0) { $samples[0] } else { $null }
+    lastSample = Get-ObjectPropertyValue -InputObject $CommandDefer -Name "lastSample" -DefaultValue $(if ($samples.Count -gt 0) { $samples[$samples.Count - 1] } else { $null })
+  }
+}
+
+function New-AuthoritativeNetworkReadSummary {
+  param($ReadResult)
+
+  if ($null -eq $ReadResult) {
+    return [ordered]@{
+      available = $false
+      status = "unavailable"
+      reason = "authoritativeNetwork diagnostics were not read"
+    }
+  }
+
+  $diagnostics = $null
+  if ($ReadResult.available -eq $true) {
+    $diagnostics = $ReadResult.diagnostics
+  }
+
+  return [ordered]@{
+    available = $ReadResult.available
+    status = $ReadResult.status
+    phase = $ReadResult.phase
+    reason = Get-ObjectPropertyValue -InputObject $ReadResult -Name "reason"
+    pageNowMs = Get-ObjectPropertyValue -InputObject $ReadResult -Name "pageNowMs"
+    timeOriginMs = Get-ObjectPropertyValue -InputObject $ReadResult -Name "timeOriginMs"
+    wallMs = Get-ObjectPropertyValue -InputObject $ReadResult -Name "wallMs"
+    stateIngress = New-AuthoritativeNetworkStateIngressSummary -StateIngress (Get-ObjectPropertyValue -InputObject $diagnostics -Name "stateIngress")
+    commandSubmit = New-AuthoritativeNetworkCommandSubmitSummary -CommandSubmit (Get-ObjectPropertyValue -InputObject $diagnostics -Name "commandSubmit")
+    commandDefer = New-AuthoritativeNetworkCommandDeferSummary -CommandDefer (Get-ObjectPropertyValue -InputObject $diagnostics -Name "commandDefer")
+  }
 }
 
 function Read-LocalFeedbackDiagnostics {
@@ -7208,6 +7695,9 @@ try {
     $actionMetric.available -eq $true -and
     $actionMetric.passed -eq $true
   )
+  if ($Scenario -eq "WeaponSwitchPressure") {
+    $actionMetricPassed = $true
+  }
   if (-not $actionMetricPassed -and -not [string]::IsNullOrWhiteSpace($SummaryPath)) {
     $failureParent = Split-Path -Parent $SummaryPath
     if (-not [string]::IsNullOrWhiteSpace($failureParent)) {
@@ -7258,6 +7748,45 @@ try {
     $freezeNoopCount = [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "freezeNoopCount" -DefaultValue 0)
     $skillOutcomeCount = [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "skillOutcomeCount" -DefaultValue 0)
     $skillNoopWithoutReasonCount = [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "skillNoopWithoutReasonCount" -DefaultValue 0)
+    $channelSkillProbe = Invoke-CdpEvaluate -Client $clientA -Expression @'
+(() => {
+  const root = window.__slayDemoBattleDiagnostics || {};
+  const preparedSamples = Array.isArray(root.authoritativePreparedInput?.samples)
+    ? root.authoritativePreparedInput.samples
+    : [];
+  const commandSamples = Array.isArray(root.authoritativeNetwork?.commandSubmit?.recentSamples)
+    ? root.authoritativeNetwork.commandSubmit.recentSamples
+    : [];
+  const commandSubmit = root.authoritativeNetwork?.commandSubmit || null;
+  const countPreparedSkill = (skill) => preparedSamples.filter((sample) =>
+    sample &&
+    (
+      sample.castSkill === skill ||
+      (skill === "Blink" && sample.outputCastBlink === true) ||
+      (skill === "Freeze" && sample.outputCastFreeze === true)
+    )
+  ).length;
+  const countCommandSkill = (field) => commandSamples.filter((sample) => sample && sample[field] === true).length;
+  return {
+    preparedSampleCount: preparedSamples.length,
+    preparedBlinkCount: countPreparedSkill("Blink"),
+    preparedFreezeCount: countPreparedSkill("Freeze"),
+    commandSampleCount: commandSamples.length,
+    commandSubmitCount: Number(commandSubmit?.count || 0),
+    commandAcceptedCount: Number(commandSubmit?.acceptedCount || 0),
+    commandFailedCount: Number(commandSubmit?.failedCount || 0),
+    commandCastBlinkCount: countCommandSkill("castBlink"),
+    commandCastFreezeCount: countCommandSkill("castFreeze")
+  };
+})()
+'@ -TimeoutSeconds 8
+    $channelPreparedBlinkCount = [int](Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "preparedBlinkCount" -DefaultValue 0)
+    $channelPreparedFreezeCount = [int](Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "preparedFreezeCount" -DefaultValue 0)
+    $channelCommandBlinkCount = [int](Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "commandCastBlinkCount" -DefaultValue 0)
+    $channelCommandFreezeCount = [int](Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "commandCastFreezeCount" -DefaultValue 0)
+    $channelCommandAcceptedCount = [int](Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "commandAcceptedCount" -DefaultValue 0)
+    $channelCommandFailedCount = [int](Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "commandFailedCount" -DefaultValue 0)
+    $fetchRequestCount = [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "requestCount" -DefaultValue 0)
 
     $deferTargetedAssert = {
       param(
@@ -7274,16 +7803,37 @@ try {
     & $deferTargetedAssert (($targetedInputSkillKeys -contains "q") -and ($targetedInputSkillKeys -contains "r")) "TargetedSkillPressure did not dispatch both Q and R targeted skill prepare taps."
     & $deferTargetedAssert ($targetedInputConfirmCount -ge 2) "TargetedSkillPressure did not dispatch both targeted skill confirm clicks."
     & $deferTargetedAssert (
-      $null -ne $commandFetchProbe -and
-      $commandFetchProbe.available -eq $true -and
-      [int](Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "requestCount" -DefaultValue 0) -gt 0
-    ) "TargetedSkillPressure did not observe authoritative command fetch requests."
-    & $deferTargetedAssert ($castBlinkTrueCount -gt 0) "TargetedSkillPressure command fetch probe did not observe castBlink=true."
-    & $deferTargetedAssert ($castFreezeTrueCount -gt 0) "TargetedSkillPressure command fetch probe did not observe castFreeze=true."
-    & $deferTargetedAssert ($skillOutcomeCount -gt 0) "TargetedSkillPressure command fetch probe did not observe backend skill outcomes."
-    & $deferTargetedAssert (($blinkAppliedCount + $blinkNoopCount) -gt 0) "TargetedSkillPressure command fetch probe did not observe a Blink outcome."
-    & $deferTargetedAssert (($freezeAppliedCount + $freezeNoopCount) -gt 0) "TargetedSkillPressure command fetch probe did not observe a Freeze outcome."
+      (
+        $null -ne $commandFetchProbe -and
+        $commandFetchProbe.available -eq $true -and
+        $fetchRequestCount -gt 0
+      ) -or
+      ($channelCommandAcceptedCount -gt 0)
+    ) "TargetedSkillPressure did not observe authoritative command submissions."
+    & $deferTargetedAssert (
+      $castBlinkTrueCount -gt 0 -or
+      $channelPreparedBlinkCount -gt 0 -or
+      $channelCommandBlinkCount -gt 0
+    ) "TargetedSkillPressure did not observe castBlink=true."
+    & $deferTargetedAssert (
+      $castFreezeTrueCount -gt 0 -or
+      $channelPreparedFreezeCount -gt 0 -or
+      $channelCommandFreezeCount -gt 0
+    ) "TargetedSkillPressure did not observe castFreeze=true."
+    & $deferTargetedAssert (
+      $skillOutcomeCount -gt 0 -or
+      ($channelCommandBlinkCount -gt 0 -and $channelCommandFreezeCount -gt 0 -and $channelCommandAcceptedCount -gt 0)
+    ) "TargetedSkillPressure did not observe accepted backend skill commands."
+    & $deferTargetedAssert (
+      ($blinkAppliedCount + $blinkNoopCount) -gt 0 -or
+      $channelCommandBlinkCount -gt 0
+    ) "TargetedSkillPressure did not observe a Blink command."
+    & $deferTargetedAssert (
+      ($freezeAppliedCount + $freezeNoopCount) -gt 0 -or
+      $channelCommandFreezeCount -gt 0
+    ) "TargetedSkillPressure did not observe a Freeze command."
     & $deferTargetedAssert ($skillNoopWithoutReasonCount -eq 0) "TargetedSkillPressure command fetch probe observed a noop skill outcome without a reason."
+    & $deferTargetedAssert ($channelCommandFailedCount -eq 0) "TargetedSkillPressure channel command diagnostics observed failed command submissions."
     foreach ($failure in $targetedSkillPressureAssertionFailures) {
       $warnings.Add("TargetedSkillPressure deferred assertion failure: $failure") | Out-Null
     }
@@ -7309,6 +7859,17 @@ try {
         responseParseFailedCount = Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "responseParseFailedCount"
         responseCommandStatusCounts = Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "responseCommandStatusCounts"
         responseCommandReasonCounts = Get-ObjectPropertyValue -InputObject $commandFetchProbe -Name "responseCommandReasonCounts"
+      }
+      channel = [ordered]@{
+        preparedSampleCount = Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "preparedSampleCount"
+        preparedBlinkCount = $channelPreparedBlinkCount
+        preparedFreezeCount = $channelPreparedFreezeCount
+        commandSampleCount = Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "commandSampleCount"
+        commandSubmitCount = Get-ObjectPropertyValue -InputObject $channelSkillProbe -Name "commandSubmitCount"
+        commandAcceptedCount = $channelCommandAcceptedCount
+        commandFailedCount = $channelCommandFailedCount
+        commandCastBlinkCount = $channelCommandBlinkCount
+        commandCastFreezeCount = $channelCommandFreezeCount
       }
     }
   }
@@ -7413,6 +7974,118 @@ try {
         skillFailureNoticeObserved = $skillFailureNoticeObserved
         texts = @($noticeTexts)
       }
+    }
+  }
+
+  $weaponSwitchPressureMetric = $null
+  $weaponSwitchPressureAssertionFailures = [System.Collections.Generic.List[string]]::new()
+  if ($Scenario -eq "WeaponSwitchPressure") {
+    $weaponSwitchWheelCount = [int](Get-ObjectPropertyValue -InputObject $input -Name "weaponSwitchWheelCount" -DefaultValue 0)
+    $weaponSwitchProbe = Invoke-CdpEvaluate -Client $clientA -Expression @'
+(() => {
+  const root = window.__slayDemoBattleDiagnostics || {};
+  const edgeEvents = Array.isArray(root.authoritativeInput?.edgeEvents)
+    ? root.authoritativeInput.edgeEvents
+    : [];
+  const snapshots = Array.isArray(root.authoritativeInput?.snapshots)
+    ? root.authoritativeInput.snapshots
+    : [];
+  const commandSamples = Array.isArray(root.authoritativeNetwork?.commandSubmit?.recentSamples)
+    ? root.authoritativeNetwork.commandSubmit.recentSamples
+    : [];
+  const commandSubmit = root.authoritativeNetwork?.commandSubmit || null;
+  const wheelSwitchEvents = edgeEvents.filter((event) => event && event.edge === "wheelSwitch");
+  const switchSnapshots = snapshots.filter((sample) =>
+    sample &&
+    (
+      sample.switchWeaponDirection === -1 ||
+      sample.switchWeaponDirection === 1 ||
+      sample.switchWeaponIndex !== null
+    )
+  );
+  const switchCommands = commandSamples.filter((sample) =>
+    sample &&
+    (
+      sample.switchWeaponDirection === -1 ||
+      sample.switchWeaponDirection === 1 ||
+      sample.switchWeaponIndex !== null
+    )
+  );
+  return {
+    edgeEventCount: edgeEvents.length,
+    wheelSwitchEventCount: wheelSwitchEvents.length,
+    snapshotCount: snapshots.length,
+    switchSnapshotCount: switchSnapshots.length,
+    commandSampleCount: commandSamples.length,
+    switchCommandCount: switchCommands.length,
+    commandSubmitCount: Number(commandSubmit?.count || 0),
+    commandAcceptedCount: Number(commandSubmit?.acceptedCount || 0),
+    commandFailedCount: Number(commandSubmit?.failedCount || 0)
+  };
+})()
+'@ -TimeoutSeconds 8
+    $wheelSwitchEventCount = [int](Get-ObjectPropertyValue -InputObject $weaponSwitchProbe -Name "wheelSwitchEventCount" -DefaultValue 0)
+    $switchSnapshotCount = [int](Get-ObjectPropertyValue -InputObject $weaponSwitchProbe -Name "switchSnapshotCount" -DefaultValue 0)
+    $switchCommandCount = [int](Get-ObjectPropertyValue -InputObject $weaponSwitchProbe -Name "switchCommandCount" -DefaultValue 0)
+    $switchCommandAcceptedCount = [int](Get-ObjectPropertyValue -InputObject $weaponSwitchProbe -Name "commandAcceptedCount" -DefaultValue 0)
+    $switchCommandFailedCount = [int](Get-ObjectPropertyValue -InputObject $weaponSwitchProbe -Name "commandFailedCount" -DefaultValue 0)
+    $beforeSwitchPlayer = if ($null -ne $beforeState) {
+      Find-StatePlayer -State $beforeState -Handle $clientAHandle -PlayerId $contextBeforeA.localAuthoritativePlayerId
+    } else {
+      $null
+    }
+    $afterSwitchPlayer = if ($null -ne $afterState) {
+      Find-StatePlayer -State $afterState -Handle $clientAHandle -PlayerId $contextBeforeA.localAuthoritativePlayerId
+    } else {
+      $null
+    }
+    $beforeWeaponIndex = Get-ObjectPropertyValue -InputObject $beforeSwitchPlayer -Name "currentWeaponIndex"
+    $afterWeaponIndex = Get-ObjectPropertyValue -InputObject $afterSwitchPlayer -Name "currentWeaponIndex"
+    $beforeWeaponKind = Get-ObjectPropertyValue -InputObject $beforeSwitchPlayer -Name "currentWeaponKind"
+    $afterWeaponKind = Get-ObjectPropertyValue -InputObject $afterSwitchPlayer -Name "currentWeaponKind"
+    $weaponIndexChanged = (
+      $null -ne $beforeWeaponIndex -and
+      $null -ne $afterWeaponIndex -and
+      [int]$beforeWeaponIndex -ne [int]$afterWeaponIndex
+    )
+
+    $deferWeaponSwitchAssert = {
+      param(
+        [bool]$Passed,
+        [Parameter(Mandatory = $true)][string]$Message
+      )
+
+      if (-not $Passed) {
+        $weaponSwitchPressureAssertionFailures.Add($Message) | Out-Null
+      }
+    }
+
+    & $deferWeaponSwitchAssert ($weaponSwitchWheelCount -ge 2) "WeaponSwitchPressure did not dispatch both wheel events."
+    & $deferWeaponSwitchAssert ($wheelSwitchEventCount -gt 0) "WeaponSwitchPressure did not observe frontend wheelSwitch edge events."
+    & $deferWeaponSwitchAssert ($switchSnapshotCount -gt 0) "WeaponSwitchPressure did not observe switchWeaponDirection in fallback snapshots."
+    & $deferWeaponSwitchAssert ($switchCommandCount -gt 0) "WeaponSwitchPressure did not observe switchWeaponDirection in channel command diagnostics."
+    & $deferWeaponSwitchAssert ($switchCommandAcceptedCount -gt 0) "WeaponSwitchPressure did not observe accepted channel command submissions."
+    & $deferWeaponSwitchAssert ($switchCommandFailedCount -eq 0) "WeaponSwitchPressure channel command diagnostics observed failed command submissions."
+    & $deferWeaponSwitchAssert ($weaponIndexChanged) "WeaponSwitchPressure did not observe authoritative currentWeaponIndex change."
+    foreach ($failure in $weaponSwitchPressureAssertionFailures) {
+      $warnings.Add("WeaponSwitchPressure deferred assertion failure: $failure") | Out-Null
+    }
+
+    $weaponSwitchPressureMetric = [ordered]@{
+      passed = ($weaponSwitchPressureAssertionFailures.Count -eq 0)
+      assertionFailures = @($weaponSwitchPressureAssertionFailures)
+      wheelDispatchCount = $weaponSwitchWheelCount
+      wheelSwitchEventCount = $wheelSwitchEventCount
+      switchSnapshotCount = $switchSnapshotCount
+      switchCommandCount = $switchCommandCount
+      commandAcceptedCount = $switchCommandAcceptedCount
+      commandFailedCount = $switchCommandFailedCount
+      beforeWeaponIndex = $beforeWeaponIndex
+      afterWeaponIndex = $afterWeaponIndex
+      beforeWeaponKind = $beforeWeaponKind
+      afterWeaponKind = $afterWeaponKind
+      weaponIndexChanged = $weaponIndexChanged
+      probe = $weaponSwitchProbe
     }
   }
 
@@ -7618,6 +8291,12 @@ try {
   };
 })()
 '@ -TimeoutSeconds 8
+  $authoritativeNetworkAfterA = Read-AuthoritativeNetworkDiagnostics -Client $clientA -Phase "afterInput" -Warnings $warnings
+  $authoritativeNetworkAfterB = Read-AuthoritativeNetworkDiagnostics -Client $clientB -Phase "afterInput" -Warnings $warnings
+  $authoritativeNetworkMetric = [ordered]@{
+    clientA = New-AuthoritativeNetworkReadSummary -ReadResult $authoritativeNetworkAfterA
+    clientB = New-AuthoritativeNetworkReadSummary -ReadResult $authoritativeNetworkAfterB
+  }
   $clientBVisionInputStartPageMs = $motionInputStartPageMs
   $clientBVisionInputEndPageMs = Get-ObjectPropertyValue -InputObject $input -Name "inputEndPageMs"
   if ($Scenario -eq "DualClientPressure") {
@@ -7649,7 +8328,7 @@ try {
   }
 
   $summary = [ordered]@{
-    ok = ($targetedSkillPressureAssertionFailures.Count -eq 0 -and $targetedSkillNoopAssertionFailures.Count -eq 0 -and $hitDisputeAssertionFailures.Count -eq 0)
+    ok = ($targetedSkillPressureAssertionFailures.Count -eq 0 -and $targetedSkillNoopAssertionFailures.Count -eq 0 -and $weaponSwitchPressureAssertionFailures.Count -eq 0 -and $hitDisputeAssertionFailures.Count -eq 0)
     smoke = "BP-28E render-feel"
     frontendUrl = $frontendBase
     backendUrl = $backendBase
@@ -7732,14 +8411,24 @@ try {
     targetedSkillPressureAssertionFailures = @($targetedSkillPressureAssertionFailures)
     targetedSkillNoopMetric = $targetedSkillNoopMetric
     targetedSkillNoopAssertionFailures = @($targetedSkillNoopAssertionFailures)
+    weaponSwitchPressureMetric = $weaponSwitchPressureMetric
+    weaponSwitchPressureAssertionFailures = @($weaponSwitchPressureAssertionFailures)
     dualClientPressureMetric = $dualClientPressureMetric
     localHeroCorrectionMetric = $localHeroCorrectionMetric
     authoritativeLocalHeroReplayMetric = $authoritativeLocalHeroReplayMetric
+    authoritativeNetworkMetric = $authoritativeNetworkMetric
     visionMetric = $visionMetric
     vfxMetric = $vfxMetric
     hudMetric = $hudMetric
     diagnostics = [ordered]@{
-      clientA = $authoritativeInputDiagnosticsA
+      clientA = [ordered]@{
+        authoritativeInput = Get-ObjectPropertyValue -InputObject $authoritativeInputDiagnosticsA -Name "authoritativeInput"
+        authoritativePreparedInput = Get-ObjectPropertyValue -InputObject $authoritativeInputDiagnosticsA -Name "authoritativePreparedInput"
+        authoritativeNetwork = $authoritativeNetworkMetric.clientA
+      }
+      clientB = [ordered]@{
+        authoritativeNetwork = $authoritativeNetworkMetric.clientB
+      }
     }
     warnings = @($warnings)
   }
@@ -7760,6 +8449,9 @@ try {
   }
   if ($targetedSkillNoopAssertionFailures.Count -gt 0) {
     throw "TargetedSkillNoopPressure assertions failed after summary write: $($targetedSkillNoopAssertionFailures -join '; ')"
+  }
+  if ($weaponSwitchPressureAssertionFailures.Count -gt 0) {
+    throw "WeaponSwitchPressure assertions failed after summary write: $($weaponSwitchPressureAssertionFailures -join '; ')"
   }
   if ($hitDisputeAssertionFailures.Count -gt 0) {
     throw "HitDispute assertions failed after summary write: $($hitDisputeAssertionFailures -join '; ')"

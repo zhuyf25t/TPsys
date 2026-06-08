@@ -13,6 +13,8 @@ export interface UpdateBattleCameraTargetInput {
   playerPosition: Vec2;
   cameraTarget: Phaser.GameObjects.Zone;
   cameraOffset: Vec2;
+  cameraFocus: Vec2;
+  deltaMs: number;
 }
 
 export interface BattleCameraBoundsPlan {
@@ -58,6 +60,8 @@ export interface ResolveBattleCameraTargetUpdatePlanInput {
   scaleSize: BattleCameraScaleSize;
   playerPosition: Vec2;
   cameraOffset: Vec2;
+  cameraFocus: Vec2;
+  deltaMs: number;
 }
 
 export interface BattleCameraTargetUpdatePlan {
@@ -65,6 +69,7 @@ export interface BattleCameraTargetUpdatePlan {
   resolvedPointer: BattleCameraResolvedPointer;
   desiredOffset: Vec2;
   nextOffset: Vec2;
+  nextFocus: Vec2;
   targetPosition: Vec2;
   ratio: number;
   max: Vec2;

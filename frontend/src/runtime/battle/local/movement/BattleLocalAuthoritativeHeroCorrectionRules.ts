@@ -27,15 +27,15 @@ export interface LocalAuthoritativeHeroCorrectionTuning {
   halfLifeMs: number;
 }
 
-const LOCAL_AUTHORITATIVE_HARD_SNAP_DISTANCE = 640;
-const LOCAL_AUTHORITATIVE_MAX_VISIBLE_CORRECTION_DISTANCE = 48;
+const LOCAL_AUTHORITATIVE_HARD_SNAP_DISTANCE = 960;
+const LOCAL_AUTHORITATIVE_MAX_VISIBLE_CORRECTION_DISTANCE = 224;
 const LOCAL_AUTHORITATIVE_STATIONARY_CORRECTION = {
-  deadzone: 3,
-  halfLifeMs: 22
+  deadzone: 8,
+  halfLifeMs: 90
 } as const;
 const LOCAL_AUTHORITATIVE_MOVING_CORRECTION = {
-  deadzone: 6,
-  halfLifeMs: 26
+  deadzone: 24,
+  halfLifeMs: 170
 } as const;
 
 export function resolveLocalAuthoritativeHeroCorrection(

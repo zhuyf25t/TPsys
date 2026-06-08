@@ -26,6 +26,9 @@ export interface RemoteHeroInterpolationViewState {
 export interface RemoteHeroDisplayState {
   position: Vec2;
   facing: number;
+  interpolationSource: "interpolated" | "fallback";
+  interpolationSampleCount: number;
+  interpolationDelayMs: number;
 }
 
 export interface CleanupRemoteHeroInterpolationBuffersInput {
@@ -48,6 +51,7 @@ export interface ResolveRemoteHeroFallbackDisplayStateInput {
   currentFacing: number;
   hero: Hero;
   deltaMs: number;
+  interpolationDelayMs?: number;
 }
 
 export interface ResolveSmoothedDisplayPositionInput {

@@ -7,11 +7,15 @@ import type {
   ResolveProjectileFallbackDisplayStateInput,
   ResolveSmoothedDisplayPositionInput
 } from "../objects/ProjectileViewObjects";
+import { resolveBattleRemoteEntityAdaptiveInterpolationDelayMs } from "./BattleRemoteEntityInterpolationDelayRules";
 
-const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS = 70;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS = 96;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_MAX_DELAY_MS = 220;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_JITTER_PADDING_MS = 20;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_LATEST_SAMPLE_PADDING_MS = 12;
 const AUTHORITATIVE_PROJECTILE_SNAP_DISTANCE = 260;
 const AUTHORITATIVE_PROJECTILE_SMOOTHING_MS = 55;
-const AUTHORITATIVE_PROJECTILE_INTERPOLATION_BUFFER_CAP = 8;
+const AUTHORITATIVE_PROJECTILE_INTERPOLATION_BUFFER_CAP = 24;
 const AUTHORITATIVE_PROJECTILE_POSITION_EPSILON = 0.05;
 const AUTHORITATIVE_PROJECTILE_FACING_EPSILON = 0.001;
 
@@ -65,9 +69,10 @@ export function recordProjectileInterpolationSample(
 
 export function resolveInterpolatedProjectileDisplayState(
   buffer: ProjectileInterpolationBuffer,
-  renderNowMs: number
+  renderNowMs: number,
+  interpolationDelayMs = resolveProjectileInterpolationDelayMs(buffer, renderNowMs)
 ): ProjectileDisplayState | null {
-  const renderAtMs = renderNowMs - AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS;
+  const renderAtMs = renderNowMs - interpolationDelayMs;
   if (!Number.isFinite(renderAtMs) || buffer.samples.length < 2) {
     return null;
   }
@@ -91,7 +96,13 @@ export function resolveInterpolatedProjectileDisplayState(
       return null;
     }
 
-    return { position, facing };
+    return {
+      position,
+      facing,
+      interpolationSource: "interpolated",
+      interpolationSampleCount: buffer.samples.length,
+      interpolationDelayMs
+    };
   }
 
   return null;
@@ -101,7 +112,8 @@ export function resolveProjectileFallbackDisplayState({
   currentPosition,
   currentFacing,
   projectile,
-  deltaMs
+  deltaMs,
+  interpolationDelayMs = AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS
 }: ResolveProjectileFallbackDisplayStateInput): ProjectileDisplayState {
   const finiteCurrentPosition = resolveFinitePosition(currentPosition);
   const targetPosition = isFiniteVec2(projectile.position) ? projectile.position : finiteCurrentPosition;
@@ -114,8 +126,25 @@ export function resolveProjectileFallbackDisplayState({
       smoothingMs: AUTHORITATIVE_PROJECTILE_SMOOTHING_MS,
       snapDistance: AUTHORITATIVE_PROJECTILE_SNAP_DISTANCE
     }),
-    facing: Number.isFinite(projectile.facing) ? projectile.facing : currentFacing
+    facing: Number.isFinite(projectile.facing) ? projectile.facing : currentFacing,
+    interpolationSource: "fallback",
+    interpolationSampleCount: 0,
+    interpolationDelayMs
   };
+}
+
+export function resolveProjectileInterpolationDelayMs(
+  buffer: ProjectileInterpolationBuffer,
+  renderNowMs: number
+): number {
+  return resolveBattleRemoteEntityAdaptiveInterpolationDelayMs({
+    samples: buffer.samples,
+    renderNowMs,
+    baseDelayMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS,
+    maxDelayMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_MAX_DELAY_MS,
+    jitterPaddingMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_JITTER_PADDING_MS,
+    latestSamplePaddingMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_LATEST_SAMPLE_PADDING_MS
+  });
 }
 
 export function isFiniteVec2(position: Vec2): boolean {

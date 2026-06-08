@@ -35,10 +35,12 @@ export function syncProjectileViews({
     worldViews.projectileInterpolationBuffers.clear();
   }
 
+  const cullWorldView = resolveProjectileCullWorldView(scene);
+
   snapshot.projectiles.forEach((projectile) => {
     liveIds.add(projectile.projectileId);
 
-    if (!isProjectileInsideCullBounds(projectile, resolveProjectileCullWorldView(scene))) {
+    if (!isProjectileInsideCullBounds(projectile, cullWorldView)) {
       const existing = worldViews.projectileViews.get(projectile.projectileId);
       if (existing) {
         releaseProjectileView(worldViews, existing);

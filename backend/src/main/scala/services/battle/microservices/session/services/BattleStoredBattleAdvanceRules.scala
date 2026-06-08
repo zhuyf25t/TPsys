@@ -18,11 +18,11 @@ private[battle] final case class BattleStoredBattleAdvanceResult(
 
 private[battle] object BattleStoredBattleAdvanceRules {
   private val StandardExactCatchUpStepLimit = 128L
-  private val HighPopulationExactCatchUpStepLimit = 3L
-  private val HighPopulationPlayerCount = 8
+  private val HighPopulationExactCatchUpStepLimit = 8L
+  private val HighPopulationPlayerCount = 9
   private val StandardCoalescedCatchUpStepLimit = 32
-  private val HighPopulationCoalescedCatchUpStepLimit = 8
-  private val MinCoalescedCatchUpStepMs = 250L
+  private val HighPopulationCoalescedCatchUpStepLimit = 12
+  private val MinCoalescedCatchUpStepMs = 99L
 
   private final case class AdvancedStateFrame(
     state: BattleAggregateState,

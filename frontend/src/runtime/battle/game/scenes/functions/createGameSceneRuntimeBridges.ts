@@ -50,7 +50,6 @@ export function createGameSceneRuntimeBridges(options: CreateGameSceneRuntimeBri
 
   const weaponWheelSwitchBridge = new WeaponWheelSwitchSceneBridge({
     getPlayerHero: options.getPlayerHero,
-    isAuthoritativeRendererHost: () => options.sharedAuthoritativeRuntime,
     getNowMs: () => performance.now(),
     weaponSwitchStateBridge: options.weaponSwitchStateBridge,
     showFloatingText: (position, text, tone) => options.vfx.showFloatingText(position, text, tone)

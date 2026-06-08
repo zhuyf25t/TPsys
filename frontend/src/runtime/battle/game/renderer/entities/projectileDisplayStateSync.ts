@@ -3,6 +3,7 @@ import {
   createProjectileInterpolationSample,
   recordProjectileInterpolationSample,
   resolveInterpolatedProjectileDisplayState,
+  resolveProjectileInterpolationDelayMs,
   resolveProjectileFallbackDisplayState
 } from "./functions/ProjectileInterpolationRules";
 import type {
@@ -23,7 +24,10 @@ export function resolveProjectileViewDisplayState({
   if (!useAuthoritativeInterpolation) {
     return {
       position: projectile.position,
-      facing: projectile.facing
+      facing: projectile.facing,
+      interpolationSource: "snapshot",
+      interpolationSampleCount: 0,
+      interpolationDelayMs: 0
     };
   }
 
@@ -42,15 +46,22 @@ export function resolveProjectileViewDisplayState({
   const buffer = getProjectileInterpolationBuffer(worldViews, projectile.projectileId);
   recordProjectileInterpolationSample(buffer, sample);
 
-  return (
-    resolveInterpolatedProjectileDisplayState(buffer, receivedAtMs) ??
-    resolveProjectileFallbackDisplayState({
+  const interpolationDelayMs = resolveProjectileInterpolationDelayMs(buffer, receivedAtMs);
+  const interpolatedState = resolveInterpolatedProjectileDisplayState(buffer, receivedAtMs, interpolationDelayMs);
+  if (interpolatedState) {
+    return interpolatedState;
+  }
+
+  return {
+    ...resolveProjectileFallbackDisplayState({
       currentPosition: { x: view.sprite.x, y: view.sprite.y },
       currentFacing: view.sprite.rotation,
       projectile,
-      deltaMs
-    })
-  );
+      deltaMs,
+      interpolationDelayMs
+    }),
+    interpolationSampleCount: buffer.samples.length
+  };
 }
 
 function getProjectileInterpolationBuffer(worldViews: ProjectileViewState, projectileId: string): ProjectileInterpolationBuffer {

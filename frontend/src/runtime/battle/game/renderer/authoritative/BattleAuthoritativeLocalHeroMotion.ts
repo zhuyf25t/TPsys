@@ -10,7 +10,7 @@ export type {
   AuthoritativeLocalHeroDisplayMotionResult
 } from "./objects/BattleAuthoritativeLocalHeroMotionObjects";
 
-const LOCAL_AUTHORITATIVE_DISPLAY_MAX_DISTANCE_FROM_AUTHORITATIVE = 48;
+const LOCAL_AUTHORITATIVE_DISPLAY_MAX_DISTANCE_FROM_AUTHORITATIVE = 224;
 
 export function applyAuthoritativeLocalHeroDisplayMotion({
   snapshot,

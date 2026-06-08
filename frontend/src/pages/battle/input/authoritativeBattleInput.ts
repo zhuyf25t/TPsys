@@ -3,6 +3,7 @@ import { getSelectedSkillBindings } from "../../../runtime/battle/loadout/Battle
 import { readSkillBindingPresses } from "../../../runtime/battle/local/input/skillBindingInputAdapter";
 
 const FALLBACK_POINTER_WORLD_DISTANCE = 220;
+const WHEEL_SWITCH_INPUT_DEDUP_WINDOW_MS = 240;
 
 export interface AuthoritativeBattleInputSnapshot {
   movement: Vec2;
@@ -22,6 +23,7 @@ export interface AuthoritativeBattleInputSnapshot {
 
 export interface AuthoritativeBattleInputCapture {
   readSnapshot: () => AuthoritativeBattleInputSnapshot;
+  hasImmediateCommandIntent: () => boolean;
   destroy: () => void;
 }
 
@@ -47,6 +49,7 @@ export function createAuthoritativeBattleInputCapture({
   let castCritical = false;
   let switchWeaponDirection: -1 | 0 | 1 = 0;
   let switchWeaponIndex: number | null = null;
+  let lastWheelSwitchAtMs = Number.NEGATIVE_INFINITY;
   let pointerClientX = typeof window !== "undefined" ? window.innerWidth / 2 : 0;
   let pointerClientY = typeof window !== "undefined" ? window.innerHeight / 2 : 0;
 
@@ -62,6 +65,11 @@ export function createAuthoritativeBattleInputCapture({
     if (key === "t" && !event.repeat) {
       reloadPressed = true;
       immediateCommandIntent = true;
+      recordAuthoritativeInputDiagnostics({
+        edge: "reload",
+        key,
+        repeat: event.repeat
+      });
     }
     const skillPresses = readSkillBindingPresses(getSelectedSkillBindings(), {
       Q: key === "q" && !event.repeat && !wasPressed,
@@ -77,6 +85,12 @@ export function createAuthoritativeBattleInputCapture({
     if (numericWeaponIndex !== null && !event.repeat) {
       switchWeaponIndex = numericWeaponIndex;
       immediateCommandIntent = true;
+      recordAuthoritativeInputDiagnostics({
+        edge: "weaponIndex",
+        key,
+        repeat: event.repeat,
+        switchWeaponIndex: numericWeaponIndex
+      });
     }
     castDash = castDash || skillPresses.Dash;
     castBlink = castBlink || skillPresses.Blink;
@@ -84,6 +98,12 @@ export function createAuthoritativeBattleInputCapture({
     castCritical = castCritical || skillPresses.Critical;
     if (skillPresses.Dash || skillPresses.Blink || skillPresses.Freeze || skillPresses.Critical) {
       immediateCommandIntent = true;
+      recordAuthoritativeInputDiagnostics({
+        edge: "skill",
+        key,
+        repeat: event.repeat,
+        skillPresses
+      });
     }
     if (immediateCommandIntent) {
       onImmediateCommandIntent?.();
@@ -113,6 +133,10 @@ export function createAuthoritativeBattleInputCapture({
     if (event.button === 0) {
       primaryHeld = true;
       primaryClickPending = true;
+      recordAuthoritativeInputDiagnostics({
+        edge: "primaryClick",
+        pointerClient: { x: event.clientX, y: event.clientY }
+      });
       onImmediateCommandIntent?.();
     }
   };
@@ -125,13 +149,39 @@ export function createAuthoritativeBattleInputCapture({
   };
 
   const handleWheel = (event: WheelEvent): void => {
-    if (event.deltaY < 0) {
-      switchWeaponDirection = -1;
-      onImmediateCommandIntent?.();
-    } else if (event.deltaY > 0) {
-      switchWeaponDirection = 1;
-      onImmediateCommandIntent?.();
+    event.preventDefault();
+    if (event.ctrlKey) {
+      recordAuthoritativeInputDiagnostics({
+        edge: "wheelIgnoredCtrl",
+        deltaY: event.deltaY,
+        ctrlKey: event.ctrlKey
+      });
+      return;
     }
+
+    const direction = resolveWheelSwitchDirection(event.deltaY);
+    if (direction === 0) {
+      return;
+    }
+
+    const nowMs = readInputNowMs();
+    if (nowMs - lastWheelSwitchAtMs < WHEEL_SWITCH_INPUT_DEDUP_WINDOW_MS) {
+      recordAuthoritativeInputDiagnostics({
+        edge: "wheelSwitchDeduped",
+        deltaY: event.deltaY,
+        switchWeaponDirection: direction
+      });
+      return;
+    }
+
+    lastWheelSwitchAtMs = nowMs;
+    switchWeaponDirection = direction;
+    recordAuthoritativeInputDiagnostics({
+      edge: "wheelSwitch",
+      deltaY: event.deltaY,
+      switchWeaponDirection: direction
+    });
+    onImmediateCommandIntent?.();
   };
 
   window.addEventListener("keydown", handleKeyDown);
@@ -139,9 +189,18 @@ export function createAuthoritativeBattleInputCapture({
   window.addEventListener("mousemove", handleMouseMove);
   window.addEventListener("mousedown", handleMouseDown);
   window.addEventListener("mouseup", handleMouseUp);
-  window.addEventListener("wheel", handleWheel, { passive: true });
+  window.addEventListener("wheel", handleWheel, { passive: false });
 
   return {
+    hasImmediateCommandIntent: () =>
+      primaryClickPending ||
+      reloadPressed ||
+      castDash ||
+      castBlink ||
+      castFreeze ||
+      castCritical ||
+      switchWeaponDirection !== 0 ||
+      switchWeaponIndex !== null,
     readSnapshot: () => {
       const movement = normalizeVector({
         x: Number(pressedKeys.has("d")) - Number(pressedKeys.has("a")),
@@ -179,6 +238,7 @@ export function createAuthoritativeBattleInputCapture({
         switchWeaponDirection,
         switchWeaponIndex
       };
+      recordAuthoritativeInputSnapshotDiagnostics(snapshot);
 
       reloadPressed = false;
       primaryClickPending = false;
@@ -202,10 +262,30 @@ export function createAuthoritativeBattleInputCapture({
   };
 }
 
+function resolveWheelSwitchDirection(deltaY: number): -1 | 0 | 1 {
+  if (deltaY < 0) {
+    return -1;
+  }
+  if (deltaY > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+function readInputNowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 function recordAuthoritativeInputDiagnostics(input: {
-  key: string;
-  repeat: boolean;
-  skillPresses: Record<string, boolean>;
+  key?: string;
+  repeat?: boolean;
+  skillPresses?: Record<string, boolean>;
+  edge?: string;
+  switchWeaponDirection?: -1 | 1;
+  switchWeaponIndex?: number;
+  deltaY?: number;
+  ctrlKey?: boolean;
+  pointerClient?: Vec2;
 }): void {
   if (typeof window === "undefined") {
     return;
@@ -215,19 +295,85 @@ function recordAuthoritativeInputDiagnostics(input: {
     __slayDemoBattleDiagnostics?: {
       authoritativeInput?: {
         keyEvents?: unknown[];
+        edgeEvents?: unknown[];
       };
     };
   }).__slayDemoBattleDiagnostics ??= {});
   const diagnostics = (root.authoritativeInput ??= {});
-  const keyEvents = (diagnostics.keyEvents ??= []);
-  keyEvents.push({
+  const atMs = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (input.key !== undefined && input.repeat !== undefined && input.skillPresses !== undefined) {
+    const keyEvents = (diagnostics.keyEvents ??= []);
+    keyEvents.push({
+      atMs,
+      key: input.key,
+      repeat: input.repeat,
+      skillPresses: { ...input.skillPresses }
+    });
+    if (keyEvents.length > 60) {
+      keyEvents.splice(0, keyEvents.length - 60);
+    }
+  }
+  if (input.edge) {
+    const edgeEvents = (diagnostics.edgeEvents ??= []);
+    edgeEvents.push({
+      atMs,
+      edge: input.edge,
+      key: input.key,
+      repeat: input.repeat,
+      switchWeaponDirection: input.switchWeaponDirection,
+      switchWeaponIndex: input.switchWeaponIndex,
+      deltaY: input.deltaY,
+      ctrlKey: input.ctrlKey,
+      pointerClient: input.pointerClient ? { ...input.pointerClient } : undefined,
+      skillPresses: input.skillPresses ? { ...input.skillPresses } : undefined
+    });
+    if (edgeEvents.length > 120) {
+      edgeEvents.splice(0, edgeEvents.length - 120);
+    }
+  }
+}
+
+function recordAuthoritativeInputSnapshotDiagnostics(snapshot: AuthoritativeBattleInputSnapshot): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const hasEdgeInput =
+    snapshot.primaryJustPressed ||
+    snapshot.reloadPressed ||
+    snapshot.castDash ||
+    snapshot.castBlink ||
+    snapshot.castFreeze ||
+    snapshot.castCritical ||
+    snapshot.switchWeaponDirection !== 0 ||
+    snapshot.switchWeaponIndex !== null;
+  if (!hasEdgeInput) {
+    return;
+  }
+
+  const root = ((window as unknown as {
+    __slayDemoBattleDiagnostics?: {
+      authoritativeInput?: {
+        snapshots?: unknown[];
+      };
+    };
+  }).__slayDemoBattleDiagnostics ??= {});
+  const diagnostics = (root.authoritativeInput ??= {});
+  const snapshots = (diagnostics.snapshots ??= []);
+  snapshots.push({
     atMs: typeof performance !== "undefined" ? performance.now() : Date.now(),
-    key: input.key,
-    repeat: input.repeat,
-    skillPresses: { ...input.skillPresses }
+    primaryHeld: snapshot.primaryHeld,
+    primaryJustPressed: snapshot.primaryJustPressed,
+    reloadPressed: snapshot.reloadPressed,
+    castDash: snapshot.castDash,
+    castBlink: snapshot.castBlink,
+    castFreeze: snapshot.castFreeze,
+    castCritical: snapshot.castCritical,
+    switchWeaponDirection: snapshot.switchWeaponDirection,
+    switchWeaponIndex: snapshot.switchWeaponIndex
   });
-  if (keyEvents.length > 60) {
-    keyEvents.splice(0, keyEvents.length - 60);
+  if (snapshots.length > 120) {
+    snapshots.splice(0, snapshots.length - 120);
   }
 }
 

@@ -59,20 +59,21 @@ function applyHeroWeaponOverlayVisualPlan(
     view.sprite.setTexture(plan.textureKey, plan.frameName);
     view.textureKey = plan.textureKey;
     view.frameName = plan.frameName;
-    syncWeaponSpriteDisplayScale(view.sprite);
   }
 
+  syncWeaponSpriteDisplayScale(view.sprite, plan.displaySize);
   view.sprite.setVisible(plan.visible);
   view.sprite.setAlpha(plan.alpha);
   view.sprite.setPosition(plan.position.x, plan.position.y);
   view.sprite.setRotation(plan.rotation);
 }
 
-function syncWeaponSpriteDisplayScale(sprite: Phaser.GameObjects.Image): void {
+function syncWeaponSpriteDisplayScale(sprite: Phaser.GameObjects.Image, displaySize: number): void {
   sprite.setScale(
     resolveHeroWeaponOverlayScale({
       frameWidth: sprite.frame.width,
-      frameHeight: sprite.frame.height
+      frameHeight: sprite.frame.height,
+      displaySize
     })
   );
 }

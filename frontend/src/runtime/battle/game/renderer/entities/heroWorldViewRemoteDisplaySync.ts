@@ -42,6 +42,9 @@ export function recordHeroWorldViewRemoteDiagnostics({
     displayPosition: displayState.position,
     targetPosition: hero.position,
     facing: displayState.facing,
-    targetFacing: hero.facing
+    targetFacing: hero.facing,
+    interpolationSource: displayState.interpolationSource,
+    interpolationSampleCount: displayState.interpolationSampleCount,
+    interpolationDelayMs: displayState.interpolationDelayMs
   });
 }

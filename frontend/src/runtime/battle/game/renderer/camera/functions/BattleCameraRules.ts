@@ -13,7 +13,11 @@ const BATTLE_CAMERA_BACKGROUND_COLOR = "#57a6d9";
 const BATTLE_CAMERA_ROUND_PIXELS = false;
 const BATTLE_CAMERA_POINTER_LOOK_AHEAD_RATIO = 0.38;
 const BATTLE_CAMERA_POINTER_LOOK_AHEAD_MAX = { x: 260, y: 260 };
-const BATTLE_CAMERA_OFFSET_LERP = { x: 1, y: 1 };
+const BATTLE_CAMERA_OFFSET_LERP = { x: 0.16, y: 0.16 };
+const BATTLE_CAMERA_FOCUS_HALF_LIFE_MS = 82;
+const BATTLE_CAMERA_OFFSET_HALF_LIFE_MS = 70;
+const BATTLE_CAMERA_FOCUS_DEADZONE = 2.5;
+const BATTLE_CAMERA_FOCUS_SNAP_DISTANCE = 520;
 
 export function resolveBattleCameraConfigurationPlan(worldSize: Vec2, globalPadding: number): BattleCameraConfigurationPlan {
   return {
@@ -34,7 +38,9 @@ export function resolveBattleCameraTargetUpdatePlan({
   pointer,
   scaleSize,
   playerPosition,
-  cameraOffset
+  cameraOffset,
+  cameraFocus,
+  deltaMs
 }: ResolveBattleCameraTargetUpdatePlanInput): BattleCameraTargetUpdatePlan {
   const screenCenter = {
     x: scaleSize.width / 2,
@@ -53,23 +59,61 @@ export function resolveBattleCameraTargetUpdatePlan({
       BATTLE_CAMERA_POINTER_LOOK_AHEAD_MAX.y
     )
   };
+  const offsetAlpha = smoothingAlpha(deltaMs, BATTLE_CAMERA_OFFSET_HALF_LIFE_MS);
   const nextOffset = {
-    x: linear(cameraOffset.x, desiredOffset.x, BATTLE_CAMERA_OFFSET_LERP.x),
-    y: linear(cameraOffset.y, desiredOffset.y, BATTLE_CAMERA_OFFSET_LERP.y)
+    x: linear(cameraOffset.x, desiredOffset.x, offsetAlpha),
+    y: linear(cameraOffset.y, desiredOffset.y, offsetAlpha)
   };
+  const nextFocus = resolveBattleCameraFocus({
+    cameraFocus,
+    playerPosition,
+    deltaMs
+  });
 
   return {
     screenCenter,
     resolvedPointer,
     desiredOffset,
     nextOffset,
+    nextFocus,
     targetPosition: {
-      x: playerPosition.x + nextOffset.x,
-      y: playerPosition.y + nextOffset.y
+      x: nextFocus.x + nextOffset.x,
+      y: nextFocus.y + nextOffset.y
     },
     ratio: BATTLE_CAMERA_POINTER_LOOK_AHEAD_RATIO,
     max: BATTLE_CAMERA_POINTER_LOOK_AHEAD_MAX,
     lerp: BATTLE_CAMERA_OFFSET_LERP
+  };
+}
+
+function resolveBattleCameraFocus({
+  cameraFocus,
+  playerPosition,
+  deltaMs
+}: {
+  cameraFocus: Vec2;
+  playerPosition: Vec2;
+  deltaMs: number;
+}): Vec2 {
+  if (!isFinitePosition(cameraFocus) || !isFinitePosition(playerPosition)) {
+    return clonePosition(playerPosition);
+  }
+
+  const deltaX = playerPosition.x - cameraFocus.x;
+  const deltaY = playerPosition.y - cameraFocus.y;
+  const distance = Math.hypot(deltaX, deltaY);
+  if (!Number.isFinite(distance) || distance >= BATTLE_CAMERA_FOCUS_SNAP_DISTANCE) {
+    return clonePosition(playerPosition);
+  }
+
+  if (distance <= BATTLE_CAMERA_FOCUS_DEADZONE) {
+    return clonePosition(cameraFocus);
+  }
+
+  const alpha = smoothingAlpha(deltaMs, BATTLE_CAMERA_FOCUS_HALF_LIFE_MS);
+  return {
+    x: linear(cameraFocus.x, playerPosition.x, alpha),
+    y: linear(cameraFocus.y, playerPosition.y, alpha)
   };
 }
 
@@ -94,4 +138,21 @@ function clamp(value: number, min: number, max: number): number {
 
 function linear(start: number, end: number, amount: number): number {
   return start + (end - start) * amount;
+}
+
+function smoothingAlpha(deltaMs: number, halfLifeMs: number): number {
+  const safeDeltaMs = Math.max(0, Number.isFinite(deltaMs) ? deltaMs : 0);
+  const safeHalfLifeMs = Math.max(1, Number.isFinite(halfLifeMs) ? halfLifeMs : 1);
+  if (safeDeltaMs <= 0) {
+    return 1 - Math.pow(0.5, 16.6667 / safeHalfLifeMs);
+  }
+  return clamp(1 - Math.pow(0.5, safeDeltaMs / safeHalfLifeMs), 0, 1);
+}
+
+function isFinitePosition(position: Vec2): boolean {
+  return Number.isFinite(position.x) && Number.isFinite(position.y);
+}
+
+function clonePosition(position: Vec2): Vec2 {
+  return { x: position.x, y: position.y };
 }

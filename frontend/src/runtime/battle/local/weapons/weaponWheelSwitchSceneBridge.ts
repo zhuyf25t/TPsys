@@ -1,6 +1,7 @@
 import type { BattleVector2 as Vec2 } from "../../../../objects/battle/objects/core/BattleCoreScalars";
 import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
 import type { WeaponSwitchStateBridge } from "./weaponSwitchStateBridge";
+import type { WeaponSwitchTransactionResult } from "../../microservices/combat/functions/BattleWeaponSwitchRules";
 
 type WeaponWheelSwitchSource = "Phaser" | "Window";
 type FloatingTone = "success" | "neutral" | "warning" | "error";
@@ -9,7 +10,6 @@ const WEAPON_SWITCH_NOTICE_TEXT = "\u6b63\u5728\u5207\u67aa";
 
 export interface WeaponWheelSwitchSceneBridgeOptions {
   getPlayerHero(): Hero;
-  isAuthoritativeRendererHost(): boolean;
   getNowMs(): number;
   weaponSwitchStateBridge: WeaponSwitchStateBridge;
   showFloatingText(position: Vec2, text: string, tone: FloatingTone): void;
@@ -18,10 +18,10 @@ export interface WeaponWheelSwitchSceneBridgeOptions {
 export class WeaponWheelSwitchSceneBridge {
   public constructor(private readonly options: WeaponWheelSwitchSceneBridgeOptions) {}
 
-  public handleWheel(_source: WeaponWheelSwitchSource, deltaY: number): void {
+  public handleWheel(_source: WeaponWheelSwitchSource, deltaY: number): WeaponSwitchTransactionResult | null {
     const direction = this.resolveSwitchDirection(deltaY);
-    if (direction === 0 || this.options.isAuthoritativeRendererHost()) {
-      return;
+    if (direction === 0) {
+      return null;
     }
 
     const player = this.options.getPlayerHero();
@@ -33,10 +33,11 @@ export class WeaponWheelSwitchSceneBridge {
     });
 
     if (!switchResult?.switched) {
-      return;
+      return null;
     }
 
     this.options.showFloatingText(player.position, WEAPON_SWITCH_NOTICE_TEXT, "neutral");
+    return switchResult;
   }
 
   private resolveSwitchDirection(deltaY: number): -1 | 0 | 1 {

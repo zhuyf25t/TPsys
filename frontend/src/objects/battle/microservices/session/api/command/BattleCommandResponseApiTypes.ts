@@ -13,6 +13,25 @@ export interface BattleCommandSkillOutcomeResponseDto {
   reason?: SkillOutcomeReason;
 }
 
+export type BattleCommandAcceptPathDto = "fresh" | "serialized";
+
+export interface BattleCommandServerDiagnosticsResponseDto {
+  path: BattleCommandAcceptPathDto;
+  receivedAt: number;
+  completedAt: number;
+  durationMs: number;
+  lockWaitMs: number;
+  lockHeldMs: number;
+  advanceMs: number;
+  commitRetryCount: number;
+  clientTick: number;
+  acceptedTick: number;
+  acceptedTickLag: number;
+  clientCommandSeq: number;
+  acceptedCommandSeq: number;
+  acceptedCommandSeqLag: number;
+}
+
 export interface BattleCommandAcceptedResponseDto {
   battleId: string;
   acceptedTick: number;
@@ -21,5 +40,6 @@ export interface BattleCommandAcceptedResponseDto {
   commandStatus: BattleCommandStatusDto;
   commandReason?: BattleCommandReasonDto;
   outcomes: BattleCommandSkillOutcomeResponseDto[];
+  serverDiagnostics?: BattleCommandServerDiagnosticsResponseDto;
 }
 

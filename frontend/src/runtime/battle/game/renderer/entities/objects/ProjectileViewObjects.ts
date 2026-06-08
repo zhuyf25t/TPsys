@@ -84,6 +84,9 @@ export interface ProjectileCullWorldView {
 export interface ProjectileDisplayState {
   position: Vec2;
   facing: number;
+  interpolationSource?: "interpolated" | "fallback" | "snapshot";
+  interpolationSampleCount?: number;
+  interpolationDelayMs?: number;
 }
 
 export interface ResolveProjectileDisplayStateInput {
@@ -100,6 +103,7 @@ export interface ResolveProjectileFallbackDisplayStateInput {
   currentFacing: number;
   projectile: Projectile;
   deltaMs: number;
+  interpolationDelayMs?: number;
 }
 
 export interface ResolveSmoothedDisplayPositionInput {

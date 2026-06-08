@@ -22,7 +22,10 @@ private[battle] object BattleRuntimeFinishRules {
   private def survivorEndConditionReached(state: BattleAggregateState): Boolean =
     if state.mapId == WinterZombieMapId then
       val humans = state.players.filterNot(_.isBot)
-      humans.nonEmpty && !humans.exists(player => player.alive && player.hp.value > 0)
+      val zombies = state.players.filter(_.isBot)
+      val livingHumans = humans.filter(player => player.alive && player.hp.value > 0)
+      val livingZombies = zombies.filter(player => player.alive && player.hp.value > 0)
+      humans.nonEmpty && zombies.nonEmpty && (livingHumans.isEmpty || livingZombies.isEmpty)
     else
       state.players.count(player => player.alive && player.hp.value > 0) <= 1
 

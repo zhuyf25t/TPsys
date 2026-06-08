@@ -133,8 +133,8 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
       return;
     }
 
-    drawReplayFrame(canvas, selectFrame(displayFrames, playheadMs), posterRef.current, posterReady);
-  }, [displayFrames, hasReplayFrames, playheadMs, posterReady]);
+    drawReplayFrame(canvas, selectFrame(displayFrames, playheadMs));
+  }, [displayFrames, hasReplayFrames, playheadMs]);
 
   const resetPlayback = (): void => {
     setPlayheadMs(0);
@@ -358,7 +358,7 @@ function interpolateAngle(left: number, right: number, progress: number): number
   return left + turn * progress;
 }
 
-function drawReplayFrame(canvas: HTMLCanvasElement, frame: ReplayFrame | null, poster: HTMLImageElement | null, posterReady: boolean): void {
+function drawReplayFrame(canvas: HTMLCanvasElement, frame: ReplayFrame | null): void {
   const context = canvas.getContext("2d");
   if (!context) {
     return;
@@ -376,7 +376,7 @@ function drawReplayFrame(canvas: HTMLCanvasElement, frame: ReplayFrame | null, p
   context.save();
   context.scale(dpr, dpr);
   context.clearRect(0, 0, width, height);
-  drawBattleBackdrop(context, width, height, poster, posterReady);
+  drawBattleBackdrop(context, width, height);
 
   if (!frame) {
     drawEmptyReplayState(context, width, height);
@@ -393,48 +393,27 @@ function drawReplayFrame(canvas: HTMLCanvasElement, frame: ReplayFrame | null, p
   context.restore();
 }
 
-function drawBattleBackdrop(
-  context: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  poster: HTMLImageElement | null,
-  posterReady: boolean
-): void {
+function drawBattleBackdrop(context: CanvasRenderingContext2D, width: number, height: number): void {
   const gradient = context.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#111510");
-  gradient.addColorStop(0.45, "#1f2618");
-  gradient.addColorStop(1, "#090b0c");
+  gradient.addColorStop(0, "#070909");
+  gradient.addColorStop(0.55, "#0b0f0d");
+  gradient.addColorStop(1, "#050607");
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
 
-  if (poster && posterReady) {
-    context.save();
-    context.globalAlpha = 0.16;
-    context.filter = "saturate(0.8) contrast(1.05)";
-    context.drawImage(poster, 0, 0, width, height);
-    context.restore();
-  }
-
-  context.save();
-  context.strokeStyle = "rgba(238, 211, 137, 0.055)";
-  context.lineWidth = 1;
-  for (let x = -40; x <= width + 40; x += 44) {
-    context.beginPath();
-    context.moveTo(x, 0);
-    context.lineTo(x + 90, height);
-    context.stroke();
-  }
-  for (let y = 0; y <= height; y += 42) {
-    context.beginPath();
-    context.moveTo(0, y);
-    context.lineTo(width, y);
-    context.stroke();
-  }
-  context.restore();
+  const vignette = context.createRadialGradient(width * 0.5, height * 0.5, 0, width * 0.5, height * 0.5, Math.max(width, height) * 0.65);
+  vignette.addColorStop(0, "rgba(255, 255, 255, 0.018)");
+  vignette.addColorStop(1, "rgba(0, 0, 0, 0.42)");
+  context.fillStyle = vignette;
+  context.fillRect(0, 0, width, height);
 }
 
 function drawArena(context: CanvasRenderingContext2D, viewport: ReplayViewport): void {
   context.save();
+  const worldRect = toCanvasRect({ x: WORLD_SIZE.x / 2, y: WORLD_SIZE.y / 2 }, WORLD_SIZE, viewport);
+  context.beginPath();
+  context.rect(worldRect.x, worldRect.y, worldRect.width, worldRect.height);
+  context.clip();
   drawWorldRect(context, viewport, { x: WORLD_SIZE.x / 2, y: WORLD_SIZE.y / 2 }, WORLD_SIZE, "#4f5b49", "rgba(199, 146, 56, 0.38)", 4);
   drawWorldGrid(context, viewport, { x: WORLD_SIZE.x / 2, y: WORLD_SIZE.y / 2 }, WORLD_SIZE, FLOOR_TILE_SIZE, "rgba(255, 255, 255, 0.035)");
   drawWorldRect(context, viewport, { x: WORLD_SIZE.x / 2, y: WORLD_SIZE.y / 2 }, { x: WORLD_SIZE.x - 192, y: WORLD_SIZE.y - 192 }, "rgba(103, 130, 79, 0.32)");
@@ -453,6 +432,12 @@ function drawArena(context: CanvasRenderingContext2D, viewport: ReplayViewport):
   drawArenaDecorations(context, viewport);
   drawBorderWalls(context, viewport);
   drawInnerObstacles(context, viewport);
+  context.restore();
+
+  context.save();
+  context.strokeStyle = "rgba(238, 211, 137, 0.44)";
+  context.lineWidth = 2;
+  context.strokeRect(worldRect.x, worldRect.y, worldRect.width, worldRect.height);
   context.restore();
 }
 

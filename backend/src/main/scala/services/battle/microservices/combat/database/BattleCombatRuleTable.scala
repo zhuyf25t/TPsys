@@ -20,6 +20,86 @@ import services.battle.objects.core.{
 import system.database.PostgresSupport
 
 private[services] object BattleCombatRuleTable {
+  private val DefaultWeaponRules: Vector[BattleWeaponRuleDefinition] =
+    Vector(
+      defaultWeaponRule(
+        weaponKind = WeaponKind.Pistol,
+        projectileKind = ProjectileKind.PistolBullet,
+        cooldownMs = 260,
+        reloadMs = 1000,
+        speed = 1400.0,
+        damage = 12,
+        lifetimeMs = 30000L,
+        projectileRadius = 8.0,
+        splashRadius = 0.0,
+        projectileCount = 1,
+        spread = 0.0,
+        magazineSize = 12,
+        reserveAmmo = Some(48),
+        pickupAmmo = 24,
+        recoilStrength = 20.0
+      ),
+      defaultWeaponRule(
+        weaponKind = WeaponKind.RocketLauncher,
+        projectileKind = ProjectileKind.Rocket,
+        cooldownMs = 160,
+        reloadMs = 2500,
+        speed = 340.0,
+        damage = 60,
+        lifetimeMs = 30000L,
+        projectileRadius = 14.0,
+        splashRadius = 132.0,
+        projectileCount = 1,
+        spread = 0.0,
+        magazineSize = 1,
+        reserveAmmo = Some(3),
+        pickupAmmo = 1,
+        recoilStrength = 120.0
+      ),
+      defaultWeaponRule(
+        weaponKind = WeaponKind.Gatling,
+        projectileKind = ProjectileKind.GatlingBullet,
+        cooldownMs = 72,
+        reloadMs = 0,
+        speed = 980.0,
+        damage = 5,
+        lifetimeMs = 30000L,
+        projectileRadius = 7.0,
+        splashRadius = 0.0,
+        projectileCount = 1,
+        spread = 0.06,
+        magazineSize = 0,
+        reserveAmmo = Some(0),
+        pickupAmmo = 0,
+        recoilStrength = 8.0,
+        heat = Some(
+          BattleWeaponHeatDefinition(
+            maxHeat = BattleWeaponHeat(100),
+            heatPerShot = BattleWeaponHeat(8),
+            coolRatePerSecond = BattleWeaponHeatRatePerSecond(32),
+            overheatLockMs = CooldownMillis(1400)
+          )
+        )
+      ),
+      defaultWeaponRule(
+        weaponKind = WeaponKind.Shotgun,
+        projectileKind = ProjectileKind.ShotgunPellet,
+        cooldownMs = 760,
+        reloadMs = 1200,
+        speed = 720.0,
+        damage = 8,
+        lifetimeMs = 30000L,
+        projectileRadius = 7.0,
+        splashRadius = 0.0,
+        projectileCount = 5,
+        spread = 0.42,
+        magazineSize = 6,
+        reserveAmmo = Some(18),
+        pickupAmmo = 6,
+        recoilStrength = 80.0
+      )
+    )
+
   private val upsertSql: String =
     """INSERT INTO battle_combat_weapon_rules (
       |  rule_id, weapon_kind, magazine_size, reserve_ammo, pickup_ammo, reload_ms,
@@ -52,6 +132,9 @@ private[services] object BattleCombatRuleTable {
 
   def upsertAll(connection: Connection, rules: Vector[BattleWeaponRuleDefinition]): IO[Unit] =
     rules.traverse_(rule => IO.blocking(upsert(connection, rule)))
+
+  def upsertDefaultWeaponRules(connection: Connection): IO[Unit] =
+    upsertAll(connection, DefaultWeaponRules)
 
   def list(connection: Connection): IO[Vector[BattleWeaponRuleDefinition]] =
     IO.blocking {
@@ -168,4 +251,49 @@ private[services] object BattleCombatRuleTable {
 
   private def ruleId(weaponKind: WeaponKind): UUID =
     UUID.nameUUIDFromBytes(s"battle-combat-rule:${WeaponKind.wireValue(weaponKind)}".getBytes(StandardCharsets.UTF_8))
+
+  private def defaultWeaponRule(
+    weaponKind: WeaponKind,
+    projectileKind: ProjectileKind,
+    cooldownMs: Int,
+    reloadMs: Int,
+    speed: Double,
+    damage: Int,
+    lifetimeMs: Long,
+    projectileRadius: Double,
+    splashRadius: Double,
+    projectileCount: Int,
+    spread: Double,
+    magazineSize: Int,
+    reserveAmmo: Option[Int],
+    pickupAmmo: Int,
+    recoilStrength: Double,
+    heat: Option[BattleWeaponHeatDefinition] = None
+  ): BattleWeaponRuleDefinition =
+    BattleWeaponRuleDefinition(
+      inventory = BattleWeaponInventoryDefinition(
+        weaponKind = weaponKind,
+        magazineSize = magazineSize,
+        reserveAmmo = reserveAmmo,
+        pickupAmmo = pickupAmmo,
+        reloadMs = reloadMs,
+        firingResource = heat.fold(BattleWeaponFiringResource.Magazine)(_ => BattleWeaponFiringResource.Heat)
+      ),
+      fire = BattleWeaponFireDefinition(
+        weaponKind = weaponKind,
+        cooldownMs = CooldownMillis(cooldownMs),
+        projectile = BattleWeaponProjectileDefinition(
+          projectileKind = projectileKind,
+          speed = BattleWeaponProjectileSpeed(speed),
+          damage = Damage(damage),
+          radius = Radius(projectileRadius),
+          lifetime = DurationMillis(lifetimeMs),
+          splashRadius = Radius(splashRadius),
+          projectileCount = BattleWeaponProjectileCount(projectileCount),
+          spread = FacingRadians(spread)
+        ),
+        recoilStrength = BattleWeaponRecoilStrength(recoilStrength),
+        heat = heat
+      )
+    )
 }

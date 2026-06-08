@@ -2,6 +2,8 @@ import type {
   AuthoritativeBattleCommandAccepted,
   AuthoritativeBattleCommandReason,
   AuthoritativeBattleCommandStatus,
+  BattleCommandAcceptPathDto,
+  BattleCommandServerDiagnosticsResponseDto,
   AuthoritativeBattleSkillOutcome,
   AuthoritativeBattleSkillOutcomeReason,
   AuthoritativeBattleSkillOutcomeStatus
@@ -30,6 +32,8 @@ function normalizeBattleCommandAccepted(payload: unknown): AuthoritativeBattleCo
   const commandStatus = normalizeBattleCommandStatus(value.commandStatus);
   const hasCommandReason = Object.prototype.hasOwnProperty.call(value, "commandReason");
   const commandReason = normalizeBattleCommandReason(value.commandReason);
+  const hasServerDiagnostics = Object.prototype.hasOwnProperty.call(value, "serverDiagnostics");
+  const serverDiagnostics = normalizeBattleCommandServerDiagnostics(value.serverDiagnostics);
   const outcomesPayload = Array.isArray(value.outcomes) ? value.outcomes : null;
   const outcomes = outcomesPayload === null ? null : normalizeRequiredArray(outcomesPayload, normalizeBattleSkillOutcome);
 
@@ -41,7 +45,8 @@ function normalizeBattleCommandAccepted(payload: unknown): AuthoritativeBattleCo
     commandStatus === null ||
     outcomesPayload === null ||
     outcomes === null ||
-    (hasCommandReason && commandReason === null)
+    (hasCommandReason && commandReason === null) ||
+    (hasServerDiagnostics && serverDiagnostics === null)
   ) {
     return null;
   }
@@ -53,6 +58,7 @@ function normalizeBattleCommandAccepted(payload: unknown): AuthoritativeBattleCo
     serverTime,
     commandStatus,
     ...(commandReason ? { commandReason } : {}),
+    ...(serverDiagnostics ? { serverDiagnostics } : {}),
     outcomes
   };
 }
@@ -69,6 +75,70 @@ export function normalizeBattleCommandAPIMessagePayload(payload: unknown): Battl
 
 function normalizeBattleCommandStatus(payload: unknown): AuthoritativeBattleCommandStatus | null {
   return payload === "applied" || payload === "ignored" ? payload : null;
+}
+
+function normalizeBattleCommandAcceptPath(payload: unknown): BattleCommandAcceptPathDto | null {
+  return payload === "fresh" || payload === "serialized" ? payload : null;
+}
+
+function normalizeBattleCommandServerDiagnostics(
+  payload: unknown
+): BattleCommandServerDiagnosticsResponseDto | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const value = payload as Partial<BattleCommandServerDiagnosticsResponseDto> & Record<string, unknown>;
+  const path = normalizeBattleCommandAcceptPath(value.path);
+  const receivedAt = readNumber(value.receivedAt);
+  const completedAt = readNumber(value.completedAt);
+  const durationMs = readNumber(value.durationMs);
+  const lockWaitMs = readNumber(value.lockWaitMs);
+  const lockHeldMs = readNumber(value.lockHeldMs);
+  const advanceMs = readNumber(value.advanceMs);
+  const commitRetryCount = readNumber(value.commitRetryCount);
+  const clientTick = readNumber(value.clientTick);
+  const acceptedTick = readNumber(value.acceptedTick);
+  const acceptedTickLag = readNumber(value.acceptedTickLag);
+  const clientCommandSeq = readNumber(value.clientCommandSeq);
+  const acceptedCommandSeq = readNumber(value.acceptedCommandSeq);
+  const acceptedCommandSeqLag = readNumber(value.acceptedCommandSeqLag);
+
+  if (
+    path === null ||
+    receivedAt === null ||
+    completedAt === null ||
+    durationMs === null ||
+    lockWaitMs === null ||
+    lockHeldMs === null ||
+    advanceMs === null ||
+    commitRetryCount === null ||
+    clientTick === null ||
+    acceptedTick === null ||
+    acceptedTickLag === null ||
+    clientCommandSeq === null ||
+    acceptedCommandSeq === null ||
+    acceptedCommandSeqLag === null
+  ) {
+    return null;
+  }
+
+  return {
+    path,
+    receivedAt,
+    completedAt,
+    durationMs: Math.max(0, durationMs),
+    lockWaitMs: Math.max(0, lockWaitMs),
+    lockHeldMs: Math.max(0, lockHeldMs),
+    advanceMs: Math.max(0, advanceMs),
+    commitRetryCount: Math.max(0, Math.trunc(commitRetryCount)),
+    clientTick: Math.max(0, Math.trunc(clientTick)),
+    acceptedTick: Math.max(0, Math.trunc(acceptedTick)),
+    acceptedTickLag,
+    clientCommandSeq: Math.max(0, Math.trunc(clientCommandSeq)),
+    acceptedCommandSeq: Math.max(0, Math.trunc(acceptedCommandSeq)),
+    acceptedCommandSeqLag
+  };
 }
 
 function normalizeBattleCommandReason(payload: unknown): AuthoritativeBattleCommandReason | null {
@@ -118,6 +188,12 @@ function readCommandSubmitErrorCode(payload: unknown): string | undefined {
     return undefined;
   }
 
-  const error = (payload as Record<string, unknown>).error;
-  return typeof error === "string" && error.trim() ? error.trim() : undefined;
+  const value = payload as Record<string, unknown>;
+  const error = value.error;
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+
+  const message = value.message;
+  return typeof message === "string" && message.trim() ? message.trim() : undefined;
 }

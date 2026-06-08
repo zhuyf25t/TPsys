@@ -16,7 +16,9 @@ export function updateBattleCameraTarget({
   scaleSize,
   playerPosition,
   cameraTarget,
-  cameraOffset
+  cameraOffset,
+  cameraFocus,
+  deltaMs
 }: UpdateBattleCameraTargetInput): void {
   const plan = resolveBattleCameraTargetUpdatePlan({
     pointer: {
@@ -28,11 +30,15 @@ export function updateBattleCameraTarget({
     },
     scaleSize,
     playerPosition,
-    cameraOffset
+    cameraOffset,
+    cameraFocus,
+    deltaMs
   });
 
   cameraOffset.x = plan.nextOffset.x;
   cameraOffset.y = plan.nextOffset.y;
+  cameraFocus.x = plan.nextFocus.x;
+  cameraFocus.y = plan.nextFocus.y;
   cameraTarget.setPosition(plan.targetPosition.x, plan.targetPosition.y);
   if (isBattleVisionDiagnosticsEnabled()) {
     recordBattleVisionLookAheadDiagnostics({
@@ -43,7 +49,7 @@ export function updateBattleCameraTarget({
       desiredOffset: plan.desiredOffset,
       actualOffset: plan.nextOffset,
       targetPosition: plan.targetPosition,
-      playerPosition,
+      playerPosition: plan.nextFocus,
       ratio: plan.ratio,
       max: plan.max,
       lerp: plan.lerp

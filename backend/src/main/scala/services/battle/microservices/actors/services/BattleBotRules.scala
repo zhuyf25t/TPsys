@@ -20,6 +20,8 @@ import services.battle.microservices.actors.objects.player.BattlePlayerState
 
 private[battle] object BattleBotRules {
   private val WinterZombieMapId: BattleMapId = BattleMapId("winter-hunt-v1")
+  private val CombatBotDecisionIntervalTicks = 3L
+  private val ZombieBotDecisionIntervalTicks = 2L
   private type BotControlResolver =
     (BattlePlayerState, BattleAggregateState, BattleArenaContext, BattleDynamicRuleBook) => IO[BattlePlayerState]
 
@@ -38,12 +40,25 @@ private[battle] object BattleBotRules {
     arena: BattleArenaContext,
     battleRules: BattleDynamicRuleBook
   ): IO[BattlePlayerState] = {
-    if player.isBot then botControlResolver(state.mapId)(player, state, arena, battleRules)
+    if player.isBot && shouldRefreshBotDecision(player, state) then botControlResolver(state.mapId)(player, state, arena, battleRules)
+    else if player.isBot then IO.pure(continuePreviousBotDecision(player, state.mapId))
     else IO.pure(player)
   }
 
   private def botControlResolver(mapId: BattleMapId): BotControlResolver =
     BotControlResolvers.getOrElse(mapId, applyCombatBotControl)
+
+  private def shouldRefreshBotDecision(player: BattlePlayerState, state: BattleAggregateState): Boolean = {
+    val interval =
+      if state.mapId == WinterZombieMapId then ZombieBotDecisionIntervalTicks
+      else CombatBotDecisionIntervalTicks
+    val hasNoDecision = math.hypot(player.movement.x, player.movement.y) <= 0.0001 && !player.primaryHeld
+    state.tick.value <= 2L || hasNoDecision || ((state.tick.value + player.seat.value.toLong) % interval) == 0L
+  }
+
+  private def continuePreviousBotDecision(player: BattlePlayerState, mapId: BattleMapId): BattlePlayerState =
+    if mapId == WinterZombieMapId then player.copy(primaryHeld = false, reloadPressed = false)
+    else player.copy(primaryHeld = false, reloadPressed = false)
 
   private def applyCombatBotControl(
     player: BattlePlayerState,
@@ -90,11 +105,11 @@ private[battle] object BattleBotRules {
   ): IO[BattlePlayerState] = {
     for
       botRules <- battleRules.bot
-      target <- selectZombieTarget(player, state)
+      target <- selectZombieTarget(player, state, arena)
       movement <- target match {
         case Some(botTarget) =>
           subtract(botTarget.player.position, player.position)
-            .flatMap(direction => chooseOpenMovement(player, direction, botRules, arena))
+            .flatMap(direction => chooseOpenZombieMovement(player, direction, botRules, arena))
         case None =>
           objectiveMovement(player, state, botRules, arena, battleRules)
       }
@@ -108,26 +123,34 @@ private[battle] object BattleBotRules {
               normalizeAim(player.aim, if movementLength > 0.0001 then movement else player.aim)
             }
         }
+      reloadPressed <- shouldBotReload(player, target.exists(_.visible), botRules, battleRules)
+      primaryHeld <-
+        if reloadPressed then IO.pure(false)
+        else target.traverse(shouldFireAtTarget(player, _, state, botRules, battleRules)).map(_.getOrElse(false))
     yield player.copy(
       aim = aim,
       facing = FacingRadians(math.atan2(aim.y, aim.x)),
       movement = movement,
       sprint = false,
-      primaryHeld = false,
-      reloadPressed = false
+      primaryHeld = primaryHeld,
+      reloadPressed = reloadPressed
     )
   }
 
-  private def selectZombieTarget(player: BattlePlayerState, state: BattleAggregateState): IO[Option[BotTarget]] =
+  private def selectZombieTarget(player: BattlePlayerState, state: BattleAggregateState, arena: BattleArenaContext): IO[Option[BotTarget]] =
     state.players
       .filter(candidate => candidate.playerId != player.playerId && candidate.alive && !candidate.isBot)
-      .traverse(candidate => distanceBetween(player.position, candidate.position).map(distance =>
-        BotTarget(
-          player = candidate,
-          distance = distance,
-          visible = true
-        )
-      ))
+      .traverse { candidate =>
+        for
+          visible <- hasArenaLineOfSight(player.position, candidate.position, arena)
+          distance <- distanceBetween(player.position, candidate.position)
+        yield
+          BotTarget(
+            player = candidate,
+            distance = distance,
+            visible = visible
+          )
+      }
       .map(_.sortBy(_.distance).headOption)
 
   private def selectTarget(player: BattlePlayerState, state: BattleAggregateState, arena: BattleArenaContext): IO[Option[BotTarget]] =
@@ -380,6 +403,52 @@ private[battle] object BattleBotRules {
             .map(_._1)
             .getOrElse(fallback)
         }
+    yield movement
+
+  private def chooseOpenZombieMovement(
+    player: BattlePlayerState,
+    desired: BattleVector2,
+    botRules: BattleBotRuleConfig,
+    arena: BattleArenaContext
+  ): IO[BattleVector2] =
+    for
+      normalized <- normalizeMovement(desired)
+      normalizedLength <- vectorLength(normalized)
+      movement <-
+        if normalizedLength <= 0.0001 then IO.pure(BattleArenaContext.ZeroVector)
+        else
+          for
+            directMotion <- findMotionDestination(
+              position = player.position,
+              direction = normalized,
+              distance = botRules.movementProbeDistance.value,
+              radius = arena.playerCollisionRadius,
+              arena = arena
+            )
+            fallbackVector <- perpendicular(player.aim, 1.0)
+            fallback <- normalizeMovement(fallbackVector)
+            movement <-
+              if !directMotion.hitBlocker then IO.pure(normalized)
+              else
+                for
+                  positiveMedium <- rotate(normalized, math.Pi / 3.0)
+                  negativeMedium <- rotate(normalized, -math.Pi / 3.0)
+                  candidates <- Vector(positiveMedium, negativeMedium, fallback).traverse(normalizeMovement)
+                  scoredCandidates <- candidates.traverse { direction =>
+                    findMotionDestination(
+                      position = player.position,
+                      direction = direction,
+                      distance = botRules.movementProbeDistance.value,
+                      radius = arena.playerCollisionRadius,
+                      arena = arena
+                    ).flatMap(motion => distanceBetween(player.position, motion.destination).map(distance => direction -> distance))
+                  }
+                yield scoredCandidates
+                  .filter { case (_, distance) => distance > 4.0 }
+                  .maxByOption { case (_, distance) => distance }
+                  .map(_._1)
+                  .getOrElse(fallback)
+          yield movement
     yield movement
 
   private def shouldFireAtTarget(

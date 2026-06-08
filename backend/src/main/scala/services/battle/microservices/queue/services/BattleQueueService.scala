@@ -244,7 +244,7 @@ final class InMemoryBattleQueueService private (
 }
 
 object InMemoryBattleQueueService {
-  val DefaultCapacity: BattleCapacity = BattleCapacity(6)
+  val DefaultCapacity: BattleCapacity = BattleCapacity(4)
   val DefaultMatchmakingDuration: DurationMillis = DurationMillis(5_000L)
 
   /** 中文名：创建内存队列服务（apply）。游戏职责：为本地运行时创建默认排队服务实例。 */
@@ -280,8 +280,8 @@ object InMemoryBattleQueueService {
 }
 
 private[battle] object BattleQueueCapacityRules {
-  private val WinterZombieCapacity: BattleCapacity = BattleCapacity(12)
-  private val AutumnBotCapacity: BattleCapacity = BattleCapacity(12)
+  private val WinterZombieCapacity: BattleCapacity = BattleCapacity(6)
+  private val AutumnBotCapacity: BattleCapacity = BattleCapacity(8)
 
   def capacityFor(battleMode: BattleMode, defaultCapacity: BattleCapacity): BattleCapacity =
     battleMode match {

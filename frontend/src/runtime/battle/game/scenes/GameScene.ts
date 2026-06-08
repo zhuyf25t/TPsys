@@ -81,7 +81,9 @@ export class GameScene extends Phaser.Scene {
   private pointerJustPressed = false;
   private secondaryJustPressed = false;
   private pendingWeaponSwitchDirection: -1 | 0 | 1 = 0;
+  private pendingWeaponSwitchIndex: number | null = null;
   private cameraOffset: Vec2 = { x: 0, y: 0 };
+  private cameraFocus: Vec2 = { x: 0, y: 0 };
   private runtimeBridges!: GameSceneRuntimeBridgeSet;
   private vfx!: SceneVfxController;
   private winterZombieVisuals!: WinterZombieVisualController;
@@ -128,6 +130,7 @@ export class GameScene extends Phaser.Scene {
     this.createArena();
     this.objectiveOverlay = new BattleExtractionObjectiveOverlay(this);
     this.createPlayerActor();
+    this.cameraFocus = { ...this.getPlayerHero().position };
     this.cameraTarget = createGameSceneCameraTarget(this, this.getPlayerHero());
     this.createHeroViews();
     this.winterZombieVisuals = new WinterZombieVisualController(this);
@@ -186,10 +189,11 @@ export class GameScene extends Phaser.Scene {
         localPlayerMovementActive: this.isLatestPlayerCommandMovementActive()
       });
       this.runtimeBridges.sharedAuthoritativeLocalFeedbackBridge.update(command);
+      this.runtimeBridges.weaponSwitchStateBridge.advancePreviewTimer(delta, this.getPlayerHero().weapons.length);
     } else {
       this.runtimeBridges.localBattleFrameBridge.update(command, delta);
     }
-    this.updateCameraTarget();
+    this.updateCameraTarget(delta);
     this.updateStaticMapCullingIfNeeded(time);
 
     this.syncWorldViews(command, delta);
@@ -203,6 +207,7 @@ export class GameScene extends Phaser.Scene {
     this.pointerJustPressed = false;
     this.secondaryJustPressed = false;
     this.pendingWeaponSwitchDirection = 0;
+    this.pendingWeaponSwitchIndex = null;
   }
   private advanceRuntimeLocalClock(time: number, delta: number) {
     if (this.sharedAuthoritativeRuntime) {
@@ -252,14 +257,16 @@ export class GameScene extends Phaser.Scene {
   private configureWorldBounds() {
     this.physics.world.setBounds(0, 0, this.snapshot.worldSize.x, this.snapshot.worldSize.y);
   }
-  private updateCameraTarget() {
+  private updateCameraTarget(deltaMs: number) {
     const playerPosition = this.localHeroDisplay.positionFor(this.getPlayerHero(), this.sharedAuthoritativeRuntime);
     updateGameSceneCameraTarget({
       pointer: this.input.activePointer,
       scaleSize: this.scale.gameSize,
       playerPosition,
       cameraTarget: this.cameraTarget,
-      cameraOffset: this.cameraOffset
+      cameraOffset: this.cameraOffset,
+      cameraFocus: this.cameraFocus,
+      deltaMs
     });
   }
   private updateOcclusionIfNeeded(timeMs: number) {
@@ -329,24 +336,25 @@ export class GameScene extends Phaser.Scene {
 
     if (event.ctrlKey) { return; }
 
-    this.captureWeaponSwitchDirection(deltaY);
-    this.runtimeBridges.weaponWheelSwitchBridge.handleWheel("Phaser", deltaY);
+    this.captureWeaponSwitchIntent("Phaser", deltaY);
   }
   private readonly onGlobalWheelSwitch = (event: Event): void => {
     const customEvent = event as CustomEvent<WheelSwitchDetail>;
     const deltaY = customEvent.detail?.deltaY ?? 0;
-    this.captureWeaponSwitchDirection(deltaY);
-    this.runtimeBridges.weaponWheelSwitchBridge.handleWheel("Window", deltaY);
+    this.captureWeaponSwitchIntent("Window", deltaY);
   };
-  private captureWeaponSwitchDirection(deltaY: number) {
-    if (deltaY < 0) {
-      this.pendingWeaponSwitchDirection = -1;
+  private captureWeaponSwitchIntent(source: "Phaser" | "Window", deltaY: number) {
+    const switchResult = this.runtimeBridges.weaponWheelSwitchBridge.handleWheel(source, deltaY);
+    if (!switchResult?.switched) {
       return;
     }
 
-    if (deltaY > 0) {
+    if (deltaY < 0) {
+      this.pendingWeaponSwitchDirection = -1;
+    } else if (deltaY > 0) {
       this.pendingWeaponSwitchDirection = 1;
     }
+    this.pendingWeaponSwitchIndex = switchResult.nextIndex;
   }
   private readPlayerCommand() {
     const player = this.getPlayerHero();
@@ -357,6 +365,7 @@ export class GameScene extends Phaser.Scene {
       pointerJustPressed: this.pointerJustPressed,
       secondaryJustPressed: this.secondaryJustPressed,
       pendingWeaponSwitchDirection: this.pendingWeaponSwitchDirection,
+      pendingWeaponSwitchIndex: this.pendingWeaponSwitchIndex,
       sharedAuthoritativeRuntime: this.sharedAuthoritativeRuntime,
       player,
       preparedSkill: this.authoritativePreparedSkillOverride,

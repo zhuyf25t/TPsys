@@ -11,6 +11,7 @@ export function readGameScenePlayerCommand({
   pointerJustPressed,
   secondaryJustPressed,
   pendingWeaponSwitchDirection,
+  pendingWeaponSwitchIndex,
   sharedAuthoritativeRuntime,
   player,
   preparedSkill,
@@ -23,7 +24,8 @@ export function readGameScenePlayerCommand({
     playerPosition,
     pointerJustPressed,
     secondaryJustPressed,
-    pendingWeaponSwitchDirection
+    pendingWeaponSwitchDirection,
+    pendingWeaponSwitchIndex
   });
 
   if (!sharedAuthoritativeRuntime) {

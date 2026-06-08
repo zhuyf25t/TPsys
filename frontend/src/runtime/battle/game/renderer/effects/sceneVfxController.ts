@@ -160,7 +160,7 @@ export class SceneVfxController {
   public destroy(): void {
     this.transientVfx.destroyAll({ publishDiagnostics: false });
     this.visualEffects = [];
-    this.transientVfx.publishDiagnostics();
+    this.transientVfx.publishDiagnostics({ force: true });
   }
 
   private countActiveRings(): number {

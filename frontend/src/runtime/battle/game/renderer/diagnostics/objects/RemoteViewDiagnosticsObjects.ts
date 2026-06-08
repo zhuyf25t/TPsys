@@ -2,6 +2,8 @@ import type { BattleProjectileState as Projectile } from "../../../../../../obje
 import type { ProjectileKind } from "../../../../../../objects/battle/microservices/combat/objects/projectile/ProjectileKind";
 import type { BattleVector2 as Vec2 } from "../../../../../../objects/battle/objects/core/BattleCoreScalars";
 
+export type RemoteViewInterpolationSource = "interpolated" | "fallback" | "snapshot";
+
 export interface RemoteHeroViewDiagnosticSample {
   sequence: number;
   atMs: number;
@@ -14,6 +16,9 @@ export interface RemoteHeroViewDiagnosticSample {
   displayToTargetDistance: number | null;
   displayMotionDelta: number;
   targetMotionDelta: number | null;
+  interpolationSource: RemoteViewInterpolationSource | null;
+  interpolationSampleCount: number | null;
+  interpolationDelayMs: number | null;
 }
 
 export interface RemoteHeroViewMetricSummary {
@@ -43,10 +48,20 @@ export interface RemoteHeroViewDiagnostics {
   displayToTargetDistanceSummary: RemoteHeroViewMetricSummary;
   displayMotionDeltaSummary: RemoteHeroViewMetricSummary;
   targetMotionDeltaSummary: RemoteHeroViewMetricSummary;
+  interpolation: RemoteViewInterpolationDiagnostics;
   totalDisplayMotionDistance: number;
   totalTargetMotionDistance: number;
   recentSamples: RemoteHeroViewDiagnosticSample[];
   lastSample: RemoteHeroViewDiagnosticSample | null;
+}
+
+export interface RemoteViewInterpolationDiagnostics {
+  sampleCount: number;
+  interpolatedCount: number;
+  fallbackCount: number;
+  snapshotCount: number;
+  unknownCount: number;
+  hitRate: number | null;
 }
 
 export interface RemoteProjectileBirthDiagnosticSample {
@@ -120,6 +135,9 @@ export interface RemoteHeroViewDiagnosticsRecordInput {
   targetPosition?: Vec2;
   facing?: number;
   targetFacing?: number;
+  interpolationSource?: RemoteViewInterpolationSource;
+  interpolationSampleCount?: number;
+  interpolationDelayMs?: number;
 }
 
 export interface RemoteProjectileBirthDiagnosticsRecordInput {

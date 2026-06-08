@@ -7,11 +7,16 @@ import type {
   ResolveRemoteHeroFallbackDisplayStateInput,
   ResolveSmoothedDisplayPositionInput
 } from "../objects/RemoteHeroInterpolationObjects";
+import { resolveBattleRemoteEntityAdaptiveInterpolationDelayMs } from "./BattleRemoteEntityInterpolationDelayRules";
 
-const AUTHORITATIVE_REMOTE_HERO_SNAP_DISTANCE = 150;
-const AUTHORITATIVE_REMOTE_HERO_SMOOTHING_MS = 58;
-const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS = 70;
-const AUTHORITATIVE_REMOTE_HERO_INTERPOLATION_BUFFER_CAP = 10;
+const AUTHORITATIVE_REMOTE_HERO_HARD_SNAP_DISTANCE = 900;
+const AUTHORITATIVE_REMOTE_HERO_SMOOTHING_MS = 118;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS = 96;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_MAX_DELAY_MS = 240;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_JITTER_PADDING_MS = 24;
+const AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_LATEST_SAMPLE_PADDING_MS = 16;
+const AUTHORITATIVE_REMOTE_HERO_INTERPOLATION_BUFFER_CAP = 24;
+const AUTHORITATIVE_REMOTE_HERO_INTERPOLATION_BREAK_GAP_MS = 260;
 const AUTHORITATIVE_REMOTE_HERO_POSITION_EPSILON = 0.05;
 const AUTHORITATIVE_REMOTE_HERO_FACING_EPSILON = 0.001;
 
@@ -36,7 +41,13 @@ export function recordRemoteHeroInterpolationSample(
 
   if (lastSample) {
     const distance = distanceBetween(lastSample.position, sample.position);
-    if (!Number.isFinite(distance) || distance >= AUTHORITATIVE_REMOTE_HERO_SNAP_DISTANCE) {
+    if (!Number.isFinite(distance) || distance >= AUTHORITATIVE_REMOTE_HERO_HARD_SNAP_DISTANCE) {
+      buffer.samples = [sample];
+      return;
+    }
+
+    const sampleGapMs = sample.receivedAtMs - lastSample.receivedAtMs;
+    if (Number.isFinite(sampleGapMs) && sampleGapMs > AUTHORITATIVE_REMOTE_HERO_INTERPOLATION_BREAK_GAP_MS) {
       buffer.samples = [sample];
       return;
     }
@@ -62,9 +73,10 @@ export function recordRemoteHeroInterpolationSample(
 
 export function resolveInterpolatedRemoteHeroDisplayState(
   buffer: RemoteHeroInterpolationBuffer,
-  renderNowMs: number
+  renderNowMs: number,
+  interpolationDelayMs = resolveRemoteHeroInterpolationDelayMs(buffer, renderNowMs)
 ): RemoteHeroDisplayState | null {
-  const renderAtMs = renderNowMs - AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS;
+  const renderAtMs = renderNowMs - interpolationDelayMs;
   if (!Number.isFinite(renderAtMs) || buffer.samples.length < 2) {
     return null;
   }
@@ -88,7 +100,13 @@ export function resolveInterpolatedRemoteHeroDisplayState(
       return null;
     }
 
-    return { position, facing };
+    return {
+      position,
+      facing,
+      interpolationSource: "interpolated",
+      interpolationSampleCount: buffer.samples.length,
+      interpolationDelayMs
+    };
   }
 
   return null;
@@ -98,7 +116,8 @@ export function resolveRemoteHeroFallbackDisplayState({
   currentPosition,
   currentFacing,
   hero,
-  deltaMs
+  deltaMs,
+  interpolationDelayMs = AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS
 }: ResolveRemoteHeroFallbackDisplayStateInput): RemoteHeroDisplayState {
   const finiteCurrentPosition = resolveFinitePosition(currentPosition);
   const targetPosition = isFiniteVec2(hero.position) ? hero.position : finiteCurrentPosition;
@@ -108,10 +127,27 @@ export function resolveRemoteHeroFallbackDisplayState({
       target: targetPosition,
       deltaMs,
       smoothingMs: AUTHORITATIVE_REMOTE_HERO_SMOOTHING_MS,
-      snapDistance: AUTHORITATIVE_REMOTE_HERO_SNAP_DISTANCE
+      snapDistance: AUTHORITATIVE_REMOTE_HERO_HARD_SNAP_DISTANCE
     }),
-    facing: Number.isFinite(hero.facing) ? hero.facing : currentFacing
+    facing: Number.isFinite(hero.facing) ? hero.facing : currentFacing,
+    interpolationSource: "fallback",
+    interpolationSampleCount: 0,
+    interpolationDelayMs
   };
+}
+
+export function resolveRemoteHeroInterpolationDelayMs(
+  buffer: RemoteHeroInterpolationBuffer,
+  renderNowMs: number
+): number {
+  return resolveBattleRemoteEntityAdaptiveInterpolationDelayMs({
+    samples: buffer.samples,
+    renderNowMs,
+    baseDelayMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_DELAY_MS,
+    maxDelayMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_MAX_DELAY_MS,
+    jitterPaddingMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_JITTER_PADDING_MS,
+    latestSamplePaddingMs: AUTHORITATIVE_REMOTE_ENTITY_INTERPOLATION_LATEST_SAMPLE_PADDING_MS
+  });
 }
 
 export function isFiniteVec2(position: Vec2): boolean {
@@ -135,7 +171,7 @@ export function resolveSmoothedDisplayPosition({
   }
 
   const safeDeltaMs = Number.isFinite(deltaMs) ? Math.max(0, deltaMs) : 0;
-  const alpha = clamp(1 - Math.exp(-safeDeltaMs / Math.max(1, smoothingMs)), 0.12, 0.72);
+  const alpha = clamp(1 - Math.exp(-safeDeltaMs / Math.max(1, smoothingMs)), 0.08, 0.38);
   return {
     x: current.x + (target.x - current.x) * alpha,
     y: current.y + (target.y - current.y) * alpha

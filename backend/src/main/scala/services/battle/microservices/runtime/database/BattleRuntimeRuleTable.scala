@@ -1,5 +1,6 @@
 package services.battle.microservices.runtime.database
 
+import java.nio.charset.StandardCharsets
 import java.sql.{Connection, PreparedStatement, ResultSet, Timestamp}
 import java.time.Instant
 import java.util.UUID
@@ -13,6 +14,32 @@ import services.battle.microservices.actors.objects.player.{HitPoints, Stamina}
 import system.database.PostgresSupport
 
 private[services] object BattleRuntimeRuleTable {
+  private val DefaultRuntimeRuleId: UUID =
+    UUID.nameUUIDFromBytes("battle-runtime-default-rules".getBytes(StandardCharsets.UTF_8))
+
+  private val DefaultRuntimeRules: BattleRuntimeRuleConfig =
+    BattleRuntimeRuleConfig(
+      defaultBattleDuration = DurationMillis(5L * 60L * 1000L),
+      tickStep = DurationMillis(33L)
+    )
+
+  private val DefaultHistoryRules: BattleHistoryRuleConfig =
+    BattleHistoryRuleConfig(
+      retainedProjectileTerminalCount = BattleHistoryCount(64),
+      retainedBattleEventCount = BattleHistoryCount(12),
+      replayFrameSampleInterval = DurationMillis(1000L),
+      retainedReplayFrameCount = BattleHistoryCount(32)
+    )
+
+  private val DefaultSessionPlayerRules: BattleSessionPlayerRuleConfig =
+    BattleSessionPlayerRuleConfig(
+      initialHp = HitPoints(100),
+      maxHp = HitPoints(100),
+      initialStamina = Stamina(100.0),
+      maxStamina = Stamina(100.0),
+      defaultWeaponKind = WeaponKind.Pistol
+    )
+
   private val upsertRuntimeSql: String =
     """INSERT INTO battle_runtime_rules (
       |  rule_id, active, default_battle_duration_ms, tick_step_ms, updated_at
@@ -95,6 +122,15 @@ private[services] object BattleRuntimeRuleTable {
       }
       ()
     }
+
+  def upsertDefaultRules(connection: Connection): IO[Unit] = {
+    val updatedAt = Instant.now()
+    for {
+      _ <- upsertRuntime(connection, DefaultRuntimeRuleId, active = true, DefaultRuntimeRules, updatedAt)
+      _ <- upsertHistory(connection, DefaultRuntimeRuleId, active = true, DefaultHistoryRules, updatedAt)
+      _ <- upsertSessionPlayer(connection, DefaultRuntimeRuleId, active = true, DefaultSessionPlayerRules, updatedAt)
+    } yield ()
+  }
 
   def load(connection: Connection): IO[BattleRuntimeRuleSet] =
     for {

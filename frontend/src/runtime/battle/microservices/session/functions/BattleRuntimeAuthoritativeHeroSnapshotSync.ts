@@ -76,7 +76,8 @@ function syncBattleRuntimeAuthoritativeHeroFields({
   resolveReplayTarget(input: BattleRuntimeAuthoritativeLocalReplayTargetInput): AuthoritativeLocalHeroReplayProjection;
   applyLocalPlayerAuthoritativeCorrection?(target: BattleRuntimeAuthoritativeLocalPlayerCorrectionTarget): void;
 }): void {
-  const previousPosition = hero.position;
+  const previousPositionX = hero.position.x;
+  const previousPositionY = hero.position.y;
   const previousAlive = hero.alive;
   hero.displayName = authoritativeHero.displayName;
   hero.facing = authoritativeHero.facing;
@@ -98,8 +99,9 @@ function syncBattleRuntimeAuthoritativeHeroFields({
   hero.jumpCooldownMs = 0;
   hero.eliminatedAtMs = authoritativeHero.alive ? null : authoritativeHero.eliminatedAtMs;
 
-  const authoritativePosition = { x: authoritativeHero.position.x, y: authoritativeHero.position.y };
-  hero.position = authoritativePosition;
+  const authoritativePosition = hero.position;
+  authoritativePosition.x = authoritativeHero.position.x;
+  authoritativePosition.y = authoritativeHero.position.y;
 
   if (hero.heroId === snapshot.playerHeroId) {
     syncBattleRuntimeAuthoritativeLocalHeroProjection({
@@ -115,10 +117,8 @@ function syncBattleRuntimeAuthoritativeHeroFields({
     });
   }
 
-  hero.velocity = {
-    x: authoritativeHero.alive ? hero.position.x - previousPosition.x : 0,
-    y: authoritativeHero.alive ? hero.position.y - previousPosition.y : 0
-  };
+  hero.velocity.x = authoritativeHero.alive ? hero.position.x - previousPositionX : 0;
+  hero.velocity.y = authoritativeHero.alive ? hero.position.y - previousPositionY : 0;
 }
 
 function syncBattleRuntimeAuthoritativeLocalHeroProjection({

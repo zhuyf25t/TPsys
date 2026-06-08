@@ -5,18 +5,18 @@ import type { BattleVector2 as Vec2 } from "../../../../../objects/battle/object
 import { getActiveBattleMap } from "../../objects/BattleGameConstants";
 import type { HeroView } from "../entities/worldViewFactory";
 
-const SNOWFLAKE_COUNT = 84;
-const FOOTPRINT_GAP = 34;
-const FOOTPRINT_TTL_MS = 9000;
-const BLOOD_TTL_MS = 20000;
-const MAX_FOOTPRINTS = 170;
-const MAX_BLOOD_DECALS = 70;
+const SNOWFLAKE_COUNT = 42;
+const FOOTPRINT_GAP = 48;
+const FOOTPRINT_TTL_MS = 6000;
+const BLOOD_TTL_MS = 12000;
+const MAX_FOOTPRINTS = 80;
+const MAX_BLOOD_DECALS = 32;
 const HORDE_CYCLE_MS = 30000;
 const HORDE_WARNING_MS = 7200;
 const HORDE_BREACH_FLASH_MS = 1800;
-const TRAIL_DECAL_UPDATE_INTERVAL_MS = 90;
-const ZOMBIE_GLOW_UPDATE_INTERVAL_MS = 75;
-const HORDE_WARNING_UPDATE_INTERVAL_MS = 120;
+const TRAIL_DECAL_UPDATE_INTERVAL_MS = 160;
+const ZOMBIE_GLOW_UPDATE_INTERVAL_MS = 160;
+const HORDE_WARNING_UPDATE_INTERVAL_MS = 200;
 
 type SnowView = Phaser.GameObjects.Arc | Phaser.GameObjects.Rectangle;
 type DecalView = Phaser.GameObjects.Ellipse | Phaser.GameObjects.Image;

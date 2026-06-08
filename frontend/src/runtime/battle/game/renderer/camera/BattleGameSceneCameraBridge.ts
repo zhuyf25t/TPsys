@@ -30,19 +30,25 @@ export function updateGameSceneCameraTarget({
   scaleSize,
   playerPosition,
   cameraTarget,
-  cameraOffset
+  cameraOffset,
+  cameraFocus,
+  deltaMs
 }: {
   pointer: Phaser.Input.Pointer;
   scaleSize: Phaser.Structs.Size;
   playerPosition: Vec2;
   cameraTarget: Phaser.GameObjects.Zone;
   cameraOffset: Vec2;
+  cameraFocus: Vec2;
+  deltaMs: number;
 }): void {
   updateBattleCameraTarget({
     pointer,
     scaleSize,
     playerPosition,
     cameraTarget,
-    cameraOffset
+    cameraOffset,
+    cameraFocus,
+    deltaMs
   });
 }

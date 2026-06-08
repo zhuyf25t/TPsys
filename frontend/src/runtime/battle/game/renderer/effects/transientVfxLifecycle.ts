@@ -13,6 +13,8 @@ import type {
   TransientVfxLifecycleOptions
 } from "./objects/TransientVfxLifecycleObjects";
 
+const TRANSIENT_VFX_DIAGNOSTICS_PUBLISH_MIN_INTERVAL_MS = 120;
+
 export class TransientVfxLifecycle {
   private transientEffects: TransientEffectRecord[] = [];
   private transientEffectRecords = new Map<Phaser.GameObjects.GameObject, TransientEffectRecord>();
@@ -22,10 +24,11 @@ export class TransientVfxLifecycle {
   private diagnosticsCreatedCount = 0;
   private diagnosticsDestroyedCount = 0;
   private diagnosticsPeakActiveTransientCount = 0;
+  private lastDiagnosticsPublishAtMs = -Infinity;
 
   public constructor(private readonly options: TransientVfxLifecycleOptions) {
     if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
+      this.publishDiagnostics({ force: true });
     }
   }
 
@@ -94,11 +97,11 @@ export class TransientVfxLifecycle {
     this.transientActiveCount = 0;
     this.transientHeadIndex = 0;
     if (this.diagnosticsEnabled && (options.publishDiagnostics ?? true)) {
-      this.publishDiagnostics();
+      this.publishDiagnostics({ force: true });
     }
   }
 
-  public publishDiagnostics(): void {
+  public publishDiagnostics(options: { force?: boolean } = {}): void {
     if (!this.diagnosticsEnabled) {
       return;
     }
@@ -107,6 +110,12 @@ export class TransientVfxLifecycle {
     if (!diagnosticsRoot) {
       return;
     }
+
+    const currentMs = nowMs();
+    if (!options.force && currentMs - this.lastDiagnosticsPublishAtMs < TRANSIENT_VFX_DIAGNOSTICS_PUBLISH_MIN_INTERVAL_MS) {
+      return;
+    }
+    this.lastDiagnosticsPublishAtMs = currentMs;
 
     diagnosticsRoot.vfx = resolveSceneVfxDiagnosticsSnapshot({
       activeTransientCount: this.transientActiveCount,
@@ -139,7 +148,7 @@ export class TransientVfxLifecycle {
     this.transientActiveCount = 0;
     this.transientHeadIndex = 0;
     if (this.diagnosticsEnabled) {
-      this.publishDiagnostics();
+      this.publishDiagnostics({ force: true });
     }
   }
 
@@ -209,4 +218,12 @@ export class TransientVfxLifecycle {
       activeTransientCount: this.transientActiveCount
     });
   }
+}
+
+function nowMs(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+
+  return Date.now();
 }

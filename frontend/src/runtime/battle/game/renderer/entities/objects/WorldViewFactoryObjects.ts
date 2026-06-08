@@ -43,6 +43,9 @@ export interface WorldViewState {
 export interface HeroDisplayState {
   position: Vec2;
   facing: number;
+  interpolationSource?: "interpolated" | "fallback";
+  interpolationSampleCount?: number;
+  interpolationDelayMs?: number;
 }
 
 export type LocalHeroDisplayOverride = HeroDisplayState;

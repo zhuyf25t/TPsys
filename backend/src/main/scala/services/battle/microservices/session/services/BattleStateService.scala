@@ -9,7 +9,12 @@ import cats.syntax.all.*
 import services.battle.microservices.runtime.services.{BattleDynamicRuleBook, BattleEngine}
 import services.battle.microservices.actors.objects.player.BattlePlayerState
 import services.battle.objects.BattlePhase
-import services.battle.microservices.session.objects.command.{BattleCommandAccepted, BattleCommandRequest}
+import services.battle.microservices.session.objects.command.{
+  BattleCommandAccepted,
+  BattleCommandAcceptPath,
+  BattleCommandRequest,
+  BattleCommandServerDiagnostics
+}
 import services.battle.objects.core.{BattleAggregateState, BattleId, DurationMillis, EpochMillis, PlayerId, RoomId}
 import services.battle.microservices.queue.objects.queue.{BattleSessionDescriptor, TicketId}
 import services.battle.microservices.results.objects.result.{
@@ -62,6 +67,11 @@ object NoopBattleRoomLifecycleSink extends BattleRoomLifecycleSink {
   override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] = IO.unit
 }
 
+private final case class BattleAdvanceGate(
+  stateAdvanceLock: Semaphore[IO],
+  pendingCommandAdvanceCount: Ref[IO, Int]
+)
+
 final class InMemoryBattleStateService private (
   sessionLookup: BattleSessionLookup,
   currentTimeMillis: () => Long,
@@ -70,7 +80,7 @@ final class InMemoryBattleStateService private (
   finishProjector: BattleFinishProjector,
   roomLifecycleSink: BattleRoomLifecycleSink,
   battles: Ref[IO, Map[BattleId, StoredBattle]],
-  stateAdvanceLock: Semaphore[IO]
+  advanceGates: Ref[IO, Map[BattleId, BattleAdvanceGate]]
 ) extends BattleStateService {
   private final case class AdvancedStoredBattle(
     storedBattle: StoredBattle,
@@ -83,7 +93,25 @@ final class InMemoryBattleStateService private (
     submission: CommandSubmission
   )
 
-  private val CommandAcceptDeferredAdvanceWindowMs = 250L
+  private final case class FreshCommandSubmission(
+    submission: CommandSubmission,
+    commitRetryCount: Int
+  )
+
+  private final case class TimedCommandSubmission(
+    submission: CommandSubmission,
+    roomFinished: Option[BattleRoomFinishedNotification],
+    advanceMs: Long,
+    commitRetryCount: Int
+  )
+
+  private final case class SerializedStateAdvanceTiming[A](
+    result: A,
+    lockWaitMs: Long,
+    lockHeldMs: Long
+  )
+
+  private val CommandAcceptDeferredAdvanceWindowMs = 66L
 
   /** 中文名：当前状态（currentState）。游戏职责：在后端会话域中管理战斗会话、命令受理和状态读写，维护服务端权威状态�?*/
   override def currentState(battleId: BattleId): IO[Either[BattleStateReadError, BattleAggregateState]] =
@@ -100,14 +128,27 @@ final class InMemoryBattleStateService private (
     battleId: BattleId,
     now: EpochMillis
   ): IO[Either[BattleStateReadError, BattleAggregateState]] =
-    stateAdvanceLock.tryAcquire.flatMap {
-      case true =>
-        currentStateAt(battleId, now).guarantee(stateAdvanceLock.release)
-      case false =>
-        latestStoredState(battleId, now).flatMap {
-          case Some(state) => IO.pure(Right(state))
-          case None        => withSerializedStateAdvance(currentStateAt(battleId, now))
-        }
+    battleAdvanceGate(battleId).flatMap { gate =>
+      gate.pendingCommandAdvanceCount.get.flatMap {
+        case pending if pending > 0 =>
+          latestStateOrSerializedAdvance(battleId, now)
+        case _ =>
+          gate.stateAdvanceLock.tryAcquire.flatMap {
+            case true =>
+              currentStateAt(battleId, now).guarantee(gate.stateAdvanceLock.release)
+            case false =>
+              latestStateOrSerializedAdvance(battleId, now)
+          }
+      }
+    }
+
+  private def latestStateOrSerializedAdvance(
+    battleId: BattleId,
+    now: EpochMillis
+  ): IO[Either[BattleStateReadError, BattleAggregateState]] =
+    latestFreshOrFinishedState(battleId, now).flatMap {
+      case Some(state) => IO.pure(Right(state))
+      case None        => withSerializedStateAdvance(battleId)(currentStateAt(battleId, now))
     }
 
   private def currentStateAt(
@@ -156,29 +197,155 @@ final class InMemoryBattleStateService private (
     request: BattleCommandRequest
   ): IO[Either[BattleCommandSubmitError, BattleCommandAccepted]] =
     for
-      now <- IO.blocking(EpochMillis(currentTimeMillis()))
-      freshSubmission <- acceptFreshCommandWithoutAdvance(request, now)
-      result <- freshSubmission match
-        case Some(submission) => IO.pure(submission.result)
-        case None =>
-          withSerializedStateAdvance {
-            for
-              maybeStoredBattle <- findOrInitialize(request.battleId, now)
-              submissionAndNotification <- maybeStoredBattle.fold(
-                battleNotFoundSubmission
-              )(storedBattle => acceptAndCommitCommand(request, storedBattle, now))
-              (submission, roomFinished) = submissionAndNotification
-              _ <- notifyRoomFinished(roomFinished)
-              _ <- submission.projectionCandidate match {
-                case Some(candidate) => completeProjectionIO(candidate.battleId, candidate).void
-                case None            => IO.unit
+      now <- currentWallClockMs
+      startedAtMs <- monotonicMs
+      result <- withPendingCommandAdvance(request.battleId) {
+        for
+          freshSubmission <- acceptFreshCommandWithoutAdvance(request, now)
+          result <- freshSubmission match
+            case Some(submission) =>
+              commandResultWithServerDiagnostics(
+                request = request,
+                result = submission.submission.result,
+                receivedAt = now,
+                startedAtMs = startedAtMs,
+                path = BattleCommandAcceptPath.Fresh,
+                lockWaitMs = 0L,
+                lockHeldMs = 0L,
+                advanceMs = 0L,
+                commitRetryCount = submission.commitRetryCount
+              )
+            case None =>
+              withSerializedStateAdvanceTimed(request.battleId) {
+                for
+                  maybeStoredBattle <- findOrInitialize(request.battleId, now)
+                  timedSubmission <- maybeStoredBattle.fold(
+                    battleNotFoundTimedSubmission
+                  )(storedBattle => acceptAndCommitCommand(request, storedBattle, now))
+                  submission = timedSubmission.submission
+                  roomFinished = timedSubmission.roomFinished
+                  _ <- notifyRoomFinished(roomFinished)
+                  _ <- submission.projectionCandidate match {
+                    case Some(candidate) => completeProjectionIO(candidate.battleId, candidate).void
+                    case None            => IO.unit
+                  }
+                yield timedSubmission
+              }.flatMap { timing =>
+                commandResultWithServerDiagnostics(
+                  request = request,
+                  result = timing.result.submission.result,
+                  receivedAt = now,
+                  startedAtMs = startedAtMs,
+                  path = BattleCommandAcceptPath.Serialized,
+                  lockWaitMs = timing.lockWaitMs,
+                  lockHeldMs = timing.lockHeldMs,
+                  advanceMs = timing.result.advanceMs,
+                  commitRetryCount = timing.result.commitRetryCount
+                )
               }
-            yield submission.result
-          }
+        yield result
+      }
     yield result
 
-  private def withSerializedStateAdvance[A](operation: IO[A]): IO[A] =
-    stateAdvanceLock.permit.use(_ => operation)
+  private def currentWallClockMs: IO[EpochMillis] =
+    IO.blocking(EpochMillis(currentTimeMillis()))
+
+  private def monotonicMs: IO[Long] =
+    IO.monotonic.map(_.toMillis)
+
+  private def battleAdvanceGate(battleId: BattleId): IO[BattleAdvanceGate] =
+    advanceGates.get.flatMap { currentGates =>
+      currentGates.get(battleId) match {
+        case Some(gate) =>
+          IO.pure(gate)
+        case None =>
+          for
+            lock <- Semaphore[IO](1L)
+            pendingCount <- Ref.of[IO, Int](0)
+            created = BattleAdvanceGate(lock, pendingCount)
+            gate <- advanceGates.modify { latestGates =>
+              latestGates.get(battleId) match {
+                case Some(existing) =>
+                  latestGates -> existing
+                case None =>
+                  latestGates.updated(battleId, created) -> created
+              }
+            }
+          yield gate
+      }
+    }
+
+  private def withSerializedStateAdvance[A](battleId: BattleId)(operation: IO[A]): IO[A] =
+    battleAdvanceGate(battleId).flatMap(_.stateAdvanceLock.permit.use(_ => operation))
+
+  private def withSerializedStateAdvanceTimed[A](
+    battleId: BattleId
+  )(operation: IO[A]): IO[SerializedStateAdvanceTiming[A]] =
+    for
+      gate <- battleAdvanceGate(battleId)
+      waitingStartedAtMs <- monotonicMs
+      timing <- gate.stateAdvanceLock.permit.use { _ =>
+        for
+          acquiredAtMs <- monotonicMs
+          result <- operation
+          releasedAtMs <- monotonicMs
+        yield SerializedStateAdvanceTiming(
+          result = result,
+          lockWaitMs = math.max(0L, acquiredAtMs - waitingStartedAtMs),
+          lockHeldMs = math.max(0L, releasedAtMs - acquiredAtMs)
+        )
+      }
+    yield timing
+
+  private def withPendingCommandAdvance[A](battleId: BattleId)(operation: IO[A]): IO[A] =
+    battleAdvanceGate(battleId).flatMap { gate =>
+      gate.pendingCommandAdvanceCount.update(_ + 1) *>
+        operation.guarantee(gate.pendingCommandAdvanceCount.update(count => math.max(0, count - 1)))
+    }
+
+  private def timed[A](operation: IO[A]): IO[(A, Long)] =
+    for
+      startedAtMs <- monotonicMs
+      result <- operation
+      completedAtMs <- monotonicMs
+    yield result -> math.max(0L, completedAtMs - startedAtMs)
+
+  private def commandResultWithServerDiagnostics(
+    request: BattleCommandRequest,
+    result: Either[BattleCommandSubmitError, BattleCommandAccepted],
+    receivedAt: EpochMillis,
+    startedAtMs: Long,
+    path: BattleCommandAcceptPath,
+    lockWaitMs: Long,
+    lockHeldMs: Long,
+    advanceMs: Long,
+    commitRetryCount: Int
+  ): IO[Either[BattleCommandSubmitError, BattleCommandAccepted]] =
+    for
+      completedAt <- currentWallClockMs
+      completedAtMs <- monotonicMs
+    yield result.map { accepted =>
+      accepted.copy(
+        serverDiagnostics = Some(
+          BattleCommandServerDiagnostics(
+            path = path,
+            receivedAt = receivedAt,
+            completedAt = completedAt,
+            durationMs = math.max(0L, completedAtMs - startedAtMs),
+            lockWaitMs = math.max(0L, lockWaitMs),
+            lockHeldMs = math.max(0L, lockHeldMs),
+            advanceMs = math.max(0L, advanceMs),
+            commitRetryCount = math.max(0, commitRetryCount),
+            clientTick = request.clientTick,
+            acceptedTick = accepted.acceptedTick,
+            acceptedTickLag = accepted.acceptedTick.value - request.clientTick.value,
+            clientCommandSeq = request.clientCommandSeq,
+            acceptedCommandSeq = accepted.acceptedCommandSeq,
+            acceptedCommandSeqLag = accepted.acceptedCommandSeq.value - request.clientCommandSeq.value
+          )
+        )
+      )
+    }
 
   private def findOrInitialize(battleId: BattleId, now: EpochMillis): IO[Option[StoredBattle]] =
     battles.get.map(_.get(battleId)).flatMap {
@@ -241,27 +408,81 @@ final class InMemoryBattleStateService private (
     request: BattleCommandRequest,
     fallback: StoredBattle,
     now: EpochMillis
-  ): IO[(CommandSubmission, Option[BattleRoomFinishedNotification])] = {
-    def loop: IO[(CommandSubmission, Option[BattleRoomFinishedNotification])] =
+  ): IO[TimedCommandSubmission] = {
+    def loop(commitRetryCount: Int, accumulatedAdvanceMs: Long): IO[TimedCommandSubmission] =
       for
         snapshot <- latestStoredBattle(request.battleId, fallback)
-        advanced <- advanceStoredBattle(snapshot, now)
-        update <- buildCommandSubmission(request, advanced.storedBattle, advanced.projectionCandidate, now)
-        committed <- commitStoredBattleIfCurrent(request.battleId, snapshot, update.storedBattle)
-        result <- if committed then IO.pure((update.submission, advanced.roomFinished)) else loop
+        preflight <- preflightCommandSubmission(request, snapshot, now)
+        result <-
+          preflight match {
+            case Some(update) =>
+              IO.pure(
+                TimedCommandSubmission(
+                  submission = update.submission,
+                  roomFinished = None,
+                  advanceMs = accumulatedAdvanceMs,
+                  commitRetryCount = commitRetryCount
+                )
+              )
+            case None =>
+              for
+                timedAdvance <- timed(advanceStoredBattle(snapshot, now))
+                (advanced, advanceMs) = timedAdvance
+                update <- buildCommandSubmission(request, advanced.storedBattle, advanced.projectionCandidate, now)
+                committed <- commitStoredBattleIfCurrent(request.battleId, snapshot, update.storedBattle)
+                totalAdvanceMs = accumulatedAdvanceMs + advanceMs
+                result <-
+                  if committed then
+                    IO.pure(
+                      TimedCommandSubmission(
+                        submission = update.submission,
+                        roomFinished = advanced.roomFinished,
+                        advanceMs = totalAdvanceMs,
+                        commitRetryCount = commitRetryCount
+                      )
+                    )
+                  else loop(commitRetryCount + 1, totalAdvanceMs)
+              yield result
+          }
       yield result
 
-    loop
+    loop(commitRetryCount = 0, accumulatedAdvanceMs = 0L)
   }
+
+  private def preflightCommandSubmission(
+    request: BattleCommandRequest,
+    storedBattle: StoredBattle,
+    now: EpochMillis
+  ): IO[Option[CommandSubmissionUpdate]] =
+    storedBattle.state.players.find(_.playerId == request.playerId) match {
+      case None =>
+        commandSubmissionUpdate(storedBattle, Left(BattleCommandSubmitError.PlayerNotFound), None).map(Some(_))
+      case Some(player) if player.isBot =>
+        commandSubmissionUpdate(storedBattle, Left(BattleCommandSubmitError.BotCommandsNotSupported), None).map(Some(_))
+      case Some(_) if storedBattle.commandOwnershipByPlayerId.get(request.playerId).forall(_ != request.ticketId) =>
+        commandSubmissionUpdate(storedBattle, Left(BattleCommandSubmitError.CommandNotAuthorized), None).map(Some(_))
+      case Some(player) if request.clientCommandSeq.value <= player.lastClientCommandSeq.value =>
+        for
+          ignored <- BattleCommandAcceptanceFactory.stale(storedBattle.state, player, now)
+          update <- commandSubmissionUpdate(storedBattle, Right(ignored), None)
+        yield Some(update)
+      case Some(player) if storedBattle.state.phase != BattlePhase.Active || !player.alive =>
+        for
+          ignored <- BattleCommandAcceptanceFactory.ignored(storedBattle.state, player, now)
+          update <- commandSubmissionUpdate(storedBattle, Right(ignored), None)
+        yield Some(update)
+      case Some(_) =>
+        IO.pure(None)
+    }
 
   private def acceptFreshCommandWithoutAdvance(
     request: BattleCommandRequest,
     now: EpochMillis
-  ): IO[Option[CommandSubmission]] =
+  ): IO[Option[FreshCommandSubmission]] =
     BattleEngine.TickStep(battleRules).flatMap { tickStep =>
       val tickStepMs = math.max(1L, tickStep.value)
 
-      def loop: IO[Option[CommandSubmission]] =
+      def loop(commitRetryCount: Int): IO[Option[FreshCommandSubmission]] =
         battles.get.flatMap { currentBattles =>
           currentBattles.get(request.battleId) match {
             case None =>
@@ -273,14 +494,16 @@ final class InMemoryBattleStateService private (
                 case Some(freshSnapshot) =>
                   buildCommandSubmission(request, freshSnapshot, None, now).flatMap { update =>
                     commitStoredBattleIfCurrent(request.battleId, snapshot, update.storedBattle).flatMap { committed =>
-                      if committed then IO.pure(Some(update.submission)) else loop
+                      if committed then
+                        IO.pure(Some(FreshCommandSubmission(update.submission, commitRetryCount)))
+                      else loop(commitRetryCount + 1)
                     }
                   }
               }
           }
         }
 
-      loop
+      loop(commitRetryCount = 0)
     }
 
   private def freshCommandStoredBattle(
@@ -292,7 +515,7 @@ final class InMemoryBattleStateService private (
     val ageMs = now.value - storedBattle.lastUpdatedAt.value
     val safeAgeMs = math.max(0L, ageMs)
     val accumulatedMs = storedBattle.pendingStepMs + safeAgeMs
-    val deferredAdvanceWindowMs = math.max(tickStepMs, CommandAcceptDeferredAdvanceWindowMs)
+    val deferredAdvanceWindowMs = math.max(tickStepMs, math.min(CommandAcceptDeferredAdvanceWindowMs, tickStepMs * 2L))
 
     Option.when(
       ageMs >= 0L &&
@@ -317,28 +540,38 @@ final class InMemoryBattleStateService private (
     accumulatedMs < tickStepMs ||
       state.players
         .find(_.playerId == request.playerId)
-        .forall(player => !freshCommandWouldOverwriteRuntimeInput(player, request))
+        .exists(player =>
+          !playerHasRuntimeInput(player) &&
+            requestStartsRuntimeInput(request) &&
+            accumulatedMs <= CommandAcceptDeferredAdvanceWindowMs
+        )
 
-  private def freshCommandWouldOverwriteRuntimeInput(
-    player: BattlePlayerState,
-    request: BattleCommandRequest
-  ): Boolean = {
-    val previousMoving = math.hypot(player.movement.x, player.movement.y) > 0.0001
-    val movementChanges =
-      math.abs(player.movement.x - request.movement.x) > 0.0001 ||
-        math.abs(player.movement.y - request.movement.y) > 0.0001
+  private def playerHasRuntimeInput(player: BattlePlayerState): Boolean =
+    math.hypot(player.movement.x, player.movement.y) > 0.0001 ||
+      player.primaryHeld ||
+      player.reloadPressed ||
+      player.sprint
 
-    (player.primaryHeld && !request.primaryHeld) ||
-      (player.reloadPressed && !request.reloadPressed) ||
-      (player.sprint && !request.sprint) ||
-      (previousMoving && movementChanges)
-  }
+  private def requestStartsRuntimeInput(request: BattleCommandRequest): Boolean =
+    math.hypot(request.movement.x, request.movement.y) > 0.0001 ||
+      request.primaryHeld ||
+      request.reloadPressed ||
+      request.sprint
 
   private def latestStoredBattle(battleId: BattleId, fallback: StoredBattle): IO[StoredBattle] =
     battles.get.map(_.getOrElse(battleId, fallback))
 
-  private def latestStoredState(battleId: BattleId, now: EpochMillis): IO[Option[BattleAggregateState]] =
-    battles.get.map(_.get(battleId).map(_.state.copy(serverTime = now)))
+  private def latestFreshOrFinishedState(battleId: BattleId, now: EpochMillis): IO[Option[BattleAggregateState]] =
+    BattleEngine.TickStep(battleRules).flatMap { tickStep =>
+      battles.get.map(_.get(battleId).flatMap { storedBattle =>
+        val ageMs = now.value - storedBattle.lastUpdatedAt.value
+        val accumulatedMs = storedBattle.pendingStepMs + math.max(0L, ageMs)
+        Option.when(
+          storedBattle.state.phase == BattlePhase.Finished ||
+            (ageMs >= 0L && accumulatedMs < math.max(1L, tickStep.value))
+        )(storedBattle.state.copy(serverTime = now))
+      })
+    }
 
   private def commitStoredBattleIfCurrent(
     battleId: BattleId,
@@ -347,7 +580,7 @@ final class InMemoryBattleStateService private (
   ): IO[Boolean] =
     battles.modify { currentBattles =>
       currentBattles.get(battleId) match {
-        case Some(current) if current == expected =>
+        case Some(current) if sameStoredBattleReference(current, expected) =>
           (currentBattles.updated(battleId, updated), true)
         case None =>
           (currentBattles.updated(battleId, updated), true)
@@ -367,6 +600,16 @@ final class InMemoryBattleStateService private (
 
   private def battleNotFoundSubmission: IO[(CommandSubmission, Option[BattleRoomFinishedNotification])] =
     IO.pure((CommandSubmission(Left(BattleCommandSubmitError.BattleNotFound), None), None))
+
+  private def battleNotFoundTimedSubmission: IO[TimedCommandSubmission] =
+    IO.pure(
+      TimedCommandSubmission(
+        submission = CommandSubmission(Left(BattleCommandSubmitError.BattleNotFound), None),
+        roomFinished = None,
+        advanceMs = 0L,
+        commitRetryCount = 0
+      )
+    )
 
   private def stateRead(
     state: BattleAggregateState,
@@ -459,7 +702,7 @@ final class InMemoryBattleStateService private (
       currentBattles.get(battleId) match {
         case None =>
           (currentBattles, Some(missingFallback))
-        case Some(current) if current == expected =>
+        case Some(current) if sameStoredBattleReference(current, expected) =>
           (currentBattles.updated(battleId, updated), Some(updated.state))
         case Some(current) if current.finishProjectionStatus != BattleFinishProjectionStatus.InProgress =>
           (currentBattles, Some(current.state))
@@ -473,6 +716,9 @@ final class InMemoryBattleStateService private (
       case NonFatal(error) =>
         BattleFailureMessageFormatter.throwableMessage(error).map(BattleFinishProjectionOutcome.Failed(_))
     }
+
+  private def sameStoredBattleReference(left: StoredBattle, right: StoredBattle): Boolean =
+    left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
 
 }
 object InMemoryBattleStateService {
@@ -565,7 +811,7 @@ object InMemoryBattleStateService {
   ): IO[InMemoryBattleStateService] =
     for
       battleRef <- Ref.of[IO, Map[BattleId, StoredBattle]](Map.empty)
-      stateAdvanceLock <- Semaphore[IO](1L)
+      advanceGates <- Ref.of[IO, Map[BattleId, BattleAdvanceGate]](Map.empty)
     yield
       new InMemoryBattleStateService(
         sessionLookup = sessionLookup,
@@ -575,6 +821,6 @@ object InMemoryBattleStateService {
         finishProjector = finishProjector,
         roomLifecycleSink = roomLifecycleSink,
         battles = battleRef,
-        stateAdvanceLock = stateAdvanceLock
+        advanceGates = advanceGates
       )
 }

@@ -13,6 +13,7 @@ export interface PhaserPlayerCommandInput {
   pointerJustPressed: boolean;
   secondaryJustPressed: boolean;
   pendingWeaponSwitchDirection: -1 | 0 | 1;
+  pendingWeaponSwitchIndex: number | null;
 }
 
 /** 中文名：读取phaser玩家命令（readPhaserPlayerCommand）。游戏职责：在前端战斗域中组织战斗界面、状态、输入或渲染数据，保持客户端玩法表达与后端契约一致。 */
@@ -22,7 +23,8 @@ export function readPhaserPlayerCommand({
   playerPosition,
   pointerJustPressed,
   secondaryJustPressed,
-  pendingWeaponSwitchDirection
+  pendingWeaponSwitchDirection,
+  pendingWeaponSwitchIndex
 }: PhaserPlayerCommandInput): PlayerCommand {
   const skillPresses = readSkillBindingPresses(getSelectedSkillBindings(), {
     Q: Phaser.Input.Keyboard.JustDown(controls.skillQ),
@@ -42,7 +44,7 @@ export function readPhaserPlayerCommand({
     secondaryJustPressed,
     sprint: controls.sprint.isDown,
     switchWeaponDirection: pendingWeaponSwitchDirection,
-    switchWeaponIndex: readWeaponSlotPress(controls),
+    switchWeaponIndex: pendingWeaponSwitchIndex ?? readWeaponSlotPress(controls),
     toggleBlink: skillPresses.Blink,
     toggleFreeze: skillPresses.Freeze,
     castDash: skillPresses.Dash,

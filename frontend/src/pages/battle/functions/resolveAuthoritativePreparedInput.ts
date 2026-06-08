@@ -68,7 +68,13 @@ export function resolveAuthoritativePreparedInput(
     runtimeToggleBlinkSuppressed,
     runtimeToggleFreezeSuppressed,
     preparedSkillAfter: transition.preparedSkill,
-    castSkill: transition.castSkill
+    castSkill: transition.castSkill,
+    inputCastDash: input.castDash,
+    inputCastCritical: input.castCritical,
+    outputCastBlink: transition.castSkill === "Blink",
+    outputCastFreeze: transition.castSkill === "Freeze",
+    switchWeaponDirection: input.switchWeaponDirection,
+    switchWeaponIndex: input.switchWeaponIndex
   });
   const confirmedTarget = transition.castSkill !== null && input.pointerWorld ? cloneVec2(input.pointerWorld) : null;
   const castBlink = transition.castSkill === "Blink";
@@ -109,9 +115,7 @@ function resolvePreparedSkillTransition(
     nextPreparedSkill = nextPreparedSkill === "Freeze" ? null : "Freeze";
   }
 
-  const confirmedSkill = input.primaryJustPressed
-    ? resolveConfirmedPreparedSkill(input, nextPreparedSkill)
-    : null;
+  const confirmedSkill = input.primaryJustPressed && !toggledPreparedSkill ? nextPreparedSkill : null;
   if (confirmedSkill !== null) {
     return {
       preparedSkill: null,
@@ -125,20 +129,6 @@ function resolvePreparedSkillTransition(
     castSkill: null,
     toggledPreparedSkill
   };
-}
-
-function resolveConfirmedPreparedSkill(
-  input: PreparedSkillTransitionInput,
-  preparedSkill: PreparedSkill
-): TargetedPreparedSkill | null {
-  if (input.toggleFreeze) {
-    return "Freeze";
-  }
-  if (input.toggleBlink) {
-    return "Blink";
-  }
-
-  return preparedSkill;
 }
 
 function toAuthoritativeInputSnapshot(
@@ -164,8 +154,7 @@ function toAuthoritativeInputSnapshot(
     castCritical: command.castCritical || fallback.castCritical,
     castBlink: false,
     castFreeze: false,
-    switchWeaponDirection:
-      command.switchWeaponDirection !== 0 ? command.switchWeaponDirection : fallback.switchWeaponDirection,
+    switchWeaponDirection: command.switchWeaponDirection,
     switchWeaponIndex: command.switchWeaponIndex ?? fallback.switchWeaponIndex
   };
 }
@@ -202,6 +191,12 @@ function recordAuthoritativePreparedInputDiagnostics(input: {
   runtimeToggleFreezeSuppressed: boolean;
   preparedSkillAfter: PreparedSkill;
   castSkill: TargetedPreparedSkill | null;
+  inputCastDash: boolean;
+  inputCastCritical: boolean;
+  outputCastBlink: boolean;
+  outputCastFreeze: boolean;
+  switchWeaponDirection: -1 | 0 | 1;
+  switchWeaponIndex: number | null;
 }): void {
   if (typeof window === "undefined") {
     return;

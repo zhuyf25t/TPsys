@@ -11,6 +11,7 @@ if ($RunSuffix.Length -gt 8) {
 $HandleOne = "zm$($RunSuffix)a"
 $HandleTwo = "zm$($RunSuffix)b"
 $SmokePassword = "pass1234"
+$ExpectedWinterCapacity = 6
 $JoinOne = $null
 $JoinTwo = $null
 $SessionOne = $null
@@ -207,13 +208,13 @@ try {
   $JoinOne = Join-WinterQueue $HandleOne $SessionOne "blue" "zombie-mp-$RunId-a"
   Assert-Condition ($JoinOne.modeId -eq "winter") "First join resolved wrong modeId=$($JoinOne.modeId)."
   Assert-Condition ($JoinOne.mapId -eq "winter-hunt-v1") "First join resolved wrong mapId=$($JoinOne.mapId)."
-  Assert-Condition ([int]$JoinOne.capacity -eq 12) "First join expected capacity 12, got $($JoinOne.capacity)."
+  Assert-Condition ([int]$JoinOne.capacity -eq $ExpectedWinterCapacity) "First join expected capacity $ExpectedWinterCapacity, got $($JoinOne.capacity)."
 
   $JoinTwo = Join-WinterQueue $HandleTwo $SessionTwo "red" "zombie-mp-$RunId-b"
   Assert-Condition ($JoinTwo.roomId -eq $JoinOne.roomId) "Winter players did not join same room: first=$($JoinOne.roomId), second=$($JoinTwo.roomId)."
   Assert-Condition ($JoinTwo.modeId -eq "winter") "Second join resolved wrong modeId=$($JoinTwo.modeId)."
   Assert-Condition ($JoinTwo.mapId -eq "winter-hunt-v1") "Second join resolved wrong mapId=$($JoinTwo.mapId)."
-  Assert-Condition ([int]$JoinTwo.capacity -eq 12) "Second join expected capacity 12, got $($JoinTwo.capacity)."
+  Assert-Condition ([int]$JoinTwo.capacity -eq $ExpectedWinterCapacity) "Second join expected capacity $ExpectedWinterCapacity, got $($JoinTwo.capacity)."
 
   $startsAt = [Math]::Max([Int64]$JoinOne.startsAt, [Int64]$JoinTwo.startsAt)
   $nowMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
@@ -246,7 +247,7 @@ try {
   $session = $statusOne.battleSession
   Assert-Condition ($session.modeId -eq "winter") "Active session resolved wrong modeId=$($session.modeId)."
   Assert-Condition ($session.mapId -eq "winter-hunt-v1") "Active session resolved wrong mapId=$($session.mapId)."
-  Assert-Condition ([int]$session.capacity -eq 12) "Active session expected capacity 12, got $($session.capacity)."
+  Assert-Condition ([int]$session.capacity -eq $ExpectedWinterCapacity) "Active session expected capacity $ExpectedWinterCapacity, got $($session.capacity)."
 
   $roster = Read-Array $session "roster"
   $rosterPlayerIds = @($roster | ForEach-Object { $_.playerId })
@@ -255,22 +256,26 @@ try {
 
   Assert-Condition ($null -ne $session.bootstrap -and (Test-HasField $session.bootstrap "seats")) "Active session bootstrap seats are missing."
   $seats = Read-Array $session.bootstrap "seats"
-  Assert-Condition ($seats.Count -eq 12) "Expected 12 bootstrap seats, got $($seats.Count)."
+  Assert-Condition ($seats.Count -eq $ExpectedWinterCapacity) "Expected $ExpectedWinterCapacity bootstrap seats, got $($seats.Count)."
   $seatOne = @($seats | Where-Object { $_.playerId -ceq $JoinOne.playerId } | Select-Object -First 1)
   $seatTwo = @($seats | Where-Object { $_.playerId -ceq $JoinTwo.playerId } | Select-Object -First 1)
   Assert-Condition ($seatOne.Count -eq 1 -and $seatOne[0].isBot -eq $false) "First joined player bootstrap seat is missing or marked bot."
   Assert-Condition ($seatTwo.Count -eq 1 -and $seatTwo[0].isBot -eq $false) "Second joined player bootstrap seat is missing or marked bot."
   $botSeats = @($seats | Where-Object { $_.isBot -eq $true })
-  $expectedBotSeats = 12 - $roster.Count
+  $expectedBotSeats = $ExpectedWinterCapacity - $roster.Count
   Assert-Condition ($botSeats.Count -eq $expectedBotSeats) "Expected bot seats to fill capacity: roster=$($roster.Count), expectedBots=$expectedBotSeats, actualBots=$($botSeats.Count)."
   $spawnIndexes = @($seats | ForEach-Object { [int]$_.spawnPointIndex } | Sort-Object)
-  Assert-Condition ($spawnIndexes.Count -eq 12 -and $spawnIndexes[0] -eq 0 -and $spawnIndexes[11] -eq 11) "Expected spawn indexes 0..11, got $($spawnIndexes -join ', ')."
+  Assert-Condition (
+    $spawnIndexes.Count -eq $ExpectedWinterCapacity -and
+    $spawnIndexes[0] -eq 0 -and
+    $spawnIndexes[$ExpectedWinterCapacity - 1] -eq ($ExpectedWinterCapacity - 1)
+  ) "Expected spawn indexes 0..$($ExpectedWinterCapacity - 1), got $($spawnIndexes -join ', ')."
 
   $battleId = [string]$session.battleId
   $stateBefore = Read-BattleState $SessionOne $battleId
   Assert-Condition ($stateBefore.mapId -eq "winter-hunt-v1") "Runtime state resolved wrong mapId=$($stateBefore.mapId)."
   $playersBefore = Read-Array $stateBefore "players"
-  Assert-Condition ($playersBefore.Count -eq 12) "Expected 12 runtime players, got $($playersBefore.Count)."
+  Assert-Condition ($playersBefore.Count -eq $ExpectedWinterCapacity) "Expected $ExpectedWinterCapacity runtime players, got $($playersBefore.Count)."
   $playerOne = @($playersBefore | Where-Object { $_.playerId -ceq $JoinOne.playerId } | Select-Object -First 1)
   $playerTwo = @($playersBefore | Where-Object { $_.playerId -ceq $JoinTwo.playerId } | Select-Object -First 1)
   Assert-Condition ($playerOne.Count -eq 1 -and $playerOne[0].isBot -eq $false) "First runtime player is missing or marked bot."

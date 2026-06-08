@@ -38,6 +38,28 @@ final case class BattleCommandSkillOutcome(
   reason: Option[SkillOutcomeReason]
 )
 
+enum BattleCommandAcceptPath {
+  case Fresh
+  case Serialized
+}
+
+final case class BattleCommandServerDiagnostics(
+  path: BattleCommandAcceptPath,
+  receivedAt: EpochMillis,
+  completedAt: EpochMillis,
+  durationMs: Long,
+  lockWaitMs: Long,
+  lockHeldMs: Long,
+  advanceMs: Long,
+  commitRetryCount: Int,
+  clientTick: BattleTick,
+  acceptedTick: BattleTick,
+  acceptedTickLag: Long,
+  clientCommandSeq: ClientCommandSeq,
+  acceptedCommandSeq: ClientCommandSeq,
+  acceptedCommandSeqLag: Long
+)
+
 final case class BattleCommandAccepted(
   battleId: BattleId,
   acceptedTick: BattleTick,
@@ -45,5 +67,6 @@ final case class BattleCommandAccepted(
   serverTime: EpochMillis,
   commandStatus: BattleCommandStatus,
   commandReason: Option[BattleCommandReason],
-  outcomes: Vector[BattleCommandSkillOutcome]
+  outcomes: Vector[BattleCommandSkillOutcome],
+  serverDiagnostics: Option[BattleCommandServerDiagnostics] = None
 )

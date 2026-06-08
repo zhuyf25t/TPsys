@@ -101,13 +101,6 @@ export function resolveAuthoritativeStateApplicationDecision({
     return { kind: "apply", state };
   }
 
-  if (state.serverTime < lastAppliedState.serverTime) {
-    return { kind: "skip", reason: "stale_state" };
-  }
-  if (state.serverTime > lastAppliedState.serverTime) {
-    return { kind: "apply", state };
-  }
-
   return state.elapsedMs > lastAppliedState.elapsedMs
     ? { kind: "apply", state }
     : { kind: "skip", reason: "stale_state" };

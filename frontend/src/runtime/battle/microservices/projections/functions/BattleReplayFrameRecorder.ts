@@ -11,6 +11,7 @@ export const REPLAY_PERSIST_FRAME_LIMIT = 720;
 export const REPLAY_CONTINUOUS_MAX_GAP_MS = 1500;
 const MAX_PROJECTILES_PER_FRAME = 18;
 const REPLAY_PLAYBACK_DUPLICATE_SIGNAL_GAP_MS = 16;
+const REPLAY_PLAYBACK_SIGNAL_GAP_MS = REPLAY_SAMPLE_INTERVAL_MS;
 
 export interface ReplayFrameContinuity {
   frameCount: number;
@@ -244,15 +245,12 @@ function retimeReplayFramesForPlayback(frames: ReplayFrame[]): ReplayFrame[] {
 }
 
 function normalizeReplayPlaybackGap(rawGapMs: number, previousFrame: ReplayFrame, currentFrame: ReplayFrame): number {
-  if (rawGapMs <= 0) {
-    return hasReplayFrameVisualDelta(previousFrame, currentFrame) ? REPLAY_PLAYBACK_DUPLICATE_SIGNAL_GAP_MS : 0;
+  const hasVisualDelta = hasReplayFrameVisualDelta(previousFrame, currentFrame);
+  if (!hasVisualDelta) {
+    return rawGapMs > 0 ? REPLAY_PLAYBACK_DUPLICATE_SIGNAL_GAP_MS : 0;
   }
 
-  if (rawGapMs <= REPLAY_CONTINUOUS_MAX_GAP_MS) {
-    return rawGapMs;
-  }
-
-  return hasReplayFrameVisualDelta(previousFrame, currentFrame) ? REPLAY_CONTINUOUS_MAX_GAP_MS : REPLAY_SAMPLE_INTERVAL_MS;
+  return rawGapMs > 0 ? REPLAY_PLAYBACK_SIGNAL_GAP_MS : REPLAY_PLAYBACK_DUPLICATE_SIGNAL_GAP_MS;
 }
 
 function cloneReplayFrame(frame: ReplayFrame, elapsedMs = frame.elapsedMs): ReplayFrame {

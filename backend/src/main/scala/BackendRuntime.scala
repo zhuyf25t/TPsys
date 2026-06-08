@@ -142,14 +142,18 @@ object BackendRuntime {
         PostgresSupport.withConnectionIO(connectionSettings) { connection =>
           for {
             _ <- BattleWorldRuleTableInitializer.initialize(connection)
+            _ <- BattleWorldRuleTable.upsertDefaultRules(connection)
             _ <- BattleWorldDefaultMapRuleSeeder.upsertDefaultMaps(connection)
             worldRules <- BattleWorldRuleTable.load(connection)
             _ <- BattleRuntimeRuleTableInitializer.initialize(connection)
+            _ <- BattleRuntimeRuleTable.upsertDefaultRules(connection)
             runtimeRules <- BattleRuntimeRuleTable.load(connection)
             _ <- BattleCombatRuleTableInitializer.initialize(connection)
+            _ <- BattleCombatRuleTable.upsertDefaultWeaponRules(connection)
             combatRules <- BattleCombatRuleTable.list(connection)
             _ <- BattleAbilityRuleTableInitializer.initialize(connection)
             _ <- BattleAbilityRuleTable.upsertDefaultSkillRules(connection)
+            _ <- BattleAbilityRuleTable.upsertDefaultPickupRules(connection)
             skillRules <- BattleAbilityRuleTable.loadRuleSet(connection)
             pickupRules <- BattleAbilityRuleTable.loadActivePickup(connection)
             _ <- BattleActorRuleTableInitializer.initialize(connection)

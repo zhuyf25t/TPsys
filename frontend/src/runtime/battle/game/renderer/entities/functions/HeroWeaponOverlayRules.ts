@@ -15,9 +15,16 @@ import type {
 const HERO_WEAPON_OVERLAY_DEFAULT_KIND: WeaponKind = "Pistol";
 const HERO_WEAPON_OVERLAY_DEPTH = 52;
 const HERO_WEAPON_OVERLAY_ORIGIN = { x: 0.5, y: 0.5 } as const;
-const HERO_WEAPON_MAX_DISPLAY_SIZE = 15;
+const HERO_WEAPON_MIN_DISPLAY_SIZE = 28;
+const HERO_WEAPON_MAX_DISPLAY_SIZE = 58;
 const HERO_WEAPON_FORWARD_OFFSET_RADIUS_SCALE = 1.32;
 const HERO_WEAPON_SIDE_OFFSET_RADIUS_SCALE = 0.9;
+const HERO_WEAPON_DISPLAY_RADIUS_SCALE: Readonly<Record<WeaponKind, number>> = {
+  Pistol: 1.7,
+  Shotgun: 2.15,
+  Gatling: 2.5,
+  RocketLauncher: 2.65
+};
 
 export function resolveHeroWeaponOverlayCreationPlan({
   position
@@ -80,16 +87,40 @@ export function resolveHeroWeaponOverlayVisualPlan({
       radius
     }),
     visible: true,
-    alpha
+    alpha,
+    displaySize: resolveHeroWeaponOverlayDisplaySize({ weaponKind, radius })
   };
 }
 
 export function resolveHeroWeaponOverlayScale({
   frameWidth,
-  frameHeight
+  frameHeight,
+  displaySize
 }: ResolveHeroWeaponOverlayScaleInput): number {
-  const safeFrameWidth = frameWidth > 0 ? frameWidth : HERO_WEAPON_MAX_DISPLAY_SIZE;
-  const safeFrameHeight = frameHeight > 0 ? frameHeight : HERO_WEAPON_MAX_DISPLAY_SIZE;
+  const safeDisplaySize = Number.isFinite(displaySize)
+    ? clamp(displaySize, HERO_WEAPON_MIN_DISPLAY_SIZE, HERO_WEAPON_MAX_DISPLAY_SIZE)
+    : HERO_WEAPON_MIN_DISPLAY_SIZE;
+  const safeFrameWidth = frameWidth > 0 ? frameWidth : safeDisplaySize;
+  const safeFrameHeight = frameHeight > 0 ? frameHeight : safeDisplaySize;
   const sourceMax = Math.max(safeFrameWidth, safeFrameHeight, 1);
-  return HERO_WEAPON_MAX_DISPLAY_SIZE / sourceMax;
+  return safeDisplaySize / sourceMax;
+}
+
+function resolveHeroWeaponOverlayDisplaySize({
+  weaponKind,
+  radius
+}: {
+  weaponKind: WeaponKind;
+  radius: number;
+}): number {
+  const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : HERO_WEAPON_MIN_DISPLAY_SIZE;
+  return clamp(
+    safeRadius * HERO_WEAPON_DISPLAY_RADIUS_SCALE[weaponKind],
+    HERO_WEAPON_MIN_DISPLAY_SIZE,
+    HERO_WEAPON_MAX_DISPLAY_SIZE
+  );
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

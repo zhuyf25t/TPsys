@@ -3,6 +3,7 @@ import {
   createRemoteHeroInterpolationSample,
   recordRemoteHeroInterpolationSample,
   resolveInterpolatedRemoteHeroDisplayState,
+  resolveRemoteHeroInterpolationDelayMs,
   resolveRemoteHeroFallbackDisplayState
 } from "./functions/RemoteHeroInterpolationRules";
 import type {
@@ -34,15 +35,22 @@ export function resolveRemoteHeroDisplayState({
   const buffer = getRemoteHeroInterpolationBuffer(worldViews, hero.heroId);
   recordRemoteHeroInterpolationSample(buffer, sample);
 
-  return (
-    resolveInterpolatedRemoteHeroDisplayState(buffer, receivedAtMs) ??
-    resolveRemoteHeroFallbackDisplayState({
+  const interpolationDelayMs = resolveRemoteHeroInterpolationDelayMs(buffer, receivedAtMs);
+  const interpolatedState = resolveInterpolatedRemoteHeroDisplayState(buffer, receivedAtMs, interpolationDelayMs);
+  if (interpolatedState) {
+    return interpolatedState;
+  }
+
+  return {
+    ...resolveRemoteHeroFallbackDisplayState({
       currentPosition: { x: view.sprite.x, y: view.sprite.y },
       currentFacing: view.sprite.rotation,
       hero,
-      deltaMs
-    })
-  );
+      deltaMs,
+      interpolationDelayMs
+    }),
+    interpolationSampleCount: buffer.samples.length
+  };
 }
 
 function getRemoteHeroInterpolationBuffer(

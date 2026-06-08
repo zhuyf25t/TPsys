@@ -48,16 +48,7 @@ private[battle] object BattleArenaCollision {
     radius: Double,
     obstacle: ArenaObstacle
   ): IO[Option[Double]] =
-    obstacle.shape match {
-      case ArenaObstacleShape.Aabb(size) =>
-        val minX = obstacle.position.x - size.x / 2.0 - radius
-        val maxX = obstacle.position.x + size.x / 2.0 + radius
-        val minY = obstacle.position.y - size.y / 2.0 - radius
-        val maxY = obstacle.position.y + size.y / 2.0 + radius
-        firstSegmentAabbEnterT(start, end, minX, maxX, minY, maxY)
-      case ArenaObstacleShape.Circle(obstacleRadius) =>
-        segmentCircleHitT(start, end, obstacle.position, obstacleRadius + radius)
-    }
+    IO.pure(firstSegmentObstacleEnterTPure(start, end, radius, obstacle))
 
   def firstSegmentAabbEnterT(
     start: BattleVector2,
@@ -67,40 +58,14 @@ private[battle] object BattleArenaCollision {
     minY: Double,
     maxY: Double
   ): IO[Option[Double]] =
-    isPointInAabb(start, minX, maxX, minY, maxY).flatMap {
-      case true =>
-        IO.pure(Some(0.0))
-      case false =>
-        val dx = end.x - start.x
-        val dy = end.y - start.y
-        for
-          maybeXInterval <- segmentAxisInterval(start.x, dx, minX, maxX)
-          maybeYInterval <- segmentAxisInterval(start.y, dy, minY, maxY)
-        yield
-          (maybeXInterval, maybeYInterval) match {
-            case (Some((xEnter, xExit)), Some((yEnter, yExit))) =>
-              val enter = math.max(xEnter, yEnter)
-              val exit = math.min(xExit, yExit)
-              Option.when(enter <= exit && exit >= 0.0 && enter <= 1.0)(math.max(0.0, enter))
-            case _ =>
-              None
-          }
-    }
+    IO.pure(firstSegmentAabbEnterTPure(start, end, minX, maxX, minY, maxY))
 
   def segmentAxisInterval(
     start: Double,
     delta: Double,
     min: Double,
     max: Double
-  ): IO[Option[(Double, Double)]] = IO.pure {
-    if math.abs(delta) <= 0.000001 then
-      Option.when(start >= min && start <= max)((Double.NegativeInfinity, Double.PositiveInfinity))
-    else {
-      val first = (min - start) / delta
-      val second = (max - start) / delta
-      Some(math.min(first, second) -> math.max(first, second))
-    }
-  }
+  ): IO[Option[(Double, Double)]] = IO.pure(segmentAxisIntervalPure(start, delta, min, max))
 
   def isPointInAabb(
     point: BattleVector2,
@@ -108,16 +73,110 @@ private[battle] object BattleArenaCollision {
     maxX: Double,
     minY: Double,
     maxY: Double
-  ): IO[Boolean] = IO.pure(
-    point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
-  )
+  ): IO[Boolean] = IO.pure(isPointInAabbPure(point, minX, maxX, minY, maxY))
 
   def segmentCircleHitT(
     start: BattleVector2,
     end: BattleVector2,
     center: BattleVector2,
     radius: Double
-  ): IO[Option[Double]] = IO.pure {
+  ): IO[Option[Double]] = IO.pure(segmentCircleHitTPure(start, end, center, radius))
+
+  def isBlockedPoint(point: BattleVector2, arena: BattleArenaContext): IO[Boolean] =
+    canPlayerOccupy(point, arena.playerCollisionRadius, arena).map(canOccupy => !canOccupy)
+
+  def canPlayerOccupy(point: BattleVector2, radius: Double, arena: BattleArenaContext): IO[Boolean] =
+    for
+      inWorld <- isInWorld(point, radius, arena)
+      collides <-
+        if inWorld then collidesWithArenaObstacles(point, radius, arena)
+        else IO.pure(false)
+    yield inWorld && !collides
+
+  def hasArenaLineOfSight(start: BattleVector2, end: BattleVector2, arena: BattleArenaContext): IO[Boolean] =
+    IO.pure {
+      arena.arenaObstacles.forall { obstacle =>
+        firstSegmentObstacleEnterTPure(start, end, arena.projectileShooterAdvantageRadius, obstacle).isEmpty
+      }
+    }
+
+  def collidesWithArenaObstacles(point: BattleVector2, radius: Double, arena: BattleArenaContext): IO[Boolean] =
+    IO.pure(arena.arenaObstacles.exists(obstacle => intersectsObstaclePure(point, radius, obstacle)))
+
+  def intersectsObstacle(
+    point: BattleVector2,
+    radius: Double,
+    obstacle: ArenaObstacle
+  ): IO[Boolean] = IO.pure(intersectsObstaclePure(point, radius, obstacle))
+
+  private def firstSegmentObstacleEnterTPure(
+    start: BattleVector2,
+    end: BattleVector2,
+    radius: Double,
+    obstacle: ArenaObstacle
+  ): Option[Double] =
+    obstacle.shape match {
+      case ArenaObstacleShape.Aabb(size) =>
+        val minX = obstacle.position.x - size.x / 2.0 - radius
+        val maxX = obstacle.position.x + size.x / 2.0 + radius
+        val minY = obstacle.position.y - size.y / 2.0 - radius
+        val maxY = obstacle.position.y + size.y / 2.0 + radius
+        firstSegmentAabbEnterTPure(start, end, minX, maxX, minY, maxY)
+      case ArenaObstacleShape.Circle(obstacleRadius) =>
+        segmentCircleHitTPure(start, end, obstacle.position, obstacleRadius + radius)
+    }
+
+  private def firstSegmentAabbEnterTPure(
+    start: BattleVector2,
+    end: BattleVector2,
+    minX: Double,
+    maxX: Double,
+    minY: Double,
+    maxY: Double
+  ): Option[Double] =
+    if isPointInAabbPure(start, minX, maxX, minY, maxY) then Some(0.0)
+    else {
+      val dx = end.x - start.x
+      val dy = end.y - start.y
+      (segmentAxisIntervalPure(start.x, dx, minX, maxX), segmentAxisIntervalPure(start.y, dy, minY, maxY)) match {
+        case (Some((xEnter, xExit)), Some((yEnter, yExit))) =>
+          val enter = math.max(xEnter, yEnter)
+          val exit = math.min(xExit, yExit)
+          Option.when(enter <= exit && exit >= 0.0 && enter <= 1.0)(math.max(0.0, enter))
+        case _ =>
+          None
+      }
+    }
+
+  private def segmentAxisIntervalPure(
+    start: Double,
+    delta: Double,
+    min: Double,
+    max: Double
+  ): Option[(Double, Double)] =
+    if math.abs(delta) <= 0.000001 then
+      Option.when(start >= min && start <= max)((Double.NegativeInfinity, Double.PositiveInfinity))
+    else {
+      val first = (min - start) / delta
+      val second = (max - start) / delta
+      Some(math.min(first, second) -> math.max(first, second))
+    }
+
+  private def isPointInAabbPure(
+    point: BattleVector2,
+    minX: Double,
+    maxX: Double,
+    minY: Double,
+    maxY: Double
+  ): Boolean =
+    point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
+
+  private def segmentCircleHitTPure(
+    start: BattleVector2,
+    end: BattleVector2,
+    center: BattleVector2,
+    radius: Double
+  ): Option[Double] = {
     val dx = end.x - start.x
     val dy = end.y - start.y
     val radiusSquared = radius * radius
@@ -147,38 +206,11 @@ private[battle] object BattleArenaCollision {
     }
   }
 
-  def isBlockedPoint(point: BattleVector2, arena: BattleArenaContext): IO[Boolean] =
-    canPlayerOccupy(point, arena.playerCollisionRadius, arena).map(canOccupy => !canOccupy)
-
-  def canPlayerOccupy(point: BattleVector2, radius: Double, arena: BattleArenaContext): IO[Boolean] =
-    for
-      inWorld <- isInWorld(point, radius, arena)
-      collides <-
-        if inWorld then collidesWithArenaObstacles(point, radius, arena)
-        else IO.pure(false)
-    yield inWorld && !collides
-
-  def hasArenaLineOfSight(start: BattleVector2, end: BattleVector2, arena: BattleArenaContext): IO[Boolean] =
-    arena.arenaObstacles.foldLeft(IO.pure(true)) { (visibleIO, obstacle) =>
-      visibleIO.flatMap {
-        case false => IO.pure(false)
-        case true  => firstSegmentObstacleEnterT(start, end, arena.projectileShooterAdvantageRadius, obstacle).map(_.isEmpty)
-      }
-    }
-
-  def collidesWithArenaObstacles(point: BattleVector2, radius: Double, arena: BattleArenaContext): IO[Boolean] =
-    arena.arenaObstacles.foldLeft(IO.pure(false)) { (collidesIO, obstacle) =>
-      collidesIO.flatMap {
-        case true  => IO.pure(true)
-        case false => intersectsObstacle(point, radius, obstacle)
-      }
-    }
-
-  def intersectsObstacle(
+  private def intersectsObstaclePure(
     point: BattleVector2,
     radius: Double,
     obstacle: ArenaObstacle
-  ): IO[Boolean] = IO.pure {
+  ): Boolean = {
     obstacle.shape match {
       case ArenaObstacleShape.Aabb(size) =>
         val dx = math.abs(point.x - obstacle.position.x)

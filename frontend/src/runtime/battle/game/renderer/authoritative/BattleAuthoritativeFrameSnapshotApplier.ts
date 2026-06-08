@@ -46,7 +46,8 @@ export function applyAuthoritativeFrameToSnapshot({
     fallbackElapsedMs: authoritativeElapsedMs,
     nowMs: frameReceivedAtMs
   });
-  snapshot.worldSize = { x: frame.worldSize.x, y: frame.worldSize.y };
+  snapshot.worldSize.x = frame.worldSize.x;
+  snapshot.worldSize.y = frame.worldSize.y;
   syncBattleRuntimeAuthoritativeSlowFields(snapshot.slowFields, frame.slowFields);
   syncBattleRuntimeAuthoritativeWeaponPickups(snapshot.weaponPickups, frame.pickups);
   syncBattleRuntimeAuthoritativeItemPickups(snapshot.itemPickups, frame.pickups);

@@ -15,6 +15,7 @@ import type {
   RemoteHeroViewDiagnostics,
   RemoteHeroViewDiagnosticsRecordInput,
   RemoteHeroViewDiagnosticsState,
+  RemoteViewInterpolationDiagnostics,
   RemoteProjectileBirthDiagnosticSample,
   RemoteProjectileBirthDiagnosticsRecordInput,
   RemoteProjectileTerminalDiagnosticSample,
@@ -40,6 +41,7 @@ export type {
 const MAX_REMOTE_HERO_SAMPLES = 360;
 const MAX_REMOTE_PROJECTILE_BIRTH_SAMPLES = 180;
 const MAX_REMOTE_PROJECTILE_TERMINAL_SAMPLES = 180;
+const REMOTE_VIEW_DIAGNOSTICS_PUBLISH_MIN_INTERVAL_MS = 120;
 const MOTION_DISTANCE_EPSILON = 0.001;
 
 const remoteHeroStates = new Map<string, RemoteHeroViewDiagnosticsState>();
@@ -52,8 +54,9 @@ let remoteProjectileTerminalCount = 0;
 let remoteProjectileTerminalFirstAtMs: number | null = null;
 let remoteProjectileTerminalLastAtMs: number | null = null;
 const remoteProjectileTerminalSamples: RemoteProjectileTerminalDiagnosticSample[] = [];
+let lastRemoteViewDiagnosticsPublishAtMs = -Infinity;
 
-publishRemoteViewDiagnostics();
+publishRemoteViewDiagnostics({ force: true });
 
 export function recordRemoteHeroViewDiagnostics(input: RemoteHeroViewDiagnosticsRecordInput): void {
   if (!isBattleDiagnosticsEnabled()) {
@@ -84,6 +87,9 @@ export function recordRemoteHeroViewDiagnostics(input: RemoteHeroViewDiagnostics
   const facing = typeof input.facing === "number" && Number.isFinite(input.facing) ? input.facing : null;
   const targetFacing =
     typeof input.targetFacing === "number" && Number.isFinite(input.targetFacing) ? input.targetFacing : null;
+  const interpolationSource = normalizeInterpolationSource(input.interpolationSource);
+  const interpolationSampleCount = toFiniteRemoteViewDiagnosticsNumberOrNull(input.interpolationSampleCount);
+  const interpolationDelayMs = toFiniteRemoteViewDiagnosticsNumberOrNull(input.interpolationDelayMs);
 
   const state: RemoteHeroViewDiagnosticsState = previous ?? {
     heroId: input.heroId,
@@ -134,7 +140,10 @@ export function recordRemoteHeroViewDiagnostics(input: RemoteHeroViewDiagnostics
       targetFacing,
       displayToTargetDistance,
       displayMotionDelta,
-      targetMotionDelta
+      targetMotionDelta,
+      interpolationSource,
+      interpolationSampleCount,
+      interpolationDelayMs
     },
     MAX_REMOTE_HERO_SAMPLES
   );
@@ -248,11 +257,17 @@ export function recordRemoteProjectileTerminalDiagnostics(input: RemoteProjectil
   publishRemoteViewDiagnostics();
 }
 
-function publishRemoteViewDiagnostics(): void {
+function publishRemoteViewDiagnostics(options: { force?: boolean } = {}): void {
   const diagnosticsRoot = getBattleDiagnosticsRoot<SlayDemoBattleDiagnosticsRoot>();
   if (!diagnosticsRoot) {
     return;
   }
+
+  const currentMs = nowMs();
+  if (!options.force && currentMs - lastRemoteViewDiagnosticsPublishAtMs < REMOTE_VIEW_DIAGNOSTICS_PUBLISH_MIN_INTERVAL_MS) {
+    return;
+  }
+  lastRemoteViewDiagnosticsPublishAtMs = currentMs;
 
   diagnosticsRoot.remoteView = createSnapshot();
 }
@@ -319,6 +334,7 @@ function createHeroSnapshot(state: RemoteHeroViewDiagnosticsState): RemoteHeroVi
     ),
     displayMotionDeltaSummary: summarizeRemoteHeroMetric(state.recentSamples, (sample) => sample.displayMotionDelta),
     targetMotionDeltaSummary: summarizeRemoteHeroMetric(state.recentSamples, (sample) => sample.targetMotionDelta),
+    interpolation: summarizeRemoteHeroInterpolation(state.recentSamples),
     totalDisplayMotionDistance: state.totalDisplayMotionDistance,
     totalTargetMotionDistance: state.totalTargetMotionDistance,
     recentSamples: state.recentSamples.map(cloneRemoteHeroSample),
@@ -334,6 +350,41 @@ function pushSample<TSample>(samples: TSample[], sample: TSample, maxSamples: nu
   if (samples.length > maxSamples) {
     samples.splice(0, samples.length - maxSamples);
   }
+}
+
+function summarizeRemoteHeroInterpolation(
+  samples: readonly { interpolationSource: string | null }[]
+): RemoteViewInterpolationDiagnostics {
+  let interpolatedCount = 0;
+  let fallbackCount = 0;
+  let snapshotCount = 0;
+  let unknownCount = 0;
+
+  samples.forEach((sample) => {
+    if (sample.interpolationSource === "interpolated") {
+      interpolatedCount += 1;
+    } else if (sample.interpolationSource === "fallback") {
+      fallbackCount += 1;
+    } else if (sample.interpolationSource === "snapshot") {
+      snapshotCount += 1;
+    } else {
+      unknownCount += 1;
+    }
+  });
+
+  const interpolationDecisionCount = interpolatedCount + fallbackCount;
+  return {
+    sampleCount: samples.length,
+    interpolatedCount,
+    fallbackCount,
+    snapshotCount,
+    unknownCount,
+    hitRate: interpolationDecisionCount > 0 ? interpolatedCount / interpolationDecisionCount : null
+  };
+}
+
+function normalizeInterpolationSource(value: unknown): "interpolated" | "fallback" | "snapshot" | null {
+  return value === "interpolated" || value === "fallback" || value === "snapshot" ? value : null;
 }
 
 function nowMs(): number {

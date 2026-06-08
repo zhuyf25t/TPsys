@@ -1,6 +1,7 @@
 import type { BattleHeroViewState as Hero } from "../../../../objects/battle/microservices/actors/objects/player/BattleHeroViewState";
 import { WEAPON_SWITCH_MS } from "../../game/objects/BattleGameConstants";
 import {
+  advanceWeaponSwitchTimerState,
   beginWeaponSwitchIndexTransaction,
   beginWeaponSwitchTransaction,
   type WeaponSwitchTransactionResult
@@ -25,12 +26,13 @@ export interface WeaponSwitchCommandRequestContext {
   switchWeaponIndex: number | null;
 }
 
+const WHEEL_SWITCH_DUPLICATE_WINDOW_MS = 80;
+
 export class WeaponSwitchStateBridge {
   private pendingWeaponIndex: number | null = null;
   private weaponSwitchRemainingMs = 0;
   private weaponSwitchTotalMs = 0;
   private lastWheelHandledAt = 0;
-  private lastWheelHandledDeltaY = 0;
 
   public getState(): WeaponSwitchStateSnapshot {
     return {
@@ -65,12 +67,11 @@ export class WeaponSwitchStateBridge {
   }
 
   public requestWheelSwitch(context: WeaponSwitchWheelRequestContext): WeaponSwitchTransactionResult | null {
-    if (Math.abs(context.deltaY - this.lastWheelHandledDeltaY) < 0.01 && context.nowMs - this.lastWheelHandledAt < 50) {
+    if (context.nowMs - this.lastWheelHandledAt < WHEEL_SWITCH_DUPLICATE_WINDOW_MS) {
       return null;
     }
 
     this.lastWheelHandledAt = context.nowMs;
-    this.lastWheelHandledDeltaY = context.deltaY;
     return this.beginSwitchTransaction(context.player, context.switchDirection);
   }
 
@@ -80,6 +81,20 @@ export class WeaponSwitchStateBridge {
     }
 
     return this.beginSwitchTransaction(context.player, context.switchDirection);
+  }
+
+  public advancePreviewTimer(deltaMs: number, weaponCount: number): void {
+    const nextState = advanceWeaponSwitchTimerState({
+      deltaMs,
+      weaponCount,
+      pendingWeaponIndex: this.pendingWeaponIndex,
+      weaponSwitchRemainingMs: this.weaponSwitchRemainingMs,
+      weaponSwitchTotalMs: this.weaponSwitchTotalMs
+    });
+
+    this.pendingWeaponIndex = nextState.pendingWeaponIndex;
+    this.weaponSwitchRemainingMs = nextState.weaponSwitchRemainingMs;
+    this.weaponSwitchTotalMs = nextState.weaponSwitchTotalMs;
   }
 
   private beginSwitchTransaction(player: Hero, switchDirection: -1 | 0 | 1): WeaponSwitchTransactionResult {

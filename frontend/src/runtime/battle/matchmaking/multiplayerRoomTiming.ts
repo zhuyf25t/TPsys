@@ -33,6 +33,10 @@ export function resolveSharedQueueRemainingMs(
     return 0;
   }
 
+  if (queueState.startPaused) {
+    return Math.max(0, queueState.pausedRemainingMs ?? queueState.durationMs);
+  }
+
   const sharedNowMs = resolveSharedRoomNowMs(queueState, clientNowMs);
   if (sharedNowMs === null) {
     return null;

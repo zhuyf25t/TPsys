@@ -25,12 +25,16 @@ private[battle] object BattleQueueRoomLifecycleRules {
       participants = Vector.empty,
       capacity = capacity,
       durationMs = matchmakingDuration,
+      startGate = QueueRoomStartGate.Running,
+      chatMessages = Vector.empty,
       lifecycle = QueueRoomLifecycle.Waiting
     ))
 
   /** 中文名：开始决策（startDecision）。游戏职责：用 ADT 表达等待房间是否应该进入战斗，避免服务层用 Boolean/if-else 模拟房间状态机。 */
   def startDecision(room: QueueRoom, now: EpochMillis): IO[QueueRoomStartDecision] =
     IO.pure(room.lifecycle match {
+      case QueueRoomLifecycle.Waiting if QueueRoomStartGate.isPaused(room.startGate) =>
+        QueueRoomStartDecision.Keep
       case QueueRoomLifecycle.Waiting if room.participants.nonEmpty && now.value >= room.deadline.value =>
         QueueRoomStartDecision.Start
       case _ =>

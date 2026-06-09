@@ -3,5 +3,6 @@ export interface BattleRoomHeartbeatAPIMessageRequest {
   roomId?: string;
   ticketId?: string;
   handle?: string;
+  startPaused?: boolean;
+  chatMessage?: string;
 }
-

@@ -90,9 +90,11 @@ final class InMemoryBattleQueueService private (
   override def heartbeat(request: RealtimeRoomHeartbeatCommand): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
     for
       now <- currentTime
-      result <- updateAdvancedState(now) { advancedState =>
-        heartbeatTransition(advancedState, request, now)
-      }
+      result <-
+        if request.startPaused.contains(true) then heartbeatWithPausePriority(request, now)
+        else updateAdvancedState(now) { advancedState =>
+          heartbeatTransition(advancedState, request, now)
+        }
     yield result
 
   /** 中文名：标记战斗结束（markBattleFinished）。游戏职责：把已启动战斗对应的等待房间推进到 Finished ADT 状态。 */
@@ -143,6 +145,24 @@ final class InMemoryBattleQueueService private (
               nextState <- state.withRoom(updatedRoom)
             yield nextState -> Right(snapshot)
         }
+    }
+
+  private def heartbeatWithPausePriority(
+    request: RealtimeRoomHeartbeatCommand,
+    now: EpochMillis
+  ): IO[Either[BattleRoomError, RealtimeRoomSnapshot]] =
+    updateState { currentState =>
+      for
+        heartbeatResult <- heartbeatTransition(currentState, request, now)
+        (stateAfterHeartbeat, resultAfterHeartbeat) = heartbeatResult
+        advancedState <- advanceRooms(stateAfterHeartbeat, now)
+        refreshedResult <- resultAfterHeartbeat match {
+          case Left(error) =>
+            IO.pure(Left(error))
+          case Right(snapshot) =>
+            roomSnapshotResult(advancedState, snapshot.roomId, now)
+        }
+      yield advancedState -> refreshedResult
     }
 
   private def selectJoinRoom(

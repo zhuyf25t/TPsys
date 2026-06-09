@@ -330,6 +330,8 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
     ContractAssertions.assertEquals("room snapshot status", response.status, 200)
     ContractAssertions.assertContains("room snapshot id", response.body, """"roomId":"room-1"""")
     ContractAssertions.assertContains("room snapshot phase", response.body, """"phase":"waiting"""")
+    ContractAssertions.assertContains("room snapshot start paused", response.body, """"startPaused":false""")
+    ContractAssertions.assertContains("room snapshot chat messages", response.body, """"chatMessages":[]""")
     ContractAssertions.assertEquals("room snapshot requested id", service.snapshotRoomIds, Vector(RoomId("room-1")))
 
   private def heartbeatParsesPathAndBody(): Unit =
@@ -337,7 +339,7 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(queueService = service),
       Request[IO](method = Method.POST, uri = uri"/api/battleroomheartbeat")
-        .withEntity("""{"userToken":"session-tester","roomId":"room-1","ticketId":"ticket-1","handle":"Alice"}""")
+        .withEntity("""{"userToken":"session-tester","roomId":"room-1","ticketId":"ticket-1","handle":"Alice","startPaused":true,"chatMessage":"Ready check"}""")
     )
 
     ContractAssertions.assertEquals("room heartbeat status", response.status, 200)
@@ -346,6 +348,8 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
     ContractAssertions.assertEquals("room heartbeat command room", service.heartbeatCommands.head.roomId, Some(RoomId("room-1")))
     ContractAssertions.assertEquals("room heartbeat command ticket", service.heartbeatCommands.head.ticketId, Some(TicketId("ticket-1")))
     ContractAssertions.assertEquals("room heartbeat command handle", service.heartbeatCommands.head.handle, Some(PlayerHandle("Alice")))
+    ContractAssertions.assertEquals("room heartbeat command pause", service.heartbeatCommands.head.startPaused, Some(true))
+    ContractAssertions.assertEquals("room heartbeat command chat", service.heartbeatCommands.head.chatMessage.map(_.value), Some("Ready check"))
 
   private final class RecordingBattleRoomQueueService extends BattleQueueService:
     var snapshotRoomIds: Vector[RoomId] = Vector.empty

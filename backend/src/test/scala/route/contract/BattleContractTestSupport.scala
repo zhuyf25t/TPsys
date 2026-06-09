@@ -151,6 +151,9 @@ private[contract] object BattleContractFixtures:
       capacity = BattleCapacity(6),
       durationMs = DurationMillis(5000),
       phase = MatchmakingRoomPhase.Waiting,
+      startPaused = false,
+      pausedRemainingMs = None,
+      chatMessages = Vector.empty,
       finishedAt = None,
       battleSession = None
     )
@@ -187,6 +190,8 @@ private[contract] object BattleContractFixtures:
     RealtimeRoomSnapshot(
       roomId = roomId,
       battleMode = BattleMode.Default,
+      startsAt = EpochMillis(6000),
+      deadline = EpochMillis(6000),
       serverTime = EpochMillis(1500),
       participants = Vector(
         BattleQueueParticipant(
@@ -200,7 +205,11 @@ private[contract] object BattleContractFixtures:
         )
       ),
       capacity = BattleCapacity(6),
+      durationMs = DurationMillis(5000),
       phase = MatchmakingRoomPhase.Waiting,
+      startPaused = false,
+      pausedRemainingMs = None,
+      chatMessages = Vector.empty,
       finishedAt = None,
       battleSession = None
     )

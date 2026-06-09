@@ -839,6 +839,9 @@ private[contract] object GovernanceHttp4sRouteContractTest:
     ContractAssertions.assertEquals("governance notification kind", service.notificationCommands.head.kind, GovernanceReviewKind.ReplayReport)
     ContractAssertions.assertEquals("governance notification target type", service.notificationCommands.head.targetType, GovernanceReviewTargetType.Replay)
     ContractAssertions.assertEquals("governance notification target id", service.notificationCommands.head.targetId, GovernanceReviewTargetId("replay-1"))
+    ContractAssertions.assertEquals("governance notification target title", service.notificationCommands.head.targetTitle, GovernanceReviewTargetTitle("Suspicious replay"))
+    ContractAssertions.assertEquals("governance notification target path", service.notificationCommands.head.targetPath, GovernanceReviewTargetPath("/replays/replay-1"))
+    ContractAssertions.assertEquals("governance notification body", service.notificationCommands.head.body, GovernanceReviewBody("Please review this replay."))
 
   private def createNotificationRejectsInvalidKindBeforeService(): Unit =
     val service = RecordingGovernanceService()

@@ -156,6 +156,8 @@ private[contract] object BattleStateRuntimeContractTest:
   def run(): Unit =
     currentStateLazilyBootstrapsFromSessionLookup()
     zombieModeQueueStartsMultiplayerAuthoritativeSession()
+    queuePauseHeartbeatWinsAtDeadline()
+    queueStartGateRequiresHostAndResumeResetsCountdown()
     modeSpecificQueueCapacityRules()
     gasZoneDamagesPlayersOutsideCircle()
     winterZombieWeaponLoadoutsSeparateBossesFromPlainZombies()
@@ -303,6 +305,97 @@ private[contract] object BattleStateRuntimeContractTest:
       service.acceptCommand(command(PlayerId("bot-seat-2"), TicketId("ticket-bot"), 2L, battleId = battleId)).unsafeRunSync(),
       Left(BattleCommandSubmitError.BotCommandsNotSupported)
     )
+
+  private def queuePauseHeartbeatWinsAtDeadline(): Unit =
+    val clock = TestClock(10_000L)
+    val queue = InMemoryBattleQueueService.create(
+      capacity = BattleCapacity(4),
+      matchmakingDuration = DurationMillis(5_000L),
+      currentTimeMillis = clock.millis,
+      newBattleId = () => IO.pure(BattleId("battle-pause-deadline"))
+    ).unsafeRunSync()
+    val joined = queue.join(queueJoin("Alice", "session-alice", BattleMode.Default, "pause-deadline")).unsafeRunSync()
+
+    clock.now = 16_000L
+    val paused = queue.heartbeat(RealtimeRoomHeartbeatCommand(
+      roomId = Some(joined.roomId),
+      ticketId = Some(joined.ticketId),
+      handle = Some(PlayerHandle("Alice")),
+      startPaused = Some(true),
+      chatMessage = None
+    )).unsafeRunSync().fold(error => fail(s"pause heartbeat failed: $error"), identity)
+
+    ContractAssertions.assertEquals("pause heartbeat keeps waiting phase", paused.phase, MatchmakingRoomPhase.Waiting)
+    ContractAssertions.assertEquals("pause heartbeat records paused gate", paused.startPaused, true)
+    ContractAssertions.assertEquals("pause heartbeat has no battle session", paused.battleSession, None)
+
+    clock.now = 18_000L
+    val stillWaiting = queue.status(joined.ticketId).unsafeRunSync().fold(error => fail(s"paused status failed: $error"), identity)
+    ContractAssertions.assertEquals("paused room status stays waiting", stillWaiting.phase, MatchmakingRoomPhase.Waiting)
+    ContractAssertions.assertEquals("paused room status stays paused", stillWaiting.startPaused, true)
+    ContractAssertions.assertEquals("paused room status has no battle session", stillWaiting.battleSession, None)
+
+  private def queueStartGateRequiresHostAndResumeResetsCountdown(): Unit =
+    val clock = TestClock(10_000L)
+    val queue = InMemoryBattleQueueService.create(
+      capacity = BattleCapacity(4),
+      matchmakingDuration = DurationMillis(5_000L),
+      currentTimeMillis = clock.millis,
+      newBattleId = () => IO.pure(BattleId("battle-host-timer"))
+    ).unsafeRunSync()
+    val host = queue.join(queueJoin("Host", "session-host", BattleMode.Default, "host-timer-host")).unsafeRunSync()
+    val guest = queue.join(queueJoin("Guest", "session-guest", BattleMode.Default, "host-timer-guest")).unsafeRunSync()
+
+    clock.now = 11_000L
+    val guestPause = queue.heartbeat(RealtimeRoomHeartbeatCommand(
+      roomId = Some(host.roomId),
+      ticketId = Some(guest.ticketId),
+      handle = Some(PlayerHandle("Guest")),
+      startPaused = Some(true),
+      chatMessage = None
+    )).unsafeRunSync().fold(error => fail(s"guest pause heartbeat failed: $error"), identity)
+    ContractAssertions.assertEquals("guest cannot pause start gate", guestPause.startPaused, false)
+
+    clock.now = 12_000L
+    val hostPause = queue.heartbeat(RealtimeRoomHeartbeatCommand(
+      roomId = Some(host.roomId),
+      ticketId = Some(host.ticketId),
+      handle = Some(PlayerHandle("Host")),
+      startPaused = Some(true),
+      chatMessage = None
+    )).unsafeRunSync().fold(error => fail(s"host pause heartbeat failed: $error"), identity)
+    ContractAssertions.assertEquals("host can pause start gate", hostPause.startPaused, true)
+    ContractAssertions.assertEquals("host pause records remaining time", hostPause.pausedRemainingMs, Some(DurationMillis(3_000L)))
+
+    clock.now = 30_000L
+    val guestResume = queue.heartbeat(RealtimeRoomHeartbeatCommand(
+      roomId = Some(host.roomId),
+      ticketId = Some(guest.ticketId),
+      handle = Some(PlayerHandle("Guest")),
+      startPaused = Some(false),
+      chatMessage = None
+    )).unsafeRunSync().fold(error => fail(s"guest resume heartbeat failed: $error"), identity)
+    ContractAssertions.assertEquals("guest cannot resume start gate", guestResume.startPaused, true)
+    ContractAssertions.assertEquals("guest resume keeps no battle session", guestResume.battleSession, None)
+
+    clock.now = 32_000L
+    val hostResume = queue.heartbeat(RealtimeRoomHeartbeatCommand(
+      roomId = Some(host.roomId),
+      ticketId = Some(host.ticketId),
+      handle = Some(PlayerHandle("Host")),
+      startPaused = Some(false),
+      chatMessage = None
+    )).unsafeRunSync().fold(error => fail(s"host resume heartbeat failed: $error"), identity)
+    ContractAssertions.assertEquals("host resume unpauses start gate", hostResume.startPaused, false)
+    ContractAssertions.assertEquals("host resume clears paused remaining", hostResume.pausedRemainingMs, None)
+    ContractAssertions.assertEquals("host resume resets startsAt", hostResume.startsAt, EpochMillis(37_000L))
+    ContractAssertions.assertEquals("host resume resets deadline", hostResume.deadline, EpochMillis(37_000L))
+    ContractAssertions.assertEquals("host resume has no immediate battle session", hostResume.battleSession, None)
+
+    clock.now = 36_000L
+    val stillWaiting = queue.status(host.ticketId).unsafeRunSync().fold(error => fail(s"resumed status failed: $error"), identity)
+    ContractAssertions.assertEquals("resumed room waits for reset countdown", stillWaiting.phase, MatchmakingRoomPhase.Waiting)
+    ContractAssertions.assertEquals("resumed room has no battle session before reset deadline", stillWaiting.battleSession, None)
 
   private def modeSpecificQueueCapacityRules(): Unit =
     assertSingleJoinCapacity(

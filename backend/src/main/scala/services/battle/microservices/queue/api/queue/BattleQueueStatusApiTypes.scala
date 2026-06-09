@@ -4,6 +4,7 @@ import io.circe.{Decoder, DecodingFailure, Encoder}
 
 import services.battle.objects.BattleMode
 import services.battle.microservices.queue.api.shared.BattleQueueParticipantResponse.given
+import services.battle.microservices.queue.api.shared.BattleRoomChatMessageResponse.given
 import services.battle.microservices.queue.api.shared.BattleSessionDescriptorResponse.given
 import services.battle.microservices.queue.objects.queue.{BattleQueueSnapshot, BattleQueueStatusQuery, MatchmakingRoomPhase, TicketId}
 
@@ -24,7 +25,7 @@ object BattleQueueStatusRequest {
 object BattleQueueSnapshotResponse {
   given Encoder[BattleQueueSnapshot] =
     Encoder
-      .forProduct17(
+      .forProduct20(
         "ticketId",
         "playerId",
         "roomId",
@@ -40,6 +41,9 @@ object BattleQueueSnapshotResponse {
         "capacity",
         "durationMs",
         "phase",
+        "startPaused",
+        "pausedRemainingMs",
+        "chatMessages",
         "finishedAt",
         "battleSession"
       )((value: BattleQueueSnapshot) =>
@@ -59,6 +63,9 @@ object BattleQueueSnapshotResponse {
           value.capacity.value,
           value.durationMs.value,
           MatchmakingRoomPhase.wireValue(value.phase),
+          value.startPaused,
+          value.pausedRemainingMs.map(_.value),
+          value.chatMessages,
           value.finishedAt.map(_.value),
           value.battleSession
         )

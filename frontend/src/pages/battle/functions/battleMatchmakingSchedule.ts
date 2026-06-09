@@ -73,7 +73,7 @@ export function resolveMatchStartDelayMs({
   remainingWaitMs,
   recheckMs
 }: MatchStartDelayInput): number {
-  if (backendQueueJoinPending || !queueState || hasSharedBattleSession(queueState)) {
+  if (backendQueueJoinPending || !queueState || queueState.startPaused || hasSharedBattleSession(queueState)) {
     return recheckMs;
   }
 

@@ -14,6 +14,8 @@ interface BattleMatchingLayerProps {
   selectedBattleModeId: MatchingOverlayProps["selectedBattleModeId"];
   battleModeOptions: MatchingOverlayProps["battleModeOptions"];
   onBattleModeChange: MatchingOverlayProps["onBattleModeChange"];
+  onStartPausedChange: MatchingOverlayProps["onStartPausedChange"];
+  onSendChatMessage: MatchingOverlayProps["onSendChatMessage"];
 }
 
 export function BattleMatchingLayer({
@@ -24,7 +26,9 @@ export function BattleMatchingLayer({
   queueState,
   selectedBattleModeId,
   battleModeOptions,
-  onBattleModeChange
+  onBattleModeChange,
+  onStartPausedChange,
+  onSendChatMessage
 }: BattleMatchingLayerProps) {
   if (entryBlockNotice) {
     return <BattleEntryBlockedOverlay message={entryBlockNotice} />;
@@ -42,6 +46,8 @@ export function BattleMatchingLayer({
       selectedBattleModeId={selectedBattleModeId}
       battleModeOptions={battleModeOptions}
       onBattleModeChange={onBattleModeChange}
+      onStartPausedChange={onStartPausedChange}
+      onSendChatMessage={onSendChatMessage}
     />
   );
 }

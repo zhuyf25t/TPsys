@@ -4,6 +4,7 @@ import io.circe.Encoder
 import services.battle.objects.BattleMode
 import services.battle.microservices.queue.objects.queue.{
   BattleQueueParticipant,
+  BattleRoomChatMessage,
   BattleSessionBootstrap,
   BattleSessionBootstrapSeat,
   BattleSessionDescriptor,
@@ -26,6 +27,20 @@ object BattleQueueParticipantResponse {
           )
       )
       .mapJson(_.dropNullValues)
+}
+
+object BattleRoomChatMessageResponse {
+  given Encoder[BattleRoomChatMessage] =
+    Encoder.forProduct5("messageId", "authorPlayerId", "authorHandle", "body", "createdAt")(
+      (value: BattleRoomChatMessage) =>
+        (
+          value.messageId.value,
+          value.authorPlayerId.value,
+          value.authorHandle.value,
+          value.body.value,
+          value.createdAt.value
+        )
+    )
 }
 
 object BattleSessionRosterEntryResponse {

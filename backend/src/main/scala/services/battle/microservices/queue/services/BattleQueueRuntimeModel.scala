@@ -13,6 +13,7 @@ import services.battle.microservices.queue.objects.queue.{
   BattleCapacity,
   BattleQueueParticipant,
   BattleQueueSnapshot,
+  BattleRoomChatMessage,
   BattleSessionDescriptor,
   MatchmakingRoomPhase,
   QueueRequestId,
@@ -58,6 +59,8 @@ private[battle] final case class QueueRoom(
   participants: Vector[QueueParticipantEntry],
   capacity: BattleCapacity,
   durationMs: DurationMillis,
+  startGate: QueueRoomStartGate,
+  chatMessages: Vector[BattleRoomChatMessage],
   lifecycle: QueueRoomLifecycle
 ) {
   def phase: IO[MatchmakingRoomPhase] =
@@ -72,8 +75,48 @@ private[battle] final case class QueueRoom(
   def isWaiting: IO[Boolean] =
     IO.pure(lifecycle == QueueRoomLifecycle.Waiting)
 
+  def pauseStart(now: EpochMillis): IO[QueueRoom] =
+    startGate match {
+      case QueueRoomStartGate.Running =>
+        val remainingMs = math.max(0L, deadline.value - now.value)
+        IO.pure(copy(startGate = QueueRoomStartGate.Paused(DurationMillis(remainingMs))))
+      case QueueRoomStartGate.Paused(_) =>
+        IO.pure(this)
+    }
+
+  def resumeStart(now: EpochMillis): IO[QueueRoom] =
+    startGate match {
+      case QueueRoomStartGate.Paused(_) =>
+        val nextStartAt = EpochMillis(now.value + durationMs.value)
+        IO.pure(copy(startsAt = nextStartAt, deadline = nextStartAt, startGate = QueueRoomStartGate.Running))
+      case QueueRoomStartGate.Running =>
+        IO.pure(this)
+    }
+
+  def isHost(entry: QueueParticipantEntry): Boolean =
+    participants.headOption.exists(_.playerId == entry.playerId)
+
   def markFinished(finishedAt: EpochMillis): IO[QueueRoom] =
     QueueRoomLifecycle.markFinished(lifecycle, finishedAt).map(nextLifecycle => copy(lifecycle = nextLifecycle))
+}
+
+private[battle] enum QueueRoomStartGate {
+  case Running
+  case Paused(remainingMs: DurationMillis)
+}
+
+private[battle] object QueueRoomStartGate {
+  def isPaused(startGate: QueueRoomStartGate): Boolean =
+    startGate match {
+      case QueueRoomStartGate.Paused(_) => true
+      case QueueRoomStartGate.Running   => false
+    }
+
+  def pausedRemaining(startGate: QueueRoomStartGate): Option[DurationMillis] =
+    startGate match {
+      case QueueRoomStartGate.Paused(remainingMs) => Some(remainingMs)
+      case QueueRoomStartGate.Running             => None
+    }
 }
 
 private[battle] enum QueueRoomLifecycle {
@@ -156,6 +199,9 @@ private[battle] object BattleQueueSnapshots {
         capacity = room.capacity,
         durationMs = room.durationMs,
         phase = phase,
+        startPaused = QueueRoomStartGate.isPaused(room.startGate),
+        pausedRemainingMs = QueueRoomStartGate.pausedRemaining(room.startGate),
+        chatMessages = room.chatMessages,
         finishedAt = finishedAt,
         battleSession = battleSession.map(_.copy(serverTime = now))
       )
@@ -169,10 +215,16 @@ private[battle] object BattleQueueSnapshots {
     yield RealtimeRoomSnapshot(
       roomId = room.roomId,
       battleMode = room.battleMode,
+      startsAt = room.startsAt,
+      deadline = room.deadline,
       serverTime = now,
       participants = room.participants.map(_.participant),
       capacity = room.capacity,
+      durationMs = room.durationMs,
       phase = phase,
+      startPaused = QueueRoomStartGate.isPaused(room.startGate),
+      pausedRemainingMs = QueueRoomStartGate.pausedRemaining(room.startGate),
+      chatMessages = room.chatMessages,
       finishedAt = finishedAt,
       battleSession = battleSession.map(_.copy(serverTime = now))
     )

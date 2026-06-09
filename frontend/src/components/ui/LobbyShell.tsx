@@ -66,7 +66,7 @@ export interface LobbyShellProps {
   rightDock?: ReactNode;
 }
 
-const lobbyVideoSrc = "/pics/demo.mp4";
+const lobbyVideoSrc = "/assets/lobby/coverbackground.mp4";
 
 /** 中文名称：大厅壳层（LobbyShell）。游戏职责：组织大厅背景、玩家面板、主操作区和快捷入口。 */
 export function LobbyShell({

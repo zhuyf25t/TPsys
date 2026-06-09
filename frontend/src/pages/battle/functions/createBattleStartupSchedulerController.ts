@@ -198,6 +198,14 @@ export function createBattleStartupSchedulerController({
       return;
     }
 
+    if (queueStateRef.current.startPaused) {
+      clearMatchStartTimer();
+      matchStartTimerRef.current = window.setTimeout(() => {
+        void startScheduledBattle();
+      }, matchStartRecheckMs);
+      return;
+    }
+
     const remainingWaitMs = resolveCurrentCountdownRemainingMs();
     if (remainingWaitMs > 0) {
       clearMatchStartTimer();

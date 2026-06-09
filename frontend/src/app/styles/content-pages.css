@@ -592,6 +592,35 @@ body:has(.text-shell) #app {
   justify-content: flex-end;
 }
 
+.mail-card__governance-source {
+  width: min(100%, 380px);
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 214, 112, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 214, 112, 0.045);
+  color: var(--text-1);
+  text-align: left;
+}
+
+.mail-card__governance-source small {
+  color: var(--gold-1);
+  font-weight: 800;
+}
+
+.mail-card__governance-source strong {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.mail-card__governance-source span {
+  color: var(--text-2);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  word-break: break-all;
+}
+
 .mail-card__action {
   display: inline-flex;
   align-items: center;

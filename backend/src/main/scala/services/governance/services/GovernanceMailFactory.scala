@@ -58,13 +58,20 @@ private[services] object GovernanceMailFactory {
   }
 
   private def reviewMailExcerpt(record: GovernanceReviewNotificationRecord): String = {
-    val targetType = GovernanceReviewTargetType.wireValue(record.targetType)
-    val path = if record.targetPath.value.isEmpty then "" else s" Path: ${record.targetPath.value}."
-    s"@${record.actorHandle.value} submitted ${GovernanceReviewKind.displayLabel(record.kind)} for ${reviewTargetLabel(record)} ($targetType:${record.targetId.value}). $path Body: ${record.body.value}"
+    val source = reviewSourceText(record)
+    val targetId = if record.targetId.value.isEmpty then "" else s" Target id: ${record.targetId.value}."
+    s"@${record.actorHandle.value} submitted ${GovernanceReviewKind.displayLabel(record.kind)}. Source: $source.$targetId Body: ${record.body.value}"
   }
 
   private def reviewTargetLabel(record: GovernanceReviewNotificationRecord): String =
     if record.targetTitle.value.trim.nonEmpty then record.targetTitle.value else record.targetId.value
+
+  private def reviewSourceText(record: GovernanceReviewNotificationRecord): String = {
+    val targetType = GovernanceReviewTargetType.wireValue(record.targetType)
+    val label = reviewTargetLabel(record)
+    val path = record.targetPath.value.trim
+    Vector(targetType, label, path).filter(_.nonEmpty).mkString(" / ")
+  }
 
   private def formatDelta(delta: ContributionDelta): String =
     if delta.value > 0 then s"+${delta.value}" else delta.value.toString

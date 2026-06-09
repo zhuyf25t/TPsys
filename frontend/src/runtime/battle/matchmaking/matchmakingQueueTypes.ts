@@ -6,6 +6,7 @@ import {
 } from "../../../objects/battle/objects/core/BattleCoreRules";
 import type {
   BattleModeIdDto,
+  BattleRoomChatMessageResponseDto,
   BattleQueueParticipantResponseDto,
   BattleSessionBootstrapResponseDto,
   BattleSessionBootstrapSeatResponseDto,
@@ -14,6 +15,8 @@ import type {
 } from "../../../objects/battle/microservices/queue/api/shared/BattleLobbySharedApiTypes";
 
 export interface MatchmakingQueueParticipant extends BattleQueueParticipantResponseDto {}
+
+export interface MatchmakingRoomChatMessage extends BattleRoomChatMessageResponseDto {}
 
 export interface MatchmakingBattleSessionRosterEntry extends BattleSessionRosterEntryResponseDto {}
 
@@ -52,6 +55,9 @@ export interface MatchmakingQueueState {
   capacity: number;
   durationMs: number;
   phase?: MatchmakingRoomPhase;
+  startPaused: boolean;
+  pausedRemainingMs?: number;
+  chatMessages: MatchmakingRoomChatMessage[];
   finishedAt?: number;
   battleSession?: MatchmakingBattleSessionDescriptor;
   source?: "backend" | "local";
@@ -64,6 +70,7 @@ export interface MatchmakingSlotState {
   detail: string;
   isInteractive: boolean;
   isLocalPlayer: boolean;
+  isHost: boolean;
 }
 
 export const MATCHMAKING_SLOT_COUNT = BATTLE_ARENA_PLAYER_CAPACITY;
@@ -90,6 +97,7 @@ export function buildMatchmakingSlots(
   const slotCount = resolveMatchmakingSlotCount(queueState, fallbackModeId);
   const normalizedLocalHandle = normalizeHandle(localHandle);
   const participants = dedupeParticipants(queueState?.participants ?? []);
+  const hostParticipant = participants[0];
   const localPlayerId = queueState?.playerId.trim() ?? "";
   const localParticipant = participants.find((participant) =>
     isLocalParticipant(participant, localPlayerId, normalizedLocalHandle)
@@ -100,12 +108,12 @@ export function buildMatchmakingSlots(
   const slots: MatchmakingSlotState[] = [];
 
   if (normalizedLocalHandle) {
-    slots.push(buildLocalSeat(localHandle, localParticipant, queueState));
+    slots.push(buildLocalSeat(localHandle, localParticipant, queueState, isHostParticipant(localParticipant, hostParticipant)));
   }
 
   const firstPlayerSlotNumber = slots.length + 1;
   otherParticipants.slice(0, slotCount - slots.length).forEach((participant, index) => {
-    slots.push(buildPlayerSeat(participant, firstPlayerSlotNumber + index));
+    slots.push(buildPlayerSeat(participant, firstPlayerSlotNumber + index, isHostParticipant(participant, hostParticipant)));
   });
 
   const remainingSeats = Math.max(0, slotCount - slots.length);
@@ -157,6 +165,8 @@ export function createLocalMatchmakingQueueState(handle: string): MatchmakingQue
     capacity,
     durationMs: MATCHMAKING_DURATION_MS,
     phase: "unknown",
+    startPaused: false,
+    chatMessages: [],
     source: "local"
   };
 }
@@ -164,7 +174,8 @@ export function createLocalMatchmakingQueueState(handle: string): MatchmakingQue
 function buildLocalSeat(
   localHandle: string,
   participant: MatchmakingQueueParticipant | undefined,
-  queueState: MatchmakingQueueState | null
+  queueState: MatchmakingQueueState | null,
+  isHost: boolean
 ): MatchmakingSlotState {
   const handle = participant?.handle ?? (normalizeHandle(localHandle) || "player");
 
@@ -174,18 +185,20 @@ function buildLocalSeat(
     title: handle,
     detail: queueState?.source === "local" ? "本地等待" : "你",
     isInteractive: true,
-    isLocalPlayer: true
+    isLocalPlayer: true,
+    isHost
   };
 }
 
-function buildPlayerSeat(participant: MatchmakingQueueParticipant, slotNumber: number): MatchmakingSlotState {
+function buildPlayerSeat(participant: MatchmakingQueueParticipant, slotNumber: number, isHost: boolean): MatchmakingSlotState {
   return {
     slotLabel: `S${slotNumber}`,
     kind: "player",
     title: participant.handle,
     detail: participant.rating === undefined ? "真人玩家" : `真人玩家 / ${participant.rating}`,
     isInteractive: false,
-    isLocalPlayer: false
+    isLocalPlayer: false,
+    isHost
   };
 }
 
@@ -198,7 +211,8 @@ function buildBotSeat(slotIndex: number): MatchmakingSlotState {
     title: profile?.displayName ?? `电脑 ${slotIndex + 1}`,
     detail: profile ? `电脑 / ${formatBotStrategyLabel(profile.strategyLabel)}` : "电脑 / 补位",
     isInteractive: false,
-    isLocalPlayer: false
+    isLocalPlayer: false,
+    isHost: false
   };
 }
 
@@ -226,7 +240,8 @@ function buildEmptySeat(slotNumber: number): MatchmakingSlotState {
     title: "空位",
     detail: "等待补位",
     isInteractive: false,
-    isLocalPlayer: false
+    isLocalPlayer: false,
+    isHost: false
   };
 }
 
@@ -287,4 +302,21 @@ function isSameParticipant(
   }
 
   return isLocalParticipant(participant, localPlayerId, normalizedLocalHandle);
+}
+
+function isHostParticipant(
+  participant: MatchmakingQueueParticipant | undefined,
+  hostParticipant: MatchmakingQueueParticipant | undefined
+): boolean {
+  if (!participant || !hostParticipant) {
+    return false;
+  }
+
+  const participantPlayerId = participant.playerId.trim();
+  const hostPlayerId = hostParticipant.playerId.trim();
+  if (participantPlayerId && hostPlayerId) {
+    return participantPlayerId === hostPlayerId;
+  }
+
+  return sameHandle(participant.handle, hostParticipant.handle);
 }

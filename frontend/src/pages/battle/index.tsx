@@ -24,6 +24,8 @@ export function BattlePage() {
           selectedBattleModeId={runtime.selectedBattleModeId}
           battleModeOptions={runtime.battleModeOptions}
           onBattleModeChange={runtime.selectBattleMode}
+          onStartPausedChange={runtime.setWaitingRoomStartPaused}
+          onSendChatMessage={runtime.sendWaitingRoomChatMessage}
         />
       }
       settlementOverlay={

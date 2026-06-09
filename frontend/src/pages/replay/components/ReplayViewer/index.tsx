@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FLOOR_TILE_SIZE, INNER_OBSTACLES, WORLD_SIZE } from "../../../../runtime/battle/game/objects/BattleGameConstants";
 import { ITEM_PICKUP_SPAWN_POINTS, WEAPON_PICKUP_SPAWN_POINTS } from "../../../../runtime/battle/game/functions/BattleSpawnFactory";
 import { buildReplayLiveTimeline, buildReplayRoomInsights, getReplayDisplayFrames } from "../../../../apis/replay/replayGateway";
-import { analyzeReplayFrameContinuity, hasMeaningfulReplayFrames } from "../../../../objects/replay/replayRecorder";
+import { REPLAY_CONTINUOUS_MAX_GAP_MS, analyzeReplayFrameContinuity, hasMeaningfulReplayFrames } from "../../../../objects/replay/replayRecorder";
 import type { ReplayFrame, ReplayHeroFrame, ReplayPickupFrame, ReplayPlayback, ReplayProjectileFrame } from "../../../../objects/replay/replayTypes";
 
 const PLAYBACK_SPEED = 6;
+const PLAYBACK_CONTINUITY_MAX_GAP_MS = REPLAY_CONTINUOUS_MAX_GAP_MS * PLAYBACK_SPEED;
 
 interface ReplayViewerProps {
   replay: ReplayPlayback;
@@ -37,27 +38,31 @@ export function ReplayViewer({ replay, onTimelineChange }: ReplayViewerProps) {
 
   const displayFrames = useMemo(() => getReplayDisplayFrames(replay), [replay]);
   const roomInsights = useMemo(() => buildReplayRoomInsights(replay), [replay]);
-  const frameContinuity = useMemo(() => analyzeReplayFrameContinuity(displayFrames), [displayFrames]);
-  const archiveContinuity = useMemo(() => analyzeReplayFrameContinuity(replay.frames, replay.durationMs), [replay.durationMs, replay.frames]);
   const totalMs = useMemo(() => {
-    const lastFrame = displayFrames[displayFrames.length - 1];
-    return lastFrame ? Math.max(1, frameContinuity.durationMs || lastFrame.elapsedMs) : Math.max(1, replay.durationMs || 1);
-  }, [displayFrames, frameContinuity.durationMs, replay.durationMs]);
+    const lastDisplayFrame = displayFrames[displayFrames.length - 1];
+    const latestArchiveElapsedMs = replay.frames.reduce((latestElapsedMs, frame) => Math.max(latestElapsedMs, frame.elapsedMs), 0);
+    return Math.max(1, replay.durationMs || 0, lastDisplayFrame?.elapsedMs ?? 0, latestArchiveElapsedMs);
+  }, [displayFrames, replay.durationMs, replay.frames]);
+  const frameContinuity = useMemo(() => analyzeReplayFrameContinuity(displayFrames, totalMs, PLAYBACK_CONTINUITY_MAX_GAP_MS), [displayFrames, totalMs]);
+  const archiveContinuity = useMemo(() => analyzeReplayFrameContinuity(replay.frames, replay.durationMs), [replay.durationMs, replay.frames]);
 
   const hasReplayFrames = displayFrames.length > 0;
   const hasVisualReplay = hasMeaningfulReplayFrames(displayFrames);
   const fullPlaybackAllowed = replay.playbackAvailable !== false;
-  const playableReplay = fullPlaybackAllowed && hasVisualReplay && frameContinuity.isContinuous;
+  const continuousReplay = frameContinuity.isContinuous;
+  const playableReplay = fullPlaybackAllowed && hasVisualReplay;
   const animatedReplay = playableReplay && displayFrames.length >= 2;
-  const sparseReplay = hasVisualReplay && (!playableReplay || displayFrames.length < 4);
+  const sparseReplay = hasVisualReplay && (!continuousReplay || displayFrames.length < 4);
   const normalizedTimeline = hasReplayFrames && archiveContinuity.maxGapMs > frameContinuity.maxGapMs;
   const reportedMaxGapMs = Math.max(frameContinuity.maxGapMs, archiveContinuity.maxGapMs);
   const capturedFrameCount = replay.frames.length;
-  const playbackModeLabel = playableReplay && displayFrames.length >= 4 ? "Full replay" : hasVisualReplay ? (fullPlaybackAllowed ? "Keyframe preview" : "Server keyframes") : "Summary only";
+  const playbackModeLabel = playableReplay && continuousReplay && displayFrames.length >= 4 ? "Full replay" : hasVisualReplay ? (fullPlaybackAllowed ? "Keyframe preview" : "Server keyframes") : "Summary only";
   const playbackStatusLabel = playableReplay
-    ? normalizedTimeline
-      ? `Timeline normalized / raw max gap ${formatGap(archiveContinuity.maxGapMs)}`
-      : roomInsights.statusLabel
+    ? continuousReplay
+      ? normalizedTimeline
+        ? `Timeline normalized / raw max gap ${formatGap(archiveContinuity.maxGapMs)}`
+        : roomInsights.statusLabel
+      : `Sparse keyframe playback / max gap ${formatGap(reportedMaxGapMs)}`
     : hasReplayFrames
       ? `Sparse capture / max gap ${formatGap(reportedMaxGapMs)}`
       : roomInsights.statusLabel;
@@ -384,7 +389,7 @@ function drawReplayFrame(canvas: HTMLCanvasElement, frame: ReplayFrame | null): 
     return;
   }
 
-  const viewport = createReplayViewport(frame.worldSize, width, height, 12);
+  const viewport = createReplayViewport(resolveReplayViewportWorldSize(frame), width, height, 12);
   drawArena(context, viewport);
   drawPickups(context, frame, viewport);
   drawProjectiles(context, frame, viewport);
@@ -825,6 +830,28 @@ function createReplayViewport(world: { x: number; y: number }, width: number, he
     scale,
     offsetX: padding + Math.max(0, (safeWidth - contentWidth) * 0.5),
     offsetY: padding + Math.max(0, (safeHeight - contentHeight) * 0.5)
+  };
+}
+
+function resolveReplayViewportWorldSize(frame: ReplayFrame): { x: number; y: number } {
+  const frameWorldWidth = Number.isFinite(frame.worldSize.x) ? frame.worldSize.x : 0;
+  const frameWorldHeight = Number.isFinite(frame.worldSize.y) ? frame.worldSize.y : 0;
+  const maxActorX = Math.max(
+    0,
+    ...frame.heroes.map((hero) => hero.position.x),
+    ...frame.projectiles.map((projectile) => projectile.position.x),
+    ...frame.pickups.map((pickup) => pickup.position.x)
+  );
+  const maxActorY = Math.max(
+    0,
+    ...frame.heroes.map((hero) => hero.position.y),
+    ...frame.projectiles.map((projectile) => projectile.position.y),
+    ...frame.pickups.map((pickup) => pickup.position.y)
+  );
+
+  return {
+    x: Math.max(WORLD_SIZE.x, frameWorldWidth, maxActorX),
+    y: Math.max(WORLD_SIZE.y, frameWorldHeight, maxActorY)
   };
 }
 

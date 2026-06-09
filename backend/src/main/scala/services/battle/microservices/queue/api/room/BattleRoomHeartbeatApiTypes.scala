@@ -2,7 +2,7 @@ package services.battle.microservices.queue.api.room
 
 import io.circe.{Decoder, HCursor}
 
-import services.battle.microservices.queue.objects.queue.{RealtimeRoomHeartbeatCommand, TicketId}
+import services.battle.microservices.queue.objects.queue.{BattleRoomChatText, RealtimeRoomHeartbeatCommand, TicketId}
 import services.battle.objects.core.RoomId
 import services.identity.objects.PlayerHandle
 
@@ -13,7 +13,9 @@ object BattleRoomHeartbeatRequest {
         RealtimeRoomHeartbeatCommand(
           roomId = optionalText(cursor, "roomId").map(RoomId.apply),
           ticketId = optionalText(cursor, "ticketId").map(TicketId.apply),
-          handle = optionalText(cursor, "handle").flatMap(PlayerHandle.forLookup)
+          handle = optionalText(cursor, "handle").flatMap(PlayerHandle.forLookup),
+          startPaused = cursor.downField("startPaused").focus.flatMap(_.asBoolean),
+          chatMessage = optionalText(cursor, "chatMessage").flatMap(BattleRoomChatText.fromWire)
         )
       )
     }

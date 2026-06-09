@@ -159,6 +159,7 @@ function MailCard({
   const governanceTargetPath = mail.governanceTargetPath?.trim() || "";
   const mailSourcePath = mail.sourcePath?.trim() || "";
   const mailSourceLabel = mail.sourceLabel?.trim() || "查看来源";
+  const governanceSource = isGovernancePendingMail ? getGovernanceMailSource(mail) : null;
   const matchedContributionAdjustment = isAdminUser ? findMatchingContributionAdjustment(mail, contributionAdjustments) : null;
   const mergedBattleLabel = getMergedBattleMailLabel(mail);
 
@@ -217,12 +218,19 @@ function MailCard({
         {mailSourcePath && !isGovernancePendingMail ? <SourceLink path={mailSourcePath} label={mailSourceLabel} /> : null}
         {isGovernancePendingMail ? (
           <div className="mail-card__actions">
-            {governanceTargetPath ? <SourceLink path={governanceTargetPath} label="打开来源" /> : null}
+            {governanceSource ? <GovernanceSourcePanel source={governanceSource} /> : null}
+            {governanceSource?.path ? <SourceLink path={governanceSource.path} label="打开来源" /> : null}
             {governanceActorHandle ? <small className="mail-card__action-status">处理 @{governanceActorHandle}</small> : null}
             {matchedContributionAdjustment ? (
               <small className="mail-card__action-status">已处理，已有裁决 {formatDelta(matchedContributionAdjustment.delta)}</small>
             ) : null}
-            {governanceActorHandle ? <UserActionDot handle={governanceActorHandle} sourceLabel={mail.subject} sourcePath={governanceTargetPath} /> : null}
+            {governanceActorHandle ? (
+              <UserActionDot
+                handle={governanceActorHandle}
+                sourceLabel={governanceSource?.label ?? mail.subject}
+                sourcePath={governanceSource?.path ?? governanceTargetPath}
+              />
+            ) : null}
           </div>
         ) : null}
         {canRespondToFriendRequest ? (
@@ -290,6 +298,60 @@ function SourceLink({ path, label }: { path: string; label: string }) {
       {label}
     </a>
   );
+}
+
+interface GovernanceMailSource {
+  label: string;
+  path: string;
+}
+
+function GovernanceSourcePanel({ source }: { source: GovernanceMailSource }) {
+  return (
+    <div className="mail-card__governance-source">
+      <small>来源</small>
+      <strong>{source.label}</strong>
+      {source.path ? <span>{source.path}</span> : null}
+    </div>
+  );
+}
+
+function getGovernanceMailSource(mail: MailSummary): GovernanceMailSource | null {
+  const path = mail.governanceTargetPath?.trim() || mail.sourcePath?.trim() || "";
+  const targetLabel = mail.governanceTargetLabel?.trim() || stripGovernanceSubjectPrefix(mail.subject);
+  const sourceType = getGovernanceSourceType(mail, path);
+  const label = [sourceType, targetLabel].filter(Boolean).join(" / ");
+
+  if (!label && !path) {
+    return null;
+  }
+
+  return {
+    label: label || path,
+    path
+  };
+}
+
+function getGovernanceSourceType(mail: MailSummary, path: string): string {
+  const normalizedPath = path.trim().toLowerCase();
+  const normalizedSubject = mail.subject.trim().toLowerCase();
+
+  if (normalizedPath.startsWith("/replay/") || normalizedSubject.includes("replay")) {
+    return "回放";
+  }
+
+  if (normalizedPath.startsWith("/discussion/") || normalizedSubject.includes("discussion")) {
+    return "论坛";
+  }
+
+  if (normalizedPath.startsWith("/profile/") || normalizedSubject.includes("bot")) {
+    return "Bot";
+  }
+
+  return "治理";
+}
+
+function stripGovernanceSubjectPrefix(subject: string): string {
+  return subject.replace(/^\[.*?]\s*/, "").trim();
 }
 
 function getMergedBattleMailLabel(mail: MailSummary): string | null {
@@ -405,7 +467,16 @@ function getFriendRequestStatusLabel(status: FriendRequestMailStatus, actionStat
 }
 
 function isPendingGovernanceSubject(subject: string): boolean {
-  return subject.startsWith("[待处理]") || subject.includes("待处理") || subject.includes("举报");
+  const normalizedSubject = subject.trim().toLowerCase();
+  return (
+    subject.startsWith("[待处理]") ||
+    subject.includes("待处理") ||
+    subject.includes("举报") ||
+    normalizedSubject.startsWith("[review]") ||
+    normalizedSubject.includes(" report") ||
+    normalizedSubject.includes(" proposal") ||
+    normalizedSubject.includes(" suggestion")
+  );
 }
 
 function getMailKindLabel(mail: MailSummary): string {

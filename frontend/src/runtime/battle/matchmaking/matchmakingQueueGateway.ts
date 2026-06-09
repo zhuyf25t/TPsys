@@ -19,6 +19,7 @@ import type {
   MatchmakingBattleSessionDescriptor,
   MatchmakingBattleSessionRosterEntry,
   MatchmakingQueueParticipant,
+  MatchmakingRoomChatMessage,
   MatchmakingQueueState
 } from "./matchmakingQueueTypes";
 import { isBattleVisitorHandle } from "../../../objects/battle/objects/core/BattleCoreRules";
@@ -107,10 +108,23 @@ export async function refreshMatchmakingRoomPresence(
   currentState: MatchmakingQueueState,
   handle: string
 ): Promise<MatchmakingQueueState | null> {
+  return updateMatchmakingRoomPresence(currentState, handle);
+}
+
+export async function updateMatchmakingRoomPresence(
+  currentState: MatchmakingQueueState,
+  handle: string,
+  options?: {
+    startPaused?: boolean;
+    chatMessage?: string;
+  }
+): Promise<MatchmakingQueueState | null> {
   const snapshot = await sendRealtimeRoomHeartbeat({
     roomId: currentState.roomId,
     ticketId: currentState.ticketId,
-    handle
+    handle,
+    ...(typeof options?.startPaused === "boolean" ? { startPaused: options.startPaused } : {}),
+    ...(options?.chatMessage?.trim() ? { chatMessage: options.chatMessage.trim() } : {})
   });
 
   return snapshot ? mergeRealtimeRoomSnapshot(currentState, snapshot) : null;
@@ -137,8 +151,11 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
   const mapId = readString(value.mapId);
   const mapLabel = readString(value.mapLabel);
   const phase = readMatchmakingRoomPhase(value.phase);
+  const startPaused = readBoolean(value.startPaused) ?? false;
+  const pausedRemainingMs = readNumber(value.pausedRemainingMs);
   const hasFinishedAt = Object.prototype.hasOwnProperty.call(value, "finishedAt");
   const hasBattleSession = Object.prototype.hasOwnProperty.call(value, "battleSession");
+  const hasPausedRemainingMs = Object.prototype.hasOwnProperty.call(value, "pausedRemainingMs");
 
   if (
     !ticketId ||
@@ -161,10 +178,13 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
   }
 
   const participants = normalizeRequiredArray(value.participants, normalizeParticipant);
+  const chatMessages = Array.isArray(value.chatMessages) ? normalizeRequiredArray(value.chatMessages, normalizeChatMessage) : [];
   const battleSession = normalizeBattleSessionDescriptor(value.battleSession);
   const finishedAt = readNumber(value.finishedAt);
   if (
     participants === null ||
+    chatMessages === null ||
+    (hasPausedRemainingMs && pausedRemainingMs === null) ||
     (hasFinishedAt && finishedAt === null) ||
     (hasBattleSession && battleSession === null)
   ) {
@@ -195,6 +215,9 @@ function normalizeQueueState(payload: unknown): MatchmakingQueueState | null {
     capacity: Math.max(1, capacity),
     durationMs: Math.max(0, durationMs),
     phase,
+    startPaused,
+    ...(pausedRemainingMs !== null ? { pausedRemainingMs: Math.max(0, pausedRemainingMs) } : {}),
+    chatMessages,
     ...(finishedAt !== null ? { finishedAt } : {}),
     ...(battleSession ? { battleSession } : {}),
     source: "backend"
@@ -223,13 +246,19 @@ function mergeRealtimeRoomSnapshot(
     modeLabel,
     mapId,
     mapLabel,
+    startsAt: snapshot.startsAt,
+    deadline: snapshot.deadline,
     serverTime: snapshot.serverTime,
     syncedAt,
     participants,
     players: participants,
     queuedHandles,
     capacity: Math.max(1, snapshot.capacity),
+    durationMs: Math.max(0, snapshot.durationMs),
     phase: snapshot.phase,
+    startPaused: snapshot.startPaused,
+    pausedRemainingMs: snapshot.pausedRemainingMs !== undefined ? Math.max(0, snapshot.pausedRemainingMs) : undefined,
+    chatMessages: snapshot.chatMessages,
     ...(snapshot.finishedAt !== undefined ? { finishedAt: snapshot.finishedAt } : {}),
     ...(battleSession ? { battleSession } : {}),
     source: "backend"
@@ -360,6 +389,30 @@ function normalizeBattleSessionBootstrap(payload: unknown): MatchmakingBattleSes
   }
 
   return { seats };
+}
+
+function normalizeChatMessage(payload: unknown): MatchmakingRoomChatMessage | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const value = payload as Partial<MatchmakingRoomChatMessage> & Record<string, unknown>;
+  const messageId = readString(value.messageId);
+  const authorPlayerId = readString(value.authorPlayerId);
+  const authorHandle = readString(value.authorHandle);
+  const body = readString(value.body);
+  const createdAt = readNumber(value.createdAt);
+  if (!messageId || !authorPlayerId || !authorHandle || !body || createdAt === null) {
+    return null;
+  }
+
+  return {
+    messageId,
+    authorPlayerId,
+    authorHandle,
+    body,
+    createdAt
+  };
 }
 
 function normalizeBattleSessionRosterEntry(payload: unknown): MatchmakingBattleSessionRosterEntry | null {
@@ -567,4 +620,8 @@ function readBattleModeId(value: unknown): BattleModeIdDto | null {
 
 function readNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }

@@ -43,6 +43,8 @@ export interface RealtimeRoomHeartbeatRequest {
   roomId: string;
   ticketId?: string;
   handle?: string;
+  startPaused?: boolean;
+  chatMessage?: string;
 }
 
 const REALTIME_ROOM_TIMEOUT_MS = BATTLE_RUNTIME_REQUEST_TIMEOUT_MS;
@@ -71,7 +73,9 @@ export async function sendRealtimeRoomHeartbeat(
   const messageRequest: BattleRoomHeartbeatAPIMessageRequest = {
     roomId: normalizedRoomId,
     ...(request.ticketId?.trim() ? { ticketId: request.ticketId.trim() } : {}),
-    ...(request.handle?.trim() ? { handle: request.handle.trim() } : {})
+    ...(request.handle?.trim() ? { handle: request.handle.trim() } : {}),
+    ...(typeof request.startPaused === "boolean" ? { startPaused: request.startPaused } : {}),
+    ...(request.chatMessage?.trim() ? { chatMessage: request.chatMessage.trim() } : {})
   };
 
   const response = await postBattleRoomHeartbeatAPIMessage(messageRequest, normalizeRealtimeRoomSnapshot, {
@@ -92,11 +96,17 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
   const modeLabel = readString(value.modeLabel);
   const mapId = readString(value.mapId);
   const mapLabel = readString(value.mapLabel);
+  const startsAt = readNumber(value.startsAt);
+  const deadline = readNumber(value.deadline);
   const serverTime = readNumber(value.serverTime);
   const capacity = readNumber(value.capacity);
+  const durationMs = readNumber(value.durationMs);
   const phase = readRealtimeRoomPhase(value.phase);
+  const startPaused = readBoolean(value.startPaused) ?? false;
+  const pausedRemainingMs = readNumber(value.pausedRemainingMs);
   const hasFinishedAt = Object.prototype.hasOwnProperty.call(value, "finishedAt");
   const hasBattleSession = Object.prototype.hasOwnProperty.call(value, "battleSession");
+  const hasPausedRemainingMs = Object.prototype.hasOwnProperty.call(value, "pausedRemainingMs");
 
   if (
     !roomId ||
@@ -104,8 +114,11 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
     !modeLabel ||
     !mapId ||
     !mapLabel ||
+    startsAt === null ||
+    deadline === null ||
     serverTime === null ||
     capacity === null ||
+    durationMs === null ||
     phase === null ||
     !Array.isArray(value.participants)
   ) {
@@ -113,10 +126,13 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
   }
 
   const participants = normalizeRequiredArray(value.participants, normalizeParticipant);
+  const chatMessages = Array.isArray(value.chatMessages) ? normalizeRequiredArray(value.chatMessages, normalizeChatMessage) : [];
   const battleSession = normalizeBattleSessionDescriptor(value.battleSession);
   const finishedAt = readNumber(value.finishedAt);
   if (
     participants === null ||
+    chatMessages === null ||
+    (hasPausedRemainingMs && pausedRemainingMs === null) ||
     (hasFinishedAt && finishedAt === null) ||
     (hasBattleSession && battleSession === null)
   ) {
@@ -129,10 +145,16 @@ function normalizeRealtimeRoomSnapshot(payload: unknown): RealtimeRoomSnapshot |
     modeLabel: battleModeDisplayLabel(modeId, modeLabel),
     mapId,
     mapLabel,
+    startsAt,
+    deadline,
     serverTime,
     participants,
     capacity: Math.max(1, capacity),
+    durationMs: Math.max(0, durationMs),
     phase,
+    startPaused,
+    ...(pausedRemainingMs !== null ? { pausedRemainingMs: Math.max(0, pausedRemainingMs) } : {}),
+    chatMessages,
     ...(finishedAt !== null ? { finishedAt } : {}),
     ...(battleSession ? { battleSession } : {})
   };
@@ -338,6 +360,30 @@ function readRealtimeRoomPhase(value: unknown): RealtimeRoomPhase | null {
   return value === "waiting" || value === "active" || value === "finished" || value === "unknown" ? value : null;
 }
 
+function normalizeChatMessage(payload: unknown): RealtimeRoomSnapshot["chatMessages"][number] | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const value = payload as Partial<RealtimeRoomSnapshot["chatMessages"][number]> & Record<string, unknown>;
+  const messageId = readString(value.messageId);
+  const authorPlayerId = readString(value.authorPlayerId);
+  const authorHandle = readString(value.authorHandle);
+  const body = readString(value.body);
+  const createdAt = readNumber(value.createdAt);
+  if (!messageId || !authorPlayerId || !authorHandle || !body || createdAt === null) {
+    return null;
+  }
+
+  return {
+    messageId,
+    authorPlayerId,
+    authorHandle,
+    body,
+    createdAt
+  };
+}
+
 function normalizeRequiredArray<T>(
   values: unknown[],
   normalize: (value: unknown) => T | null
@@ -366,4 +412,8 @@ function readBattleModeId(value: unknown): BattleModeIdDto | null {
 
 function readNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }

@@ -14,6 +14,26 @@ import services.battle.objects.core.{
 import services.battle.microservices.actors.objects.player.{BattleAvatarKey, BattleParticipantKind, BattleSkinKey, Rating}
 import services.identity.objects.{DisplayName, PlayerHandle}
 
+final case class BattleRoomChatText private (value: String) extends AnyVal
+
+object BattleRoomChatText {
+  private val MaxLength = 160
+
+  def fromWire(value: String): Option[BattleRoomChatText] =
+    Option(value)
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .map(text => BattleRoomChatText(text.take(MaxLength)))
+}
+
+final case class BattleRoomChatMessage(
+  messageId: BattleRoomChatMessageId,
+  authorPlayerId: PlayerId,
+  authorHandle: PlayerHandle,
+  body: BattleRoomChatText,
+  createdAt: EpochMillis
+)
+
 final case class BattleQueueParticipant(
   playerId: PlayerId,
   handle: PlayerHandle,
@@ -83,6 +103,9 @@ final case class BattleQueueSnapshot(
   capacity: BattleCapacity,
   durationMs: DurationMillis,
   phase: MatchmakingRoomPhase,
+  startPaused: Boolean,
+  pausedRemainingMs: Option[DurationMillis],
+  chatMessages: Vector[BattleRoomChatMessage],
   finishedAt: Option[EpochMillis],
   battleSession: Option[BattleSessionDescriptor]
 )
@@ -90,10 +113,16 @@ final case class BattleQueueSnapshot(
 final case class RealtimeRoomSnapshot(
   roomId: RoomId,
   battleMode: BattleMode,
+  startsAt: EpochMillis,
+  deadline: EpochMillis,
   serverTime: EpochMillis,
   participants: Vector[BattleQueueParticipant],
   capacity: BattleCapacity,
+  durationMs: DurationMillis,
   phase: MatchmakingRoomPhase,
+  startPaused: Boolean,
+  pausedRemainingMs: Option[DurationMillis],
+  chatMessages: Vector[BattleRoomChatMessage],
   finishedAt: Option[EpochMillis],
   battleSession: Option[BattleSessionDescriptor]
 )

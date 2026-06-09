@@ -22,7 +22,9 @@ final case class BattleQueueLeaveCommand(ticketId: TicketId)
 final case class RealtimeRoomHeartbeatCommand(
   roomId: Option[RoomId],
   ticketId: Option[TicketId],
-  handle: Option[PlayerHandle]
+  handle: Option[PlayerHandle],
+  startPaused: Option[Boolean],
+  chatMessage: Option[BattleRoomChatText]
 )
 
 final case class BattleRoomSnapshotQuery(roomId: RoomId)

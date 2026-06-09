@@ -2,8 +2,7 @@ import { getLocalReplayPlaybackById, loadLocalReplayPlaybackById, saveLocalRepla
 import {
   REPLAY_PERSIST_FRAME_LIMIT,
   compactReplayFrames,
-  hasMeaningfulReplayFrames as hasMeaningfulReplayFrameList,
-  normalizeReplayFramesForPlayback
+  hasMeaningfulReplayFrames as hasMeaningfulReplayFrameList
 } from "../../objects/replay/replayRecorder";
 import {
   loadReplayCatalog as loadReplayCatalogFromBackend,
@@ -375,28 +374,7 @@ function normalizeReplayDisplayFrames(frames: ReplayFrame[], limit: number): Rep
     return [];
   }
 
-  const signalFrames = collapseReplayDisplayFrames(compactFrames);
-  return normalizeReplayFramesForPlayback(signalFrames, limit).map((frame) => cloneReplayFrame(frame));
-}
-
-function collapseReplayDisplayFrames(frames: ReplayFrame[]): ReplayFrame[] {
-  if (frames.length === 0) {
-    return [];
-  }
-
-  const collapsedFrames: ReplayFrame[] = [cloneReplayFrame(frames[0])];
-
-  for (let index = 1; index < frames.length; index += 1) {
-    const previousFrame = collapsedFrames[collapsedFrames.length - 1];
-    const currentFrame = frames[index];
-    if (!hasReplayDisplaySignalChange(previousFrame, currentFrame)) {
-      continue;
-    }
-
-    collapsedFrames.push(cloneReplayFrame(currentFrame));
-  }
-
-  return collapsedFrames;
+  return compactFrames.map((frame) => cloneReplayFrame(frame));
 }
 
 function getReplayDistance(left: { x: number; y: number }, right: { x: number; y: number }): number {
@@ -844,22 +822,6 @@ function getReplayAngleDelta(left: number, right: number): number {
   return Math.min(delta, Math.PI * 2 - delta);
 }
 
-function hasReplayDisplaySignalChange(previousFrame: ReplayFrame, currentFrame: ReplayFrame): boolean {
-  if (hasReplayHeroProgressChange(previousFrame, currentFrame)) {
-    return true;
-  }
-
-  if (hasReplayProjectileKeyChange(previousFrame, currentFrame)) {
-    return true;
-  }
-
-  if (hasReplayPickupKeyChange(previousFrame, currentFrame)) {
-    return true;
-  }
-
-  return hasReplayEventMessageChange(previousFrame, currentFrame);
-}
-
 function hasReplayProjectileKeyChange(previousFrame: ReplayFrame, currentFrame: ReplayFrame): boolean {
   const previousProjectiles = previousFrame.projectiles.filter((projectile) => projectile.alive);
   const currentProjectiles = currentFrame.projectiles.filter((projectile) => projectile.alive);
@@ -886,12 +848,6 @@ function hasReplayPickupKeyChange(previousFrame: ReplayFrame, currentFrame: Repl
     const previousPickup = previousFrame.pickups.find((candidate) => candidate.id === pickup.id);
     return !previousPickup || previousPickup.kind !== pickup.kind || previousPickup.available !== pickup.available;
   });
-}
-
-function hasReplayEventMessageChange(previousFrame: ReplayFrame, currentFrame: ReplayFrame): boolean {
-  const previousMessage = lastNonEmptyMessage(previousFrame.eventMessages);
-  const currentMessage = lastNonEmptyMessage(currentFrame.eventMessages);
-  return Boolean(currentMessage && currentMessage !== previousMessage);
 }
 
 function dedupeReplayMoments(moments: ReplayTimelineMoment[]): ReplayTimelineMoment[] {

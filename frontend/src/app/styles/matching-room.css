@@ -813,16 +813,26 @@
   margin-top: 2px;
 }
 
-.matching-room__chat-input span {
+.matching-room__chat-input input {
   display: flex;
   align-items: center;
   min-height: 40px;
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(246, 238, 224, 0.88);
   background: rgba(0, 0, 0, 0.26);
   font-size: 12px;
+  outline: none;
+}
+
+.matching-room__chat-input input::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.matching-room__chat-input input:focus {
+  border-color: rgba(85, 215, 255, 0.48);
+  box-shadow: 0 0 0 2px rgba(85, 215, 255, 0.12);
 }
 
 .matching-room__chat-input button {
@@ -832,6 +842,11 @@
   background: rgba(255, 184, 44, 0.11);
   font-size: 22px;
   font-weight: 1000;
+}
+
+.matching-room__chat-input button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .matching-room__activity {
@@ -920,9 +935,29 @@
     linear-gradient(180deg, #ffe19a, #d48826);
   color: #1b1104;
   box-shadow: 0 0 42px rgba(255, 182, 48, 0.48), inset 0 0 24px rgba(255, 255, 255, 0.28);
-  cursor: default;
+  cursor: pointer;
   flex-direction: column;
   gap: 2px;
+}
+
+.matching-room__ready-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.matching-room__ready-button--paused {
+  border-color: rgba(102, 221, 255, 0.78);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 4px, transparent 4px 12px),
+    linear-gradient(180deg, #67dfff, #257a92);
+  color: #041015;
+  box-shadow: 0 0 34px rgba(85, 215, 255, 0.38), inset 0 0 24px rgba(255, 255, 255, 0.22);
+}
+
+.matching-room__timer-ring--paused {
+  background:
+    conic-gradient(rgba(102, 221, 255, 0.72) 0deg, rgba(255, 255, 255, 0.08) 0deg),
+    radial-gradient(circle, #060706 0 58%, transparent 60% 100%);
 }
 
 .matching-room__ready-button strong {
@@ -1170,7 +1205,7 @@
     padding-bottom: 6px;
   }
 
-  .matching-room__chat-input span {
+  .matching-room__chat-input input {
     min-height: 34px;
   }
 
@@ -1380,7 +1415,7 @@
     padding-bottom: 5px;
   }
 
-  .matching-room__chat-input span {
+  .matching-room__chat-input input {
     min-height: 32px;
   }
 

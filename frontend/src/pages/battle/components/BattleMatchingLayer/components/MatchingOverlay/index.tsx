@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "../../../../../../components/ui/classNames";
 import type { BattlePlayModeId, BattlePlayModeOption } from "../../../../../../runtime/battle/microservices/world/services/BattleArenaCatalog";
@@ -21,6 +21,8 @@ interface MatchingOverlayProps {
   selectedBattleModeId: BattlePlayModeId;
   battleModeOptions: readonly BattlePlayModeOption[];
   onBattleModeChange: (modeId: BattlePlayModeId) => void;
+  onStartPausedChange: (startPaused: boolean) => void;
+  onSendChatMessage: (message: string) => void;
 }
 
 const ACTIVITY_TIME_LABELS = ["20:17", "20:16", "20:15", "20:14"];
@@ -32,12 +34,19 @@ export function MatchingOverlay({
   queueState,
   selectedBattleModeId,
   battleModeOptions,
-  onBattleModeChange
+  onBattleModeChange,
+  onStartPausedChange,
+  onSendChatMessage
 }: MatchingOverlayProps) {
+  const [chatDraft, setChatDraft] = useState("");
   const roomParticipants = queueState?.participants ?? [];
   const slotCount = resolveMatchmakingSlotCount(queueState, selectedBattleModeId);
   const slots = buildMatchmakingSlots(loadout.handle, queueState, selectedBattleModeId);
   const occupiedSlotCount = countOccupiedSlots(slots);
+  const startPaused = queueState?.startPaused ?? false;
+  const hostParticipant = roomParticipants[0];
+  const hostHandle = hostParticipant?.handle ?? loadout.handle;
+  const localIsHost = isLocalRoomHost(queueState, loadout.handle);
   const roomIdLabel = queueState ? shortenRoomId(queueState.roomId).toUpperCase() : "分配房间中";
   const queueLabel = formatQueueLabel(queueState);
   const phaseLabel = formatPhaseLabel(queueState);
@@ -47,6 +56,18 @@ export function MatchingOverlay({
   const modeLabel = translateModeLabel(queueState?.modeLabel ?? selectedMode?.label ?? "Battle Rift");
   const progress = resolveCountdownProgress(countdownMs, queueState);
   const progressStyle = { "--matchmaking-progress": `${Math.round(progress * 360)}deg` } as CSSProperties;
+  const roomChatLines = buildRoomChatLines(queueState, loadout.handle, modeLabel, roomParticipants.length);
+
+  const submitChatMessage = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    const message = chatDraft.trim();
+    if (!message || !queueState) {
+      return;
+    }
+
+    onSendChatMessage(message);
+    setChatDraft("");
+  };
 
   return (
     <div className="matching-room" role="dialog" aria-modal="true" aria-label="Battle Rift 等待房间">
@@ -71,7 +92,7 @@ export function MatchingOverlay({
       <main className="matching-room__layout">
         <aside className="matching-room__side matching-room__side--left">
           <InfoPanel title="房间信息">
-            <InfoLine label="房主" value={loadout.handle} />
+            <InfoLine label="房主" value={hostHandle} />
             <InfoLine label="房间类型" value={queueState?.source === "local" ? "本地演练" : "排位队列"} />
             <InfoLine label="队列状态" value={queueLabel} />
             <InfoLine label="服务器" value="自动选择" />
@@ -104,7 +125,7 @@ export function MatchingOverlay({
 
             <div className="matching-room__team-header">
               <span>队伍 {occupiedSlotCount} / {slotCount}</span>
-              <em>{queueState && occupiedSlotCount >= slotCount ? "所有席位已准备，等待开战同步..." : queueState ? "等待所有队员准备..." : "正在连接匹配服务..."}</em>
+              <em>{startPaused ? "等待已暂停，队伍保留在等待厅。" : queueState && occupiedSlotCount >= slotCount ? "所有席位已准备，等待开战同步..." : queueState ? "等待所有队员准备..." : "正在连接匹配服务..."}</em>
             </div>
 
             <div className="matching-room__slot-row" aria-label="Matchmaking slots">
@@ -165,10 +186,10 @@ export function MatchingOverlay({
 
               <section className="matching-room__console-panel matching-room__timer-panel">
                 <div className="matching-room__panel-title">开战倒计时</div>
-                <div className="matching-room__timer-ring" style={progressStyle}>
+                <div className={cn("matching-room__timer-ring", startPaused && "matching-room__timer-ring--paused")} style={progressStyle}>
                   <strong>{countdownLabel}</strong>
                 </div>
-                <span className="matching-room__timer-caption">预计 {occupiedSlotCount} / {slotCount} 名席位</span>
+                <span className="matching-room__timer-caption">{startPaused ? "倒计时暂停，等待继续。" : `预计 ${occupiedSlotCount} / ${slotCount} 名席位`}</span>
                 <div className="matching-room__timer-bars" aria-hidden="true">
                   {Array.from({ length: slotCount }).map((_, index) => (
                     <i key={index} className={index < occupiedSlotCount ? "is-filled" : ""} />
@@ -180,17 +201,23 @@ export function MatchingOverlay({
         </section>
 
         <aside className="matching-room__side matching-room__side--right">
-          <InfoPanel title="房间聊天">
+          <InfoPanel title="全网聊天">
             <div className="matching-room__chat">
-              <ChatLine name={loadout.handle} time="20:14" text="配装已经同步完毕。" />
-              <ChatLine name="系统" time="20:15" text={`已锁定${modeLabel}。`} />
-              <ChatLine name="小队" time="20:16" text="保持阵型，等待投放。" />
-              <ChatLine name="系统" time="20:17" text={`${Math.max(roomParticipants.length, 1)} 名玩家在线。`} />
+              {roomChatLines.map((line) => (
+                <ChatLine key={line.id} name={line.name} time={line.time} text={line.text} />
+              ))}
             </div>
-            <div className="matching-room__chat-input">
-              <span>输入消息...</span>
-              <button type="button" aria-label="发送消息">&gt;</button>
-            </div>
+            <form className="matching-room__chat-input" onSubmit={submitChatMessage}>
+              <input
+                value={chatDraft}
+                maxLength={160}
+                disabled={!queueState}
+                placeholder="输入消息..."
+                aria-label="发送等待厅聊天消息"
+                onChange={(event) => setChatDraft(event.target.value)}
+              />
+              <button type="submit" disabled={!queueState || !chatDraft.trim()} aria-label="发送消息">&gt;</button>
+            </form>
           </InfoPanel>
 
           <InfoPanel title="房间动态">
@@ -211,9 +238,14 @@ export function MatchingOverlay({
           <span className="matching-room__dock-icon" aria-hidden="true" />
           配装
         </Link>
-        <button type="button" className="matching-room__ready-button" disabled>
-          <strong>{queueState ? "准备" : "同步中"}</strong>
-          <span>{queueState ? "开始匹配" : "等待房间"}</span>
+        <button
+          type="button"
+          className={cn("matching-room__ready-button", startPaused && "matching-room__ready-button--paused")}
+          disabled={!queueState || !localIsHost}
+          onClick={() => onStartPausedChange(!startPaused)}
+        >
+          <strong>{queueState ? (startPaused ? "继续" : "暂停") : "同步中"}</strong>
+          <span>{queueState ? (localIsHost ? (startPaused ? "重置倒计时" : "先不开始") : "等待房主") : "等待房间"}</span>
         </button>
         <Link className="matching-room__dock-button matching-room__dock-button--exit" to="/">
           退出房间
@@ -265,12 +297,12 @@ function PlayerSeatCard({ slot, index, localSkinImageSrc }: PlayerSeatCardProps)
       className={cn(
         "matching-room__seat",
         `matching-room__seat--${slot.kind}`,
-        slot.isLocalPlayer && "matching-room__seat--host"
+        slot.isHost && "matching-room__seat--host"
       )}
       aria-current={slot.isLocalPlayer ? "true" : undefined}
       aria-disabled={occupied ? undefined : "true"}
     >
-      <div className="matching-room__seat-tag">{slot.isLocalPlayer ? "房主" : String(index + 1)}</div>
+      <div className="matching-room__seat-tag">{slot.isHost ? "房主" : slot.isLocalPlayer ? "本人" : String(index + 1)}</div>
       <div className="matching-room__avatar-frame">
         {slot.isLocalPlayer ? (
           <img src={localSkinImageSrc} alt="" />
@@ -293,6 +325,13 @@ interface ChatLineProps {
   text: string;
 }
 
+interface RoomChatLine {
+  id: string;
+  name: string;
+  time: string;
+  text: string;
+}
+
 function ChatLine({ name, time, text }: ChatLineProps) {
   return (
     <div className="matching-room__chat-line">
@@ -305,8 +344,55 @@ function ChatLine({ name, time, text }: ChatLineProps) {
   );
 }
 
+function buildRoomChatLines(
+  queueState: MatchmakingQueueState | null,
+  localHandle: string,
+  modeLabel: string,
+  onlineCount: number
+): RoomChatLine[] {
+  const messages = queueState?.chatMessages ?? [];
+  if (messages.length > 0) {
+    return messages.slice(-5).map((message) => ({
+      id: message.messageId,
+      name: message.authorHandle,
+      time: formatChatTime(message.createdAt),
+      text: message.body
+    }));
+  }
+
+  return [
+    { id: "system-loadout", name: localHandle, time: "--:--", text: "配装已经同步完毕。" },
+    { id: "system-mode", name: "系统", time: "--:--", text: `已锁定 ${modeLabel}。` },
+    { id: "system-waiting", name: "小队", time: "--:--", text: "保持阵型，等待投放。" },
+    { id: "system-online", name: "系统", time: "--:--", text: `${Math.max(onlineCount, 1)} 名玩家在线。` }
+  ];
+}
+
+function formatChatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return "--:--";
+  }
+
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 function countOccupiedSlots(slots: MatchmakingSlotState[]): number {
   return slots.filter((slot) => slot.kind !== "empty").length;
+}
+
+function isLocalRoomHost(queueState: MatchmakingQueueState | null, localHandle: string): boolean {
+  const hostParticipant = queueState?.participants[0];
+  if (!queueState || !hostParticipant) {
+    return false;
+  }
+
+  const localPlayerId = queueState.playerId.trim();
+  if (localPlayerId && hostParticipant.playerId.trim()) {
+    return localPlayerId === hostParticipant.playerId;
+  }
+
+  return hostParticipant.handle.trim().toLowerCase() === localHandle.trim().toLowerCase();
 }
 
 function resolveCountdownProgress(countdownMs: number, queueState: MatchmakingQueueState | null): number {

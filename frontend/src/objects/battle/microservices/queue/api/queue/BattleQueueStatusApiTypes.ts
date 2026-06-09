@@ -1,6 +1,7 @@
 import type {
   BattleModeIdDto,
   BattleQueueParticipantResponseDto,
+  BattleRoomChatMessageResponseDto,
   BattleSessionDescriptorResponseDto,
   MatchmakingRoomPhaseDto
 } from "../shared/BattleLobbySharedApiTypes";
@@ -26,7 +27,9 @@ export interface BattleQueueSnapshotResponseDto {
   capacity: number;
   durationMs: number;
   phase: MatchmakingRoomPhaseDto;
+  startPaused: boolean;
+  pausedRemainingMs?: number;
+  chatMessages: BattleRoomChatMessageResponseDto[];
   finishedAt?: number;
   battleSession?: BattleSessionDescriptorResponseDto;
 }
-

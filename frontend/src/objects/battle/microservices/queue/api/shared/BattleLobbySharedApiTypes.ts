@@ -14,6 +14,14 @@ export interface BattleQueueParticipantResponseDto {
   skin?: string;
 }
 
+export interface BattleRoomChatMessageResponseDto {
+  messageId: string;
+  authorPlayerId: string;
+  authorHandle: string;
+  body: string;
+  createdAt: number;
+}
+
 export interface BattleSessionRosterEntryResponseDto {
   seat: number;
   playerId: string;
@@ -54,4 +62,3 @@ export interface BattleSessionDescriptorResponseDto {
   capacity: number;
   bootstrap?: BattleSessionBootstrapResponseDto;
 }
-

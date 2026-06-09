@@ -66,6 +66,7 @@ interface BattleMatchmakingStartupControllerOptions {
   readonly setMatchCountdownMs: (value: number) => void;
   readonly setQueueState: (state: MatchmakingQueueState | null) => void;
   readonly setSelectedBattleModeId: (modeId: BattlePlayModeId) => void;
+  readonly normalizeWaitingRoomQueueState?: (state: MatchmakingQueueState) => MatchmakingQueueState;
 }
 
 export function createBattleMatchmakingStartupController({
@@ -97,7 +98,8 @@ export function createBattleMatchmakingStartupController({
   setMatchPhase,
   setMatchCountdownMs,
   setQueueState,
-  setSelectedBattleModeId
+  setSelectedBattleModeId,
+  normalizeWaitingRoomQueueState
 }: BattleMatchmakingStartupControllerOptions) {
   setMatchPhase("matching");
   const isRestoringActiveSession = readRestoredActiveSession() !== null;
@@ -123,10 +125,11 @@ export function createBattleMatchmakingStartupController({
 
   let startupScheduler: ReturnType<typeof createBattleStartupSchedulerController>;
   const applyQueueState = (nextQueueState: MatchmakingQueueState, syncDeadline: boolean): void => {
-    queueStateRef.current = nextQueueState;
-    localAuthoritativePlayerIdRef.current = nextQueueState.playerId;
-    setSelectedBattleModeId(inferBattleModeIdFromMapId(nextQueueState.mapId));
-    setQueueState(nextQueueState);
+    const resolvedQueueState = normalizeWaitingRoomQueueState?.(nextQueueState) ?? nextQueueState;
+    queueStateRef.current = resolvedQueueState;
+    localAuthoritativePlayerIdRef.current = resolvedQueueState.playerId;
+    setSelectedBattleModeId(inferBattleModeIdFromMapId(resolvedQueueState.mapId));
+    setQueueState(resolvedQueueState);
 
     if (!syncDeadline) {
       return;
@@ -134,7 +137,7 @@ export function createBattleMatchmakingStartupController({
 
     const now = performance.now();
     const remainingWaitMs = resolveSyncedMatchWaitRemainingMs({
-      queueState: nextQueueState,
+      queueState: resolvedQueueState,
       minimumMatchWaitDeadline,
       now
     });

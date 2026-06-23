@@ -2,28 +2,24 @@ package services.social.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.social.objects.apiTypes.{FriendRequestListApiRequest, FriendRequestListResponse}
+import services.identity.objects.PlayerHandle
 import services.social.services.FriendRequestService
 import system.api.APIMessageWithContext
 
 final case class FriendRequestListAPIMessage(
-  request: FriendRequestListApiRequest
+  ownerHandle: Option[PlayerHandle]
 ) extends APIMessageWithContext[FriendRequestService, FriendRequestListResponse] {
   override def plan(service: FriendRequestService, connection: Connection): IO[FriendRequestListResponse] =
-    for
-      owner <- IO.fromEither(
-        FriendRequestOwnerQuery.parse(request.ownerHandle).left.map(error =>
-          SocialAPIMessageSupport.error(SocialApiErrorCode.fromOwnerError(error))
-        )
-      )
-      records <- service.list(owner)
-    yield FriendRequestListResponse.fromRecords(records)
+    SocialAPIPlanner.planList(service, this)
 }
 
 object FriendRequestListAPIMessage {
+  import SocialAPIMessageDecoding.given
+
   given Decoder[FriendRequestListAPIMessage] =
-    Decoder[FriendRequestListApiRequest].map(FriendRequestListAPIMessage.apply)
+    deriveDecoder[FriendRequestListAPIMessage]
 }

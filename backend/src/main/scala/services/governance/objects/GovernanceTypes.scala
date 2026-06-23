@@ -34,6 +34,7 @@ final case class GovernanceReviewTargetPath(value: String) extends AnyVal
 final case class GovernanceReviewBody(value: String) extends AnyVal
 
 final case class GovernanceMailSnapshotId(value: String) extends AnyVal
+final case class GovernanceListLimit(value: Int) extends AnyVal
 
 enum GovernanceReviewKind {
   case ReplayProposal

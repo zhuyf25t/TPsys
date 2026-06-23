@@ -1,44 +1,105 @@
 package route.identity
 
 import cats.effect.IO
-import io.circe.syntax.*
-import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{Headers, HttpRoutes, Method, Request, Response}
+import cats.syntax.all.*
+import org.http4s.{Headers, HttpRoutes, MessageFailure, Method, Request, Response}
 import org.typelevel.ci.CIString
 
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
-import route.Http4sCors.corsNoContent
-import route.Http4sRequestDecoders.decodeEntityBody
+import route.Http4sCors.{corsNoContent, withCors}
 import route.Http4sRequestPaths.requestPath
-import route.Http4sResponses.{errorResponse, jsonOk}
+import route.Http4sResponses.errorResponse
 import services.identity.api.{
-  IdentityCommandParsers,
+  IdentityAccountsAPIMessage,
+  IdentityAccountsResponse,
+  IdentityAPIMessageSupport,
+  IdentityAuthResponse,
   IdentityApiErrorCode,
-  IdentityApiRequestDecodeError,
+  IdentityCurrentAPIMessage,
+  IdentityRegisterAPIMessage,
   IdentityRequestTarget,
+  IdentitySessionAPIMessage,
   IdentitySessionTokenParser
 }
 import services.identity.objects.SessionToken
-import services.identity.objects.apiTypes.{
-  IdentityAccountsResponse,
-  IdentityAuthResponse,
-  IdentityRegistrationApiRequest,
-  IdentitySessionApiRequest
-}
 import services.identity.services.IdentityService
+import system.api.{APIMessage, APIMessageError, APIMessageRouter}
+import system.api.APIMessageRouter.APIMessageRequestAlias
+import system.api.RegisteredAPIMessage.apiWithContext
 
 private[route] object IdentityHttp4sRoutes {
-  import CirceEntityDecoder.*
-
   def routes(service: IdentityService): HttpRoutes[IO] =
+    postAliasRoutes(service) <+> getAliasRoutes(service) <+> compatibilityRoutes
+
+  private def postAliasRoutes(service: IdentityService): HttpRoutes[IO] =
+    APIMessageRouter.aliasRoutes(
+      apiMessages = List(
+        apiWithContext[
+          IdentityService,
+          IdentityRegisterAPIMessage,
+          IdentityAuthResponse
+        ](service, IdentityAPIMessageSupport.invalidJsonObject),
+        apiWithContext[
+          IdentityService,
+          IdentitySessionAPIMessage,
+          IdentityAuthResponse
+        ](service, IdentityAPIMessageSupport.invalidJsonObject)
+      ),
+      pathAliases = Map(
+        "/identity/register" -> APIMessage.apiNameFromClass[IdentityRegisterAPIMessage],
+        "/api/identity/register" -> APIMessage.apiNameFromClass[IdentityRegisterAPIMessage],
+        "/identity/session" -> APIMessage.apiNameFromClass[IdentitySessionAPIMessage],
+        "/api/identity/session" -> APIMessage.apiNameFromClass[IdentitySessionAPIMessage]
+      ),
+      responseTransform = withCors,
+      errorHandler = identityAPIMessageErrorResponse
+    )
+
+  private def getAliasRoutes(service: IdentityService): HttpRoutes[IO] =
+    APIMessageRouter.requestAliasRoutes(
+      apiMessages = List(
+        apiWithContext[
+          IdentityService,
+          IdentityCurrentAPIMessage,
+          IdentityAuthResponse
+        ](service, IdentityAPIMessageSupport.invalidJsonObject),
+        apiWithContext[
+          IdentityService,
+          IdentityAccountsAPIMessage,
+          IdentityAccountsResponse
+        ](service, IdentityAPIMessageSupport.invalidJsonObject)
+      ),
+      aliasForRequest = identityGetAlias(service),
+      errorHandler = identityAPIMessageErrorResponse
+    )
+
+  private def identityGetAlias(service: IdentityService)(request: Request[IO]): Option[APIMessageRequestAlias] =
+    if request.method != Method.GET then None
+    else if IdentityRequestTarget.isCurrentPath(requestPath(request)) then
+      Some(
+        APIMessageRequestAlias.fromContextMessage[IdentityService, IdentityCurrentAPIMessage, IdentityAuthResponse](
+          context = service,
+          message = IdentityCurrentAPIMessage(parseSessionToken(request)),
+          responseTransform = withCors
+        )
+      )
+    else if IdentityRequestTarget.isAccountsPath(requestPath(request)) then
+      Some(
+        APIMessageRequestAlias.fromContextMessage[IdentityService, IdentityAccountsAPIMessage, IdentityAccountsResponse](
+          context = service,
+          message = IdentityAccountsAPIMessage(),
+          responseTransform = withCors
+        )
+      )
+    else None
+
+  private def compatibilityRoutes: HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if IdentityRequestTarget.isRegisterPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.POST =>
-            register(request, service)
           case _ =>
             errorResponse(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed))
         }
@@ -46,8 +107,6 @@ private[route] object IdentityHttp4sRoutes {
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.POST =>
-            issueSession(request, service)
           case _ =>
             errorResponse(identityApiError(IdentityApiErrorCode.PostMethodNotAllowed))
         }
@@ -55,8 +114,6 @@ private[route] object IdentityHttp4sRoutes {
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.GET =>
-            current(request, service)
           case _ =>
             errorResponse(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed))
         }
@@ -64,70 +121,17 @@ private[route] object IdentityHttp4sRoutes {
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.GET =>
-            service.listActiveAccounts().flatMap(accounts =>
-              jsonOk(IdentityAccountsResponse(accounts).asJson)
-            )
           case _ =>
             errorResponse(identityApiError(IdentityApiErrorCode.GetMethodNotAllowed))
         }
     }
 
-  private def register(request: Request[IO], service: IdentityService): IO[Response[IO]] =
-    readRegistrationRequest(request).flatMap {
-      case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
-        errorResponse(identityApiError(IdentityApiErrorCode.InvalidJsonObject))
-      case Right(registrationRequest) =>
-        IdentityCommandParsers.parseRegistrationCommand(registrationRequest) match {
-          case Left(error) =>
-            errorResponse(identityApiError(IdentityApiErrorCode.fromRegistrationParseError(error)))
-          case Right(command) =>
-            service.register(command).flatMap {
-              case Right(account) =>
-                jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
-              case Left(error) =>
-                errorResponse(identityApiError(IdentityApiErrorCode.fromRegistrationServiceError(error)))
-            }
-        }
-    }
-
-  private def issueSession(request: Request[IO], service: IdentityService): IO[Response[IO]] =
-    readSessionRequest(request).flatMap {
-      case Left(IdentityApiRequestDecodeError.InvalidJsonObject) =>
-        errorResponse(identityApiError(IdentityApiErrorCode.InvalidJsonObject))
-      case Right(sessionRequest) =>
-        IdentityCommandParsers.parseSessionCommand(sessionRequest) match {
-          case Left(error) =>
-            errorResponse(identityApiError(IdentityApiErrorCode.fromSessionParseError(error)))
-          case Right(command) =>
-            service.issueSession(command).flatMap {
-              case Right(account) =>
-                jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
-              case Left(error) =>
-                errorResponse(identityApiError(IdentityApiErrorCode.fromSessionServiceError(error)))
-            }
-        }
-    }
-
-  private def current(request: Request[IO], service: IdentityService): IO[Response[IO]] =
-    service.current(parseSessionToken(request)).flatMap {
-      case Right(account) =>
-        jsonOk(IdentityAuthResponse.fromAccount(account).asJson)
-      case Left(error) =>
-        errorResponse(identityApiError(IdentityApiErrorCode.fromCurrentSessionError(error)))
-    }
-
-  private def readRegistrationRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentityRegistrationApiRequest]] =
-    decodeEntityBody[IdentityApiRequestDecodeError, IdentityRegistrationApiRequest](
-      request,
-      IdentityApiRequestDecodeError.InvalidJsonObject
-    )
-
-  private def readSessionRequest(request: Request[IO]): IO[Either[IdentityApiRequestDecodeError, IdentitySessionApiRequest]] =
-    decodeEntityBody[IdentityApiRequestDecodeError, IdentitySessionApiRequest](
-      request,
-      IdentityApiRequestDecodeError.InvalidJsonObject
-    )
+  private def identityAPIMessageErrorResponse: PartialFunction[Throwable, IO[Response[IO]]] = {
+    case _: MessageFailure =>
+      errorResponse(identityApiError(IdentityApiErrorCode.InvalidJsonObject))
+    case error: APIMessageError =>
+      errorResponse(identityApiError(identityApiErrorCode(error)))
+  }
 
   private def parseSessionToken(request: Request[IO]): Option[SessionToken] =
     IdentitySessionTokenParser.parseFromHeaderLookup(name => headerValue(request.headers, name))
@@ -141,5 +145,13 @@ private[route] object IdentityHttp4sRoutes {
       code = IdentityApiErrorCode.wireValue(code),
       message = IdentityApiErrorCode.message(code)
     )
+
+  private def identityApiErrorCode(error: APIMessageError): IdentityApiErrorCode =
+    IdentityApiErrorCode.values
+      .find(code =>
+        error.getMessage == IdentityApiErrorCode.message(code) ||
+          error.getMessage == IdentityApiErrorCode.wireValue(code)
+      )
+      .getOrElse(IdentityApiErrorCode.InvalidJsonObject)
 
 }

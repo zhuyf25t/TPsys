@@ -1,109 +1,25 @@
 package services.battle.routes
 
-import services.battle.microservices.session.api.command.BattleCommandAPIMessage
-import services.battle.microservices.queue.api.queue.{
-  BattleQueueJoinAPIContext,
-  BattleQueueJoinAPIMessage,
-  BattleQueueLeaveAPIMessage,
-  BattleQueueStatusAPIMessage
-}
-import services.battle.microservices.results.api.{BattleResultListAPIMessage, BattleResultRecordAPIMessage}
-import services.battle.microservices.queue.api.room.{BattleRoomHeartbeatAPIMessage, BattleRoomSnapshotAPIMessage}
-import services.battle.microservices.session.api.state.BattleStateReadAPIMessage
-import services.battle.microservices.queue.services.BattleQueueService
-import services.battle.microservices.session.services.BattleStateService
-import services.battle.microservices.session.objects.command.BattleCommandAccepted
-import services.battle.objects.core.BattleAggregateState
-import services.battle.microservices.queue.objects.queue.{BattleQueueLeaveOutcome, BattleQueueSnapshot, RealtimeRoomSnapshot}
-import services.battle.microservices.session.api.command.BattleCommandAcceptedResponse.given
-import services.battle.microservices.queue.api.queue.BattleQueueSnapshotResponse.given
-import services.battle.microservices.queue.api.queue.BattleQueueLeaveResponse.given
-import services.battle.microservices.results.api.results.{BattleResultListResponse, BattleResultRecordResponse}
-import services.battle.microservices.results.api.results.BattleResultRecordResponse.given
-import services.battle.microservices.results.api.results.BattleResultListResponse.given
-import services.battle.microservices.queue.api.room.RealtimeRoomSnapshotResponse.given
-import services.battle.microservices.session.api.state.BattleStateRootResponse.given
+import services.battle.microservices.queue.api.BattleQueueAPIMessages
+import services.battle.microservices.results.api.BattleResultAPIMessages
+import services.battle.microservices.runtime.api.BattleRuntimeAPIMessages
 import system.api.RegisteredAPIMessage
-import system.api.RegisteredAPIMessage.{apiWithToken, apiWithTokenAndContext}
 
 object BattleRoutes {
   val connectionBackedResultApiMessages: List[RegisteredAPIMessage] =
-    List(
-      apiWithToken[
-        BattleResultListAPIMessage,
-        BattleResultListResponse
-      ],
-      apiWithToken[
-        BattleResultRecordAPIMessage,
-        BattleResultRecordResponse
-      ]
-    )
+    BattleResultAPIMessages.connectionBackedMessages
 
   def apiMessages(context: BattleAPIRuntimeContext): List[RegisteredAPIMessage] =
-    runtimeApiMessages(context) ++ resultApiMessages
+    queueApiMessages(context) ++ runtimeApiMessages(context) ++ resultApiMessages
+
+  def commandCompatibilityApiMessages(context: BattleAPIRuntimeContext): List[RegisteredAPIMessage] =
+    BattleRuntimeAPIMessages.commandCompatibilityMessages(context.stateService)
+
+  def queueApiMessages(context: BattleAPIRuntimeContext): List[RegisteredAPIMessage] =
+    BattleQueueAPIMessages.messages(context.queueService, context.joinAuthorizationService)
 
   def runtimeApiMessages(context: BattleAPIRuntimeContext): List[RegisteredAPIMessage] =
-    List(
-      apiWithTokenAndContext[
-        BattleQueueJoinAPIContext,
-        BattleQueueJoinAPIMessage,
-        BattleQueueSnapshot
-      ](
-        context = BattleQueueJoinAPIContext(
-          queueService = context.queueService,
-          authorizationService = context.joinAuthorizationService
-        ),
-        decodeFailure = BattleQueueJoinAPIMessage.requestDecodeFailure
-      ),
-      apiWithTokenAndContext[
-        BattleQueueService,
-        BattleQueueStatusAPIMessage,
-        BattleQueueSnapshot
-      ](
-        context = context.queueService,
-        decodeFailure = BattleQueueStatusAPIMessage.requestDecodeFailure
-      ),
-      apiWithTokenAndContext[
-        BattleQueueService,
-        BattleQueueLeaveAPIMessage,
-        BattleQueueLeaveOutcome
-      ](
-        context = context.queueService,
-        decodeFailure = BattleQueueLeaveAPIMessage.requestDecodeFailure
-      ),
-      apiWithTokenAndContext[
-        BattleQueueService,
-        BattleRoomSnapshotAPIMessage,
-        RealtimeRoomSnapshot
-      ](
-        context = context.queueService,
-        decodeFailure = BattleRoomSnapshotAPIMessage.requestDecodeFailure
-      ),
-      apiWithTokenAndContext[
-        BattleQueueService,
-        BattleRoomHeartbeatAPIMessage,
-        RealtimeRoomSnapshot
-      ](
-        context = context.queueService,
-        decodeFailure = BattleRoomHeartbeatAPIMessage.requestDecodeFailure
-      ),
-      apiWithTokenAndContext[
-        BattleStateService,
-        BattleStateReadAPIMessage,
-        BattleAggregateState
-      ](
-        context = context.stateService,
-        decodeFailure = BattleStateReadAPIMessage.requestDecodeFailure
-      ),
-      apiWithTokenAndContext[
-        BattleStateService,
-        BattleCommandAPIMessage,
-        BattleCommandAccepted
-      ](
-        context = context.stateService,
-        decodeFailure = BattleCommandAPIMessage.requestDecodeFailure
-      )
-    )
+    BattleRuntimeAPIMessages.messages(context.stateService)
 
   private def resultApiMessages: List[RegisteredAPIMessage] =
     connectionBackedResultApiMessages

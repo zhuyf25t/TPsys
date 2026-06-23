@@ -6,15 +6,13 @@ import org.http4s.HttpRoutes
 
 import services.governance.api.{
   ContributionAdjustmentCreateAPIMessage,
+  ContributionAdjustmentCreateResponse,
   ContributionAdjustmentListAPIMessage,
+  ContributionAdjustmentListResponse,
   GovernanceAPIMessageSupport,
   GovernanceReviewNotificationCreateAPIMessage,
-  GovernanceReviewNotificationListAPIMessage
-}
-import services.governance.objects.apiTypes.{
-  ContributionAdjustmentCreateResponse,
-  ContributionAdjustmentListResponse,
   GovernanceReviewNotificationCreateResponse,
+  GovernanceReviewNotificationListAPIMessage,
   GovernanceReviewNotificationListResponse
 }
 import services.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}

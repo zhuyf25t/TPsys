@@ -81,3 +81,12 @@ object ForumApiErrorMapper {
       case ForumTopicMutationParseError.VisitorNotAllowed => ForumApiErrorCode.VisitorNotAllowed
     }
 }
+
+enum ForumApiRequestDecodeError {
+  case InvalidJsonObject
+}
+
+enum ForumVoteCommandParseError {
+  case InvalidVote
+  case Mutation(error: ForumTopicMutationParseError)
+}

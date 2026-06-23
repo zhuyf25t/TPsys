@@ -11,9 +11,10 @@ import services.forum.api.{
   ForumSetReplyVoteAPIMessage,
   ForumSetTopicVoteAPIMessage,
   ForumTopicListAPIMessage,
-  ForumTopicLoadAPIMessage
+  ForumTopicLoadAPIMessage,
+  ForumTopicListResponse,
+  ForumTopicWrapperResponse
 }
-import services.forum.objects.apiTypes.{ForumTopicListResponse, ForumTopicWrapperResponse}
 import services.forum.services.ForumService
 import system.api.APIMessageRouter
 import system.api.RegisteredAPIMessage.apiWithContext

@@ -4,8 +4,7 @@ import cats.effect.IO
 import cats.syntax.all.*
 import org.http4s.HttpRoutes
 
-import services.bots.api.BotProfilesAPIMessage
-import services.bots.objects.apiTypes.BotProfilesResponse
+import services.bots.api.{BotProfilesAPIMessage, BotProfilesResponse}
 import services.bots.services.BotProfileService
 import system.api.APIMessageRouter
 import system.api.RegisteredAPIMessage.apiWithContext

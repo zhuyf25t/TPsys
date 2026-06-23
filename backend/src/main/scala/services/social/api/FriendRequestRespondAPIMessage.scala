@@ -2,33 +2,27 @@ package services.social.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.social.objects.apiTypes.{FriendRequestRespondApiRequest, FriendRequestRespondResponse}
+import services.identity.objects.PlayerHandle
+import services.social.objects.{FriendRequestDecision, FriendRequestId}
 import services.social.services.FriendRequestService
 import system.api.APIMessageWithContext
 
 final case class FriendRequestRespondAPIMessage(
-  request: FriendRequestRespondApiRequest
+  requestId: Option[FriendRequestId],
+  actorHandle: Option[PlayerHandle],
+  decision: Option[FriendRequestDecision]
 ) extends APIMessageWithContext[FriendRequestService, FriendRequestRespondResponse] {
   override def plan(service: FriendRequestService, connection: Connection): IO[FriendRequestRespondResponse] =
-    for
-      command <- IO.fromEither(
-        SocialCommandParsers.parseRespondCommand(request).left.map(error =>
-          SocialAPIMessageSupport.error(SocialApiErrorCode.fromRespondRouteError(error))
-        )
-      )
-      result <- service.respond(command.requestId, command.actorHandle, command.decision).flatMap {
-        case Right(value) =>
-          IO.pure(value)
-        case Left(error) =>
-          IO.raiseError(SocialAPIMessageSupport.error(SocialApiErrorCode.fromRespondServiceError(error)))
-      }
-    yield FriendRequestRespondResponse.fromResult(result)
+    SocialAPIPlanner.planRespond(service, this)
 }
 
 object FriendRequestRespondAPIMessage {
+  import SocialAPIMessageDecoding.given
+
   given Decoder[FriendRequestRespondAPIMessage] =
-    Decoder[FriendRequestRespondApiRequest].map(FriendRequestRespondAPIMessage.apply)
+    deriveDecoder[FriendRequestRespondAPIMessage]
 }

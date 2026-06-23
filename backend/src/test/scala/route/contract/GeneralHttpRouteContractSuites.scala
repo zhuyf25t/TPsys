@@ -16,11 +16,11 @@ import route.battle.BattleHttp4sRoutes
 import route.bots.BotProfileHttp4sRoutes
 import route.governance.GovernanceHttp4sRoutes
 import route.health.{HealthHttp4sRoutes, HealthHttpModule}
-import route.identity.IdentityHttp4sRoutes
-import route.mail.MailHttp4sRoutes
-import route.forum.ForumHttp4sRoutes
+import route.identity.{IdentityHttp4sRoutes, IdentityHttpModule}
+import route.mail.{MailHttp4sRoutes, MailHttpModule}
+import route.forum.{ForumHttp4sRoutes, ForumHttpModule}
 import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
-import route.social.SocialHttp4sRoutes
+import route.social.{SocialHttp4sRoutes, SocialHttpModule}
 import services.{BackendRepositories, BackendRepositoryFactories}
 import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Rating, Score}
 import services.battle.objects.*
@@ -180,10 +180,52 @@ private[contract] object HealthHttp4sRouteContractTest:
 
 private[contract] object IdentityHttp4sRouteContractTest:
   def run(): Unit =
+    apiMessageRegisterDecodesTypedFields()
+    apiMessageSessionDecodesTypedFields()
+    apiMessageCurrentDecodesSessionToken()
     registerParsesCommandAndRendersAuth()
     registerRejectsInvalidRequest()
     accountsRendersActiveSummaries()
     currentSessionParsesAuthorizationHeader()
+
+  private def apiMessageRegisterDecodesTypedFields(): Unit =
+    val service = RecordingIdentityService()
+    val response = RouteContractSupport.runRoute(
+      IdentityHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/identityregister")
+        .withEntity("""{"handle":"Alice","password":"safe-pass","skinId":"soldier"}""")
+    )
+
+    ContractAssertions.assertEquals("identity api register status", response.status, 200)
+    ContractAssertions.assertContains("identity api register handle", response.body, """"handle":"Alice"""")
+    ContractAssertions.assertEquals("identity api register command count", service.registerCommands.length, 1)
+    ContractAssertions.assertEquals("identity api register command handle", service.registerCommands.head.handle, PlayerHandle("Alice"))
+    ContractAssertions.assertEquals("identity api register command skin", service.registerCommands.head.skinId, SkinId.Soldier)
+
+  private def apiMessageSessionDecodesTypedFields(): Unit =
+    val service = RecordingIdentityService()
+    val response = RouteContractSupport.runRoute(
+      IdentityHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/identitysession")
+        .withEntity("""{"handle":"Alice","password":"safe-pass"}""")
+    )
+
+    ContractAssertions.assertEquals("identity api session status", response.status, 200)
+    ContractAssertions.assertContains("identity api session handle", response.body, """"handle":"Alice"""")
+    ContractAssertions.assertEquals("identity api session command count", service.sessionCommands.length, 1)
+    ContractAssertions.assertEquals("identity api session command handle", service.sessionCommands.head.handle, PlayerHandle("Alice"))
+
+  private def apiMessageCurrentDecodesSessionToken(): Unit =
+    val service = RecordingIdentityService()
+    val response = RouteContractSupport.runRoute(
+      IdentityHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/identitycurrent")
+        .withEntity("""{"session":"session-alice"}""")
+    )
+
+    ContractAssertions.assertEquals("identity api current status", response.status, 200)
+    ContractAssertions.assertContains("identity api current session", response.body, """"session":"session-alice"""")
+    ContractAssertions.assertEquals("identity api current token", service.currentCalls, Vector(Some(SessionToken("session-alice"))))
 
   private def registerParsesCommandAndRendersAuth(): Unit =
     val service = RecordingIdentityService()
@@ -312,10 +354,25 @@ private[contract] object IdentityHttp4sRouteContractTest:
 
 private[contract] object MailHttp4sRouteContractTest:
   def run(): Unit =
+    apiMessageListDecodesOwnerHandle()
     listParsesOwnerAndRendersMails()
     listRejectsMissingOwner()
+    apiMessageMarkReadDecodesMailId()
     markReadParsesBodyAndRendersOk()
     markReadMapsMissingMail()
+
+  private def apiMessageListDecodesOwnerHandle(): Unit =
+    val service = RecordingMailService()
+    service.listRecords = Vector(mailRecord(MailId("mail-1"), PlayerHandle("Alice"), MailReadState.Unread))
+    val response = RouteContractSupport.runRoute(
+      MailHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/maillist")
+        .withEntity("""{"ownerHandle":"Alice"}""")
+    )
+
+    ContractAssertions.assertEquals("mail api list status", response.status, 200)
+    ContractAssertions.assertContains("mail api list wrapper", response.body, """"mails":[""")
+    ContractAssertions.assertEquals("mail api list owner call", service.listOwnerHandles, Vector(PlayerHandle("Alice")))
 
   private def listParsesOwnerAndRendersMails(): Unit =
     val service = RecordingMailService()
@@ -344,6 +401,22 @@ private[contract] object MailHttp4sRouteContractTest:
     ContractAssertions.assertEquals("mail list missing owner status", response.status, 400)
     ContractAssertions.assertContains("mail list missing owner code", response.body, """"code":"missing_owner"""")
     ContractAssertions.assertEquals("mail list missing owner no call", service.listOwnerHandles, Vector.empty)
+
+  private def apiMessageMarkReadDecodesMailId(): Unit =
+    val service = RecordingMailService()
+    val response = RouteContractSupport.runRoute(
+      MailHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/mailread")
+        .withEntity("""{"ownerHandle":"Alice","mailId":"mail-1"}""")
+    )
+
+    ContractAssertions.assertEquals("mail api read status", response.status, 200)
+    ContractAssertions.assertContains("mail api read ok", response.body, """"ok":true""")
+    ContractAssertions.assertEquals(
+      "mail api read command",
+      service.markReadCalls,
+      Vector((PlayerHandle("Alice"), MailId("mail-1")))
+    )
 
   private def markReadParsesBodyAndRendersOk(): Unit =
     val service = RecordingMailService()
@@ -413,11 +486,45 @@ private[contract] object MailHttp4sRouteContractTest:
 
 private[contract] object SocialHttp4sRouteContractTest:
   def run(): Unit =
+    apiMessageCreateDecodesTypedHandles()
+    apiMessageRespondDecodesTypedCommand()
     listParsesOwnerAndRendersRequests()
     listRejectsMissingOwner()
     createParsesHandlesAndRendersCreated()
     respondParsesCommandAndRendersUpdated()
     respondMapsMissingRequest()
+
+  private def apiMessageCreateDecodesTypedHandles(): Unit =
+    val service = RecordingFriendRequestService()
+    val response = RouteContractSupport.runRoute(
+      SocialHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/friendrequestcreate")
+        .withEntity("""{"sourceHandle":"Alice","targetHandle":"Bob"}""")
+    )
+
+    ContractAssertions.assertEquals("social api create status", response.status, 200)
+    ContractAssertions.assertContains("social api create created", response.body, """"created":true""")
+    ContractAssertions.assertEquals(
+      "social api create handles",
+      service.createCalls,
+      Vector((PlayerHandle("Alice"), PlayerHandle("Bob")))
+    )
+
+  private def apiMessageRespondDecodesTypedCommand(): Unit =
+    val service = RecordingFriendRequestService()
+    val response = RouteContractSupport.runRoute(
+      SocialHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/friendrequestrespond")
+        .withEntity("""{"requestId":"friend-request-1","actorHandle":"Bob","decision":"accepted"}""")
+    )
+
+    ContractAssertions.assertEquals("social api respond status", response.status, 200)
+    ContractAssertions.assertContains("social api respond accepted", response.body, """"status":"accepted"""")
+    ContractAssertions.assertEquals(
+      "social api respond command",
+      service.respondCalls,
+      Vector((FriendRequestId("friend-request-1"), PlayerHandle("Bob"), FriendRequestDecision.Accepted))
+    )
 
   private def listParsesOwnerAndRendersRequests(): Unit =
     val service = RecordingFriendRequestService()
@@ -563,6 +670,7 @@ private[contract] object ForumHttp4sRouteContractTest:
   def run(): Unit =
     listParsesViewerAndRendersTopics()
     loadParsesTopicIdAndRendersTopic()
+    apiMessageCreateDecodesDirectFields()
     createParsesBodyAndRendersCreated()
     createRejectsInvalidTitleBeforeService()
     addReplyParsesTopicAndBody()
@@ -598,6 +706,19 @@ private[contract] object ForumHttp4sRouteContractTest:
       service.loadCalls,
       Vector((ForumTopicId("topic-1"), Some(PlayerHandle("Alice"))))
     )
+
+  private def apiMessageCreateDecodesDirectFields(): Unit =
+    val service = RecordingForumService()
+    val response = RouteContractSupport.runRoute(
+      ForumHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/forumcreatetopic")
+        .withEntity("""{"title":"Balance notes","body":"Weapon tuning proposal","tag":"balance","authorHandle":"Alice"}""")
+    )
+
+    ContractAssertions.assertEquals("forum api create status", response.status, 200)
+    ContractAssertions.assertContains("forum api create wrapper", response.body, """"topic":{""")
+    ContractAssertions.assertEquals("forum api create command count", service.createCommands.length, 1)
+    ContractAssertions.assertEquals("forum api create author", service.createCommands.head.authorHandle, PlayerHandle("Alice"))
 
   private def createParsesBodyAndRendersCreated(): Unit =
     val service = RecordingForumService()
@@ -936,6 +1057,9 @@ private[contract] object GovernanceHttp4sRouteContractTest:
 private[contract] object ReplayHttp4sRouteContractTest:
   def run(): Unit =
     apiMessageRouteUsesClassNameDerivedPath()
+    apiMessageDetailDecodesReplayId()
+    apiMessageCommentCreateDecodesReplayId()
+    apiMessageRecordDecodesReplayId()
     catalogParsesLimitAndRendersReplays()
     detailParsesReplayIdAndRendersReplay()
     recordParsesBodyAndRendersCreated()
@@ -955,6 +1079,45 @@ private[contract] object ReplayHttp4sRouteContractTest:
     ContractAssertions.assertContains("replay api message wrapper", response.body, """"replays":[""")
     ContractAssertions.assertContains("replay api message id", response.body, """"replayId":"replay-1"""")
     ContractAssertions.assertEquals("replay api message limit", service.listLimits, Vector(2))
+
+  private def apiMessageDetailDecodesReplayId(): Unit =
+    val service = RecordingReplayService()
+    val response = RouteContractSupport.runRoute(
+      ReplayHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/replaydetail")
+        .withEntity("""{"replayId":"replay-1","handle":"Alice"}""")
+    )
+
+    ContractAssertions.assertEquals("replay api detail status", response.status, 200)
+    ContractAssertions.assertContains("replay api detail wrapper", response.body, """"replay":{""")
+    ContractAssertions.assertEquals("replay api detail load", service.loadCalls, Vector(ReplayId("replay-1")))
+
+  private def apiMessageCommentCreateDecodesReplayId(): Unit =
+    val service = RecordingReplayService()
+    val response = RouteContractSupport.runRoute(
+      ReplayHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/replaycommentcreate")
+        .withEntity("""{"replayId":"replay-1","authorHandle":"Bob","body":"Good fight."}""")
+    )
+
+    ContractAssertions.assertEquals("replay api comment create status", response.status, 200)
+    ContractAssertions.assertContains("replay api comment create wrapper", response.body, """"comment":{""")
+    ContractAssertions.assertEquals("replay api comment create load", service.loadCalls, Vector(ReplayId("replay-1")))
+    ContractAssertions.assertEquals("replay api comment create command count", service.commentCommands.length, 1)
+    ContractAssertions.assertEquals("replay api comment create replay id", service.commentCommands.head.replayId, ReplayId("replay-1"))
+
+  private def apiMessageRecordDecodesReplayId(): Unit =
+    val service = RecordingReplayService()
+    val response = RouteContractSupport.runRoute(
+      ReplayHttpModule.routes(service),
+      Request[IO](method = Method.POST, uri = uri"/api/replayrecord")
+        .withEntity(replayRecordBody(replayId = "replay-api", battleId = "battle-api"))
+    )
+
+    ContractAssertions.assertEquals("replay api record status", response.status, 200)
+    ContractAssertions.assertContains("replay api record wrapper", response.body, """"replay":{""")
+    ContractAssertions.assertEquals("replay api record command count", service.recordCommands.length, 1)
+    ContractAssertions.assertEquals("replay api record replay id", service.recordCommands.head.replayId, ReplayId("replay-api"))
 
   private def catalogParsesLimitAndRendersReplays(): Unit =
     val service = RecordingReplayService()
@@ -988,9 +1151,7 @@ private[contract] object ReplayHttp4sRouteContractTest:
     val response = RouteContractSupport.runRoute(
       ReplayHttp4sRoutes.catalogRoutes(service),
       Request[IO](method = Method.POST, uri = uri"/api/replay/catalog")
-        .withEntity(
-          """{"replayId":"replay-2","battleId":"battle-2","handle":"Alice","displayName":"Alice","finishedAt":3000,"finishedAtLabel":"just now","title":"Replay title","modeLabel":"Arena Mode","resultLabel":"Victory","mapLabel":"Island","highlightLine":"Alice won","coverLabel":"Top 1","playersLine":"Alice vs Bob","timelineHint":"30s","score":88,"placement":1,"durationMs":30000,"aliveAtEnd":true,"thumbnailDataUrl":null,"currentLoadout":"rifle","frameCount":1,"playbackAvailable":true,"framesJson":"[{\"tick\":1}]"}"""
-        )
+        .withEntity(replayRecordBody(replayId = "replay-2", battleId = "battle-2"))
     )
 
     ContractAssertions.assertEquals("replay record status", response.status, 201)
@@ -1001,6 +1162,9 @@ private[contract] object ReplayHttp4sRouteContractTest:
     ContractAssertions.assertEquals("replay record handle", service.recordCommands.head.handle, PlayerHandle("Alice"))
     ContractAssertions.assertEquals("replay record score", service.recordCommands.head.score, Score(88))
     ContractAssertions.assertEquals("replay record frames", service.recordCommands.head.framesJson, """[{"tick":1}]""")
+
+  private def replayRecordBody(replayId: String, battleId: String): String =
+    s"""{"replayId":"$replayId","battleId":"$battleId","handle":"Alice","displayName":"Alice","finishedAt":3000,"finishedAtLabel":"just now","title":"Replay title","modeLabel":"Arena Mode","resultLabel":"Victory","mapLabel":"Island","highlightLine":"Alice won","coverLabel":"Top 1","playersLine":"Alice vs Bob","timelineHint":"30s","score":88,"placement":1,"durationMs":30000,"aliveAtEnd":true,"thumbnailDataUrl":null,"currentLoadout":"rifle","frameCount":1,"playbackAvailable":true,"frames":[{"tick":1}]}"""
 
   private def recordRejectsInvalidHandleBeforeService(): Unit =
     val service = RecordingReplayService()

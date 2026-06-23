@@ -30,7 +30,7 @@ private[battle] object BattleQueueHeartbeatRules {
     for
       participantUpdate <- updateParticipants(room, request, now)
       touchedRoom <- IO.pure(room.copy(participants = participantUpdate.participants))
-      gatedRoom <- updateStartGate(touchedRoom, request.startPaused, participantUpdate.actor, now)
+      gatedRoom <- updateStartGate(touchedRoom, request.startGateAction, participantUpdate.actor, now)
       updatedRoom <- appendChatMessage(gatedRoom, request, participantUpdate.actor, now)
     yield updatedRoom
 
@@ -52,14 +52,14 @@ private[battle] object BattleQueueHeartbeatRules {
 
   private def updateStartGate(
     room: QueueRoom,
-    startPaused: Option[Boolean],
+    startGateAction: BattleRoomStartGateAction,
     actor: Option[QueueParticipantEntry],
     now: EpochMillis
   ): IO[QueueRoom] =
-    (startPaused, actor) match {
-      case (Some(true), Some(entry)) if room.isHost(entry)  => room.pauseStart(now)
-      case (Some(false), Some(entry)) if room.isHost(entry) => room.resumeStart(now)
-      case _                                                => IO.pure(room)
+    (startGateAction, actor) match {
+      case (BattleRoomStartGateAction.Pause, Some(entry)) if room.isHost(entry)  => room.pauseStart(now)
+      case (BattleRoomStartGateAction.Resume, Some(entry)) if room.isHost(entry) => room.resumeStart(now)
+      case _                                                                     => IO.pure(room)
     }
 
   private def appendChatMessage(

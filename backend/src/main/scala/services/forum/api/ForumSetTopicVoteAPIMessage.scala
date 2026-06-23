@@ -2,30 +2,36 @@ package services.forum.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.forum.objects.apiTypes.{ForumApiRequestFields, ForumTopicWrapperResponse}
+import services.forum.objects.ForumTopicId
 import services.forum.services.ForumService
 import system.api.APIMessageWithContext
 
 final case class ForumSetTopicVoteAPIMessage(
-  fields: ForumRequestFields
+  topicId: Option[ForumTopicId],
+  authorHandle: Option[ForumAuthorInput],
+  author: Option[ForumAuthorInput],
+  vote: Option[ForumVoteInput]
 ) extends APIMessageWithContext[ForumService, ForumTopicWrapperResponse] {
+  def selectedAuthor: ForumAuthorInput =
+    authorHandle.orElse(author).getOrElse(ForumAuthorInput.Invalid)
+
+  def selectedVote: ForumVoteInput =
+    vote.getOrElse(ForumVoteInput.Cleared)
+
+  def withTopicId(pathTopicId: Option[ForumTopicId]): ForumSetTopicVoteAPIMessage =
+    copy(topicId = pathTopicId.orElse(topicId))
+
   override def plan(service: ForumService, connection: Connection): IO[ForumTopicWrapperResponse] =
-    for
-      topicId <- IO.fromEither(ForumAPIMessageSupport.topicId(fields))
-      command <- IO.fromEither(fields.toSetTopicVoteCommand(topicId).left.map(ForumAPIMessageSupport.voteCommandError))
-      topic <- service.setTopicVote(command).flatMap {
-        case Right(value) =>
-          IO.pure(value)
-        case Left(error) =>
-          IO.raiseError(ForumAPIMessageSupport.mutationError(error))
-      }
-    yield ForumTopicWrapperResponse.fromView(topic)
+    ForumAPIPlanner.planSetTopicVote(service, this)
 }
 
 object ForumSetTopicVoteAPIMessage {
+  import ForumAPIMessageDecoding.given
+
   given Decoder[ForumSetTopicVoteAPIMessage] =
-    Decoder[ForumApiRequestFields].map(fields => ForumSetTopicVoteAPIMessage(ForumRequestFields.fromApi(fields)))
+    deriveDecoder[ForumSetTopicVoteAPIMessage]
 }

@@ -2,33 +2,26 @@ package services.mail.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.mail.objects.apiTypes.{MailReadApiRequest, MailReadResponse}
-import services.mail.services.{MailReadError, MailService}
+import services.identity.objects.PlayerHandle
+import services.mail.objects.MailId
+import services.mail.services.MailService
 import system.api.APIMessageWithContext
 
 final case class MailReadAPIMessage(
-  request: MailReadApiRequest
+  ownerHandle: Option[PlayerHandle],
+  mailId: Option[MailId]
 ) extends APIMessageWithContext[MailService, MailReadResponse] {
   override def plan(service: MailService, connection: Connection): IO[MailReadResponse] =
-    for
-      command <- IO.fromEither(
-        MailCommandParsers.parseReadCommand(request).left.map(error =>
-          MailAPIMessageSupport.error(MailApiErrorCode.fromReadError(error))
-        )
-      )
-      response <- service.markRead(command.ownerHandle, command.mailId).flatMap {
-        case Right(_) =>
-          IO.pure(MailReadResponse.Read)
-        case Left(MailReadError.MailNotFound) =>
-          IO.raiseError(MailAPIMessageSupport.error(MailApiErrorCode.MailNotFound))
-      }
-    yield response
+    MailAPIPlanner.planRead(service, this)
 }
 
 object MailReadAPIMessage {
+  import MailAPIMessageDecoding.given
+
   given Decoder[MailReadAPIMessage] =
-    Decoder[MailReadApiRequest].map(MailReadAPIMessage.apply)
+    deriveDecoder[MailReadAPIMessage]
 }

@@ -2,31 +2,40 @@ package services.forum.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.forum.objects.apiTypes.{ForumApiRequestFields, ForumTopicWrapperResponse}
+import services.forum.objects.{ForumReplyId, ForumTopicId}
 import services.forum.services.ForumService
 import system.api.APIMessageWithContext
 
 final case class ForumSetReplyVoteAPIMessage(
-  fields: ForumRequestFields
+  topicId: Option[ForumTopicId],
+  replyId: Option[ForumReplyId],
+  authorHandle: Option[ForumAuthorInput],
+  author: Option[ForumAuthorInput],
+  vote: Option[ForumVoteInput]
 ) extends APIMessageWithContext[ForumService, ForumTopicWrapperResponse] {
+  def selectedAuthor: ForumAuthorInput =
+    authorHandle.orElse(author).getOrElse(ForumAuthorInput.Invalid)
+
+  def selectedVote: ForumVoteInput =
+    vote.getOrElse(ForumVoteInput.Cleared)
+
+  def withPathIds(pathTopicId: Option[ForumTopicId], pathReplyId: Option[ForumReplyId]): ForumSetReplyVoteAPIMessage =
+    copy(
+      topicId = pathTopicId.orElse(topicId),
+      replyId = pathReplyId.orElse(replyId)
+    )
+
   override def plan(service: ForumService, connection: Connection): IO[ForumTopicWrapperResponse] =
-    for
-      topicId <- IO.fromEither(ForumAPIMessageSupport.topicId(fields))
-      replyId <- IO.fromEither(ForumAPIMessageSupport.replyId(fields))
-      command <- IO.fromEither(fields.toSetReplyVoteCommand(topicId, replyId).left.map(ForumAPIMessageSupport.voteCommandError))
-      topic <- service.setReplyVote(command).flatMap {
-        case Right(value) =>
-          IO.pure(value)
-        case Left(error) =>
-          IO.raiseError(ForumAPIMessageSupport.mutationError(error))
-      }
-    yield ForumTopicWrapperResponse.fromView(topic)
+    ForumAPIPlanner.planSetReplyVote(service, this)
 }
 
 object ForumSetReplyVoteAPIMessage {
+  import ForumAPIMessageDecoding.given
+
   given Decoder[ForumSetReplyVoteAPIMessage] =
-    Decoder[ForumApiRequestFields].map(fields => ForumSetReplyVoteAPIMessage(ForumRequestFields.fromApi(fields)))
+    deriveDecoder[ForumSetReplyVoteAPIMessage]
 }

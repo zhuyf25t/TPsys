@@ -2,7 +2,7 @@ package services.battle.microservices.actors.services
 
 import cats.effect.IO
 
-import services.battle.microservices.session.objects.command.BattleCommandRequest
+import services.battle.microservices.runtime.objects.command.BattleCommandRequest
 import services.battle.objects.core.{BattleAggregateState, BattleVector2, ClientCommandSeq, FacingRadians, PlayerId}
 import services.battle.microservices.actors.objects.player.BattlePlayerState
 import services.battle.microservices.combat.objects.weapon.{BattleWeaponSwitchDirection, BattleWeaponSwitchIndex}

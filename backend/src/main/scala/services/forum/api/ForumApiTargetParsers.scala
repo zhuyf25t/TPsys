@@ -4,8 +4,6 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 import services.forum.objects.{ForumReplyId, ForumTopicId}
-import services.identity.objects.PlayerHandle
-import system.policies.HandlePolicy
 
 object ForumApiTargetParsers {
   def isTopicsCollection(path: String): Boolean =
@@ -55,12 +53,6 @@ object ForumApiTargetParsers {
       None
     }
   }
-
-  def resolveViewerHandle(query: Map[String, String]): Option[PlayerHandle] =
-    query.get("author").orElse(query.get("viewer"))
-      .map(HandlePolicy.trim)
-      .filter(HandlePolicy.isPlayableIdentityHandle)
-      .flatMap(PlayerHandle.forLookup)
 
   private def pathSegments(path: String): Vector[String] =
     normalizePath(path).split('/').toVector.filter(_.nonEmpty)

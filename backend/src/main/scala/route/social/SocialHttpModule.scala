@@ -6,14 +6,12 @@ import org.http4s.HttpRoutes
 
 import services.social.api.{
   FriendRequestCreateAPIMessage,
-  FriendRequestListAPIMessage,
-  FriendRequestRespondAPIMessage,
-  SocialAPIMessageSupport
-}
-import services.social.objects.apiTypes.{
   FriendRequestCreateResponse,
+  FriendRequestListAPIMessage,
   FriendRequestListResponse,
-  FriendRequestRespondResponse
+  FriendRequestRespondAPIMessage,
+  FriendRequestRespondResponse,
+  SocialAPIMessageSupport
 }
 import services.social.services.FriendRequestService
 import system.api.APIMessageRouter

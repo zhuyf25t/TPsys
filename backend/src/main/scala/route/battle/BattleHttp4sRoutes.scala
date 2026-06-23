@@ -5,10 +5,8 @@ import scala.concurrent.duration.*
 import cats.effect.{IO, Resource}
 import cats.syntax.all.*
 import fs2.{Stream, text}
-import io.circe.Json
-import io.circe.parser.parse
 import io.circe.syntax.*
-import org.http4s.{Header, Headers, HttpRoutes, Request, Response, Status}
+import org.http4s.{Header, Headers, HttpRoutes, Response, Status}
 import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.dsl.io.*
@@ -18,16 +16,17 @@ import org.typelevel.ci.CIString
 import services.identity.objects.SessionToken
 import services.identity.services.{IdentityCurrentSessionError, IdentityService}
 import services.battle.routes.{BattleAPIRuntimeContext, BattleRoutes}
-import services.battle.microservices.session.api.command.{
-  BattleCommandAcceptedResponse,
-  BattleCommandRequestDecodeError,
-  BattleCommandRequestPayload
+import services.battle.microservices.runtime.api.{
+  BattleChannelAPIEncoding,
+  BattleCommandAPIMessage,
+  BattleRuntimeChannelAPIMessagePlanner,
+  BattleRuntimeChannelStateReadError
 }
-import services.battle.microservices.session.api.command.BattleCommandAcceptedResponse.given
-import services.battle.microservices.session.api.state.BattleStateRootResponse.given
-import services.battle.microservices.session.services.{BattleCommandSubmitError, BattleStateReadError, BattleStateService}
+import services.battle.microservices.runtime.api.BattleCommandAPIMessage.given
+import services.battle.microservices.runtime.objects.command.{BattleCommandAccepted, BattleCommandRequest}
+import services.battle.microservices.session.services.BattleStateService
 import services.battle.objects.core.{BattleAggregateState, BattleId}
-import system.api.{APIMessageError, APIMessageRouter}
+import system.api.{APIMessage, APIMessageError, APIMessageRouter, APIName}
 import system.objects.ErrorResponse
 
 import route.Http4sCors.{corsNoContent, withCors}
@@ -43,14 +42,28 @@ object BattleHttp4sRoutes {
     connectionResource: Resource[IO, Connection],
     webSocketBuilder: Option[WebSocketBuilder2[IO]] = None
   ): HttpRoutes[IO] =
+    val commandCompatibilityApiMessages = BattleRoutes.commandCompatibilityApiMessages(context)
     APIMessageRouter.routes(
+      apiMessages = BattleRoutes.queueApiMessages(context),
+      resolveUserToken = resolveUserToken(identityService)
+    ) <+> APIMessageRouter.routes(
       apiMessages = BattleRoutes.runtimeApiMessages(context),
       resolveUserToken = resolveUserToken(identityService)
     ) <+> APIMessageRouter.routes(
       apiMessages = BattleRoutes.connectionBackedResultApiMessages,
       resolveUserToken = resolveUserToken(identityService),
       connectionResource = connectionResource
+    ) <+> APIMessageRouter.aliasRoutes(
+      apiMessages = commandCompatibilityApiMessages,
+      pathAliases = commandCompatibilityPathAliases(commandCompatibilityApiMessages.head.apiName),
+      responseTransform = withCors
     ) <+> publicBattleRoutes(context.stateService, webSocketBuilder)
+
+  private def commandCompatibilityPathAliases(apiName: APIName): Map[String, APIName] =
+    Map(
+      "/battle/command" -> apiName,
+      "/api/battle/command" -> apiName
+    )
 
   private def publicBattleRoutes(
     stateService: BattleStateService,
@@ -83,12 +96,6 @@ object BattleHttp4sRoutes {
       case OPTIONS -> Root / "api" / "battle" / "command" =>
         corsNoContent
 
-      case request @ POST -> Root / "battle" / "command" =>
-        commandSubmitResponse(stateService, request)
-
-      case request @ POST -> Root / "api" / "battle" / "command" =>
-        commandSubmitResponse(stateService, request)
-
       case request @ GET -> Root / "battle" / "state" / "stream" =>
         stateStreamResponse(stateService, BattleId(request.params.getOrElse("battleId", "")))
 
@@ -110,7 +117,7 @@ object BattleHttp4sRoutes {
     webSocketBuilder match {
       case Some(builder) =>
         readState(stateService, battleId).flatMap {
-          case Left(BattleStateReadError.BattleNotFound) =>
+          case Left(BattleRuntimeChannelStateReadError.BattleNotFound) =>
             NotFound(ErrorResponse("battle_not_found").asJson).map(withCors)
           case Right(firstState) =>
             builder.build { inbound =>
@@ -131,17 +138,15 @@ object BattleHttp4sRoutes {
     }
 
   private def battleChannelCommandTextResponse(stateService: BattleStateService, text: String): IO[String] =
-    parse(text).left
-      .map(_ => BattleCommandRequestDecodeError.InvalidJsonObject)
-      .flatMap(BattleCommandRequestPayload.decode) match {
-        case Left(error) =>
-          IO.pure(renderBattleChannelCommandMessage(commandErrorPayload(commandDecodeErrorCode(error))))
-        case Right(command) =>
-          stateService.acceptCommand(command).map {
-            case Right(accepted) =>
-              renderBattleChannelCommandMessage(accepted.asJson)
+    BattleCommandAPIMessage.decodeCommandText(text) match {
+      case Left(error) =>
+        IO.pure(BattleChannelAPIEncoding.battleCommandErrorMessage(BattleCommandAPIMessage.commandDecodeErrorCode(error)))
+      case Right(command) =>
+        commandPlan(stateService, command).attempt.map {
+          case Right(accepted) =>
+              BattleChannelAPIEncoding.battleCommandAcceptedMessage(accepted)
             case Left(error) =>
-              renderBattleChannelCommandMessage(commandErrorPayload(commandSubmitErrorCode(error)))
+              BattleChannelAPIEncoding.battleCommandErrorMessage(commandPlanErrorCode(error))
           }
     }
 
@@ -172,103 +177,44 @@ object BattleHttp4sRoutes {
     }
 
   private def commandChannelTextResponse(stateService: BattleStateService, text: String): IO[String] =
-    parse(text).left
-      .map(_ => BattleCommandRequestDecodeError.InvalidJsonObject)
-      .flatMap(BattleCommandRequestPayload.decode) match {
-        case Left(error) =>
-          IO.pure(commandErrorJson(commandDecodeErrorCode(error)))
-        case Right(command) =>
-          stateService.acceptCommand(command).map {
-            case Right(accepted) =>
-              accepted.asJson.noSpaces
+    BattleCommandAPIMessage.decodeCommandText(text) match {
+      case Left(error) =>
+        IO.pure(BattleChannelAPIEncoding.commandErrorJson(BattleCommandAPIMessage.commandDecodeErrorCode(error)))
+      case Right(command) =>
+        commandPlan(stateService, command).attempt.map {
+          case Right(accepted) =>
+              BattleChannelAPIEncoding.commandAcceptedJson(accepted)
             case Left(error) =>
-              commandErrorJson(commandSubmitErrorCode(error))
+              BattleChannelAPIEncoding.commandErrorJson(commandPlanErrorCode(error))
           }
     }
 
-  private def commandSubmitResponse(stateService: BattleStateService, request: Request[IO]): IO[Response[IO]] =
-    request.as[Json].attempt.flatMap {
-      case Left(_) =>
-        BadRequest(ErrorResponse("invalid_battle_command_request").asJson).map(withCors)
-      case Right(payload) =>
-        BattleCommandRequestPayload.decode(payload) match {
-          case Left(error) =>
-            commandDecodeErrorResponse(error)
-          case Right(command) =>
-            stateService.acceptCommand(command).flatMap {
-              case Right(accepted) =>
-                Ok(accepted.asJson).map(withCors)
-              case Left(error) =>
-                commandSubmitErrorResponse(error)
-            }
-        }
-    }
-
-  private def commandDecodeErrorResponse(error: BattleCommandRequestDecodeError): IO[Response[IO]] =
-    commandDecodeErrorCode(error) match {
-      case "command_not_authorized" =>
-        Forbidden(ErrorResponse("command_not_authorized").asJson).map(withCors)
-      case code =>
-        BadRequest(ErrorResponse(code).asJson).map(withCors)
-    }
-
-  private def commandSubmitErrorResponse(error: BattleCommandSubmitError): IO[Response[IO]] =
-    commandSubmitErrorCode(error) match {
-      case "battle_not_found" =>
-        NotFound(ErrorResponse("battle_not_found").asJson).map(withCors)
-      case "command_not_authorized" =>
-        Forbidden(ErrorResponse("command_not_authorized").asJson).map(withCors)
-      case code =>
-        BadRequest(ErrorResponse(code).asJson).map(withCors)
-    }
-
-  private def commandDecodeErrorCode(error: BattleCommandRequestDecodeError): String =
+  private def commandPlanErrorCode(error: Throwable): String =
     error match {
-      case BattleCommandRequestDecodeError.MissingTicket =>
-        "command_not_authorized"
-      case BattleCommandRequestDecodeError.InvalidJsonObject =>
-        "invalid_battle_command_request"
-      case BattleCommandRequestDecodeError.InvalidField(field) =>
-        s"invalid_battle_command_field_${field.toString}"
+      case APIMessageError.NotFound(message)       => message
+      case APIMessageError.Forbidden(message)      => message
+      case APIMessageError.BadRequest(message)     => message
+      case APIMessageError.Unauthorized(message)   => message
+      case _                                      => "battle_command_failed"
     }
 
-  private def commandSubmitErrorCode(error: BattleCommandSubmitError): String =
-    error match {
-      case BattleCommandSubmitError.BattleNotFound             => "battle_not_found"
-      case BattleCommandSubmitError.PlayerNotFound             => "player_not_found"
-      case BattleCommandSubmitError.BotCommandsNotSupported    => "bot_commands_not_supported"
-      case BattleCommandSubmitError.CommandNotAuthorized       => "command_not_authorized"
-    }
-
-  private def commandErrorJson(code: String): String =
-    commandErrorPayload(code).noSpaces
-
-  private def commandErrorPayload(code: String): Json =
-    Json.obj("message" -> code.asJson)
-
-  private def renderBattleChannelCommandMessage(payload: Json): String =
-    Json.obj(
-      "kind" -> "command".asJson,
-      "payload" -> payload
-    ).noSpaces
-
-  private def renderBattleChannelStateMessage(state: BattleAggregateState): String =
-    Json.obj(
-      "kind" -> "state".asJson,
-      "state" -> state.asJson
-    ).noSpaces
+  private def commandPlan(
+    stateService: BattleStateService,
+    command: BattleCommandRequest
+  ): IO[BattleCommandAccepted] =
+    BattleRuntimeChannelAPIMessagePlanner.submitCompatibilityCommand(stateService, command)
 
   private def jsonStateResponse(stateService: BattleStateService, battleId: BattleId): IO[Response[IO]] =
     readState(stateService, battleId).flatMap {
       case Right(state) =>
-        Ok(state.asJson).map(withCors)
-      case Left(BattleStateReadError.BattleNotFound) =>
+        Ok(BattleChannelAPIEncoding.stateJson(state)).map(withCors)
+      case Left(BattleRuntimeChannelStateReadError.BattleNotFound) =>
         NotFound(ErrorResponse("battle_not_found").asJson).map(withCors)
     }
 
   private def stateStreamResponse(stateService: BattleStateService, battleId: BattleId): IO[Response[IO]] =
     readState(stateService, battleId).map {
-      case Left(BattleStateReadError.BattleNotFound) =>
+      case Left(BattleRuntimeChannelStateReadError.BattleNotFound) =>
         withCors(Response[IO](Status.NotFound).withEntity(ErrorResponse("battle_not_found").asJson))
       case Right(firstState) =>
         withCors(
@@ -293,12 +239,14 @@ object BattleHttp4sRoutes {
   private def readState(
     stateService: BattleStateService,
     battleId: BattleId
-  ): IO[Either[BattleStateReadError, BattleAggregateState]] =
-    if battleId.value.trim.isEmpty then IO.pure(Left(BattleStateReadError.BattleNotFound))
-    else stateService.currentState(battleId)
+  ): IO[Either[BattleRuntimeChannelStateReadError, BattleAggregateState]] =
+    BattleRuntimeChannelAPIMessagePlanner.readPublicState(stateService, battleId)
 
   private def renderStateEvent(state: BattleAggregateState): String =
-    s"event: state\ndata: ${state.asJson.noSpaces}\n\n"
+    BattleChannelAPIEncoding.stateEvent(state)
+
+  private def renderBattleChannelStateMessage(state: BattleAggregateState): String =
+    BattleChannelAPIEncoding.battleStateMessage(state)
 
   private def stateStreamHeaders: Headers =
     Headers(
@@ -310,10 +258,10 @@ object BattleHttp4sRoutes {
   private def resolveUserToken(identityService: IdentityService)(
     userToken: String,
     connection: Connection
-  ): IO[Json] =
+  ) =
     identityService.current(SessionToken.fromString(userToken)).flatMap {
       case Right(account) =>
-        IO.pure(Json.fromString(account.userId.value))
+        IO.pure(APIMessage.injectedUserIdJson(account.userId))
       case Left(IdentityCurrentSessionError.MissingSession) =>
         IO.raiseError(APIMessageError.Unauthorized("Login is required."))
       case Left(IdentityCurrentSessionError.InvalidSession) =>

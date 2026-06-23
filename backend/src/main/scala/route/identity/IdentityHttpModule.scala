@@ -11,7 +11,7 @@ import services.identity.api.{
   IdentityRegisterAPIMessage,
   IdentitySessionAPIMessage
 }
-import services.identity.objects.apiTypes.{IdentityAccountsResponse, IdentityAuthResponse}
+import services.identity.api.{IdentityAccountsResponse, IdentityAuthResponse}
 import services.identity.services.IdentityService
 import system.api.APIMessageRouter
 import system.api.RegisteredAPIMessage.apiWithContext

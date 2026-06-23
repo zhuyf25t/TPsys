@@ -70,6 +70,9 @@ export function ReplayDetailPageView({
       <section className="replay-detail replay-detail--tv">
         <header className="replay-detail__header replay-detail__header--room replay-detail__header--compact">
           <div className="replay-detail__title-row">
+            <Link className="button-link replay-detail__exit" to="/" aria-label="退出回放并返回大厅">
+              退出
+            </Link>
             <h3>{getReplayDisplayTitle(replay)}</h3>
             <div className="pill-row replay-detail__header-actions">
               <span className={`pill replay-detail__state replay-detail__state--${hasPlayableFrames ? "playable" : "summary"}`}>

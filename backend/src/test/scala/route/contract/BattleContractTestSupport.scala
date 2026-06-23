@@ -68,7 +68,9 @@ import services.battle.microservices.results.objects.result.{
   BattleHighlightLine,
   BattlePlacement,
   BattlePlayersLine,
+  BattleResultFinishedAtLabel,
   BattleResultLabel,
+  BattleResultLoadoutLabel,
   BattleResultRecord,
   BattleTimelineHint,
   RatingDelta
@@ -220,7 +222,7 @@ private[contract] object BattleContractFixtures:
       handle = handle,
       displayName = DisplayName(handle.value),
       finishedAt = EpochMillis(3000),
-      finishedAtLabel = "now",
+      finishedAtLabel = BattleResultFinishedAtLabel.fromWire("now"),
       durationMs = DurationMillis(120000),
       score = Score(42),
       placement = BattlePlacement.fromWire(1),
@@ -234,7 +236,7 @@ private[contract] object BattleContractFixtures:
       highlightLine = BattleHighlightLine.fromWire("Alice won"),
       playersLine = BattlePlayersLine.fromWire("Alice"),
       timelineHint = BattleTimelineHint.fromWire("2m"),
-      currentLoadout = Some("Pistol")
+      currentLoadout = BattleResultLoadoutLabel.fromWire("Pistol")
     )
 
 private[contract] object RouteContractSupport:

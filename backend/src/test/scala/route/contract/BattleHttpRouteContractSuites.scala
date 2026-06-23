@@ -7,6 +7,7 @@ import java.sql.Connection
 
 import cats.effect.{IO, Resource}
 import cats.effect.unsafe.implicits.global
+import io.circe.parser.decode
 import org.http4s.implicits.uri
 import org.http4s.{Header, Headers, HttpRoutes, Method, Request}
 import org.typelevel.ci.CIString
@@ -23,8 +24,8 @@ import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
 import services.battle.routes.BattleAPIRuntimeContext
-import services.battle.microservices.actors.objects.player.{BattleAvatarKey, BattleSkinKey, Rating}
-import services.battle.microservices.session.objects.command.{
+import services.battle.microservices.actors.objects.player.{BattleAvatarKey, BattleSkinKey, Rating, Score}
+import services.battle.microservices.runtime.objects.command.{
   BattleCommandAccepted,
   BattleCommandRequest,
   BattleCommandStatus
@@ -68,6 +69,7 @@ import services.battle.microservices.projections.services.{
   BattleFinishProjectionFailureReporter,
   DefaultBattleFinishProjector
 }
+import services.battle.microservices.results.api.{BattleResultListAPIMessage, BattleResultRecordAPIMessage}
 import services.battle.microservices.results.objects.result.{BattleFinishProjectionOutcome, BattleFinishProjector}
 import services.identity.services.{
   IdentityCurrentSessionError,
@@ -348,7 +350,7 @@ private[contract] object BattleRoomHttp4sRouteContractTest:
     ContractAssertions.assertEquals("room heartbeat command room", service.heartbeatCommands.head.roomId, Some(RoomId("room-1")))
     ContractAssertions.assertEquals("room heartbeat command ticket", service.heartbeatCommands.head.ticketId, Some(TicketId("ticket-1")))
     ContractAssertions.assertEquals("room heartbeat command handle", service.heartbeatCommands.head.handle, Some(PlayerHandle("Alice")))
-    ContractAssertions.assertEquals("room heartbeat command pause", service.heartbeatCommands.head.startPaused, Some(true))
+    ContractAssertions.assertEquals("room heartbeat command pause", service.heartbeatCommands.head.startGateAction, BattleRoomStartGateAction.Pause)
     ContractAssertions.assertEquals("room heartbeat command chat", service.heartbeatCommands.head.chatMessage.map(_.value), Some("Ready check"))
 
   private final class RecordingBattleRoomQueueService extends BattleQueueService:
@@ -426,6 +428,7 @@ private[contract] object BattleStateHttp4sRouteContractTest:
 private[contract] object BattleCommandHttp4sRouteContractTest:
   def run(): Unit =
     commandParsesAndRendersAccepted()
+    legacyCommandAliasParsesWithoutUserToken()
     commandRequiresTicket()
 
   private def commandParsesAndRendersAccepted(): Unit =
@@ -444,6 +447,19 @@ private[contract] object BattleCommandHttp4sRouteContractTest:
     ContractAssertions.assertEquals("battle command ticket", service.acceptedRequests.head.ticketId, TicketId("ticket-1"))
     ContractAssertions.assertEquals("battle command player", service.acceptedRequests.head.playerId, PlayerId("player-1"))
 
+  private def legacyCommandAliasParsesWithoutUserToken(): Unit =
+    val service = RecordingBattleCommandStateService()
+    val response = RouteContractSupport.runRoute(
+      BattleHttpRouteContractSupport.routes(stateService = service),
+      Request[IO](method = Method.POST, uri = uri"/api/battle/command")
+        .withEntity(commandBody(ticketId = Some("ticket-legacy"), includeUserToken = false))
+    )
+
+    ContractAssertions.assertEquals("legacy battle command status", response.status, 200)
+    ContractAssertions.assertContains("legacy battle command accepted tick", response.body, """"acceptedTick":15""")
+    ContractAssertions.assertEquals("legacy battle command request count", service.acceptedRequests.length, 1)
+    ContractAssertions.assertEquals("legacy battle command ticket", service.acceptedRequests.head.ticketId, TicketId("ticket-legacy"))
+
   private def commandRequiresTicket(): Unit =
     val response = RouteContractSupport.runRoute(
       BattleHttpRouteContractSupport.routes(stateService = RecordingBattleCommandStateService()),
@@ -454,9 +470,10 @@ private[contract] object BattleCommandHttp4sRouteContractTest:
     ContractAssertions.assertEquals("battle command missing ticket status", response.status, 403)
     ContractAssertions.assertContains("battle command missing ticket message", response.body, "command_not_authorized")
 
-  private def commandBody(ticketId: Option[String]): String =
+  private def commandBody(ticketId: Option[String], includeUserToken: Boolean = true): String =
+    val userTokenField = if includeUserToken then """"userToken":"session-tester",""" else ""
     val ticketField = ticketId.map(value => s""""ticketId":"$value",""").getOrElse("")
-    s"""{"userToken":"session-tester","battleId":"battle-1","playerId":"player-1",$ticketField"clientTick":15,"clientCommandSeq":16,"movement":{"x":1.0,"y":0.0},"aim":{"x":0.0,"y":1.0},"primaryHeld":true,"sprint":false,"reloadPressed":false,"castDash":false,"castBlink":false,"castFreeze":false,"pointerWorld":{"x":12.0,"y":18.0},"switchWeaponDirection":1,"switchWeaponIndex":0}"""
+    s"""{$userTokenField"battleId":"battle-1","playerId":"player-1",$ticketField"clientTick":15,"clientCommandSeq":16,"movement":{"x":1.0,"y":0.0},"aim":{"x":0.0,"y":1.0},"primaryHeld":true,"sprint":false,"reloadPressed":false,"castDash":false,"castBlink":false,"castFreeze":false,"pointerWorld":{"x":12.0,"y":18.0},"switchWeaponDirection":1,"switchWeaponIndex":0}"""
 
   private final class RecordingBattleCommandStateService extends BattleStateService:
     var acceptedRequests: Vector[BattleCommandRequest] = Vector.empty
@@ -480,4 +497,42 @@ private[contract] object BattleCommandHttp4sRouteContractTest:
 
 private[contract] object BattleResultHttp4sRouteContractTest:
   def run(): Unit =
-    ()
+    listAPIMessageDecodesTypedFields()
+    recordAPIMessageDecodesTypedFields()
+    recordAPIMessageRejectsInvalidTypedField()
+
+  private def listAPIMessageDecodesTypedFields(): Unit =
+    val message = decodeMessage[BattleResultListAPIMessage](
+      """{"userId":"user-result","handle":"Alice","battleId":"battle-1","limit":2}"""
+    )
+
+    ContractAssertions.assertEquals("battle result list user", message.userId, UserId("user-result"))
+    ContractAssertions.assertEquals("battle result list handle", message.handle, Some(PlayerHandle("Alice")))
+    ContractAssertions.assertEquals("battle result list battle", message.battleId, Some(BattleId("battle-1")))
+    ContractAssertions.assertEquals("battle result list limit", message.limit.value, 2)
+
+  private def recordAPIMessageDecodesTypedFields(): Unit =
+    val message = decodeMessage[BattleResultRecordAPIMessage](
+      """{"userId":"user-result","battleId":"battle-1","handle":"Alice","displayName":"Alice","finishedAt":1000,"finishedAtLabel":"now","durationMs":30000,"score":42,"placement":1,"aliveAtEnd":true,"ratingBefore":1200,"ratingDelta":15,"ratingAfter":1215,"resultLabel":"Victory","modeLabel":"Arena","mapLabel":"Island","highlightLine":"Alice won","playersLine":"Alice vs Bob","timelineHint":"30s","currentLoadout":"rifle"}"""
+    )
+
+    ContractAssertions.assertEquals("battle result record user", message.userId, UserId("user-result"))
+    ContractAssertions.assertEquals("battle result record battle", message.battleId, BattleId("battle-1"))
+    ContractAssertions.assertEquals("battle result record handle", message.handle, PlayerHandle("Alice"))
+    ContractAssertions.assertEquals("battle result record score", message.score, Score(42))
+    ContractAssertions.assertEquals("battle result record current loadout", message.currentLoadout.map(_.value), Some("rifle"))
+
+  private def recordAPIMessageRejectsInvalidTypedField(): Unit =
+    val decoded = decode[BattleResultRecordAPIMessage](
+      """{"userId":"user-result","battleId":"battle-1","handle":"Alice","score":"forty"}"""
+    )
+
+    ContractAssertions.assertEquals("battle result record invalid score rejected", decoded.isLeft, true)
+    ContractAssertions.assertContains(
+      "battle result record invalid score message",
+      decoded.left.toOption.map(_.getMessage).getOrElse(""),
+      "invalid_field_score"
+    )
+
+  private def decodeMessage[A: io.circe.Decoder](payload: String): A =
+    decode[A](payload).fold(error => throw AssertionError(error.getMessage), identity)

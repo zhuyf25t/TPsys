@@ -1,46 +1,90 @@
 package route.social
 
 import cats.effect.IO
-import io.circe.syntax.*
-import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response}
+import cats.syntax.all.*
+import org.http4s.{HttpRoutes, MessageFailure, Method, Request, Response}
 
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
-import route.Http4sCors.corsNoContent
-import route.Http4sRequestDecoders.decodeEntityBody
+import route.Http4sCors.{corsNoContent, withCors}
 import route.Http4sRequestPaths.requestPath
-import route.Http4sResponses.{errorResponse, jsonOk}
+import route.Http4sResponses.errorResponse
 import services.social.api.{
-  FriendRequestOwnerQuery,
-  SocialApiErrorCode,
-  SocialApiRequestDecodeError,
-  SocialCommandParsers,
-  SocialRequestTarget,
-  SocialRouteCreateError,
-  SocialRouteHandleError,
-  SocialRouteRespondError
-}
-import services.social.objects.apiTypes.{
-  FriendRequestCreateApiRequest,
+  FriendRequestCreateAPIMessage,
   FriendRequestCreateResponse,
+  FriendRequestListAPIMessage,
   FriendRequestListResponse,
-  FriendRequestRespondApiRequest,
-  FriendRequestRespondResponse
+  FriendRequestRespondResponse,
+  FriendRequestRespondAPIMessage,
+  SocialAPIParser,
+  SocialApiErrorCode,
+  SocialAPIMessageSupport,
+  SocialRequestTarget
 }
 import services.social.services.FriendRequestService
+import system.api.{APIMessage, APIMessageError, APIMessageRouter}
+import system.api.APIMessageRouter.APIMessageRequestAlias
+import system.api.RegisteredAPIMessage.apiWithContext
 
 private[route] object SocialHttp4sRoutes {
-  import CirceEntityDecoder.*
-
   def routes(service: FriendRequestService): HttpRoutes[IO] =
+    postAliasRoutes(service) <+> getAliasRoutes(service) <+> compatibilityRoutes
+
+  private def postAliasRoutes(service: FriendRequestService): HttpRoutes[IO] =
+    APIMessageRouter.aliasRoutes(
+      socialPostApiMessages(service),
+      pathAliases = Map(
+        "/social/friend-requests" -> APIMessage.apiNameFromClass[FriendRequestCreateAPIMessage],
+        "/api/social/friend-requests" -> APIMessage.apiNameFromClass[FriendRequestCreateAPIMessage],
+        "/social/friend-requests/respond" -> APIMessage.apiNameFromClass[FriendRequestRespondAPIMessage],
+        "/api/social/friend-requests/respond" -> APIMessage.apiNameFromClass[FriendRequestRespondAPIMessage]
+      ),
+      responseTransform = withCors,
+      errorHandler = socialAPIMessageErrorResponse
+    )
+
+  private def socialPostApiMessages(service: FriendRequestService): List[system.api.RegisteredAPIMessage] =
+    List(
+      apiWithContext[
+        FriendRequestService,
+        FriendRequestCreateAPIMessage,
+        FriendRequestCreateResponse
+      ](service, SocialAPIMessageSupport.invalidJsonObject),
+      apiWithContext[
+        FriendRequestService,
+        FriendRequestRespondAPIMessage,
+        FriendRequestRespondResponse
+      ](service, SocialAPIMessageSupport.invalidJsonObject)
+    )
+
+  private def getAliasRoutes(service: FriendRequestService): HttpRoutes[IO] =
+    APIMessageRouter.requestAliasRoutes(
+      apiMessages = List(
+        apiWithContext[
+          FriendRequestService,
+          FriendRequestListAPIMessage,
+          FriendRequestListResponse
+        ](service, SocialAPIMessageSupport.invalidJsonObject)
+      ),
+      aliasForRequest = socialGetAlias(service),
+      errorHandler = socialAPIMessageErrorResponse
+    )
+
+  private def socialGetAlias(service: FriendRequestService)(request: Request[IO]): Option[APIMessageRequestAlias] =
+    Option.when(request.method == Method.GET && SocialRequestTarget.isFriendRequestPath(requestPath(request)))(
+      APIMessageRequestAlias.fromContextMessage[FriendRequestService, FriendRequestListAPIMessage, FriendRequestListResponse](
+        context = service,
+        message = SocialAPIParser.listMessageFromQuery(request.params),
+        responseTransform = withCors
+      )
+    )
+
+  private def compatibilityRoutes: HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if SocialRequestTarget.isFriendRequestRespondPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.POST =>
-            respond(request, service)
           case _ =>
             errorResponse(socialApiError(SocialApiErrorCode.MethodNotAllowed))
         }
@@ -48,81 +92,17 @@ private[route] object SocialHttp4sRoutes {
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.GET =>
-            list(request, service)
-          case Method.POST =>
-            create(request, service)
           case _ =>
             errorResponse(socialApiError(SocialApiErrorCode.MethodNotAllowed))
         }
     }
 
-  private def list(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
-    FriendRequestOwnerQuery.parseFromQuery(request.params) match {
-      case Left(error) =>
-        errorResponse(ownerApiError(error))
-      case Right(ownerHandle) =>
-        service.list(ownerHandle).flatMap(records =>
-          jsonOk(FriendRequestListResponse.fromRecords(records).asJson)
-        )
-    }
-
-  private def create(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
-    readCreateRequest(request).flatMap {
-      case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
-        errorResponse(socialApiError(SocialApiErrorCode.InvalidJsonObject))
-      case Right(createRequest) =>
-        SocialCommandParsers.parseCreateHandles(createRequest) match {
-          case Left(error) =>
-            errorResponse(createApiError(error))
-          case Right(command) =>
-            service.create(command.sourceHandle, command.targetHandle).flatMap {
-              case Right(result) =>
-                jsonOk(FriendRequestCreateResponse.fromResult(result).asJson)
-              case Left(error) =>
-                errorResponse(socialApiError(SocialApiErrorCode.fromCreateServiceError(error)))
-            }
-        }
-    }
-
-  private def respond(request: Request[IO], service: FriendRequestService): IO[Response[IO]] =
-    readRespondRequest(request).flatMap {
-      case Left(SocialApiRequestDecodeError.InvalidJsonObject) =>
-        errorResponse(socialApiError(SocialApiErrorCode.InvalidJsonObject))
-      case Right(respondRequest) =>
-        SocialCommandParsers.parseRespondCommand(respondRequest) match {
-          case Left(error) =>
-            errorResponse(respondParseApiError(error))
-          case Right(command) =>
-            service.respond(command.requestId, command.actorHandle, command.decision).flatMap {
-              case Right(result) =>
-                jsonOk(FriendRequestRespondResponse.fromResult(result).asJson)
-              case Left(error) =>
-                errorResponse(socialApiError(SocialApiErrorCode.fromRespondServiceError(error)))
-            }
-        }
-    }
-
-  private def readCreateRequest(request: Request[IO]): IO[Either[SocialApiRequestDecodeError, FriendRequestCreateApiRequest]] =
-    decodeEntityBody[SocialApiRequestDecodeError, FriendRequestCreateApiRequest](
-      request,
-      SocialApiRequestDecodeError.InvalidJsonObject
-    )
-
-  private def readRespondRequest(request: Request[IO]): IO[Either[SocialApiRequestDecodeError, FriendRequestRespondApiRequest]] =
-    decodeEntityBody[SocialApiRequestDecodeError, FriendRequestRespondApiRequest](
-      request,
-      SocialApiRequestDecodeError.InvalidJsonObject
-    )
-
-  private def ownerApiError(error: SocialRouteHandleError): HttpApiError =
-    socialApiError(SocialApiErrorCode.fromOwnerError(error))
-
-  private def createApiError(error: SocialRouteCreateError): HttpApiError =
-    socialApiError(SocialApiErrorCode.fromCreateRouteError(error))
-
-  private def respondParseApiError(error: SocialRouteRespondError): HttpApiError =
-    socialApiError(SocialApiErrorCode.fromRespondRouteError(error))
+  private def socialAPIMessageErrorResponse: PartialFunction[Throwable, IO[Response[IO]]] = {
+    case _: MessageFailure =>
+      errorResponse(socialApiError(SocialApiErrorCode.InvalidJsonObject))
+    case error: APIMessageError =>
+      errorResponse(socialApiError(socialApiErrorCode(error)))
+  }
 
   private def socialApiError(code: SocialApiErrorCode): HttpApiError =
     typedApiError(
@@ -130,5 +110,13 @@ private[route] object SocialHttp4sRoutes {
       code = SocialApiErrorCode.wireValue(code),
       message = SocialApiErrorCode.message(code)
     )
+
+  private def socialApiErrorCode(error: APIMessageError): SocialApiErrorCode =
+    SocialApiErrorCode.values
+      .find(code =>
+        error.getMessage == SocialApiErrorCode.message(code) ||
+          error.getMessage == SocialApiErrorCode.wireValue(code)
+      )
+      .getOrElse(SocialApiErrorCode.InvalidJsonObject)
 
 }

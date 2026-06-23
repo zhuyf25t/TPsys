@@ -1,6 +1,6 @@
 package services.battle.microservices.session.services
 
-import services.battle.microservices.session.objects.command.BattleCommandAccepted
+import services.battle.microservices.runtime.objects.command.BattleCommandAccepted
 import services.battle.microservices.queue.objects.queue.TicketId
 import services.battle.objects.core.{BattleAggregateState, EpochMillis, PlayerId}
 import services.battle.microservices.results.objects.result.BattleFinishProjectionStatus

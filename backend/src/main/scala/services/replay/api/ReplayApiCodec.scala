@@ -1,15 +1,10 @@
 package services.replay.api
 
-import io.circe.{Decoder, Json}
-import io.circe.generic.semiauto.deriveDecoder
+import io.circe.Decoder
 
-import services.battle.microservices.actors.objects.player.{BattleSurvivalOutcome, Score}
-import services.battle.microservices.results.objects.result.BattlePlacement
-import services.battle.objects.{BattleId, DurationMillis, EpochMillis}
-import services.identity.objects.{DisplayName, PlayerHandle}
-import services.replay.objects.{ReplayFrameCount, ReplayId, ReplayPlaybackAvailability}
-import services.replay.services.{ReplayCommentCommand, ReplayIdentifierPolicy, ReplayRecordCommand}
-import system.policies.HandlePolicy
+import services.identity.objects.PlayerHandle
+import services.replay.objects.ReplayId
+import services.replay.services.ReplayIdentifierPolicy
 
 enum ReplayRecordDecodeError {
   case BadJsonObject
@@ -46,10 +41,10 @@ object ReplayApiCodec {
     CatalogBasePaths.collectFirst(Function.unlift(basePathTarget(path)))
 
   def selectedHandle(query: Map[String, String]): Option[PlayerHandle] =
-    query.get("handle").flatMap(PlayerHandle.forLookup)
+    ReplaySelectedHandleInput.fromWire(query.get("handle"))
 
   def limit(query: Map[String, String]): Int =
-    query.get("limit").flatMap(_.toIntOption).getOrElse(25)
+    ReplayListLimitInput.fromWire(query.get("limit").flatMap(_.toIntOption)).value
 
   def catalogQuery(query: Map[String, String]): ReplayCatalogQuery =
     ReplayCatalogQuery(
@@ -57,14 +52,10 @@ object ReplayApiCodec {
       selectedHandle = selectedHandle(query)
     )
 
-  def decodeRecordCommand(payload: Json): Either[ReplayRecordDecodeError, ReplayRecordCommand] =
-    payload.as[ReplayRecordAPIRequest].left.map(_ => ReplayRecordDecodeError.BadJsonObject).flatMap(_.toCommand)
-
-  def decodeCommentCommand(
-    replayId: ReplayId,
-    payload: Json
-  ): Either[ReplayCommentDecodeError, ReplayCommentCommand] =
-    payload.as[ReplayCommentAPIRequest].left.map(_ => ReplayCommentDecodeError.BadJsonObject).flatMap(_.toCommand(replayId))
+  private[api] given Decoder[ReplayId] =
+    Decoder.decodeString.emap(value =>
+      parseReplayIdValue(value).map(Right.apply).getOrElse(Left("invalid_replay_id"))
+    )
 
   private def basePathTarget(path: String)(basePath: String): Option[ReplayCatalogTarget] =
     if path == basePath then Some(ReplayCatalogTarget.Collection)
@@ -80,113 +71,12 @@ object ReplayApiCodec {
           .orElse(Some(ReplayCatalogTarget.InvalidReplayId))
     } else None
 
-  private[api] def parseReplayId(value: String): Either[ReplayRecordDecodeError, ReplayId] =
-    parseReplayIdValue(value).toRight(ReplayRecordDecodeError.InvalidReplayId)
-
-  private[api] def parseCommentReplayId(value: String): Either[ReplayCommentDecodeError, ReplayId] =
-    parseReplayIdValue(value).toRight(ReplayCommentDecodeError.InvalidReplayId)
-
-  private[api] def parseBattleId(value: String): Either[ReplayRecordDecodeError, BattleId] =
-    nonEmpty(value).filter(_.length <= 200).map(BattleId.apply).toRight(ReplayRecordDecodeError.InvalidBattleId)
-
-  private[api] def parseRecordHandle(value: String): Either[ReplayRecordDecodeError, PlayerHandle] = {
-    val trimmed = HandlePolicy.trim(value)
-    if trimmed.isEmpty then Left(ReplayRecordDecodeError.InvalidHandle)
-    else if !HandlePolicy.isPlayableIdentityHandle(trimmed) then Left(ReplayRecordDecodeError.VisitorNotAllowed)
-    else PlayerHandle.forLookup(trimmed).toRight(ReplayRecordDecodeError.InvalidHandle)
-  }
-
-  private[api] def parseCommentHandle(value: String): Either[ReplayCommentDecodeError, PlayerHandle] = {
-    val trimmed = HandlePolicy.trim(value)
-    if trimmed.isEmpty then Left(ReplayCommentDecodeError.InvalidAuthorHandle)
-    else if !HandlePolicy.isPlayableIdentityHandle(trimmed) then Left(ReplayCommentDecodeError.VisitorNotAllowed)
-    else PlayerHandle.forLookup(trimmed).toRight(ReplayCommentDecodeError.InvalidAuthorHandle)
-  }
+  private[api] def replayIdFromWire(value: String): Option[ReplayId] =
+    parseReplayIdValue(value)
 
   private[api] def nonEmpty(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
 
   private def parseReplayIdValue(value: String): Option[ReplayId] =
     nonEmpty(value).filter(ReplayIdentifierPolicy.isSafeIdentifier).map(ReplayId.apply)
-}
-
-private[api] final case class ReplayRecordAPIRequest(
-  replayId: Option[String] = None,
-  battleId: Option[String] = None,
-  handle: Option[String] = None,
-  displayName: Option[String] = None,
-  finishedAt: Option[Long] = None,
-  finishedAtLabel: Option[String] = None,
-  title: Option[String] = None,
-  modeLabel: Option[String] = None,
-  resultLabel: Option[String] = None,
-  mapLabel: Option[String] = None,
-  highlightLine: Option[String] = None,
-  coverLabel: Option[String] = None,
-  playersLine: Option[String] = None,
-  timelineHint: Option[String] = None,
-  score: Option[Int] = None,
-  placement: Option[Int] = None,
-  durationMs: Option[Long] = None,
-  aliveAtEnd: Option[Boolean] = None,
-  thumbnailDataUrl: Option[String] = None,
-  currentLoadout: Option[String] = None,
-  frameCount: Option[Int] = None,
-  playbackAvailable: Option[Boolean] = None,
-  framesJson: Option[String] = None,
-  frames: Option[Json] = None
-) {
-  def toCommand: Either[ReplayRecordDecodeError, ReplayRecordCommand] =
-    for
-      parsedReplayId <- ReplayApiCodec.parseReplayId(replayId.getOrElse(""))
-      parsedBattleId <- ReplayApiCodec.parseBattleId(battleId.getOrElse(""))
-      parsedHandle <- ReplayApiCodec.parseRecordHandle(handle.getOrElse(""))
-    yield ReplayRecordCommand(
-      replayId = parsedReplayId,
-      battleId = parsedBattleId,
-      handle = parsedHandle,
-      displayName = DisplayName(displayName.flatMap(ReplayApiCodec.nonEmpty).getOrElse(parsedHandle.value)),
-      finishedAt = EpochMillis(math.max(0L, finishedAt.getOrElse(0L))),
-      finishedAtLabel = finishedAtLabel.getOrElse(""),
-      title = title.getOrElse(""),
-      modeLabel = modeLabel.getOrElse(""),
-      resultLabel = resultLabel.getOrElse(""),
-      mapLabel = mapLabel.getOrElse(""),
-      highlightLine = highlightLine.getOrElse(""),
-      coverLabel = coverLabel.getOrElse(""),
-      playersLine = playersLine.getOrElse(""),
-      timelineHint = timelineHint.getOrElse(""),
-      score = Score(math.max(0, score.getOrElse(0))),
-      placement = placement.flatMap(BattlePlacement.fromWire),
-      durationMs = DurationMillis(math.max(0L, durationMs.getOrElse(0L))),
-      survivalOutcome = BattleSurvivalOutcome.fromAliveAtEnd(aliveAtEnd.getOrElse(false)),
-      thumbnailDataUrl = thumbnailDataUrl.flatMap(ReplayApiCodec.nonEmpty).filter(_ != "null"),
-      currentLoadout = currentLoadout.flatMap(ReplayApiCodec.nonEmpty).filter(_ != "null"),
-      frameCount = ReplayFrameCount.fromWire(frameCount.getOrElse(0)),
-      requestedPlaybackAvailability = ReplayPlaybackAvailability.fromAvailableFlag(playbackAvailable.getOrElse(false)),
-      framesJson = framesJson.orElse(frames.map(_.noSpaces)).getOrElse("[]")
-    )
-}
-
-private[api] object ReplayRecordAPIRequest {
-  given Decoder[ReplayRecordAPIRequest] = deriveDecoder
-}
-
-private[api] final case class ReplayCommentAPIRequest(
-  authorHandle: Option[String] = None,
-  body: Option[String] = None
-) {
-  def toCommand(replayId: ReplayId): Either[ReplayCommentDecodeError, ReplayCommentCommand] =
-    for
-      parsedReplayId <- ReplayApiCodec.parseCommentReplayId(replayId.value)
-      author <- ReplayApiCodec.parseCommentHandle(authorHandle.getOrElse(""))
-    yield ReplayCommentCommand(
-      replayId = parsedReplayId,
-      authorHandle = author,
-      body = body.getOrElse("")
-    )
-}
-
-private[api] object ReplayCommentAPIRequest {
-  given Decoder[ReplayCommentAPIRequest] = deriveDecoder
 }

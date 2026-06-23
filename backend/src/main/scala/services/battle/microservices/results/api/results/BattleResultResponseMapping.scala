@@ -14,7 +14,7 @@ private[api] object BattleResultResponseMapping {
         handle = value.handle.value,
         displayName = value.displayName.value,
         finishedAt = value.finishedAt.value,
-        finishedAtLabel = value.finishedAtLabel,
+        finishedAtLabel = value.finishedAtLabel.value,
         durationMs = value.durationMs.value,
         score = value.score.value,
         placement = value.placement.map(_.value),
@@ -28,7 +28,7 @@ private[api] object BattleResultResponseMapping {
         highlightLine = value.highlightLine.value,
         playersLine = value.playersLine.value,
         timelineHint = value.timelineHint.value,
-        currentLoadout = value.currentLoadout
+        currentLoadout = value.currentLoadout.map(_.value)
       )
     )
 

@@ -17,6 +17,7 @@ import services.battle.microservices.actors.objects.player.BattlePlayerState
 import services.battle.microservices.results.objects.result.{
   BattleHighlightLine,
   BattlePlacement,
+  BattleResultFinishedAtLabel,
   BattlePlayersLine,
   BattleResultLabel,
   BattleResultRecord,
@@ -32,8 +33,8 @@ private[battle] object BattleFinishProjectionLabelRules {
   val CoverLabel: String =
     "\u670d\u52a1\u5668\u6218\u62a5"
 
-  def finishedAtLabel(timestamp: EpochMillis): IO[String] =
-    IO.pure(TimestampFormatter.format(Instant.ofEpochMilli(timestamp.value)))
+  def finishedAtLabel(timestamp: EpochMillis): IO[BattleResultFinishedAtLabel] =
+    IO.pure(BattleResultFinishedAtLabel.fromWire(TimestampFormatter.format(Instant.ofEpochMilli(timestamp.value))))
 
   def modeLabel: IO[BattleModeLabel] =
     IO.pure(BattleModeLabel.fromWire("\u6743\u5a01\u5bf9\u6218"))

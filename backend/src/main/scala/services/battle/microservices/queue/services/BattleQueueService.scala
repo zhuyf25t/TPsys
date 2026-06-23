@@ -91,7 +91,7 @@ final class InMemoryBattleQueueService private (
     for
       now <- currentTime
       result <-
-        if request.startPaused.contains(true) then heartbeatWithPausePriority(request, now)
+        if request.startGateAction == BattleRoomStartGateAction.Pause then heartbeatWithPausePriority(request, now)
         else updateAdvancedState(now) { advancedState =>
           heartbeatTransition(advancedState, request, now)
         }

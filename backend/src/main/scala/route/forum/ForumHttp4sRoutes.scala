@@ -1,32 +1,151 @@
 package route.forum
 
 import cats.effect.IO
-import io.circe.syntax.*
-import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response}
+import cats.syntax.all.*
+import org.http4s.{HttpRoutes, MessageFailure, Method, Request, Response, Status}
 
 import services.forum.api.{
+  ForumAPIMessageSupport,
+  ForumAddReplyAPIMessage,
   ForumApiErrorCode,
-  ForumApiErrorMapper,
   ForumApiTargetParsers,
-  ForumCreateTopicParseError,
-  ForumRequestFields,
-  ForumTopicMutationParseError,
-  ForumVoteCommandParseError
+  ForumCreateTopicAPIMessage,
+  ForumAPIParser,
+  ForumSetReplyVoteAPIMessage,
+  ForumSetTopicVoteAPIMessage,
+  ForumTopicListResponse,
+  ForumTopicListAPIMessage,
+  ForumTopicLoadAPIMessage,
+  ForumTopicWrapperResponse
 }
-import services.forum.objects.apiTypes.{ForumApiRequestDecodeError, ForumApiRequestFields, ForumTopicListResponse, ForumTopicWrapperResponse}
 import services.forum.services.ForumService
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
-import route.Http4sCors.{corsNoContent, corsOk}
-import route.Http4sRequestDecoders.decodeEntityBody
+import route.Http4sCors.{corsNoContent, corsOk, withCors}
 import route.Http4sRequestPaths.requestPath
-import route.Http4sResponses.{errorResponse, jsonCreated, jsonOk}
+import route.Http4sResponses.errorResponse
+import system.api.{APIMessageError, APIMessageRouter, RegisteredAPIMessage}
+import system.api.APIMessageRouter.{APIMessageAlias, APIMessageRequestAlias}
+import system.api.RegisteredAPIMessage.apiWithContext
 
 private[route] object ForumHttp4sRoutes {
-  import CirceEntityDecoder.*
-
   def routes(service: ForumService): HttpRoutes[IO] =
+    postAliasRoutes(service) <+> getAliasRoutes(service) <+> compatibilityRoutes
+
+  private def postAliasRoutes(service: ForumService): HttpRoutes[IO] =
+    APIMessageRouter.dynamicAliasRoutes(
+      apiMessages = forumPostApiMessages(service),
+      aliasForRequest = forumPostAlias(service),
+      errorHandler = forumAPIMessageErrorResponse
+    )
+
+  private def forumPostApiMessages(service: ForumService): List[RegisteredAPIMessage] =
+    List(
+      apiWithContext[
+        ForumService,
+        ForumCreateTopicAPIMessage,
+        ForumTopicWrapperResponse
+      ](service, ForumAPIMessageSupport.invalidJsonObject),
+      apiWithContext[
+        ForumService,
+        ForumAddReplyAPIMessage,
+        ForumTopicWrapperResponse
+      ](service, ForumAPIMessageSupport.invalidJsonObject),
+      apiWithContext[
+        ForumService,
+        ForumSetTopicVoteAPIMessage,
+        ForumTopicWrapperResponse
+      ](service, ForumAPIMessageSupport.invalidJsonObject),
+      apiWithContext[
+        ForumService,
+        ForumSetReplyVoteAPIMessage,
+        ForumTopicWrapperResponse
+      ](service, ForumAPIMessageSupport.invalidJsonObject)
+    )
+
+  private def getAliasRoutes(service: ForumService): HttpRoutes[IO] =
+    APIMessageRouter.requestAliasRoutes(
+      apiMessages = forumGetApiMessages(service),
+      aliasForRequest = forumGetAlias(service),
+      errorHandler = forumAPIMessageErrorResponse
+    )
+
+  private def forumGetApiMessages(service: ForumService): List[RegisteredAPIMessage] =
+    List(
+      apiWithContext[
+        ForumService,
+        ForumTopicListAPIMessage,
+        ForumTopicListResponse
+      ](service, ForumAPIMessageSupport.invalidJsonObject),
+      apiWithContext[
+        ForumService,
+        ForumTopicLoadAPIMessage,
+        ForumTopicWrapperResponse
+      ](service, ForumAPIMessageSupport.invalidJsonObject)
+    )
+
+  private def forumPostAlias(service: ForumService)(request: Request[IO]): Option[APIMessageAlias] = {
+    val path = requestPath(request)
+    if ForumApiTargetParsers.isTopicsCollection(path) then
+      Some(
+        APIMessageAlias.fromContextMessage[ForumService, ForumCreateTopicAPIMessage, ForumTopicWrapperResponse](
+          context = service,
+          responseTransform = createdResponse
+        )
+      )
+    else if ForumApiTargetParsers.isReplyVotesPath(path) then
+      Some(
+        APIMessageAlias.fromContextMessage[ForumService, ForumSetReplyVoteAPIMessage, ForumTopicWrapperResponse](
+          context = service,
+          transformMessage = _.withPathIds(
+            pathTopicId = ForumApiTargetParsers.topicIdFrom(path),
+            pathReplyId = ForumApiTargetParsers.replyIdFrom(path)
+          ),
+          responseTransform = withCors
+        )
+      )
+    else if ForumApiTargetParsers.isRepliesPath(path) then
+      Some(
+        APIMessageAlias.fromContextMessage[ForumService, ForumAddReplyAPIMessage, ForumTopicWrapperResponse](
+          context = service,
+          transformMessage = _.withTopicId(ForumApiTargetParsers.topicIdFrom(path)),
+          responseTransform = withCors
+        )
+      )
+    else if ForumApiTargetParsers.isTopicVotesPath(path) then
+      Some(
+        APIMessageAlias.fromContextMessage[ForumService, ForumSetTopicVoteAPIMessage, ForumTopicWrapperResponse](
+          context = service,
+          transformMessage = _.withTopicId(ForumApiTargetParsers.topicIdFrom(path)),
+          responseTransform = withCors
+        )
+      )
+    else None
+  }
+
+  private def forumGetAlias(service: ForumService)(request: Request[IO]): Option[APIMessageRequestAlias] =
+    if request.method != Method.GET || !isForumPath(request) then None
+    else {
+      val path = requestPath(request)
+      if ForumApiTargetParsers.isTopicsCollection(path) then
+        Some(
+          APIMessageRequestAlias.fromContextMessage[ForumService, ForumTopicListAPIMessage, ForumTopicListResponse](
+            context = service,
+            message = ForumAPIParser.listMessageFromQuery(request.params),
+            responseTransform = withCors
+          )
+        )
+      else
+        Some(
+          APIMessageRequestAlias.fromContextMessage[ForumService, ForumTopicLoadAPIMessage, ForumTopicWrapperResponse](
+            context = service,
+            message = ForumAPIParser.loadMessageFromPathAndQuery(path, request.params),
+            responseTransform = withCors
+          )
+        )
+    }
+
+  private def compatibilityRoutes: HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if isForumPath(request) =>
         request.method match {
@@ -34,168 +153,24 @@ private[route] object ForumHttp4sRoutes {
             corsNoContent
           case Method.HEAD =>
             corsOk
-          case Method.GET if ForumApiTargetParsers.isTopicsCollection(requestPath(request)) =>
-            service.listTopics(viewerHandle(request)).flatMap(topics =>
-              jsonOk(ForumTopicListResponse.fromViews(topics).asJson)
-            )
-          case Method.GET =>
-            loadTopic(request, service)
-          case Method.POST if ForumApiTargetParsers.isTopicsCollection(requestPath(request)) =>
-            createTopic(request, service)
-          case Method.POST if ForumApiTargetParsers.isReplyVotesPath(requestPath(request)) =>
-            setReplyVote(request, service)
-          case Method.POST if ForumApiTargetParsers.isRepliesPath(requestPath(request)) =>
-            addReply(request, service)
-          case Method.POST if ForumApiTargetParsers.isTopicVotesPath(requestPath(request)) =>
-            setTopicVote(request, service)
           case _ =>
             errorResponse(routeError(ForumApiErrorCode.MethodNotAllowed))
         }
     }
 
-  private def loadTopic(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
-      case None =>
-        errorResponse(routeError(ForumApiErrorCode.TopicNotFound))
-      case Some(topicId) =>
-        service.loadTopic(topicId, viewerHandle(request)).flatMap {
-          case Some(topic) =>
-            jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
-          case None =>
-            errorResponse(routeError(ForumApiErrorCode.TopicNotFound))
-        }
-    }
-
-  private def createTopic(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    parseBody(request).flatMap {
-      case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-        errorResponse(routeError(ForumApiErrorCode.InvalidJsonObject))
-      case Right(fields) =>
-        fields.toCreateTopicCommand match {
-          case Right(command) =>
-            service.createTopic(command).flatMap {
-              case Right(topic) =>
-                jsonCreated(ForumTopicWrapperResponse.fromView(topic).asJson)
-              case Left(error) =>
-                errorResponse(createApiError(error))
-            }
-          case Left(error) =>
-            errorResponse(createApiError(error))
-        }
-    }
-
-  private def addReply(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
-      case None =>
-        errorResponse(routeError(ForumApiErrorCode.TopicNotFound))
-      case Some(topicId) =>
-        parseBody(request).flatMap {
-          case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-            errorResponse(routeError(ForumApiErrorCode.InvalidJsonObject))
-          case Right(fields) =>
-            fields.toAddReplyCommand(topicId) match {
-              case Left(error) =>
-                errorResponse(mutationApiError(error))
-              case Right(command) =>
-                service.addReply(command).flatMap {
-                  case Right(topic) =>
-                    jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
-                  case Left(error) =>
-                    errorResponse(mutationApiError(error))
-                }
-            }
-        }
-    }
-
-  private def setTopicVote(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    ForumApiTargetParsers.topicIdFrom(requestPath(request)) match {
-      case None =>
-        errorResponse(routeError(ForumApiErrorCode.TopicNotFound))
-      case Some(topicId) =>
-        parseBody(request).flatMap {
-          case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-            errorResponse(routeError(ForumApiErrorCode.InvalidJsonObject))
-          case Right(fields) =>
-            fields.toSetTopicVoteCommand(topicId) match {
-              case Left(error) =>
-                errorResponse(voteCommandApiError(error))
-              case Right(command) =>
-                service.setTopicVote(command).flatMap {
-                  case Right(topic) =>
-                    jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
-                  case Left(error) =>
-                    errorResponse(mutationApiError(error))
-                }
-            }
-        }
-    }
-
-  private def setReplyVote(request: Request[IO], service: ForumService): IO[Response[IO]] =
-    (
-      ForumApiTargetParsers.topicIdFrom(requestPath(request)),
-      ForumApiTargetParsers.replyIdFrom(requestPath(request))
-    ) match {
-      case (Some(topicId), Some(replyId)) =>
-        parseBody(request).flatMap {
-          case Left(ForumApiRequestDecodeError.InvalidJsonObject) =>
-            errorResponse(routeError(ForumApiErrorCode.InvalidJsonObject))
-          case Right(fields) =>
-            fields.toSetReplyVoteCommand(topicId, replyId) match {
-              case Left(error) =>
-                errorResponse(voteCommandApiError(error))
-              case Right(command) =>
-                service.setReplyVote(command).flatMap {
-                  case Right(topic) =>
-                    jsonOk(ForumTopicWrapperResponse.fromView(topic).asJson)
-                  case Left(error) =>
-                    errorResponse(mutationApiError(error))
-                }
-            }
-        }
-      case _ =>
-        errorResponse(routeError(ForumApiErrorCode.ReplyNotFound))
-    }
-
-  private def parseBody(request: Request[IO]): IO[Either[ForumApiRequestDecodeError, ForumRequestFields]] =
-    decodeEntityBody[ForumApiRequestDecodeError, ForumApiRequestFields](
-      request,
-      ForumApiRequestDecodeError.InvalidJsonObject
-    ).map(_.map(ForumRequestFields.fromApi))
-
-  private def viewerHandle(request: Request[IO]) =
-    ForumApiTargetParsers.resolveViewerHandle(request.params)
-
-  private def createApiError(error: services.forum.services.ForumCreateTopicError): HttpApiError = {
-    val code = ForumApiErrorMapper.createErrorCode(error)
-    routeError(code)
+  private def forumAPIMessageErrorResponse: PartialFunction[Throwable, IO[Response[IO]]] = {
+    case _: MessageFailure =>
+      errorResponse(routeError(ForumApiErrorCode.InvalidJsonObject))
+    case error: APIMessageError =>
+      errorResponse(routeError(forumApiErrorCode(error)))
   }
 
-  private def createApiError(error: ForumCreateTopicParseError): HttpApiError = {
-    val code = ForumApiErrorMapper.createErrorCode(error)
-    routeError(code)
-  }
-
-  private def mutationApiError(error: services.forum.services.ForumTopicMutationError): HttpApiError = {
-    val code = ForumApiErrorMapper.mutationErrorCode(error)
-    routeError(code)
-  }
-
-  private def mutationApiError(error: ForumTopicMutationParseError): HttpApiError = {
-    val code = ForumApiErrorMapper.mutationErrorCode(error)
-    routeError(code)
-  }
+  private def createdResponse(response: Response[IO]): Response[IO] =
+    withCors(response.withStatus(Status.Created))
 
   private def isForumPath(request: Request[IO]): Boolean =
     val path = requestPath(request)
     path.startsWith("/forum/") || path.startsWith("/api/forum/")
-
-  private def voteCommandApiError(error: ForumVoteCommandParseError): HttpApiError =
-    error match {
-      case ForumVoteCommandParseError.InvalidVote =>
-        routeError(ForumApiErrorCode.InvalidVote)
-      case ForumVoteCommandParseError.Mutation(error) =>
-        mutationApiError(error)
-    }
 
   private def routeError(code: ForumApiErrorCode): HttpApiError = {
     val wireCode = ForumApiErrorCode.wireValue(code)
@@ -205,4 +180,12 @@ private[route] object ForumHttp4sRoutes {
       message = ForumApiErrorCode.message(code)
     )
   }
+
+  private def forumApiErrorCode(error: APIMessageError): ForumApiErrorCode =
+    ForumApiErrorCode.values
+      .find(code =>
+        error.getMessage == ForumApiErrorCode.message(code) ||
+          error.getMessage == ForumApiErrorCode.wireValue(code)
+      )
+      .getOrElse(ForumApiErrorCode.InvalidJsonObject)
 }

@@ -18,8 +18,6 @@ trait APIMessageWithContext[Context, Response]:
 
 trait APIWithTokenContextMessage[Context, Response] extends APIMessageWithContext[Context, Response]
 
-trait NoRequestMessage[Response] extends APIMessage[Response]
-
 final case class APIName(value: String) extends AnyVal
 
 final case class RegisteredAPIMessage(
@@ -56,6 +54,9 @@ object APIMessage:
         IO.raiseError(APIMessageError.Unauthorized(message))
     }
 
+  def injectedUserIdJson(userId: UserId): Json =
+    Json.fromString(userId.value)
+
   def injectedUserIdValue(payload: Json): Either[String, UserId] =
     payload.hcursor.get[String]("userId") match {
       case Right(value) if value.trim.nonEmpty =>
@@ -78,14 +79,6 @@ object RegisteredAPIMessage:
     ClassTag[Message]
   ): RegisteredAPIMessage =
     build[Message, Response](requiresUserToken = true)
-
-  def apiWithTokenFromJson[Message <: APIWithTokenMessage[Response], Response](
-    buildMessage: Json => IO[Message]
-  )(using
-    Encoder[Response],
-    ClassTag[Message]
-  ): RegisteredAPIMessage =
-    buildFromJson[Message, Response](requiresUserToken = true, buildMessage)
 
   def apiWithTokenAndContext[
     Context,
@@ -140,16 +133,6 @@ object RegisteredAPIMessage:
       decodeFailure = decodeFailure
     )
 
-  def noRequest[Message <: NoRequestMessage[Response], Response](message: => Message)(using
-    Encoder[Response],
-    ClassTag[Message]
-  ): RegisteredAPIMessage =
-    RegisteredAPIMessage(
-      apiName = nameOf[Message],
-      requiresUserToken = false,
-      planJson = (_, connection) => message.plan(connection).map(_.asJson)
-    )
-
   private def build[Message <: APIMessage[Response], Response](requiresUserToken: Boolean)(using
     Decoder[Message],
     Encoder[Response],
@@ -163,23 +146,6 @@ object RegisteredAPIMessage:
           message <- IO.fromEither(
             payload.as[Message].left.map(error => APIMessageError.BadRequest(s"Invalid request body: ${error.getMessage}"))
           )
-          response <- message.plan(connection)
-        yield response.asJson
-    )
-
-  private def buildFromJson[Message <: APIMessage[Response], Response](
-    requiresUserToken: Boolean,
-    buildMessage: Json => IO[Message]
-  )(using
-    Encoder[Response],
-    ClassTag[Message]
-  ): RegisteredAPIMessage =
-    RegisteredAPIMessage(
-      apiName = nameOf[Message],
-      requiresUserToken = requiresUserToken,
-      planJson = (payload, connection) =>
-        for
-          message <- buildMessage(payload)
           response <- message.plan(connection)
         yield response.asJson
     )

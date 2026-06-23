@@ -2,9 +2,11 @@ package services.battle.microservices.results.objects.result
 
 final case class RatingDelta(value: Int) extends AnyVal
 final case class BattleResultLabel private (value: String) extends AnyVal
+final case class BattleResultFinishedAtLabel private (value: String) extends AnyVal
 final case class BattleHighlightLine private (value: String) extends AnyVal
 final case class BattlePlayersLine private (value: String) extends AnyVal
 final case class BattleTimelineHint private (value: String) extends AnyVal
+final case class BattleResultLoadoutLabel private (value: String) extends AnyVal
 final case class BattlePlacement private (value: Int) extends AnyVal
 
 object BattlePlacement {
@@ -22,6 +24,11 @@ object BattleResultLabel {
     new BattleResultLabel(Option(value).getOrElse(""))
 }
 
+object BattleResultFinishedAtLabel {
+  def fromWire(value: String): BattleResultFinishedAtLabel =
+    new BattleResultFinishedAtLabel(Option(value).getOrElse(""))
+}
+
 object BattleHighlightLine {
   def fromWire(value: String): BattleHighlightLine =
     new BattleHighlightLine(Option(value).getOrElse(""))
@@ -35,4 +42,12 @@ object BattlePlayersLine {
 object BattleTimelineHint {
   def fromWire(value: String): BattleTimelineHint =
     new BattleTimelineHint(Option(value).getOrElse(""))
+}
+
+object BattleResultLoadoutLabel {
+  def fromWire(value: String): Option[BattleResultLoadoutLabel] =
+    Option(value)
+      .map(_.trim)
+      .filter(value => value.nonEmpty && value != "null")
+      .map(new BattleResultLoadoutLabel(_))
 }

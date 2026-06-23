@@ -19,11 +19,26 @@ final case class BattleQueueStatusQuery(ticketId: TicketId)
 
 final case class BattleQueueLeaveCommand(ticketId: TicketId)
 
+enum BattleRoomStartGateAction {
+  case Keep
+  case Pause
+  case Resume
+}
+
+object BattleRoomStartGateAction {
+  def fromWire(startPaused: Option[Boolean]): BattleRoomStartGateAction =
+    startPaused match {
+      case Some(true)  => BattleRoomStartGateAction.Pause
+      case Some(false) => BattleRoomStartGateAction.Resume
+      case None        => BattleRoomStartGateAction.Keep
+    }
+}
+
 final case class RealtimeRoomHeartbeatCommand(
   roomId: Option[RoomId],
   ticketId: Option[TicketId],
   handle: Option[PlayerHandle],
-  startPaused: Option[Boolean],
+  startGateAction: BattleRoomStartGateAction,
   chatMessage: Option[BattleRoomChatText]
 )
 

@@ -40,7 +40,7 @@ private[battle] object BattleFinishProjectionReplayRules {
       handle = result.handle,
       displayName = result.displayName,
       finishedAt = result.finishedAt,
-      finishedAtLabel = result.finishedAtLabel,
+      finishedAtLabel = result.finishedAtLabel.value,
       title = title,
       modeLabel = result.modeLabel.value,
       resultLabel = replayResultLabel,
@@ -57,7 +57,7 @@ private[battle] object BattleFinishProjectionReplayRules {
       durationMs = result.durationMs,
       survivalOutcome = result.survivalOutcome,
       thumbnailDataUrl = None,
-      currentLoadout = result.currentLoadout,
+      currentLoadout = result.currentLoadout.map(_.value),
       frameCount = ReplayFrameCount.fromWire(replayFrames.frameCount),
       playbackAvailability = ReplayPlaybackAvailability.fromAvailableFlag(replayFrames.frameCount >= 2),
       framesJson = ReplayFramesJson.fromNormalized(replayFrames.json),
@@ -77,7 +77,7 @@ private[battle] object BattleFinishProjectionReplayRules {
         ratingDelta = Some(result.ratingDelta),
         ratingAfter = Some(result.ratingAfter),
         survivalOutcome = result.survivalOutcome,
-        currentLoadout = result.currentLoadout
+        currentLoadout = result.currentLoadout.map(_.value)
       )
     )
 }

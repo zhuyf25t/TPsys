@@ -4,18 +4,14 @@ import io.circe.Error
 
 import services.forum.objects.{ForumReplyId, ForumTopicId}
 import services.forum.services.ForumTopicMutationError
-import services.identity.objects.PlayerHandle
 import system.api.APIMessageError
 
 object ForumAPIMessageSupport {
-  def viewerHandle(fields: ForumRequestFields): Option[PlayerHandle] =
-    ForumApiTargetParsers.resolveViewerHandle(fields.fields)
+  def topicId(value: Option[ForumTopicId]): Either[APIMessageError, ForumTopicId] =
+    value.filter(id => id.value.trim.nonEmpty).toRight(error(ForumApiErrorCode.TopicNotFound))
 
-  def topicId(fields: ForumRequestFields): Either[APIMessageError, ForumTopicId] =
-    requiredText(fields, "topicId").map(ForumTopicId.apply).toRight(error(ForumApiErrorCode.TopicNotFound))
-
-  def replyId(fields: ForumRequestFields): Either[APIMessageError, ForumReplyId] =
-    requiredText(fields, "replyId").map(ForumReplyId.apply).toRight(error(ForumApiErrorCode.ReplyNotFound))
+  def replyId(value: Option[ForumReplyId]): Either[APIMessageError, ForumReplyId] =
+    value.filter(id => id.value.trim.nonEmpty).toRight(error(ForumApiErrorCode.ReplyNotFound))
 
   def mutationError(errorValue: ForumTopicMutationError): APIMessageError =
     error(ForumApiErrorMapper.mutationErrorCode(errorValue))
@@ -43,7 +39,4 @@ object ForumAPIMessageSupport {
       case _ =>
         APIMessageError.BadRequest(ForumApiErrorCode.message(code))
     }
-
-  private def requiredText(fields: ForumRequestFields, name: String): Option[String] =
-    Option(fields.stringValue(name)).map(_.trim).filter(_.nonEmpty)
 }

@@ -16,7 +16,9 @@ import services.battle.microservices.results.objects.result.{
   BattleHighlightLine,
   BattlePlacement,
   BattlePlayersLine,
+  BattleResultFinishedAtLabel,
   BattleResultLabel,
+  BattleResultLoadoutLabel,
   BattleResultRecord,
   BattleTimelineHint,
   RatingDelta
@@ -152,7 +154,7 @@ object BattleResultTable {
     statement.setString(3, record.handle.value)
     statement.setString(4, record.displayName.value)
     statement.setLong(5, record.finishedAt.value)
-    statement.setString(6, record.finishedAtLabel)
+    statement.setString(6, record.finishedAtLabel.value)
     statement.setLong(7, record.durationMs.value)
     statement.setInt(8, record.score.value)
     record.placement match {
@@ -170,7 +172,7 @@ object BattleResultTable {
     statement.setString(18, record.playersLine.value)
     statement.setString(19, record.timelineHint.value)
     record.currentLoadout match {
-      case Some(value) => statement.setString(20, value)
+      case Some(value) => statement.setString(20, value.value)
       case None        => statement.setNull(20, Types.VARCHAR)
     }
   }
@@ -182,7 +184,7 @@ object BattleResultTable {
       handle = PlayerHandle(resultSet.getString("handle")),
       displayName = DisplayName(resultSet.getString("display_name")),
       finishedAt = EpochMillis(resultSet.getLong("finished_at")),
-      finishedAtLabel = resultSet.getString("finished_at_label"),
+      finishedAtLabel = BattleResultFinishedAtLabel.fromWire(resultSet.getString("finished_at_label")),
       durationMs = DurationMillis(resultSet.getLong("duration_ms")),
       score = Score(resultSet.getInt("score")),
       placement = if (resultSet.wasNull()) None else BattlePlacement.fromWire(placement),
@@ -196,7 +198,7 @@ object BattleResultTable {
       highlightLine = BattleHighlightLine.fromWire(resultSet.getString("highlight_line")),
       playersLine = BattlePlayersLine.fromWire(resultSet.getString("players_line")),
       timelineHint = BattleTimelineHint.fromWire(resultSet.getString("timeline_hint")),
-      currentLoadout = Option(resultSet.getString("current_loadout"))
+      currentLoadout = BattleResultLoadoutLabel.fromWire(resultSet.getString("current_loadout"))
     )
   }
 }

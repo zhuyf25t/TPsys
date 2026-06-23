@@ -9,7 +9,7 @@ import cats.syntax.all.*
 import services.battle.microservices.runtime.services.{BattleDynamicRuleBook, BattleEngine}
 import services.battle.microservices.actors.objects.player.BattlePlayerState
 import services.battle.objects.BattlePhase
-import services.battle.microservices.session.objects.command.{
+import services.battle.microservices.runtime.objects.command.{
   BattleCommandAccepted,
   BattleCommandAcceptPath,
   BattleCommandRequest,
@@ -58,12 +58,12 @@ trait BattleStateService {
 }
 
 trait BattleRoomLifecycleSink {
-  /** 中文名：标记战斗已结束（markBattleFinished）。游戏职责：session 在权威战斗结束时通知等待房间生命周期，避�?session 反向依赖 queue 实现�?*/
+  /** 中文名：标记战斗已结束（markBattleFinished）。游戏职责：session 在权威战斗结束时通知等待房间生命周期，避�?session 反向依赖 queue 实现�?*/
   def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit]
 }
 
 object NoopBattleRoomLifecycleSink extends BattleRoomLifecycleSink {
-  /** 中文名：空房间生命周期通知（markBattleFinished）。游戏职责：测试或无队列模式下忽略战斗结束通知�?*/
+  /** 中文名：空房间生命周期通知（markBattleFinished）。游戏职责：测试或无队列模式下忽略战斗结束通知�?*/
   override def markBattleFinished(roomId: RoomId, finishedAt: EpochMillis): IO[Unit] = IO.unit
 }
 

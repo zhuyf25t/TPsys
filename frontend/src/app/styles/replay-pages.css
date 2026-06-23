@@ -422,11 +422,22 @@
 }
 
 .replay-detail__title-row h3 {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: clamp(0.9rem, 1.05vw, 1.02rem);
+}
+
+.replay-detail__exit {
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 0 10px;
+  border-color: rgba(255, 214, 112, 0.34);
+  background: rgba(255, 214, 112, 0.1);
+  color: var(--gold-0);
+  font-size: 12px;
 }
 
 .replay-detail__header-actions {

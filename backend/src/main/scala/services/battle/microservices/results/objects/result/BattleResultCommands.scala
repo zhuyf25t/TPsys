@@ -15,7 +15,7 @@ final case class BattleResultRecordCommand(
   handle: PlayerHandle,
   displayName: DisplayName,
   finishedAt: EpochMillis,
-  finishedAtLabel: String,
+  finishedAtLabel: BattleResultFinishedAtLabel,
   durationMs: DurationMillis,
   score: Score,
   placement: Option[BattlePlacement],
@@ -29,7 +29,7 @@ final case class BattleResultRecordCommand(
   highlightLine: BattleHighlightLine,
   playersLine: BattlePlayersLine,
   timelineHint: BattleTimelineHint,
-  currentLoadout: Option[String]
+  currentLoadout: Option[BattleResultLoadoutLabel]
 )
 
 final case class BattleResultListQuery(

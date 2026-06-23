@@ -24,8 +24,9 @@ import route.replay.{ReplayHttp4sRoutes, ReplayHttpModule}
 import route.social.SocialHttp4sRoutes
 import services.{BackendRepositories, BackendRepositoryFactories}
 import services.battle.BattleDynamicRuleTestDefaults
-import services.battle.microservices.session.objects.command.{
+import services.battle.microservices.runtime.objects.command.{
   BattleCommandReason,
+  BattleCommandInputState,
   BattleCommandRequest,
   BattleCommandStatus,
   BattleCommandVector
@@ -321,7 +322,7 @@ private[contract] object BattleStateRuntimeContractTest:
       roomId = Some(joined.roomId),
       ticketId = Some(joined.ticketId),
       handle = Some(PlayerHandle("Alice")),
-      startPaused = Some(true),
+      startGateAction = BattleRoomStartGateAction.Pause,
       chatMessage = None
     )).unsafeRunSync().fold(error => fail(s"pause heartbeat failed: $error"), identity)
 
@@ -351,7 +352,7 @@ private[contract] object BattleStateRuntimeContractTest:
       roomId = Some(host.roomId),
       ticketId = Some(guest.ticketId),
       handle = Some(PlayerHandle("Guest")),
-      startPaused = Some(true),
+      startGateAction = BattleRoomStartGateAction.Pause,
       chatMessage = None
     )).unsafeRunSync().fold(error => fail(s"guest pause heartbeat failed: $error"), identity)
     ContractAssertions.assertEquals("guest cannot pause start gate", guestPause.startPaused, false)
@@ -361,7 +362,7 @@ private[contract] object BattleStateRuntimeContractTest:
       roomId = Some(host.roomId),
       ticketId = Some(host.ticketId),
       handle = Some(PlayerHandle("Host")),
-      startPaused = Some(true),
+      startGateAction = BattleRoomStartGateAction.Pause,
       chatMessage = None
     )).unsafeRunSync().fold(error => fail(s"host pause heartbeat failed: $error"), identity)
     ContractAssertions.assertEquals("host can pause start gate", hostPause.startPaused, true)
@@ -372,7 +373,7 @@ private[contract] object BattleStateRuntimeContractTest:
       roomId = Some(host.roomId),
       ticketId = Some(guest.ticketId),
       handle = Some(PlayerHandle("Guest")),
-      startPaused = Some(false),
+      startGateAction = BattleRoomStartGateAction.Resume,
       chatMessage = None
     )).unsafeRunSync().fold(error => fail(s"guest resume heartbeat failed: $error"), identity)
     ContractAssertions.assertEquals("guest cannot resume start gate", guestResume.startPaused, true)
@@ -383,7 +384,7 @@ private[contract] object BattleStateRuntimeContractTest:
       roomId = Some(host.roomId),
       ticketId = Some(host.ticketId),
       handle = Some(PlayerHandle("Host")),
-      startPaused = Some(false),
+      startGateAction = BattleRoomStartGateAction.Resume,
       chatMessage = None
     )).unsafeRunSync().fold(error => fail(s"host resume heartbeat failed: $error"), identity)
     ContractAssertions.assertEquals("host resume unpauses start gate", hostResume.startPaused, false)
@@ -3085,9 +3086,11 @@ private[contract] object BattleStateRuntimeContractTest:
       clientCommandSeq = ClientCommandSeq(seq),
       movement = movement,
       aim = aim,
-      primaryHeld = primaryHeld,
-      sprint = sprint,
-      reloadPressed = reloadPressed,
+      inputState = BattleCommandInputState.fromWire(
+        primaryHeld = primaryHeld,
+        sprint = sprint,
+        reloadPressed = reloadPressed
+      ),
       skillIntents = BattleCommandSkillIntents.fromLegacyFlags(
         castDash = castDash,
         castBlink = castBlink,

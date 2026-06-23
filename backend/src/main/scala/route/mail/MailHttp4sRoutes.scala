@@ -1,39 +1,78 @@
 package route.mail
 
 import cats.effect.IO
-import io.circe.syntax.*
-import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response}
+import cats.syntax.all.*
+import org.http4s.{HttpRoutes, MessageFailure, Method, Request, Response}
 
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
-import route.Http4sCors.corsNoContent
-import route.Http4sRequestDecoders.decodeEntityBody
+import route.Http4sCors.{corsNoContent, withCors}
 import route.Http4sRequestPaths.requestPath
-import route.Http4sResponses.{errorResponse, jsonOk}
+import route.Http4sResponses.errorResponse
 import services.mail.api.{
+  MailAPIParser,
+  MailAPIMessageSupport,
   MailApiErrorCode,
-  MailCommandParsers,
-  MailOwnerQuery,
-  MailReadApiRequestDecodeError,
-  MailRequestTarget,
-  MailRouteOwnerError,
-  MailRouteReadError
+  MailListAPIMessage,
+  MailListResponse,
+  MailReadAPIMessage,
+  MailReadResponse,
+  MailRequestTarget
 }
-import services.mail.objects.apiTypes.{MailListResponse, MailReadApiRequest, MailReadResponse}
-import services.mail.services.{MailReadError, MailService}
+import services.mail.services.MailService
+import system.api.{APIMessage, APIMessageError, APIMessageRouter}
+import system.api.APIMessageRouter.APIMessageRequestAlias
+import system.api.RegisteredAPIMessage.apiWithContext
 
 private[route] object MailHttp4sRoutes {
-  import CirceEntityDecoder.*
-
   def routes(service: MailService): HttpRoutes[IO] =
+    postAliasRoutes(service) <+> getAliasRoutes(service) <+> compatibilityRoutes
+
+  private def postAliasRoutes(service: MailService): HttpRoutes[IO] =
+    APIMessageRouter.aliasRoutes(
+      apiMessages = List(
+        apiWithContext[
+          MailService,
+          MailReadAPIMessage,
+          MailReadResponse
+        ](service, MailAPIMessageSupport.invalidJsonObject)
+      ),
+      pathAliases = Map(
+        "/mails/read" -> APIMessage.apiNameFromClass[MailReadAPIMessage],
+        "/api/mails/read" -> APIMessage.apiNameFromClass[MailReadAPIMessage]
+      ),
+      responseTransform = withCors,
+      errorHandler = mailAPIMessageErrorResponse
+    )
+
+  private def getAliasRoutes(service: MailService): HttpRoutes[IO] =
+    APIMessageRouter.requestAliasRoutes(
+      apiMessages = List(
+        apiWithContext[
+          MailService,
+          MailListAPIMessage,
+          MailListResponse
+        ](service, MailAPIMessageSupport.invalidJsonObject)
+      ),
+      aliasForRequest = mailGetAlias(service),
+      errorHandler = mailAPIMessageErrorResponse
+    )
+
+  private def mailGetAlias(service: MailService)(request: Request[IO]): Option[APIMessageRequestAlias] =
+    Option.when(request.method == Method.GET && MailRequestTarget.isListPath(requestPath(request)))(
+      APIMessageRequestAlias.fromContextMessage[MailService, MailListAPIMessage, MailListResponse](
+        context = service,
+        message = MailAPIParser.listMessageFromQuery(request.params),
+        responseTransform = withCors
+      )
+    )
+
+  private def compatibilityRoutes: HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if MailRequestTarget.isListPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.GET =>
-            listMails(request, service)
           case _ =>
             errorResponse(mailApiError(MailApiErrorCode.MethodNotAllowed))
         }
@@ -41,52 +80,17 @@ private[route] object MailHttp4sRoutes {
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.POST =>
-            markRead(request, service)
           case _ =>
             errorResponse(mailApiError(MailApiErrorCode.MethodNotAllowed))
         }
     }
 
-  private def listMails(request: Request[IO], service: MailService): IO[Response[IO]] =
-    MailOwnerQuery.parseFromQuery(request.params) match {
-      case Left(error) =>
-        errorResponse(ownerApiError(error))
-      case Right(ownerHandle) =>
-        service.list(ownerHandle).flatMap(records =>
-          jsonOk(MailListResponse.fromRecords(records).asJson)
-        )
-    }
-
-  private def markRead(request: Request[IO], service: MailService): IO[Response[IO]] =
-    readReadRequest(request).flatMap {
-      case Left(MailReadApiRequestDecodeError.InvalidJsonObject) =>
-        errorResponse(mailApiError(MailApiErrorCode.InvalidJsonObject))
-      case Right(readRequest) =>
-        MailCommandParsers.parseReadCommand(readRequest) match {
-          case Left(error) =>
-            errorResponse(readApiError(error))
-          case Right(command) =>
-            service.markRead(command.ownerHandle, command.mailId).flatMap {
-              case Right(_) =>
-                jsonOk(MailReadResponse.Read.asJson)
-              case Left(MailReadError.MailNotFound) =>
-                errorResponse(mailApiError(MailApiErrorCode.MailNotFound))
-            }
-        }
-    }
-
-  private def readReadRequest(request: Request[IO]): IO[Either[MailReadApiRequestDecodeError, MailReadApiRequest]] =
-    decodeEntityBody[MailReadApiRequestDecodeError, MailReadApiRequest](
-      request,
-      MailReadApiRequestDecodeError.InvalidJsonObject
-    )
-
-  private def ownerApiError(error: MailRouteOwnerError): HttpApiError =
-    mailApiError(MailApiErrorCode.fromOwnerError(error))
-
-  private def readApiError(error: MailRouteReadError): HttpApiError =
-    mailApiError(MailApiErrorCode.fromReadError(error))
+  private def mailAPIMessageErrorResponse: PartialFunction[Throwable, IO[Response[IO]]] = {
+    case _: MessageFailure =>
+      errorResponse(mailApiError(MailApiErrorCode.InvalidJsonObject))
+    case error: APIMessageError =>
+      errorResponse(mailApiError(mailApiErrorCode(error)))
+  }
 
   private def mailApiError(code: MailApiErrorCode): HttpApiError =
     typedApiError(
@@ -94,5 +98,13 @@ private[route] object MailHttp4sRoutes {
       code = MailApiErrorCode.wireValue(code),
       message = MailApiErrorCode.message(code)
     )
+
+  private def mailApiErrorCode(error: APIMessageError): MailApiErrorCode =
+    MailApiErrorCode.values
+      .find(code =>
+        error.getMessage == MailApiErrorCode.message(code) ||
+          error.getMessage == MailApiErrorCode.wireValue(code)
+      )
+      .getOrElse(MailApiErrorCode.InvalidJsonObject)
 
 }

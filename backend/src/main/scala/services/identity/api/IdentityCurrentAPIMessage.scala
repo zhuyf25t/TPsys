@@ -2,32 +2,24 @@ package services.identity.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
 import services.identity.objects.SessionToken
-import services.identity.objects.apiTypes.{IdentityAuthResponse, IdentityCurrentApiRequest}
 import services.identity.services.IdentityService
 import system.api.APIMessageWithContext
 
 final case class IdentityCurrentAPIMessage(
-  request: IdentityCurrentApiRequest
+  session: Option[SessionToken]
 ) extends APIMessageWithContext[IdentityService, IdentityAuthResponse] {
   override def plan(service: IdentityService, connection: Connection): IO[IdentityAuthResponse] =
-    for
-      account <- service.current(sessionToken(request.session)).flatMap {
-        case Right(value) =>
-          IO.pure(value)
-        case Left(error) =>
-          IO.raiseError(IdentityAPIMessageSupport.error(IdentityApiErrorCode.fromCurrentSessionError(error)))
-      }
-    yield IdentityAuthResponse.fromAccount(account)
-
-  private def sessionToken(value: Option[String]): Option[SessionToken] =
-    value.flatMap(raw => Option(raw).map(_.trim).filter(_.nonEmpty).map(SessionToken.apply))
+    IdentityAPIPlanner.planCurrent(service, this)
 }
 
 object IdentityCurrentAPIMessage {
+  import IdentityAPIMessageDecoding.given
+
   given Decoder[IdentityCurrentAPIMessage] =
-    Decoder[IdentityCurrentApiRequest].map(IdentityCurrentAPIMessage.apply)
+    deriveDecoder[IdentityCurrentAPIMessage]
 }

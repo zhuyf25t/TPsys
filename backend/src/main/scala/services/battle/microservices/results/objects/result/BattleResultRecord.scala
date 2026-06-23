@@ -15,7 +15,7 @@ final case class BattleResultRecord(
   handle: PlayerHandle,
   displayName: DisplayName,
   finishedAt: EpochMillis,
-  finishedAtLabel: String,
+  finishedAtLabel: BattleResultFinishedAtLabel,
   durationMs: DurationMillis,
   score: Score,
   placement: Option[BattlePlacement],
@@ -29,7 +29,7 @@ final case class BattleResultRecord(
   highlightLine: BattleHighlightLine,
   playersLine: BattlePlayersLine,
   timelineHint: BattleTimelineHint,
-  currentLoadout: Option[String]
+  currentLoadout: Option[BattleResultLoadoutLabel]
 ) {
   /**
    * 中文名：结果标识（resultId）�?

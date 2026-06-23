@@ -2,28 +2,29 @@ package services.governance.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.governance.objects.apiTypes.{ContributionAdjustmentApiRequest, ContributionAdjustmentCreateResponse}
+import services.governance.objects.{GovernanceReason, GovernanceSourceLabel, GovernanceSourcePath}
 import services.governance.services.ContributionAdjustmentService
 import system.api.APIMessageWithContext
 
 final case class ContributionAdjustmentCreateAPIMessage(
-  request: ContributionAdjustmentApiRequest
+  actorHandle: GovernanceAdminInput,
+  targetHandle: GovernanceAdjustmentTargetInput,
+  delta: ContributionDeltaInput,
+  reason: Option[GovernanceReason],
+  sourceLabel: Option[GovernanceSourceLabel],
+  sourcePath: Option[GovernanceSourcePath]
 ) extends APIMessageWithContext[ContributionAdjustmentService, ContributionAdjustmentCreateResponse] {
   override def plan(service: ContributionAdjustmentService, connection: Connection): IO[ContributionAdjustmentCreateResponse] =
-    for
-      command <- IO.fromEither(
-        GovernanceCommandParsers.parseContributionAdjustmentApiRequest(request).left.map(error =>
-          GovernanceAPIMessageSupport.error(GovernanceApiErrorCode.fromContributionAdjustmentError(error))
-        )
-      )
-      result <- service.create(command)
-    yield ContributionAdjustmentCreateResponse.fromResult(result)
+    GovernanceAPIPlanner.planContributionAdjustmentCreate(service, this)
 }
 
 object ContributionAdjustmentCreateAPIMessage {
+  import GovernanceAPIMessageDecoding.given
+
   given Decoder[ContributionAdjustmentCreateAPIMessage] =
-    Decoder[ContributionAdjustmentApiRequest].map(ContributionAdjustmentCreateAPIMessage.apply)
+    deriveDecoder[ContributionAdjustmentCreateAPIMessage]
 }

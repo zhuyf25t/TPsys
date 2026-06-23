@@ -13,7 +13,7 @@ import services.battle.microservices.world.objects.world.BattleArenaContext
 import services.battle.microservices.world.services.{BattleArenaCatalog, BattleInitialLayout}
 import services.battle.microservices.abilities.services.BattleSkillCommandRules.CommandApplication
 import services.battle.microservices.runtime.services.BattleReplayFrameRecorder
-import services.battle.microservices.session.objects.command.BattleCommandRequest
+import services.battle.microservices.runtime.objects.command.BattleCommandRequest
 import services.battle.objects.{
   BattleAggregateState,
   BattleMapId,

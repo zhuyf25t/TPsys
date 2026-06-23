@@ -19,7 +19,7 @@ import services.battle.microservices.actors.objects.player.BattlePlayerState
 import services.battle.objects.BattleAggregateState
 import services.battle.objects.core.{BattleVector2, Radius}
 import services.battle.microservices.abilities.objects.skill.SkillKind
-import services.battle.microservices.session.objects.command.BattleCommandRequest
+import services.battle.microservices.runtime.objects.command.BattleCommandRequest
 
 private[battle] object BattleCommandApplicationRules {
   def applyCommand(

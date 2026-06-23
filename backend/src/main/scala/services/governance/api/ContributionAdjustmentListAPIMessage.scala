@@ -2,23 +2,24 @@ package services.governance.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.governance.objects.apiTypes.{ContributionAdjustmentListApiRequest, ContributionAdjustmentListResponse}
+import services.governance.objects.GovernanceListLimit
 import services.governance.services.ContributionAdjustmentService
 import system.api.APIMessageWithContext
 
 final case class ContributionAdjustmentListAPIMessage(
-  request: ContributionAdjustmentListApiRequest
+  limit: Option[GovernanceListLimit]
 ) extends APIMessageWithContext[ContributionAdjustmentService, ContributionAdjustmentListResponse] {
   override def plan(service: ContributionAdjustmentService, connection: Connection): IO[ContributionAdjustmentListResponse] =
-    for
-      records <- service.list(GovernanceQueryParsers.parseContributionAdjustmentLimitRequest(request))
-    yield ContributionAdjustmentListResponse.fromRecords(records)
+    GovernanceAPIPlanner.planContributionAdjustmentList(service, this)
 }
 
 object ContributionAdjustmentListAPIMessage {
+  import GovernanceAPIMessageDecoding.given
+
   given Decoder[ContributionAdjustmentListAPIMessage] =
-    Decoder[ContributionAdjustmentListApiRequest].map(ContributionAdjustmentListAPIMessage.apply)
+    deriveDecoder[ContributionAdjustmentListAPIMessage]
 }

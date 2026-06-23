@@ -1,51 +1,127 @@
 package route.governance
 
 import cats.effect.IO
-import io.circe.syntax.*
-import org.http4s.circe.CirceEntityDecoder
-import org.http4s.{HttpRoutes, Method, Request, Response}
+import cats.syntax.all.*
+import org.http4s.{HttpRoutes, MessageFailure, Method, Request, Response}
 
 import services.governance.api.{
-  ContributionAdjustmentCommandParseError,
-  GovernanceApiErrorCode,
-  GovernanceCommandParsers,
-  GovernanceNotificationListQueryParseResult,
-  GovernanceQueryParsers,
-  GovernanceRequestTarget,
-  GovernanceReviewNotificationCommandParseError
-}
-import services.governance.objects.apiTypes.{
-  ContributionAdjustmentApiRequest,
+  ContributionAdjustmentCreateAPIMessage,
   ContributionAdjustmentCreateResponse,
+  ContributionAdjustmentListAPIMessage,
   ContributionAdjustmentListResponse,
-  GovernanceReviewNotificationApiRequest,
+  GovernanceAPIMessageSupport,
+  GovernanceAPIParser,
+  GovernanceApiErrorCode,
+  GovernanceRequestTarget,
+  GovernanceReviewNotificationCreateAPIMessage,
   GovernanceReviewNotificationCreateResponse,
+  GovernanceReviewNotificationListAPIMessage,
   GovernanceReviewNotificationListResponse
 }
 import services.governance.services.{ContributionAdjustmentService, GovernanceNotificationService}
 import route.HttpApiError
 import route.HttpApiErrors.typedApiError
-import route.Http4sCors.corsNoContent
-import route.Http4sRequestDecoders.decodeEntityBody
+import route.Http4sCors.{corsNoContent, withCors}
 import route.Http4sRequestPaths.requestPath
-import route.Http4sResponses.{errorResponse, jsonOk}
+import route.Http4sResponses.errorResponse
+import system.api.{APIMessage, APIMessageError, APIMessageRouter}
+import system.api.APIMessageRouter.APIMessageRequestAlias
+import system.api.RegisteredAPIMessage.apiWithContext
 
 private[route] object GovernanceHttp4sRoutes {
-  import CirceEntityDecoder.*
-
   def routes(
     contributionAdjustmentService: ContributionAdjustmentService,
     notificationService: GovernanceNotificationService
   ): HttpRoutes[IO] =
+    postAliasRoutes(contributionAdjustmentService, notificationService) <+>
+      getAliasRoutes(contributionAdjustmentService, notificationService) <+>
+      compatibilityRoutes
+
+  private def postAliasRoutes(
+    contributionAdjustmentService: ContributionAdjustmentService,
+    notificationService: GovernanceNotificationService
+  ): HttpRoutes[IO] =
+    APIMessageRouter.aliasRoutes(
+      apiMessages = List(
+        apiWithContext[
+          ContributionAdjustmentService,
+          ContributionAdjustmentCreateAPIMessage,
+          ContributionAdjustmentCreateResponse
+        ](contributionAdjustmentService, GovernanceAPIMessageSupport.invalidJsonObject),
+        apiWithContext[
+          GovernanceNotificationService,
+          GovernanceReviewNotificationCreateAPIMessage,
+          GovernanceReviewNotificationCreateResponse
+        ](notificationService, GovernanceAPIMessageSupport.invalidJsonObject)
+      ),
+      pathAliases = Map(
+        "/governance/contribution-adjustments" -> APIMessage.apiNameFromClass[ContributionAdjustmentCreateAPIMessage],
+        "/api/governance/contribution-adjustments" -> APIMessage.apiNameFromClass[ContributionAdjustmentCreateAPIMessage],
+        "/governance/admin-notifications" -> APIMessage.apiNameFromClass[GovernanceReviewNotificationCreateAPIMessage],
+        "/api/governance/admin-notifications" -> APIMessage.apiNameFromClass[GovernanceReviewNotificationCreateAPIMessage]
+      ),
+      responseTransform = withCors,
+      errorHandler = governanceAPIMessageErrorResponse
+    )
+
+  private def getAliasRoutes(
+    contributionAdjustmentService: ContributionAdjustmentService,
+    notificationService: GovernanceNotificationService
+  ): HttpRoutes[IO] =
+    APIMessageRouter.requestAliasRoutes(
+      apiMessages = List(
+        apiWithContext[
+          ContributionAdjustmentService,
+          ContributionAdjustmentListAPIMessage,
+          ContributionAdjustmentListResponse
+        ](contributionAdjustmentService, GovernanceAPIMessageSupport.invalidJsonObject),
+        apiWithContext[
+          GovernanceNotificationService,
+          GovernanceReviewNotificationListAPIMessage,
+          GovernanceReviewNotificationListResponse
+        ](notificationService, GovernanceAPIMessageSupport.invalidJsonObject)
+      ),
+      aliasForRequest = governanceGetAlias(contributionAdjustmentService, notificationService),
+      errorHandler = governanceAPIMessageErrorResponse
+    )
+
+  private def governanceGetAlias(
+    contributionAdjustmentService: ContributionAdjustmentService,
+    notificationService: GovernanceNotificationService
+  )(request: Request[IO]): Option[APIMessageRequestAlias] =
+    if request.method != Method.GET then None
+    else if GovernanceRequestTarget.isContributionAdjustmentPath(requestPath(request)) then
+      Some(
+        APIMessageRequestAlias.fromContextMessage[
+          ContributionAdjustmentService,
+          ContributionAdjustmentListAPIMessage,
+          ContributionAdjustmentListResponse
+        ](
+          context = contributionAdjustmentService,
+          message = GovernanceAPIParser.contributionAdjustmentListMessageFromQuery(request.params),
+          responseTransform = withCors
+        )
+      )
+    else if GovernanceRequestTarget.isAdminNotificationPath(requestPath(request)) then
+      Some(
+        APIMessageRequestAlias.fromContextMessage[
+          GovernanceNotificationService,
+          GovernanceReviewNotificationListAPIMessage,
+          GovernanceReviewNotificationListResponse
+        ](
+          context = notificationService,
+          message = GovernanceAPIParser.reviewNotificationListMessageFromQuery(request.params),
+          responseTransform = withCors
+        )
+      )
+    else None
+
+  private def compatibilityRoutes: HttpRoutes[IO] =
     HttpRoutes.of[IO] {
       case request if GovernanceRequestTarget.isContributionAdjustmentPath(requestPath(request)) =>
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.GET =>
-            listContributionAdjustments(request, contributionAdjustmentService)
-          case Method.POST =>
-            createContributionAdjustment(request, contributionAdjustmentService)
           case _ =>
             errorResponse(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed))
         }
@@ -53,89 +129,17 @@ private[route] object GovernanceHttp4sRoutes {
         request.method match {
           case Method.OPTIONS =>
             corsNoContent
-          case Method.GET =>
-            listAdminNotifications(request, notificationService)
-          case Method.POST =>
-            createAdminNotification(request, notificationService)
           case _ =>
             errorResponse(governanceApiError(GovernanceApiErrorCode.MethodNotAllowed))
         }
     }
 
-  private def listContributionAdjustments(
-    request: Request[IO],
-    service: ContributionAdjustmentService
-  ): IO[Response[IO]] = {
-    val limit = GovernanceRequestTarget.contributionAdjustmentLimitFromQuery(request.params)
-    service.list(limit).flatMap(records =>
-      jsonOk(ContributionAdjustmentListResponse.fromRecords(records).asJson)
-    )
+  private def governanceAPIMessageErrorResponse: PartialFunction[Throwable, IO[Response[IO]]] = {
+    case _: MessageFailure =>
+      errorResponse(governanceApiError(GovernanceApiErrorCode.InvalidJsonObject))
+    case error: APIMessageError =>
+      errorResponse(governanceApiError(governanceApiErrorCode(error)))
   }
-
-  private def createContributionAdjustment(
-    request: Request[IO],
-    service: ContributionAdjustmentService
-  ): IO[Response[IO]] =
-    decodeEntityBody[GovernanceApiErrorCode, ContributionAdjustmentApiRequest](
-      request,
-      GovernanceApiErrorCode.InvalidJsonObject
-    ).flatMap {
-      case Left(errorCode) =>
-        errorResponse(governanceApiError(errorCode))
-      case Right(parsedRequest) =>
-        GovernanceCommandParsers.parseContributionAdjustmentApiRequest(parsedRequest) match {
-          case Left(error) =>
-            errorResponse(contributionAdjustmentApiError(error))
-          case Right(command) =>
-            service.create(command).flatMap(result =>
-              jsonOk(ContributionAdjustmentCreateResponse.fromResult(result).asJson)
-            )
-        }
-    }
-
-  private def listAdminNotifications(
-    request: Request[IO],
-    service: GovernanceNotificationService
-  ): IO[Response[IO]] =
-    GovernanceRequestTarget.notificationListFromQuery(request.params) match {
-      case GovernanceNotificationListQueryParseResult.EmptyResults =>
-        jsonOk(GovernanceReviewNotificationListResponse.fromRecords(Vector.empty).asJson)
-      case GovernanceNotificationListQueryParseResult.Query(query) =>
-        service
-          .listReviewNotifications(
-            kind = query.kind,
-            targetType = query.targetType,
-            limit = query.limit
-          )
-          .flatMap(records => jsonOk(GovernanceReviewNotificationListResponse.fromRecords(records).asJson))
-    }
-
-  private def createAdminNotification(
-    request: Request[IO],
-    service: GovernanceNotificationService
-  ): IO[Response[IO]] =
-    decodeEntityBody[GovernanceApiErrorCode, GovernanceReviewNotificationApiRequest](
-      request,
-      GovernanceApiErrorCode.InvalidJsonObject
-    ).flatMap {
-      case Left(errorCode) =>
-        errorResponse(governanceApiError(errorCode))
-      case Right(parsedRequest) =>
-        GovernanceCommandParsers.parseReviewNotificationApiRequest(parsedRequest) match {
-          case Left(error) =>
-            errorResponse(reviewNotificationApiError(error))
-          case Right(command) =>
-            service.createReviewNotification(command).flatMap(result =>
-              jsonOk(GovernanceReviewNotificationCreateResponse.fromResult(result).asJson)
-            )
-        }
-    }
-
-  private def contributionAdjustmentApiError(error: ContributionAdjustmentCommandParseError): HttpApiError =
-    governanceApiError(GovernanceApiErrorCode.fromContributionAdjustmentError(error))
-
-  private def reviewNotificationApiError(error: GovernanceReviewNotificationCommandParseError): HttpApiError =
-    governanceApiError(GovernanceApiErrorCode.fromReviewNotificationError(error))
 
   private def governanceApiError(code: GovernanceApiErrorCode): HttpApiError =
     typedApiError(
@@ -143,5 +147,13 @@ private[route] object GovernanceHttp4sRoutes {
       code = GovernanceApiErrorCode.wireValue(code),
       message = GovernanceApiErrorCode.message(code)
     )
+
+  private def governanceApiErrorCode(error: APIMessageError): GovernanceApiErrorCode =
+    GovernanceApiErrorCode.values
+      .find(code =>
+        error.getMessage == GovernanceApiErrorCode.message(code) ||
+          error.getMessage == GovernanceApiErrorCode.wireValue(code)
+      )
+      .getOrElse(GovernanceApiErrorCode.InvalidJsonObject)
 
 }

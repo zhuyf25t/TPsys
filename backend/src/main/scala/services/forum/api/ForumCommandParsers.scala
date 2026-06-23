@@ -8,7 +8,6 @@ import services.forum.objects.{
   ForumTopicId,
   ForumVoteChoice
 }
-import services.forum.objects.apiTypes.ForumVoteFieldPresence
 import services.forum.services.{
   AddForumReplyCommand,
   CreateForumTopicCommand,
@@ -16,54 +15,57 @@ import services.forum.services.{
   SetForumTopicVoteCommand
 }
 import services.identity.objects.PlayerHandle
-import system.policies.HandlePolicy
 
 object ForumCommandParsers {
-  def parseVote(fields: ForumRequestFields): Either[ForumVoteParseError, Option[ForumVoteChoice]] =
-    (fields.votePresence, fields.fields.get("vote")) match {
-      case (ForumVoteFieldPresence.Missing, None) =>
+  def parseVote(vote: ForumVoteInput): Either[ForumVoteParseError, Option[ForumVoteChoice]] =
+    vote match {
+      case ForumVoteInput.Cleared =>
         Right(None)
-      case (_, Some(raw)) if raw.trim.isEmpty =>
-        Right(None)
-      case (_, Some(raw)) =>
-        ForumVoteChoice.fromWire(raw).map(Some(_)).toRight(ForumVoteParseError.InvalidVote)
-      case (ForumVoteFieldPresence.Present, None) =>
-        Right(None)
+      case ForumVoteInput.Selected(choice) =>
+        Right(Some(choice))
+      case ForumVoteInput.Invalid =>
+        Left(ForumVoteParseError.InvalidVote)
     }
 
-  def parseCreateTopicCommand(fields: ForumRequestFields): Either[ForumCreateTopicParseError, CreateForumTopicCommand] =
+  def parseCreateTopicCommand(
+    title: ForumTitle,
+    body: ForumBody,
+    tag: ForumTag,
+    authorHandle: ForumAuthorInput
+  ): Either[ForumCreateTopicParseError, CreateForumTopicCommand] =
     for
-      title <- parseTitle(fields.stringValue("title"))
-      body <- parseCreateBody(fields.stringValue("body"))
-      tag <- parseTag(fields.stringValue("tag"))
-      author <- parseCreateAuthor(fields.stringValue("author"))
+      parsedTitle <- parseTitle(title.value)
+      parsedBody <- parseCreateBody(body.value)
+      parsedTag <- parseTag(tag.value)
+      author <- parseCreateAuthor(authorHandle)
     yield CreateForumTopicCommand(
-      title = title,
-      body = body,
-      tag = tag,
+      title = parsedTitle,
+      body = parsedBody,
+      tag = parsedTag,
       authorHandle = author
     )
 
   def parseAddReplyCommand(
     topicId: ForumTopicId,
-    fields: ForumRequestFields
+    body: ForumBody,
+    authorHandle: ForumAuthorInput
   ): Either[ForumTopicMutationParseError, AddForumReplyCommand] =
     for
-      body <- parseReplyBody(fields.stringValue("body"))
-      author <- parseMutationAuthor(fields.stringValue("author"))
+      parsedBody <- parseReplyBody(body.value)
+      author <- parseMutationAuthor(authorHandle)
     yield AddForumReplyCommand(
       topicId = topicId,
-      body = body,
+      body = parsedBody,
       authorHandle = author
     )
 
   def parseSetTopicVoteCommand(
     topicId: ForumTopicId,
-    fields: ForumRequestFields,
+    authorHandle: ForumAuthorInput,
     vote: Option[ForumVoteChoice]
   ): Either[ForumTopicMutationParseError, SetForumTopicVoteCommand] =
     for
-      author <- parseMutationAuthor(fields.stringValue("author"))
+      author <- parseMutationAuthor(authorHandle)
     yield SetForumTopicVoteCommand(
       topicId = topicId,
       authorHandle = author,
@@ -73,11 +75,11 @@ object ForumCommandParsers {
   def parseSetReplyVoteCommand(
     topicId: ForumTopicId,
     replyId: ForumReplyId,
-    fields: ForumRequestFields,
+    authorHandle: ForumAuthorInput,
     vote: Option[ForumVoteChoice]
   ): Either[ForumTopicMutationParseError, SetForumReplyVoteCommand] =
     for
-      author <- parseMutationAuthor(fields.stringValue("author"))
+      author <- parseMutationAuthor(authorHandle)
     yield SetForumReplyVoteCommand(
       topicId = topicId,
       replyId = replyId,
@@ -97,19 +99,19 @@ object ForumCommandParsers {
   private def parseTag(value: String): Either[ForumCreateTopicParseError, ForumTag] =
     Option(value).map(_.trim).filter(_.nonEmpty).map(ForumTag.apply).toRight(ForumCreateTopicParseError.InvalidTag)
 
-  private def parseCreateAuthor(value: String): Either[ForumCreateTopicParseError, PlayerHandle] = {
-    val trimmed = HandlePolicy.trim(value)
-    if trimmed.isEmpty then Left(ForumCreateTopicParseError.InvalidAuthor)
-    else if HandlePolicy.isVisitorLikeHandle(trimmed) then Left(ForumCreateTopicParseError.VisitorNotAllowed)
-    else PlayerHandle.forLookup(trimmed).toRight(ForumCreateTopicParseError.InvalidAuthor)
-  }
+  private def parseCreateAuthor(value: ForumAuthorInput): Either[ForumCreateTopicParseError, PlayerHandle] =
+    value match {
+      case ForumAuthorInput.Valid(handle)      => Right(handle)
+      case ForumAuthorInput.Invalid            => Left(ForumCreateTopicParseError.InvalidAuthor)
+      case ForumAuthorInput.VisitorNotAllowed => Left(ForumCreateTopicParseError.VisitorNotAllowed)
+    }
 
-  private def parseMutationAuthor(value: String): Either[ForumTopicMutationParseError, PlayerHandle] = {
-    val trimmed = HandlePolicy.trim(value)
-    if trimmed.isEmpty then Left(ForumTopicMutationParseError.InvalidAuthor)
-    else if HandlePolicy.isVisitorLikeHandle(trimmed) then Left(ForumTopicMutationParseError.VisitorNotAllowed)
-    else PlayerHandle.forLookup(trimmed).toRight(ForumTopicMutationParseError.InvalidAuthor)
-  }
+  private def parseMutationAuthor(value: ForumAuthorInput): Either[ForumTopicMutationParseError, PlayerHandle] =
+    value match {
+      case ForumAuthorInput.Valid(handle)      => Right(handle)
+      case ForumAuthorInput.Invalid            => Left(ForumTopicMutationParseError.InvalidAuthor)
+      case ForumAuthorInput.VisitorNotAllowed => Left(ForumTopicMutationParseError.VisitorNotAllowed)
+    }
 }
 
 enum ForumCreateTopicParseError {

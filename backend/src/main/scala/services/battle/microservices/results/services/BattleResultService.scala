@@ -59,12 +59,7 @@ object BattleResultService {
   }
 
   private def buildRecord(command: BattleResultRecordCommand, handle: PlayerHandle): IO[BattleResultRecord] =
-    for
-      currentLoadout <- command.currentLoadout match {
-        case Some(value) => nonEmpty(value)
-        case None        => IO.pure(None)
-      }
-    yield BattleResultRecord(
+    IO.pure(BattleResultRecord(
       battleId = command.battleId,
       handle = handle,
       displayName = command.displayName,
@@ -83,9 +78,6 @@ object BattleResultService {
       highlightLine = command.highlightLine,
       playersLine = command.playersLine,
       timelineHint = command.timelineHint,
-      currentLoadout = currentLoadout
-    )
-
-  private def nonEmpty(value: String): IO[Option[String]] =
-    IO.pure(Option(value).map(_.trim).filter(_.nonEmpty))
+      currentLoadout = command.currentLoadout
+    ))
 }

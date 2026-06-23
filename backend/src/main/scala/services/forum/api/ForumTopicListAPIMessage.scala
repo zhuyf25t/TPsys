@@ -2,23 +2,29 @@ package services.forum.api
 
 import cats.effect.IO
 import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 
 import java.sql.Connection
 
-import services.forum.objects.apiTypes.{ForumApiRequestFields, ForumTopicListResponse}
+import services.identity.objects.PlayerHandle
 import services.forum.services.ForumService
 import system.api.APIMessageWithContext
 
 final case class ForumTopicListAPIMessage(
-  fields: ForumRequestFields
+  viewerHandle: Option[ForumViewerHandleInput],
+  viewer: Option[ForumViewerHandleInput],
+  author: Option[ForumViewerHandleInput]
 ) extends APIMessageWithContext[ForumService, ForumTopicListResponse] {
+  def selectedViewer: Option[PlayerHandle] =
+    viewerHandle.orElse(viewer).orElse(author).flatMap(_.value)
+
   override def plan(service: ForumService, connection: Connection): IO[ForumTopicListResponse] =
-    for
-      topics <- service.listTopics(ForumAPIMessageSupport.viewerHandle(fields))
-    yield ForumTopicListResponse.fromViews(topics)
+    ForumAPIPlanner.planTopicList(service, this)
 }
 
 object ForumTopicListAPIMessage {
+  import ForumAPIMessageDecoding.given
+
   given Decoder[ForumTopicListAPIMessage] =
-    Decoder[ForumApiRequestFields].map(fields => ForumTopicListAPIMessage(ForumRequestFields.fromApi(fields)))
+    deriveDecoder[ForumTopicListAPIMessage]
 }

@@ -10,9 +10,7 @@ import services.replay.api.{
   ReplayCommentCreateAPIMessage,
   ReplayCommentsAPIMessage,
   ReplayDetailAPIMessage,
-  ReplayRecordAPIMessage
-}
-import services.replay.objects.apiTypes.{
+  ReplayRecordAPIMessage,
   ReplayCatalogResponse,
   ReplayCommentWrapperResponse,
   ReplayCommentsResponse,
